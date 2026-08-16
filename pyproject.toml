@@ -1,0 +1,118 @@
+[project]
+name = "pharmacydomain"
+version = "0.1.0"
+description = "A FastAPI application for PharmacyDomain."
+readme = "README.md"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "fastapi>=0.115,<1.0",
+    "uvicorn[standard]>=0.30,<1.0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=2.3,<3.0",
+    "pytest>=8.0,<9.0",
+    "pytest-asyncio>=0.24,<1.0",
+    "ruff>=0.12,<1.0",
+]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+extend-exclude = [
+    "graphify-out",
+]
+
+[tool.ruff.lint]
+select = [
+    "E4",   # pycodestyle: import and syntax errors
+    "E7",   # pycodestyle: statement errors
+    "E9",   # pycodestyle: runtime errors
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "RUF",  # Ruff-specific rules
+]
+ignore = [
+    "RUF001",  # 日本語の文字列に含まれる全角記号を許容する
+    "RUF002",  # 日本語の docstring に含まれる全角記号を許容する
+    "RUF003",  # 日本語のコメントに含まれる全角記号を許容する
+]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "app",
+    "tests",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+docstring-code-format = true
+
+[tool.mypy]
+python_version = "3.14"
+# 型注釈の抜けを検出できないと「mypy が通った」という情報に意味が無くなるため strict で運用する。
+strict = true
+
+[tool.lcom]
+# 1メソッドだけのUseCaseはLCOM4の判定対象から除外する。
+paths = ["app/application"]
+threshold = 2
+min_methods = 2
+
+[tool.import_rules]
+# AGENTS.md の「依存の向き」「Applicationコンテキストの依存」を実行可能な形にしたもの。
+# Store / Staff / Patient は CorporateAccessBoundary（Protocol）にだけ依存し、
+# 法人コンテキストの実装には依存しない。
+root = "."
+paths = ["app"]
+
+[tool.import_rules.forbidden]
+# Shared Kernel は、それを利用する側のコンテキストに依存しない。
+"app.base" = ["app.domain", "app.application", "fastapi", "sqlalchemy"]
+# Domain層は Application層・Web/DBフレームワークに一切依存しない。
+"app.domain" = ["app.application", "fastapi", "sqlalchemy"]
+# 認可基盤は個別コンテキストに依存しない（leafを維持する）。
+"app.application.access_control" = [
+    "app.application.corporate",
+    "app.application.store",
+    "app.application.staff",
+    "app.application.patient",
+]
+# Corporate は他のApplicationコンテキストに依存しない。
+"app.application.corporate" = [
+    "app.application.store",
+    "app.application.staff",
+    "app.application.patient",
+]
+# Store は Staff にも法人コンテキストの実装にも依存しない。
+"app.application.store" = [
+    "app.application.staff",
+    "app.application.corporate",
+    "app.application.patient",
+]
+# Staff は法人コンテキストの実装に依存しない（Store への依存は一方向で許可）。
+"app.application.staff" = [
+    "app.application.corporate",
+    "app.application.patient",
+]
+# Patient は他のApplicationコンテキストに依存しない。
+"app.application.patient" = [
+    "app.application.corporate",
+    "app.application.store",
+    "app.application.staff",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+# ライブラリ内部から出る非推奨警告を無視する
+filterwarnings = [
+    "ignore::DeprecationWarning:pytest_asyncio.*",
+]

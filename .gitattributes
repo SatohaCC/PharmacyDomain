@@ -1,0 +1,7 @@
+# 改行コードの正規化ルール。
+#
+# pyproject.toml の [tool.ruff.format] で line-ending = "lf" を指定しているため、
+# リポジトリ側も LF に統一する。text=auto で git がテキスト/バイナリを自動判定し、
+# eol=lf でコミット時・チェックアウト時とも LF を強制するので、
+# 各自のエディタや OS の設定に依存せず改行コードが揃う。
+* text=auto eol=lf
