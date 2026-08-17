@@ -83,29 +83,71 @@ paths = ["app"]
     "app.application.store",
     "app.application.staff",
     "app.application.patient",
+    "app.application.coverage",
+    "app.application.claim",
 ]
 # Corporate は他のApplicationコンテキストに依存しない。
 "app.application.corporate" = [
     "app.application.store",
     "app.application.staff",
     "app.application.patient",
+    "app.application.coverage",
+    "app.application.claim",
 ]
 # Store は Staff にも法人コンテキストの実装にも依存しない。
 "app.application.store" = [
     "app.application.staff",
     "app.application.corporate",
     "app.application.patient",
+    "app.application.coverage",
+    "app.application.claim",
 ]
 # Staff は法人コンテキストの実装に依存しない（Store への依存は一方向で許可）。
 "app.application.staff" = [
     "app.application.corporate",
     "app.application.patient",
+    "app.application.coverage",
+    "app.application.claim",
 ]
 # Patient は他のApplicationコンテキストに依存しない。
 "app.application.patient" = [
     "app.application.corporate",
     "app.application.store",
     "app.application.staff",
+    "app.application.coverage",
+    "app.application.claim",
+]
+# Coverage は法人・PatientのApplication実装に依存せず、ID参照と境界Protocolだけを使う。
+"app.application.coverage" = [
+    "app.application.corporate",
+    "app.application.store",
+    "app.application.staff",
+    "app.application.patient",
+    "app.application.claim",
+]
+# Claimは他コンテキストのApplication実装へ依存せず、参照Boundaryへ依存する。
+"app.application.claim" = [
+    "app.application.corporate",
+    "app.application.store",
+    "app.application.staff",
+    "app.application.patient",
+    "app.application.coverage",
+]
+# CoverageはPatientのAggregate/Repositoryを直接参照せず、資格自身のIDと境界だけを扱う。
+"app.domain.coverage" = [
+    "app.domain.claim",
+    "app.domain.patient.patient",
+    "app.domain.patient.external_identifier",
+    "app.domain.patient.repository",
+]
+# ClaimはCoverage・Patient・Storeの集約やRepositoryを直接参照せず、スナップショットとIDだけを扱う。
+"app.domain.claim" = [
+    "app.domain.coverage",
+    "app.domain.patient.patient",
+    "app.domain.patient.external_identifier",
+    "app.domain.patient.repository",
+    "app.domain.store.store",
+    "app.domain.store.repository",
 ]
 
 [tool.pytest.ini_options]

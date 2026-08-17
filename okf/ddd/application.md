@@ -22,8 +22,8 @@ Application層は、外部から受け取った入力をドメインモデルの
 - 永続化はRepositoryの抽象に依存し、データベースやWebフレームワークをApplication層へ持ち込まない。
 - 複数ユースケースに共通する処理は小さなヘルパー（`support.py`）へ切り出す。ただし、全ユースケースを1つの巨大なサービスへ統合しない。
 - 認証済み操作主体は `ActorContext` として認証基盤から受け取り、Command / Queryの対象法人IDとは分離する。未信頼のHTTP入力からActorContextを生成しない。
-- Store / Staff / Patient は法人アクセス境界を Protocol（`CorporateAccessBoundary`）として受け取り、法人コンテキストの実装には依存しない。実装を注入するのは Composition Root。
-- 依存は `staff` → `store` → `access_control`、`patient` → `access_control`、`corporate` → `access_control` の一方向のみ。逆向きの import は `tools/check_imports.py` が検出する。
+- Store / Staff / Patient / Coverage / Claim は法人アクセス境界を Protocol（`CorporateAccessBoundary`）として受け取り、法人コンテキストの実装には依存しない。実装を注入するのは Composition Root。Coverageは `PatientReferenceBoundary` で患者IDの存在だけを確認し、Patient Aggregateを受け取らない。Claimは `CoverageSnapshotBoundary` で資格を請求側の値へ変換し、資格台帳やPatient/StoreのAggregateを受け取らない。
+- 依存は `staff` → `store` → `access_control`、`patient` → `access_control`、`coverage` → `access_control`、`claim` → `access_control`、`corporate` → `access_control` の一方向のみ。Domain層でもCoverageからPatient Aggregate/Repository、ClaimからCoverage・Patient・Store Aggregate/Repositoryへの直接importを禁止し、`tools/check_imports.py` で検出する。
 
 Application層の責務は「何を、どの順番で呼ぶか」です。法人名の重複や法人名の妥当性などの判断は、Domain層へ委譲します。
 
@@ -37,9 +37,9 @@ Application層の責務は「何を、どの順番で呼ぶか」です。法人
 | Repository | `CorporateRepository`、`StoreRepository`、`StaffRepository`、`PatientRepository` | 集約の取得・保存・検索を抽象化する |
 | Catalog Repository | `StoreCatalogRepository`、`StaffCatalogRepository` | 一覧系ユースケースが使う列挙操作 |
 | Domain Service | `CorporateNameUniquenessService`、`StaffStoreAssignmentService` など | リポジトリを使う一意性ルールや集約間ルールを実行する |
-| Access Control | `ActorContext`、`AuthorizationService`、`CorporateAccessBoundary`（`access_control/`）、`CorporateAccessService`（`corporate/`） | 操作主体のロール・法人スコープ、対象法人の存在・有効状態を検証する |
-| Response DTO | `CorporateResponseDto`、`StoreDto` / `StoreSummaryDto`、`StaffDto` / `StaffSummaryDto`、`PatientDto` | APIや画面へ返す読み取り専用のデータを表現する |
-| 共通処理 | `load_corporate_or_raise()`、`load_active_corporate_or_raise()`、`load_store_or_raise()`、`load_staff_or_raise()`、`to_optional_text()` | 集約取得・法人の有効状態検証・未存在時の例外処理・任意項目の正規化を共通化する |
+| Access Control | `ActorContext`、`AuthorizationService`、`CorporateAccessBoundary`（`access_control/`）、`CorporateAccessService`（`corporate/`） | 操作主体のロール・法人スコープ、対象法人の存在・有効状態を検証する。資格台帳とClaim利用履歴の権限を分離する |
+| Response DTO | `CorporateResponseDto`、`StoreDto` / `StoreSummaryDto`、`StaffDto` / `StaffSummaryDto`、`PatientDto`、`PatientExternalIdentifierDto`、`PatientCoverageDto` | APIや画面へ返す読み取り専用のデータを表現する |
+| 共通処理 | `load_corporate_or_raise()`、`load_active_corporate_or_raise()`、`load_store_or_raise()`、`load_staff_or_raise()`、`load_patient_or_raise()`、`load_coverage_or_raise()`、`to_optional_text()`（`app/base/application/support.py`） | 集約取得・法人の有効状態検証・未存在時の例外処理・任意項目の正規化を共通化する |
 
 Command / Query / Response DTO はいずれも `@dataclass(frozen=True, kw_only=True)` で、Response DTO は `from_entity()` クラスメソッドを持ちます。
 
@@ -49,7 +49,7 @@ Command / Query / Response DTO はいずれも `@dataclass(frozen=True, kw_only=
 
 実装場所は `app/application/corporate/` です。ユースケースごとにファイルを分けています。
 `__init__.py` でユースケース、DTO、`CorporateAccessService`、例外、サポート関数を再エクスポートしています。
-ただし Store / Staff / Patient はこの `__init__.py` を経由せず、`access_control` の `CorporateAccessBoundary`（Protocol）にだけ依存します。
+ただし Store / Staff / Patient / Coverage はこの `__init__.py` を経由せず、`access_control` の `CorporateAccessBoundary`（Protocol）にだけ依存します。
 なお法人コンテキスト内のモジュールは、自パッケージの `__init__.py` ではなくサブモジュールを直接 import します（部分初期化による循環を避けるため）。
 
 | ファイル | クラス | 処理 |
@@ -234,8 +234,10 @@ Application層の例外は `app/base/application/exceptions.py` の
 「未設定は`None`だけ」という前提で扱います。したがって、更新ユースケースにおける
 `None`・空文字・空白のみは、いずれも同じ「解除」を意味します。
 
-この関数は `app/application/store/support.py` と `app/application/staff/support.py` に同じ実装が
-それぞれ置かれています（staff側の`support.py`は、店舗の`load_store_or_raise()`は再エクスポートしています）。
+定義は Shared Kernel の `app/base/application/support.py` に1つだけ置き、
+`store` / `staff` / `coverage` の各 `support.py` はそれを再エクスポートします。
+コンテキストごとに複製すると正規化ルールの変更が片方だけに入り、同じ空文字が
+店舗では項目解除・資格では検証エラーという分岐を生むためです。
 
 ### 5.4 「変更が無ければ保存しない」判定
 
@@ -253,20 +255,79 @@ Application層の例外は `app/base/application/exceptions.py` の
 
 | ファイル | クラス | 処理 |
 | :--- | :--- | :--- |
-| `register_patient.py` | `RegisterPatientUseCase` | 氏名と任意の生年月日を検証し、患者を登録して `PatientId` を返す |
+| `register_patient.py` | `RegisterPatientUseCase` | 氏名と任意の生年月日を検証し、患者番号を採番して患者を登録する |
 | `change_patient_names.py` | `ChangePatientNamesUseCase` | 法人境界を確認し、患者氏名を変更する |
 | `change_patient_birth_date.py` | `ChangePatientBirthDateUseCase` | 生年月日を設定または `None` で解除する |
 | `get_patient.py` | `GetPatientUseCase` | 患者を取得し、`PatientDto`へ変換する |
+| `register_patient_external_identifier.py` | `RegisterPatientExternalIdentifierUseCase` | 連携先ごとの外部患者IDを登録する |
+| `list_patient_external_identifiers.py` | `ListPatientExternalIdentifiersUseCase` | 患者に紐付く外部患者IDを一覧する |
+| `deactivate_patient_external_identifier.py` | `DeactivatePatientExternalIdentifierUseCase` | 外部患者ID対応付けを無効化する |
 
 登録・変更・取得の順序は、`CorporateId.parse()`、`CorporateAccessBoundary.require_active()`、
 `PatientId.parse()`、`load_patient_or_raise()`、Domain操作、Repository保存またはDTO変換です。
 存在しない患者と別法人の患者は `PatientNotFoundError` に統一し、他テナントの存在を
 推測できないようにします。非アクティブ法人の通常操作は `require_active()` で拒否します。
 
-Patientの初期保持項目は氏名と任意の生年月日に限定します。患者番号、外部患者ID、一覧・検索、
-名寄せ、無効化、削除、監査、API、具体的DB Repositoryは未実装です。Prescriptionは別コンテキスト
-として扱い、患者集約ではなく `PatientId` のみを参照します。Patient専用のテストコードと
-テスト用Fakeは別スプリントで追加します。
+Patientは氏名・任意の生年月日・不変の法人内患者番号を保持します。外部患者IDは別Aggregateで
+扱い、Coverageは別コンテキストの `PatientCoverage` として `PatientId` のみで関連付けます。
+Prescriptionは別コンテキストとして扱い、患者集約ではなく `PatientId` のみを参照します。
+
+`RegisterPatientExternalIdentifierUseCase` の重複判定は、`get_by_source()` が返した行の
+`is_active` が真のときだけ `PatientExternalIdentifierAlreadyExistsError` を送出します。
+無効化済みの行を衝突扱いにすると、誤紐付けを無効化した後に正しい患者へ付け替える経路が
+なくなり、その外部IDが恒久的に使えなくなるためです。
+
+### 5.6 Coverageコンテキストのユースケース
+
+Coverageユースケースは `app/application/coverage/` に配置し、`PatientCoverageRepository`、
+`PatientCoverageConflictService`、`CorporateAccessBoundary`、`PatientReferenceBoundary` を
+コンストラクタから受け取ります。保険・公費の詳細は資格種別に応じて値オブジェクトへ変換し、
+医療保険は期間重複を、公費は同一順位の期間重複を登録・期間変更前に検証します。医療保険1件と
+第一公費・第二公費のような複数公費の組み合わせは、Claim側のスナップショットで保持します。
+
+| ファイル | クラス | 処理 |
+| :--- | :--- | :--- |
+| `register_patient_coverage.py` | `RegisterPatientCoverageUseCase` | 患者資格を登録し、`PatientCoverageDto`を返す |
+| `get_patient_coverage.py` | `GetPatientCoverageUseCase` | 患者資格を取得し、DTOへ変換する |
+| `list_patient_coverages.py` | `ListPatientCoveragesUseCase` | 患者単位の資格一覧を返す |
+| `change_patient_coverage_period.py` | `ChangePatientCoveragePeriodUseCase` | 適用期間を変更し、競合を再検証する |
+| `deactivate_patient_coverage.py` | `DeactivatePatientCoverageUseCase` | 資格を無効化する |
+
+Coverageは他法人の資格を404相当へ隠蔽し、非アクティブ法人の通常操作を拒否します。請求時点
+の `CoverageSnapshot` は将来のClaimコンテキストで保存するため、Coverage DTOに請求・処方の
+情報を混在させません。
+
+### 5.7 Claimコンテキストのユースケース
+
+Claimユースケースは `app/application/claim/` に配置し、`CoverageUsageRepository`、
+`CorporateAccessBoundary`、店舗・患者の存在確認Boundary、資格を請求側スナップショットへ
+変換する `CoverageSnapshotBoundary` をコンストラクタから受け取ります。Claim Applicationは
+Coverage Applicationの具象実装や資格集約を直接importせず、Boundaryから値を受け取ります。
+利用履歴の登録は `MANAGE_CLAIM`、最新履歴の参照は `VIEW_CLAIM` を要求し、資格台帳の
+`MANAGE_COVERAGE` / `VIEW_COVERAGE` と分離します。
+
+| ファイル | クラス | 処理 |
+| :--- | :--- | :--- |
+| `record_coverage_usage.py` | `RecordCoverageUsageUseCase` | 選択された資格を適用日時点で検証・スナップショット化し、利用履歴を保存する |
+| `get_last_coverage_usage.py` | `GetLastCoverageUsageUseCase` | 法人・店舗・患者単位で最後に使った組み合わせを、適用日で再検証した候補として取得する |
+| `get_coverage_usage.py` | `CoverageUsageDto` | スナップショットと利用日時を外部向けDTOへ変換する |
+
+最新履歴は自動適用値ではありません。`GetLastCoverageUsageQuery` は今回の適用日
+（`applied_on`）を必須で受け取り、`CoverageValidityBoundary.is_snapshot_valid()` へ再検証を
+委ねた結果を `LastCoverageUsageCandidateDto.is_still_valid` として返します。フラグが `False`
+の候補を自動適用してはならず、呼び出し元は資格一覧から再選択させます。「再検証してから使う」
+という規則をDTOの型に載せることで、フラグを見ずに適用する実装を書けなくしています。
+
+参照Boundary（`StoreReferenceBoundary` / `PatientReferenceBoundary` /
+`CoverageSnapshotBoundary` / `CoverageValidityBoundary`）はProtocolの `Raises:` に例外契約を
+持ちます。他テナントのデータや未存在は403ではなく404相当の `ClaimStoreNotFoundError` /
+`ClaimPatientNotFoundError` / `ClaimCoverageSelectionError` へ畳み込み、`AuthorizationError`
+を送出しません（他法人のIDの存在が呼び出し元へ漏れます）。再検証の結果も真偽値へ畳み込み、
+存在の有無を例外で区別しません。この契約は `tests/fakes/claim_reference_boundaries.py` の
+フェイク実装とユースケーステストで実行可能な形にしています。
+
+処方箋は別コンテキストで `PatientId` と処方内容を扱い、保険・公費の組み合わせは調剤・請求時の
+Claim側で確定します。
 
 ## 6. テスト方針
 

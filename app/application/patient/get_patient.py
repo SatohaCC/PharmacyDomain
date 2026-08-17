@@ -25,6 +25,7 @@ class PatientDto:
     """患者詳細の出力データ（DTO）。"""
 
     id: str
+    patient_number: int
     corporate_id: str
     last_name: str
     first_name: str
@@ -37,6 +38,7 @@ class PatientDto:
         """Patient集約から患者情報DTOを生成する。"""
         return cls(
             id=str(patient.id.value),
+            patient_number=patient.patient_number.value,
             corporate_id=str(patient.corporate_id.value),
             last_name=patient.names.kanji.last_name.value,
             first_name=patient.names.kanji.first_name.value,

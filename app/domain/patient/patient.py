@@ -8,7 +8,7 @@ from typing import Self
 from app.base.domain.entity import AggregateRoot
 from app.base.domain.value_object import PersonNames
 from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientBirthDate, PatientId
+from app.domain.patient.primitives import PatientBirthDate, PatientId, PatientNumber
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)
@@ -18,6 +18,7 @@ class Patient(AggregateRoot[PatientId]):
     id: PatientId
     corporate_id: CorporateId
     names: PersonNames
+    patient_number: PatientNumber
     birth_date: PatientBirthDate | None = None
 
     @classmethod
@@ -26,6 +27,7 @@ class Patient(AggregateRoot[PatientId]):
         *,
         corporate_id: CorporateId,
         names: PersonNames,
+        patient_number: PatientNumber,
         birth_date: PatientBirthDate | None = None,
     ) -> Self:
         """新しい患者を生成する。"""
@@ -33,6 +35,7 @@ class Patient(AggregateRoot[PatientId]):
             id=PatientId.generate(),
             corporate_id=corporate_id,
             names=names,
+            patient_number=patient_number,
             birth_date=birth_date,
         )
 
