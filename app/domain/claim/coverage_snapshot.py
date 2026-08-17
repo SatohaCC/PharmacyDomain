@@ -12,19 +12,27 @@ from app.domain.claim.primitives import (
     ClaimCoverageInsuredType,
     ClaimCoveragePriority,
     ClaimCoverageSymbol,
+    ClaimInsurerNumber,
+    ClaimPublicPayerNumber,
+    ClaimPublicRecipientNumber,
 )
 
 
 @dataclass(frozen=True, kw_only=True)
 class InsuranceCoverageSnapshot:
-    """請求時点の医療保険資格を値として固定したもの。"""
+    """請求時点の医療保険資格を値として固定したもの。
 
-    insurer_number: ClaimCoverageCode
+    ``benefit_ratio`` は患者負担額を決める値であり、スナップショットが存在する
+    目的そのものなので任意項目にしない。資格台帳の
+    :class:`InsuranceCoverageDetails` でも必須であり、両者で必須性を揃える。
+    """
+
+    insurer_number: ClaimInsurerNumber
     insured_symbol: ClaimCoverageSymbol
     insured_number: ClaimCoverageCode
     insured_type: ClaimCoverageInsuredType
+    benefit_ratio: ClaimCoverageBenefitRatio
     branch_number: ClaimCoverageBranchNumber | None = None
-    benefit_ratio: ClaimCoverageBenefitRatio | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -32,8 +40,8 @@ class PublicExpenseCoverageSnapshot:
     """請求時点の一つの公費資格を値として固定したもの。"""
 
     priority: ClaimCoveragePriority
-    payer_number: ClaimCoverageCode
-    recipient_number: ClaimCoverageCode
+    payer_number: ClaimPublicPayerNumber
+    recipient_number: ClaimPublicRecipientNumber
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -57,6 +65,13 @@ class CoverageSnapshot:
         if len(priorities) != len(set(priorities)):
             raise CoverageCombinationInvalidError(
                 "公費の適用順位は重複して指定できません。"
+            )
+        # 電子レセプトの公費欄は第一公費から順に埋める。第一公費が空で第三公費
+        # だけを持つ組み合わせは提出時に返戻されるため、1から連続していることを
+        # 凍結前に検証する。
+        if sorted(priorities) != list(range(1, len(priorities) + 1)):
+            raise CoverageCombinationInvalidError(
+                "公費の適用順位は第一公費から連続して指定してください。"
             )
 
         ordered = tuple(sorted(public_expenses, key=lambda item: item.priority.value))

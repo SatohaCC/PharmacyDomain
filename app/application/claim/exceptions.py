@@ -10,13 +10,6 @@ class ClaimApplicationError(ApplicationError):
     default_code = "CLAIM_APPLICATION_ERROR"
 
 
-class CoverageUsageNotFoundError(ClaimApplicationError):
-    """適用資格利用履歴が存在しない場合の例外。"""
-
-    default_message = "指定された適用資格利用履歴が見つかりません。"
-    default_code = "COVERAGE_USAGE_NOT_FOUND"
-
-
 class ClaimStoreNotFoundError(ClaimApplicationError):
     """利用履歴の店舗が存在しない、または法人が異なる場合の例外。"""
 

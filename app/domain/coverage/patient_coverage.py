@@ -7,7 +7,10 @@ from typing import Self
 
 from app.base.domain.entity import AggregateRoot
 from app.domain.corporate.primitives import CorporateId
-from app.domain.coverage.exceptions import CoverageDetailsMismatchError
+from app.domain.coverage.exceptions import (
+    CoverageDetailsMismatchError,
+    InsuranceCoveragePriorityError,
+)
 from app.domain.coverage.primitives import (
     CoveragePeriod,
     CoveragePriority,
@@ -36,6 +39,8 @@ class PatientCoverage(AggregateRoot[PatientCoverageId]):
     def __post_init__(self) -> None:
         """制度種別と制度別詳細の整合性を検証する。"""
         if self.coverage_type is CoverageType.INSURANCE:
+            if self.priority.value != 1:
+                raise InsuranceCoveragePriorityError()
             if (
                 self.insurance_details is None
                 or self.public_expense_details is not None

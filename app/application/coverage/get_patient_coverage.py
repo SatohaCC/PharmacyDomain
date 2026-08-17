@@ -42,9 +42,9 @@ class PatientCoverageDto:
             corporate_id=str(coverage.corporate_id.value),
             patient_id=str(coverage.patient_id.value),
             coverage_type=coverage.coverage_type.value,
-            valid_from=coverage.period.valid_from.isoformat(),
+            valid_from=coverage.period.valid_from.value.isoformat(),
             valid_to=(
-                coverage.period.valid_to.isoformat()
+                coverage.period.valid_to.value.isoformat()
                 if coverage.period.valid_to is not None
                 else None
             ),

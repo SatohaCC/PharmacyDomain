@@ -22,3 +22,10 @@ class CoverageDetailsMismatchError(CoverageDomainError):
 
     default_message = "患者資格の種別と詳細が一致していません。"
     default_code = "COVERAGE_DETAILS_MISMATCH"
+
+
+class InsuranceCoveragePriorityError(CoverageDomainError):
+    """医療保険に公費の順位を設定した場合の例外。"""
+
+    default_message = "医療保険の適用順位は1で指定してください。"
+    default_code = "INSURANCE_COVERAGE_PRIORITY_INVALID"

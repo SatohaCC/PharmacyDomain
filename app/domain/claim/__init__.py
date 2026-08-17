@@ -18,6 +18,9 @@ from app.domain.claim.primitives import (
     ClaimCoveragePriority,
     ClaimCoverageSymbol,
     ClaimCoverageUsageId,
+    ClaimInsurerNumber,
+    ClaimPublicPayerNumber,
+    ClaimPublicRecipientNumber,
     CoverageUsageTimestamp,
 )
 from app.domain.claim.repository import CoverageUsageRepository
@@ -31,6 +34,9 @@ __all__ = [
     "ClaimCoverageSymbol",
     "ClaimCoverageUsageId",
     "ClaimDomainError",
+    "ClaimInsurerNumber",
+    "ClaimPublicPayerNumber",
+    "ClaimPublicRecipientNumber",
     "CoverageCombinationInvalidError",
     "CoverageSnapshot",
     "CoverageUsage",

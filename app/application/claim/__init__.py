@@ -5,7 +5,6 @@ from app.application.claim.exceptions import (
     ClaimCoverageSelectionError,
     ClaimPatientNotFoundError,
     ClaimStoreNotFoundError,
-    CoverageUsageNotFoundError,
 )
 from app.application.claim.get_coverage_usage import (
     CoverageSnapshotDto,
@@ -16,6 +15,7 @@ from app.application.claim.get_coverage_usage import (
 from app.application.claim.get_last_coverage_usage import (
     GetLastCoverageUsageQuery,
     GetLastCoverageUsageUseCase,
+    LastCoverageUsageCandidateDto,
 )
 from app.application.claim.record_coverage_usage import (
     RecordCoverageUsageCommand,
@@ -23,6 +23,7 @@ from app.application.claim.record_coverage_usage import (
 )
 from app.application.claim.reference import (
     CoverageSnapshotBoundary,
+    CoverageValidityBoundary,
     PatientReferenceBoundary,
     StoreReferenceBoundary,
 )
@@ -35,10 +36,11 @@ __all__ = [
     "CoverageSnapshotBoundary",
     "CoverageSnapshotDto",
     "CoverageUsageDto",
-    "CoverageUsageNotFoundError",
+    "CoverageValidityBoundary",
     "GetLastCoverageUsageQuery",
     "GetLastCoverageUsageUseCase",
     "InsuranceCoverageSnapshotDto",
+    "LastCoverageUsageCandidateDto",
     "PatientReferenceBoundary",
     "PublicExpenseCoverageSnapshotDto",
     "RecordCoverageUsageCommand",

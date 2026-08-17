@@ -30,6 +30,8 @@ class Permission(StrEnum):
     MANAGE_PATIENT = "manage_patient"
     VIEW_COVERAGE = "view_coverage"
     MANAGE_COVERAGE = "manage_coverage"
+    VIEW_CLAIM = "view_claim"
+    MANAGE_CLAIM = "manage_claim"
 
 
 @dataclass(frozen=True, kw_only=True)

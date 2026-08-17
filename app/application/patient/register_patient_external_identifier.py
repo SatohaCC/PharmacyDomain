@@ -93,7 +93,10 @@ class RegisterPatientExternalIdentifierUseCase:
             system_name=system_name,
             external_patient_id=external_patient_id,
         )
-        if existing is not None:
+        # 一意性は「有効な対応付け」に対してだけ要求する。無効化済みの行まで衝突
+        # 扱いにすると、誤った患者へ紐付けた外部IDを無効化した後に正しい患者へ
+        # 付け替える経路がなくなり、その外部IDが恒久的に使えなくなる。
+        if existing is not None and existing.is_active:
             raise PatientExternalIdentifierAlreadyExistsError()
 
         identifier = PatientExternalIdentifier.create(

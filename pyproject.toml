@@ -133,6 +133,22 @@ paths = ["app"]
     "app.application.patient",
     "app.application.coverage",
 ]
+# CoverageはPatientのAggregate/Repositoryを直接参照せず、資格自身のIDと境界だけを扱う。
+"app.domain.coverage" = [
+    "app.domain.claim",
+    "app.domain.patient.patient",
+    "app.domain.patient.external_identifier",
+    "app.domain.patient.repository",
+]
+# ClaimはCoverage・Patient・Storeの集約やRepositoryを直接参照せず、スナップショットとIDだけを扱う。
+"app.domain.claim" = [
+    "app.domain.coverage",
+    "app.domain.patient.patient",
+    "app.domain.patient.external_identifier",
+    "app.domain.patient.repository",
+    "app.domain.store.store",
+    "app.domain.store.repository",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

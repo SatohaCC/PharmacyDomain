@@ -58,7 +58,7 @@ class RecordCoverageUsageUseCase:
         corporate_id = CorporateId.parse(command.corporate_id)
         await self._corporate_access.require_active(
             corporate_id=corporate_id,
-            permission=Permission.MANAGE_COVERAGE,
+            permission=Permission.MANAGE_CLAIM,
         )
         store_id = StoreId.parse(command.store_id)
         await self._store_reference.require_exists(

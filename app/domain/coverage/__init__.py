@@ -4,6 +4,7 @@ from app.domain.coverage.exceptions import (
     CoverageDetailsMismatchError,
     CoverageDomainError,
     CoveragePeriodConflictError,
+    InsuranceCoveragePriorityError,
 )
 from app.domain.coverage.patient_coverage import PatientCoverage
 from app.domain.coverage.primitives import (
@@ -15,7 +16,10 @@ from app.domain.coverage.primitives import (
     CoveragePriority,
     CoverageSymbol,
     CoverageType,
+    CoverageValidFrom,
+    CoverageValidTo,
     InsuranceCoverageDetails,
+    InsurerNumber,
     PatientCoverageId,
     PublicExpenseCoverageDetails,
     PublicPayerNumber,
@@ -36,7 +40,11 @@ __all__ = [
     "CoveragePriority",
     "CoverageSymbol",
     "CoverageType",
+    "CoverageValidFrom",
+    "CoverageValidTo",
     "InsuranceCoverageDetails",
+    "InsuranceCoveragePriorityError",
+    "InsurerNumber",
     "PatientCoverage",
     "PatientCoverageConflictService",
     "PatientCoverageId",

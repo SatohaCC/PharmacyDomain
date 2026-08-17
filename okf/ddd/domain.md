@@ -285,6 +285,11 @@ Domain Repositoryは、集約を永続化・再構築するための抽象です
 患者と外部システムのID対応を管理します。同一法人・同一連携先・同一外部患者IDの組は
 一意とし、無効化して履歴を残します。別の連携先のIDは同じ患者に複数登録できます。
 
+一意性を要求するのは**有効な対応付け**に対してだけです。`get_by_source()` は無効化済みの行も
+返し、「有効な行だけを一意とみなす」判断はユースケース側が持ちます。無効化済みの行まで衝突
+扱いにすると、誤った患者へ紐付けた外部IDを無効化しても正しい患者へ付け替えられず、その外部IDが
+恒久的に使えなくなるためです（無効化が終端になり、履歴を残す意図と矛盾します）。
+
 ### `PatientCoverageRepository`
 
 [`app/domain/coverage/repository.py`](../../app/domain/coverage/repository.py)
@@ -296,8 +301,21 @@ Domain Repositoryは、集約を永続化・再構築するための抽象です
 | `save(coverage)` | 患者資格を新規登録または変更保存する |
 
 `PatientCoverage` は資格種別、制度別詳細、適用期間、優先順位、利用状態を持つ独立した
-Aggregateです。同一制度・同一優先順位の有効期間重複は
-`PatientCoverageConflictService` で拒否します。請求時点の資格の固定値は将来のClaim側の
+Aggregateです。医療保険は適用順位を1に固定し、同一患者・同一期間に複数の保険を置きません。
+公費は第一から第四までの順位を持ち、同じ順位の有効期間重複だけを
+`PatientCoverageConflictService` で拒否します。そのため、同一期間の医療保険1件と第一公費・
+第二公費を併用できます。医療保険の一意性は順位固定により「同一制度かつ同一順位」の判定へ
+含まれるため、競合サービス側で `coverage_type` を別途分岐させません（分岐させても結果は
+変わらず、同じ規則が2箇所に分散します）。
+
+適用期間は `CoveragePeriod` が `CoverageValidFrom` / `CoverageValidTo` を保持し、日付型の
+検証（`datetime` の誤混入を含む）は `BaseDate` から受け継ぎます。`CoveragePeriod` 自身は
+開始日と終了日の前後関係だけを検証します。レセプトで桁数が定まる番号は桁数をプリミティブの
+不変条件として持たせます（`InsurerNumber` は6桁または8桁、`PublicPayerNumber` は8桁、
+`PublicRecipientNumber` は7桁、`CoverageBranchNumber` は2桁）。桁数規定のない被保険者記号・
+番号は `CoverageSymbol` / `CoverageCode` として空でないことだけを要求します。
+
+請求時点の資格の固定値はClaim側の
 `CoverageSnapshot` として保存し、現在の資格変更によって過去請求を変化させません。最後に
 使用した組み合わせは `PatientCoverage` に状態として追加せず、Claim側の
 `CoverageUsageRepository.get_latest()` から法人・店舗・患者単位で導出します。
@@ -313,8 +331,20 @@ Aggregateです。同一制度・同一優先順位の有効期間重複は
 
 `CoverageUsage` は `corporate_id`、`store_id`、`patient_id`、適用日時、請求側専用の
 `CoverageSnapshot`を持ちます。`CoverageSnapshot` は医療保険0〜1件と公費0〜4件を値として
-固定し、元の資格台帳を後から参照して過去の値を再構成する設計にはしません。最新履歴は受付画面の
-初期候補であり、今回の適用日で資格期間・有効状態を再検証した後にだけ利用します。
+固定します。医療保険1件と公費2件のような組み合わせも、公費順位を保持したまま保存できます。
+公費の順位は第一公費から連続していなければならず、第一公費が空で第三公費だけを持つ組み合わせは
+`CoverageCombinationInvalidError` として拒否します（レセプト提出時に返戻されるため、
+凍結前に弾きます）。医療保険の `benefit_ratio` は必須です。給付割合は患者負担額を決める値であり、
+スナップショットが存在する目的そのものなので、資格台帳の `InsuranceCoverageDetails` と
+必須性を揃えます。元の資格台帳を後から参照して過去の値を再構成する設計にはしません。
+最新履歴は受付画面の初期候補であり、今回の適用日で資格期間・有効状態を再検証した後にだけ
+利用します。再検証はClaimが資格台帳を持たないため `CoverageValidityBoundary` へ委ね、
+結果を `LastCoverageUsageCandidateDto.is_still_valid` として返します。
+
+`CoverageUsageTimestamp` は適用日時をUTCへ正規化します。aware な `datetime` の `==` は
+瞬時で比較するため、基底 `DomainPrimitive.__post_init__` の同値判定ではオフセットの違いを
+検出できません。そのため `CoverageUsageTimestamp` は `__post_init__` を上書きし、正規化後の
+値を無条件に保持します。テストで正規化を確認するときも `==` ではなく `isoformat()` を比較します。
 
 ### `save()` という名前
 

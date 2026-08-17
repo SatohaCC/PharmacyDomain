@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date
 
 from app.application.coverage.exceptions import PatientCoverageNotFoundError
+from app.base.application.support import to_optional_text
 from app.base.domain.exceptions import DomainValidationError
 from app.domain.corporate.primitives import CorporateId
 from app.domain.coverage import (
@@ -16,7 +17,10 @@ from app.domain.coverage import (
     CoveragePriority,
     CoverageSymbol,
     CoverageType,
+    CoverageValidFrom,
+    CoverageValidTo,
     InsuranceCoverageDetails,
+    InsurerNumber,
     PatientCoverage,
     PublicExpenseCoverageDetails,
     PublicPayerNumber,
@@ -25,12 +29,17 @@ from app.domain.coverage import (
 from app.domain.coverage.primitives import PatientCoverageId
 from app.domain.coverage.repository import PatientCoverageRepository
 
-
-def to_optional_text(raw: str | None) -> str | None:
-    """任意文字列を正規化し、空文字・空白をNoneへ揃える。"""
-    if raw is None:
-        return None
-    return raw.strip() or None
+__all__ = [
+    "build_coverage_period",
+    "build_insurance_details",
+    "build_priority",
+    "build_public_expense_details",
+    "load_coverage_or_raise",
+    "parse_coverage_type",
+    "parse_insured_type",
+    "required_text",
+    "to_optional_text",
+]
 
 
 def required_text(raw: str | None, field_name: str) -> str:
@@ -64,7 +73,10 @@ def build_coverage_period(
     valid_to: date | None,
 ) -> CoveragePeriod:
     """適用期間を構成する。"""
-    return CoveragePeriod(valid_from=valid_from, valid_to=valid_to)
+    return CoveragePeriod(
+        valid_from=CoverageValidFrom(valid_from),
+        valid_to=CoverageValidTo(valid_to) if valid_to is not None else None,
+    )
 
 
 def build_insurance_details(
@@ -81,7 +93,7 @@ def build_insurance_details(
         raise DomainValidationError("給付割合は必須です。")
     normalized_branch = to_optional_text(branch_number)
     return InsuranceCoverageDetails(
-        insurer_number=CoverageCode(required_text(insurer_number, "保険者番号")),
+        insurer_number=InsurerNumber(required_text(insurer_number, "保険者番号")),
         insured_symbol=CoverageSymbol(required_text(insured_symbol, "被保険者記号")),
         insured_number=CoverageCode(required_text(insured_number, "被保険者番号")),
         branch_number=(

@@ -17,7 +17,7 @@ class InsuranceCoverageSnapshotDto:
     insured_number: str
     insured_type: str
     branch_number: str | None
-    benefit_ratio: int | None
+    benefit_ratio: int
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -51,11 +51,7 @@ class CoverageSnapshotDto:
                     if insurance.branch_number is not None
                     else None
                 ),
-                benefit_ratio=(
-                    insurance.benefit_ratio.value
-                    if insurance.benefit_ratio is not None
-                    else None
-                ),
+                benefit_ratio=insurance.benefit_ratio.value,
             )
             if insurance is not None
             else None
