@@ -53,9 +53,11 @@ class RegisterPatientUseCase:
         birth_date = (
             PatientBirthDate(command.birth_date) if command.birth_date else None
         )
+        patient_number = await self._repository.allocate_patient_number(corporate_id)
         patient = Patient.create(
             corporate_id=corporate_id,
             names=names,
+            patient_number=patient_number,
             birth_date=birth_date,
         )
         await self._repository.save(patient)

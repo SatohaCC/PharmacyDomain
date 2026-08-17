@@ -15,3 +15,10 @@ class PatientNotFoundError(PatientApplicationError):
 
     default_message = "指定された患者が見つかりません。"
     default_code = "PATIENT_NOT_FOUND"
+
+
+class PatientExternalIdentifierNotFoundError(PatientApplicationError):
+    """外部患者IDの対応付けが存在しない、または法人が異なる場合の例外。"""
+
+    default_message = "指定された外部患者IDが見つかりません。"
+    default_code = "PATIENT_EXTERNAL_IDENTIFIER_NOT_FOUND"

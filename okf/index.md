@@ -10,7 +10,7 @@ timestamp: 2026-08-15T00:00:00Z
 
 PharmacyDomain プロジェクトの設計方針、DDDのガイドライン、現在の実装構成を確認するための入口です。
 
-現在は、法人（`Corporate`）・店舗（`Store`）・スタッフ（`Staff`）・患者（`Patient`）の4コンテキストについて、ドメインモデルとApplicationユースケースを実装しています。認証基盤とは分離したApplication側のAccess Control境界も定義しています。
+現在は、法人（`Corporate`）・店舗（`Store`）・スタッフ（`Staff`）・患者（`Patient`）・患者資格（`Coverage`）の5コンテキストについて、ドメインモデルとApplicationユースケースを実装しています。認証基盤とは分離したApplication側のAccess Control境界も定義しています。
 APIのシステムエンドポイントは `app/main.py` にありますが、これらのユースケースをHTTPへ接続するAPIルートはまだ実装していません。
 Repositoryは`Protocol`のみで、具体的な永続化実装もまだありません（テスト用のインメモリ実装だけが存在します）。
 
@@ -180,10 +180,11 @@ Store / Staff のユースケースは、この `CorporateAccessService` では�
 実装場所: `app/domain/patient/`
 
 - `patient.py` — `Patient` Aggregate Root
-- `primitives.py` — `PatientId`（UUIDv7）、`PatientBirthDate`、共有の `PersonNames`
-- `repository.py` — `PatientRepository`（法人境界付き `get`）
+- `primitives.py` — `PatientId`（UUIDv7）、`PatientNumber`、`PatientBirthDate`、外部ID用プリミティブ、共有の `PersonNames`
+- `external_identifier.py` — `PatientExternalIdentifier` Aggregate
+- `repository.py` — `PatientRepository`、`PatientExternalIdentifierRepository`（法人境界付き）
 
-`Patient` は `corporate_id` を保持し、患者の氏名と任意の生年月日を管理します。患者番号、外部患者ID、検索・名寄せ、無効化、削除、監査、保険情報などは未確定のため保持しません。処方箋は別コンテキストとして実装し、患者を参照するときは `PatientId` のみを使います。
+`Patient` は `corporate_id` を保持し、患者の氏名、任意の生年月日、法人内で再利用しない患者番号を管理します。外部患者IDは連携先ごとに複数持てる `PatientExternalIdentifier` 別Aggregateで管理し、患者集約には埋め込みません。保険・公費の資格情報は独立した `coverage` コンテキストで管理します。処方箋は別コンテキストとして実装し、患者を参照するときは `PatientId` のみを使います。
 
 #### Application層
 
@@ -195,10 +196,64 @@ Store / Staff のユースケースは、この `CorporateAccessService` では�
 | `ChangePatientNamesUseCase` | `ChangePatientNamesCommand` / `None` | 患者氏名の変更 |
 | `ChangePatientBirthDateUseCase` | `ChangePatientBirthDateCommand` / `None` | 生年月日の設定・解除 |
 | `GetPatientUseCase` | `GetPatientQuery` / `PatientDto` | 患者詳細の取得 |
+| `RegisterPatientExternalIdentifierUseCase` | `RegisterPatientExternalIdentifierCommand` / `PatientExternalIdentifierDto` | 連携先ごとの外部患者ID登録 |
+| `ListPatientExternalIdentifiersUseCase` | `ListPatientExternalIdentifiersQuery` / `list[PatientExternalIdentifierDto]` | 患者に紐付く外部患者ID一覧 |
+| `DeactivatePatientExternalIdentifierUseCase` | `DeactivatePatientExternalIdentifierCommand` / `None` | 外部患者ID対応付けの無効化 |
 
 全ユースケースは `CorporateAccessBoundary` による認可・法人の存在・有効状態確認後に処理します。患者が存在しない場合と別法人の患者を指定した場合は `PatientNotFoundError`（404相当）に統一し、他テナントの存在を隠蔽します。認証済みの操作主体はCommand / Queryへ入れず、注入されたアクセス境界で検証します。
 
-今回、Patient専用のテストコードとテスト用Fakeは追加していません。ドメインの不変性、法人境界、認可、404隠蔽、DTO変換のテストは別スプリントで実装します。
+Patientの患者番号・外部ID・法人境界・認可・404隠蔽・DTO変換のテストは、Coverageのテストと合わせて後段のテスト設計で追加します。
+
+### Coverageコンテキスト
+
+#### Domain層
+
+実装場所: `app/domain/coverage/`
+
+- `patient_coverage.py` — `PatientCoverage` Aggregate Root
+- `primitives.py` — `PatientCoverageId`、保険／公費種別、適用期間、優先順位、制度別詳細
+- `services.py` — 同一患者・同一制度・同一優先順位の期間競合検証
+- `repository.py` — `PatientCoverageRepository`（法人・患者境界付き）
+
+`PatientCoverage` は `corporate_id` と `patient_id` をIDだけで保持し、`Patient` や `Corporate` のエンティティは保持しません。保険と公費を同じ資格台帳で扱い、複数資格・適用期間・優先順位・無効化を管理します。「最後に使った組み合わせ」や `last_used_at` は資格台帳へ持たせず、請求・調剤時点の `CoverageSnapshot` と利用履歴をClaimコンテキスト側に保存します。
+
+#### Application層
+
+実装場所: `app/application/coverage/`
+
+| ユースケース | 入力 / 出力 | 主な責務 |
+| :--- | :--- | :--- |
+| `RegisterPatientCoverageUseCase` | `RegisterPatientCoverageCommand` / `PatientCoverageDto` | 患者資格の登録、期間競合の検証 |
+| `GetPatientCoverageUseCase` | `GetPatientCoverageQuery` / `PatientCoverageDto` | 患者資格の取得 |
+| `ListPatientCoveragesUseCase` | `ListPatientCoveragesQuery` / `list[PatientCoverageDto]` | 患者単位の資格一覧 |
+| `ChangePatientCoveragePeriodUseCase` | `ChangePatientCoveragePeriodCommand` / `PatientCoverageDto` | 適用期間変更と競合検証 |
+| `DeactivatePatientCoverageUseCase` | `DeactivatePatientCoverageCommand` / `PatientCoverageDto` | 資格の無効化 |
+
+CoverageのApplication層は `CorporateAccessBoundary` Protocolだけで法人の認可・存在・有効状態を確認し、患者の存在確認も `PatientReferenceBoundary` で `PatientId` だけを受け取ります。他コンテキストのApplication実装やAggregateはimportしません。別法人の資格は `PatientCoverageNotFoundError`（404相当）として隠蔽し、非アクティブ法人の通常操作は拒否します。
+
+### Claimコンテキスト
+
+#### Domain層
+
+実装場所: `app/domain/claim/`
+
+- `coverage_snapshot.py` — `CoverageSnapshot`、保険・公費の請求時点スナップショット
+- `coverage_usage.py` — `CoverageUsage` 利用履歴Aggregate Root
+- `primitives.py` — 利用履歴ID、請求側専用の番号、適用日時
+- `repository.py` — `CoverageUsageRepository`（法人・店舗・患者単位）
+
+Claimは資格台帳の `PatientCoverage` Aggregateを保持せず、選択された資格の値を請求側専用の不変スナップショットとして保存します。スナップショットは保険0〜1件、公費0〜4件（第一〜第四公費）を表現できます。最新の `CoverageUsage` は同一法人・店舗・患者の受付で初期候補として参照できますが、現在の資格期間を再検証するまで自動適用しません。
+
+#### Application層
+
+実装場所: `app/application/claim/`
+
+| ユースケース | 入力 / 出力 | 主な責務 |
+| :--- | :--- | :--- |
+| `RecordCoverageUsageUseCase` | `RecordCoverageUsageCommand` / `CoverageUsageDto` | 選択資格をBoundaryで検証・スナップショット化し、利用履歴を保存 |
+| `GetLastCoverageUsageUseCase` | `GetLastCoverageUsageQuery` / `CoverageUsageDto \| None` | 同一法人・店舗・患者で最後に使った組み合わせを候補として取得 |
+
+Claim Applicationは `CorporateAccessBoundary` と店舗・患者・資格スナップショットの参照Boundaryだけに依存します。Coverage Applicationの具象実装やPatient/Store/CoverageのAggregateを直接保持しません。処方箋は別コンテキストで `PatientId` と処方内容を参照し、保険・公費の適用組み合わせはClaim・調剤受付側で確定します。
 
 ### テスト
 

@@ -28,6 +28,8 @@ class Permission(StrEnum):
     MANAGE_STAFF = "manage_staff"
     VIEW_PATIENT = "view_patient"
     MANAGE_PATIENT = "manage_patient"
+    VIEW_COVERAGE = "view_coverage"
+    MANAGE_COVERAGE = "manage_coverage"
 
 
 @dataclass(frozen=True, kw_only=True)

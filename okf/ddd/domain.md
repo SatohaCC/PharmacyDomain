@@ -130,7 +130,7 @@ class StoreFaxNumber(BaseTelephoneNumber):
 - **ファクトリメソッド**: 新規作成時は `create()` メソッドを介して初期状態の不整合を防ぎます。IDは `XxxId.generate()` で採番します。
 - **Aggregate Root (集約ルート)**: 外部（リポジトリやユースケース層）から直接取得・保存されるアクセスポイントです。
   集約内部の子エンティティは `Entity` を継承し、ルート経由でのみ操作します。
-- **他集約への参照はIDのみ**: `Store` と `Patient` は `corporate_id` だけを持ち、`Corporate` 集約そのものは参照しません。将来の `Prescription` も `PatientId` だけを保持します。参照先の実在性は永続化層の外部キー制約で担保します。
+- **他集約への参照はIDのみ**: `Store` と `Patient` は `corporate_id` だけを持ち、`PatientCoverage` は `corporate_id` と `patient_id` だけを持ちます。`Corporate`、`Patient` 集約そのものは参照しません。将来の `Prescription` と `Claim` も `PatientId` または資格のスナップショットを保持し、集約を直接保持しません。参照先の実在性はID参照Protocolまたは永続化層の外部キー制約で担保します。
 - **ドメインイベントは持たない**: `AggregateRoot` はイベントの記録・配送機構を意図的に持ちません。
   配送経路（`UnitOfWork` のコミット後にイベントを配送する仕組み）が無い状態でAPIだけ用意しても、
   消費されないリストが増えるだけだからです。必要になった時点で配送経路と併せて導入します。
@@ -273,10 +273,48 @@ Domain Repositoryは、集約を永続化・再構築するための抽象です
 | :--- | :--- |
 | `get(*, corporate_id, patient_id)` | 指定法人内の患者を取得する。他法人のデータや不存在は `None` を返す |
 | `save(patient)` | 患者を新規登録または変更保存する |
+| `allocate_patient_number(corporate_id)` | 法人単位で再利用しない患者番号を原子的に採番する |
 
 `Patient` は `CorporateId` のみで所属法人を参照する独立した集約です。氏名は共有の
-`PersonNames`、生年月日は任意の `PatientBirthDate` で保持します。患者番号、外部患者ID、
-検索・名寄せ、無効化、削除、監査、処方箋はこの初期実装の責務に含めません。
+`PersonNames`、生年月日は任意の `PatientBirthDate`、法人内患者番号は不変の
+`PatientNumber` で保持します。外部患者IDは `PatientExternalIdentifier` 別Aggregateで
+連携先ごとに管理します。検索・名寄せ、無効化、削除、監査、処方箋はこの実装の責務に含めません。
+
+### `PatientExternalIdentifierRepository`
+
+患者と外部システムのID対応を管理します。同一法人・同一連携先・同一外部患者IDの組は
+一意とし、無効化して履歴を残します。別の連携先のIDは同じ患者に複数登録できます。
+
+### `PatientCoverageRepository`
+
+[`app/domain/coverage/repository.py`](../../app/domain/coverage/repository.py)
+
+| 操作 | 役割 |
+| :--- | :--- |
+| `get(*, corporate_id, coverage_id)` | 指定法人の患者資格を取得する。別法人・不存在は `None` |
+| `list_by_patient(*, corporate_id, patient_id)` | 指定法人・患者の資格履歴を取得する |
+| `save(coverage)` | 患者資格を新規登録または変更保存する |
+
+`PatientCoverage` は資格種別、制度別詳細、適用期間、優先順位、利用状態を持つ独立した
+Aggregateです。同一制度・同一優先順位の有効期間重複は
+`PatientCoverageConflictService` で拒否します。請求時点の資格の固定値は将来のClaim側の
+`CoverageSnapshot` として保存し、現在の資格変更によって過去請求を変化させません。最後に
+使用した組み合わせは `PatientCoverage` に状態として追加せず、Claim側の
+`CoverageUsageRepository.get_latest()` から法人・店舗・患者単位で導出します。
+
+### `CoverageUsageRepository`
+
+[`app/domain/claim/repository.py`](../../app/domain/claim/repository.py)
+
+| 操作 | 役割 |
+| :--- | :--- |
+| `save(usage)` | 請求・調剤時点の適用資格利用履歴を不変スナップショットとして保存する |
+| `get_latest(*, corporate_id, store_id, patient_id)` | 同一法人・店舗・患者で最後に使用した履歴を取得する |
+
+`CoverageUsage` は `corporate_id`、`store_id`、`patient_id`、適用日時、請求側専用の
+`CoverageSnapshot`を持ちます。`CoverageSnapshot` は医療保険0〜1件と公費0〜4件を値として
+固定し、元の資格台帳を後から参照して過去の値を再構成する設計にはしません。最新履歴は受付画面の
+初期候補であり、今回の適用日で資格期間・有効状態を再検証した後にだけ利用します。
 
 ### `save()` という名前
 
