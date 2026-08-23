@@ -7,6 +7,10 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import ClassVar
 
+from app.base.domain.priority_rules import (
+    PriorityViolation,
+    find_priority_violation,
+)
 from app.base.domain.value_object import ValueObject
 from app.domain.corporate.primitives import CorporateId
 from app.domain.coverage.exceptions import CoverageCombinationError
@@ -19,6 +23,19 @@ from app.domain.coverage.primitives import (
     PublicExpenseCoverageDetails,
 )
 from app.domain.patient.primitives import PatientId
+
+#: 公費は第一公費から第四公費までを同時に適用できる。
+MAXIMUM_PUBLIC_EXPENSE_COUNT = 4
+
+#: 順位規則の違反種別に対応する日本語メッセージ。規則本体は Shared Kernel の
+#: :func:`find_priority_violation` に1つだけ置き、文言だけを各コンテキストが持つ。
+PUBLIC_EXPENSE_PRIORITY_MESSAGES: Mapping[PriorityViolation, str] = {
+    PriorityViolation.EXCEEDS_MAXIMUM: "公費は第四公費まで指定できます。",
+    PriorityViolation.DUPLICATED: "公費の適用順位は重複して指定できません。",
+    PriorityViolation.NOT_CONSECUTIVE: (
+        "公費の適用順位は第一公費から連続して指定してください。"
+    ),
+}
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -110,16 +127,13 @@ class CoverageCombination(ValueObject):
         selected = self._all_selected()
         if not selected:
             raise CoverageCombinationError("適用資格を1件以上指定してください。")
-        if len(self.public_expenses) > 4:
-            raise CoverageCombinationError("公費は第四公費まで指定できます。")
 
-        priorities = [item.priority.value for item in self.public_expenses]
-        if len(priorities) != len(set(priorities)):
-            raise CoverageCombinationError("公費の適用順位は重複できません。")
-        if priorities != list(range(1, len(priorities) + 1)):
-            raise CoverageCombinationError(
-                "公費の適用順位は第一公費から連続して指定してください。"
-            )
+        violation = find_priority_violation(
+            [item.priority.value for item in self.public_expenses],
+            maximum=MAXIMUM_PUBLIC_EXPENSE_COUNT,
+        )
+        if violation is not None:
+            raise CoverageCombinationError(PUBLIC_EXPENSE_PRIORITY_MESSAGES[violation])
 
         first = selected[0]
         if any(item.corporate_id != first.corporate_id for item in selected[1:]):
