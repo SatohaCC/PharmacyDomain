@@ -2,22 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Protocol
 
-from app.domain.claim.coverage_snapshot import CoverageSnapshot
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientId
-from app.domain.reception.primitives import CoverageAppliedOn, SourceCoverageId
+from app.domain.reception.coverage_selection import CoverageSelection
+from app.domain.reception.primitives import CoverageAppliedOn
 from app.domain.store.primitives import StoreId
-
-
-@dataclass(frozen=True, kw_only=True)
-class CoverageSelectionMaterial:
-    """正規化済み元ID列とスナップショットを不可分に渡す境界DTO。"""
-
-    source_coverage_ids: tuple[SourceCoverageId, ...]
-    snapshot: CoverageSnapshot
 
 
 class StoreReferenceBoundary(Protocol):
@@ -66,12 +57,14 @@ class CoverageSelectionBoundary(Protocol):
         patient_id: PatientId,
         coverage_ids: tuple[str, ...],
         applied_on: CoverageAppliedOn,
-    ) -> CoverageSelectionMaterial:
-        """正規化済みID列と請求用スナップショットを構成する。
+    ) -> CoverageSelection:
+        """元資格IDと請求固定値を枠ごとに束ねた選択を構成する。
 
         Raises:
             ReceptionCoverageSelectionError: 資格の不在・別テナント・別患者・
                 期間外または組み合わせ不成立の場合。存在は区別して漏らさない。
+                Domain側の ``CoverageSelectionInvalidError`` /
+                ``CoverageCombinationInvalidError`` もここへ畳み込む。
         """
         ...
 
@@ -84,13 +77,13 @@ class CoverageValidityBoundary(Protocol):
         *,
         corporate_id: CorporateId,
         patient_id: PatientId,
-        source_coverage_ids: tuple[SourceCoverageId, ...],
-        snapshot: CoverageSnapshot,
+        selection: CoverageSelection,
         applied_on: CoverageAppliedOn,
     ) -> bool:
-        """同じ元IDから同じ値を再構築できる場合だけTrueを返す。
+        """同じ元IDから同じ選択を再構築できる場合だけTrueを返す。
 
         欠落・別テナント・別患者・期間外・無効化・値不一致はすべてFalseへ
-        畳み、資格の存在を例外で区別しない。
+        畳み、資格の存在を例外で区別しない。枠ごとIDと値が束ねられているので、
+        照合は再構築した ``CoverageSelection`` との等価比較1本で済む。
         """
         ...

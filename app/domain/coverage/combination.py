@@ -150,11 +150,6 @@ class CoverageCombination(ValueObject):
         insurance = (self.insurance,) if self.insurance is not None else ()
         return insurance + self.public_expenses
 
-    @property
-    def source_coverage_ids(self) -> tuple[PatientCoverageId, ...]:
-        """選択元IDを医療保険、公費順位順で返す。"""
-        return tuple(item.source_coverage_id for item in self._all_selected())
-
 
 class CoverageSelectionService:
     """明示された患者資格だけから適用組み合わせを構築する。"""

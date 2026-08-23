@@ -83,8 +83,7 @@ class GetLastCoverageSelectionUseCase:
         is_still_valid = await self._coverage_validity.is_selection_valid(
             corporate_id=corporate_id,
             patient_id=patient_id,
-            source_coverage_ids=record.source_coverage_ids,
-            snapshot=record.snapshot,
+            selection=record.selection,
             applied_on=CoverageAppliedOn(query.applied_on),
         )
         return LastCoverageSelectionCandidateDto(

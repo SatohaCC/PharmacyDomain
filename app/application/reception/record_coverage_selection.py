@@ -76,7 +76,7 @@ class RecordCoverageSelectionUseCase:
             patient_id=patient_id,
         )
         applied_on = CoverageAppliedOn(command.applied_on)
-        material = await self._coverage_selection.build_selection(
+        selection = await self._coverage_selection.build_selection(
             corporate_id=corporate_id,
             patient_id=patient_id,
             coverage_ids=command.coverage_ids,
@@ -87,8 +87,7 @@ class RecordCoverageSelectionUseCase:
             store_id=store_id,
             patient_id=patient_id,
             applied_on=applied_on,
-            source_coverage_ids=material.source_coverage_ids,
-            snapshot=material.snapshot,
+            selection=selection,
             recorded_at=CoverageRecordedAt(self._clock.now()),
             recorded_by=OperatorPrincipalId(self._corporate_access.actor.principal_id),
         )

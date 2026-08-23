@@ -7,10 +7,10 @@ from app.application.reception.exceptions import (
     ReceptionStoreNotFoundError,
 )
 from app.application.reception.get_coverage_selection import (
+    CoverageSelectionDto,
     CoverageSelectionRecordDto,
-    CoverageSnapshotDto,
-    InsuranceCoverageSnapshotDto,
-    PublicExpenseCoverageSnapshotDto,
+    InsuranceCoverageSelectionDto,
+    PublicExpenseCoverageSelectionDto,
 )
 from app.application.reception.get_last_coverage_selection import (
     GetLastCoverageSelectionQuery,
@@ -23,7 +23,6 @@ from app.application.reception.record_coverage_selection import (
 )
 from app.application.reception.reference import (
     CoverageSelectionBoundary,
-    CoverageSelectionMaterial,
     CoverageValidityBoundary,
     PatientReferenceBoundary,
     StoreReferenceBoundary,
@@ -31,16 +30,15 @@ from app.application.reception.reference import (
 
 __all__ = [
     "CoverageSelectionBoundary",
-    "CoverageSelectionMaterial",
+    "CoverageSelectionDto",
     "CoverageSelectionRecordDto",
-    "CoverageSnapshotDto",
     "CoverageValidityBoundary",
     "GetLastCoverageSelectionQuery",
     "GetLastCoverageSelectionUseCase",
-    "InsuranceCoverageSnapshotDto",
+    "InsuranceCoverageSelectionDto",
     "LastCoverageSelectionCandidateDto",
     "PatientReferenceBoundary",
-    "PublicExpenseCoverageSnapshotDto",
+    "PublicExpenseCoverageSelectionDto",
     "ReceptionApplicationError",
     "ReceptionCoverageSelectionError",
     "ReceptionPatientNotFoundError",

@@ -393,8 +393,26 @@ Aggregateです。医療保険は適用順位を1に固定し、同一患者・�
 | `get_latest(*, corporate_id, store_id, patient_id)` | `(recorded_at, id)` の降順で最新履歴を取得する |
 
 `CoverageSelectionRecord` は `corporate_id`、`store_id`、`patient_id`、業務上の適用日、
-正規化済み元資格ID列、請求側専用の `CoverageSnapshot`、UTC記録時刻、記録者を持ちます。
-元ID列は空・重複を禁止し、Snapshotの構成件数と一致させます。`CoverageSnapshot` は医療保険0〜1件と公費0〜4件を値として
+`CoverageSelection`、UTC記録時刻、記録者を持ちます。
+
+`CoverageSelection` は医療保険枠0〜1個と公費枠0〜4個からなり、各枠が選択元資格IDと
+請求固定値を**分離不能に1対1**で束ねます。以前は「元ID列」と「Snapshot」を並列の
+2フィールドで持ち、対応は「医療保険 → 公費順位順」という並び順の規約でした。
+件数一致しか検証できず、順序が入れ替わった履歴も構築できたためです。
+
+対応を型で表せなかったのは、`CoverageSnapshot` が元IDを持たず `SourceCoverageId` も
+素のUUIDで、集約内に照合材料が存在しなかったからです。そこで検証を足すのではなく
+型の形を変えました。結果として「医療保険IDが先頭でない」「公費IDが順位とズレる」
+「件数が合わない」という状態がそもそも表現できなくなり、`validate()` の件数照合は
+**不要になって消えました**。検証を1本増やすのではなく1本消せることが、規約から
+仕組みへ移行できた証拠です。VOが拒否するのは元資格IDの重複だけです。
+
+`record.snapshot` と `record.source_coverage_ids` は枠構造からの導出 property であり、
+独立した記憶域を持ちません。永続化実装を入れるときも `selection` だけをマップし、
+この2つを列として持たせてはいけません（平坦化した2フィールドの再来になります）。
+
+集約が守れるのは枠構造の一致までです。「その元IDが本当にその資格を指すか」は台帳を
+引かないと判定できず、`CoverageValidityBoundary` の再検証の仕事として残ります。`CoverageSnapshot` は医療保険0〜1件と公費0〜4件を値として
 固定します。医療保険1件と公費2件のような組み合わせも、公費順位を保持したまま保存できます。
 公費の順位は第一公費から連続していなければならず、第一公費が空で第三公費だけを持つ組み合わせは
 `CoverageCombinationInvalidError` として拒否します（レセプト提出時に返戻されるため、

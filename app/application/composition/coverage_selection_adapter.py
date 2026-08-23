@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from app.application.reception.exceptions import ReceptionCoverageSelectionError
-from app.application.reception.reference import CoverageSelectionMaterial
 from app.base.domain.exceptions import DomainError
 from app.domain.claim import (
     ClaimCoverageBenefitRatio,
@@ -15,7 +14,6 @@ from app.domain.claim import (
     ClaimInsurerNumber,
     ClaimPublicPayerNumber,
     ClaimPublicRecipientNumber,
-    CoverageSnapshot,
     InsuranceCoverageSnapshot,
     PublicExpenseCoverageSnapshot,
 )
@@ -27,11 +25,16 @@ from app.domain.coverage import (
     PatientCoverageRepository,
 )
 from app.domain.patient.primitives import PatientId
+from app.domain.reception.coverage_selection import (
+    CoverageSelection,
+    SelectedInsuranceSource,
+    SelectedPublicExpenseSource,
+)
 from app.domain.reception.primitives import CoverageAppliedOn, SourceCoverageId
 
 
 class CoverageSelectionAdapter:
-    """元資格IDを検証し、正規化ID列と請求Snapshotを同時に構築する。"""
+    """元資格IDを検証し、枠ごとにIDと請求固定値を束ねた選択を構築する。"""
 
     def __init__(
         self,
@@ -48,13 +51,13 @@ class CoverageSelectionAdapter:
         patient_id: PatientId,
         coverage_ids: tuple[str, ...],
         applied_on: CoverageAppliedOn,
-    ) -> CoverageSelectionMaterial:
+    ) -> CoverageSelection:
         """入力IDを検証し、存在を漏らさない選択エラーへ畳んで返す。"""
         try:
             requested_ids = tuple(
                 PatientCoverageId.parse(raw_id) for raw_id in coverage_ids
             )
-            return await self._build_material(
+            return await self._build_selection(
                 corporate_id=corporate_id,
                 patient_id=patient_id,
                 requested_ids=requested_ids,
@@ -70,16 +73,18 @@ class CoverageSelectionAdapter:
         *,
         corporate_id: CorporateId,
         patient_id: PatientId,
-        source_coverage_ids: tuple[SourceCoverageId, ...],
-        snapshot: CoverageSnapshot,
+        selection: CoverageSelection,
         applied_on: CoverageAppliedOn,
     ) -> bool:
-        """同じ元IDから同じ正規化ID列とSnapshotを再構築できるか返す。"""
+        """同じ元IDから同じ選択を再構築できるか返す。
+
+        枠がIDと値を束ねているので、照合は値等価の比較1本で足りる。
+        """
         try:
             requested_ids = tuple(
-                PatientCoverageId(item.value) for item in source_coverage_ids
+                PatientCoverageId(item.value) for item in selection.source_coverage_ids
             )
-            rebuilt = await self._build_material(
+            rebuilt = await self._build_selection(
                 corporate_id=corporate_id,
                 patient_id=patient_id,
                 requested_ids=requested_ids,
@@ -87,20 +92,17 @@ class CoverageSelectionAdapter:
             )
         except DomainError, ReceptionCoverageSelectionError:
             return False
-        return (
-            rebuilt.source_coverage_ids == source_coverage_ids
-            and rebuilt.snapshot == snapshot
-        )
+        return rebuilt == selection
 
-    async def _build_material(
+    async def _build_selection(
         self,
         *,
         corporate_id: CorporateId,
         patient_id: PatientId,
         requested_ids: tuple[PatientCoverageId, ...],
         applied_on: CoverageAppliedOn,
-    ) -> CoverageSelectionMaterial:
-        """指定IDだけをロードし、Domainの選択投影から境界DTOを作る。"""
+    ) -> CoverageSelection:
+        """指定IDだけをロードし、Domainの選択投影から枠構造を作る。"""
         coverages = []
         for coverage_id in requested_ids:
             coverage = await self._repository.get(
@@ -118,44 +120,51 @@ class CoverageSelectionAdapter:
             patient_id=patient_id,
             applied_on=applied_on.value,
         )
-        return CoverageSelectionMaterial(
-            source_coverage_ids=tuple(
-                SourceCoverageId(item.value) for item in combination.source_coverage_ids
-            ),
-            snapshot=self._to_snapshot(combination),
-        )
+        return self._to_selection(combination)
 
     @staticmethod
-    def _to_snapshot(combination: CoverageCombination) -> CoverageSnapshot:
-        """Coverageの選択投影をClaim専用プリミティブへコピーする。"""
+    def _to_selection(combination: CoverageCombination) -> CoverageSelection:
+        """Coverageの選択投影を、枠ごとにClaim専用プリミティブへ写す。"""
         selected_insurance = combination.insurance
         insurance = None
         if selected_insurance is not None:
             details = selected_insurance.details
-            insurance = InsuranceCoverageSnapshot(
-                insurer_number=ClaimInsurerNumber(details.insurer_number.value),
-                insured_symbol=ClaimCoverageSymbol(details.insured_symbol.value),
-                insured_number=ClaimCoverageCode(details.insured_number.value),
-                insured_type=ClaimCoverageInsuredType(details.insured_type.value),
-                benefit_ratio=ClaimCoverageBenefitRatio(details.benefit_ratio.value),
-                branch_number=(
-                    ClaimCoverageBranchNumber(details.branch_number.value)
-                    if details.branch_number is not None
-                    else None
+            insurance = SelectedInsuranceSource(
+                source_coverage_id=SourceCoverageId(
+                    selected_insurance.source_coverage_id.value
+                ),
+                values=InsuranceCoverageSnapshot(
+                    insurer_number=ClaimInsurerNumber(details.insurer_number.value),
+                    insured_symbol=ClaimCoverageSymbol(details.insured_symbol.value),
+                    insured_number=ClaimCoverageCode(details.insured_number.value),
+                    insured_type=ClaimCoverageInsuredType(details.insured_type.value),
+                    benefit_ratio=ClaimCoverageBenefitRatio(
+                        details.benefit_ratio.value
+                    ),
+                    branch_number=(
+                        ClaimCoverageBranchNumber(details.branch_number.value)
+                        if details.branch_number is not None
+                        else None
+                    ),
                 ),
             )
 
         public_expenses = tuple(
-            PublicExpenseCoverageSnapshot(
-                priority=ClaimCoveragePriority(item.priority.value),
-                payer_number=ClaimPublicPayerNumber(item.details.payer_number.value),
-                recipient_number=ClaimPublicRecipientNumber(
-                    item.details.recipient_number.value
+            SelectedPublicExpenseSource(
+                source_coverage_id=SourceCoverageId(item.source_coverage_id.value),
+                values=PublicExpenseCoverageSnapshot(
+                    priority=ClaimCoveragePriority(item.priority.value),
+                    payer_number=ClaimPublicPayerNumber(
+                        item.details.payer_number.value
+                    ),
+                    recipient_number=ClaimPublicRecipientNumber(
+                        item.details.recipient_number.value
+                    ),
                 ),
             )
             for item in combination.public_expenses
         )
-        return CoverageSnapshot(
+        return CoverageSelection(
             insurance=insurance,
             public_expenses=public_expenses,
         )
