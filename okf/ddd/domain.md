@@ -225,6 +225,54 @@ await repository.save(store)
 
 ---
 
+## 5.5 集約のライフサイクル表現（方言）
+
+無効化の表し方は現在4通りに分かれています。`tests/domain/test_lifecycle_dialects.py`
+がこの割り当てを凍結しており、表を編集しない限り pytest が落ちます。
+
+| 方言 | 表現 | 該当する集約 |
+| :--- | :--- | :--- |
+| `none` | 無効化の概念を持たない | `Store`、`Patient`、`CoverageSelectionRecord` |
+| `active_flag` | `is_active: bool` | `Staff`、`PatientExternalIdentifier` |
+| `status_enum` | `status: CorporateStatus` | `Corporate` |
+| `dated_activation` | `activation: CoverageActivation`（`[activated_on, deactivated_on)`） | `PatientCoverage` |
+
+### なぜ統一しないか
+
+`dated_activation` が最も表現力が高く、他の方言は「いつから無効か」を失います。
+それでも今は統一しません。遡及判定を必要とする**到達可能なUseCaseが存在しない**からです。
+AGENTS.md の「到達可能なClaim UseCaseがない間はClaim権限を定義しない」と同じ基準です。
+`Store` の閉局・`Patient` の無効化も、要求元のユースケースが無いので追加しません。
+
+### 統一に踏み切るトリガー
+
+- **T1**: スタッフの店舗アクセス認可を行う到達可能なUseCaseが追加されたとき。
+  `Staff.is_active` を `[employed_on, retired_on)` へ格上げする。
+- **T2**: 過去日のレセプト再作成UseCaseが追加され、過去時点のスタッフ・店舗状態の
+  再現が必要になったとき。
+- **T3**: `dated_activation` が2集約目になったとき。`CoverageActivation` を
+  Shared Kernel の汎用 `Activation` VO へ切り出す判断をここで行う。
+
+### 一意キーの再利用可否
+
+`active_flag` 方言の集約は、無効化後に一意キーを再利用できるかを**集約ごとに**決めます。
+全称のルールにはしません（`Staff` に対して偽になるため）。判断は
+`tests/domain/test_lifecycle_dialects.py` の `ACTIVE_FLAG_KEY_REUSE` に記録し、
+実挙動は契約テストで固定します。判断を書かずに `is_active` を足すことはできません。
+
+| 集約 | 再利用 | 理由 |
+| :--- | :--- | :--- |
+| `PatientExternalIdentifier` | 可 | 誤った患者へ紐付けた外部IDを無効化してから正しい患者へ付け替えるため |
+| `Staff`（スタッフコード） | 不可 | 過去の調剤録・監査の追跡を壊さないため |
+
+### 既知の限界
+
+方言の分類はフィールド名と宣言型で行うため、まったく新しい語彙で既存集約に
+無効化を実装すると `none` と分類され検出できません。新しい集約は表に行が無いので
+必ず落ちるため、最大の穴（集約が増えるたびに方言が増える）は塞がっています。
+
+---
+
 ## 6. ドメインモデル貧血症（Anemic Domain Model）の防止
 
 ドメイン層を構築する際、単なるデータ構造（getter/setterのみのクラス）となり、ロジックがすべてユースケース層に流出する「ドメインモデル貧血症」を防止します。

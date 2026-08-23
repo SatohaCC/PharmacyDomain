@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from app.domain.corporate import CorporateId
-from app.domain.staff import StaffCodeAlreadyExistsError, StaffId
+from app.domain.staff import StaffCode, StaffCodeAlreadyExistsError, StaffId
 from tests.factories.staff_factory import create_staff
 from tests.fakes.in_memory_staff_repository import InMemoryStaffRepository
 
@@ -114,3 +114,26 @@ async def test_list_by_corporate_id_returns_only_staffs_of_given_corporate() -> 
     # Assert
     assert len(actual) == 2
     assert {s.id for s in actual} == {staff_a1.id, staff_a2.id}
+
+
+@pytest.mark.asyncio
+async def test_スタッフコード_無効化済みスタッフのコードも_重複として拒否される() -> (
+    None
+):
+    """``ACTIVE_FLAG_KEY_REUSE["Staff"] is False`` の実挙動を固定する。
+
+    外部患者ID（再利用可）と逆の判断であり、過去の調剤録・監査の追跡を
+    壊さないためにスタッフコードは無効化後も解放しない。
+    """
+    # Arrange
+    repo = InMemoryStaffRepository()
+    corp_id = CorporateId.generate()
+    retired = create_staff(corporate_id=corp_id, code="STF-001")
+    await repo.save(retired)
+    await repo.save(retired.deactivate())
+
+    # Act
+    actual = await repo.exists_by_code(corporate_id=corp_id, code=StaffCode("STF-001"))
+
+    # Assert
+    assert actual is True
