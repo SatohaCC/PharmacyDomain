@@ -197,13 +197,15 @@ def test_適用期間_開始日と終了日が同日なら_生成できる() -> 
 def test_適用開始日_日時型を指定すると_ドメイン検証エラーになる() -> None:
     # Arrange / Act / Assert
     with pytest.raises(DomainValidationError):
-        CoverageValidFrom(datetime(2026, 8, 1, 12, 0))
+        # naive日時が拒否されることを確認するテストなので、意図的にtzを付けない。
+        CoverageValidFrom(datetime(2026, 8, 1, 12, 0))  # noqa: DTZ001
 
 
 def test_適用終了日_日時型を指定すると_ドメイン検証エラーになる() -> None:
     # Arrange / Act / Assert
     with pytest.raises(DomainValidationError):
-        CoverageValidTo(datetime(2026, 8, 31, 12, 0))
+        # naive日時が拒否されることを確認するテストなので、意図的にtzを付けない。
+        CoverageValidTo(datetime(2026, 8, 31, 12, 0))  # noqa: DTZ001
 
 
 def test_適用期間_隣接する期間は_重ならない() -> None:
