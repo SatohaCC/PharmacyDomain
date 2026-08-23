@@ -147,6 +147,8 @@ Application層でも、インメモリRepositoryを使い、ドメインモデ�
 | `in_memory_patient_repository.py` | 患者・外部患者IDRepository | 患者境界、有効な外部IDの原子的な一意性 |
 | `in_memory_patient_coverage_repository.py` | `InMemoryPatientCoverageRepository` | 実効期間の原子的な競合拒否 |
 | `in_memory_coverage_selection_record_repository.py` | `InMemoryCoverageSelectionRecordRepository` | 複数履歴の保存と `(recorded_at, id)` 最新順 |
+| `reception_reference_boundaries.py` | `FakeStoreReference` / `FakePatientReference` / `FakeCoverageSelectionSource` / `FakeCoverageValidity` | Receptionの参照Boundary4種 |
+| `fake_clock.py` | `FakeClock` | `Clock`（固定時刻。`advance()` で明示的に進める） |
 
 共通する性質は次のとおりです。
 
@@ -156,6 +158,8 @@ Application層でも、インメモリRepositoryを使い、ドメインモデ�
 - `get()`と`list_*()`ではdeep copyを返し、永続化層に近い分離を再現する
 - `InMemoryStaffRepository.get()`は`corporate_id`が一致しない場合に`None`を返し、Protocolの法人境界の契約を守る
 - データベースやネットワークに依存しない
+- 実装するProtocolを**明示継承し、全メンバを上書きする**。上書きし忘れるとProtocol本体の `...` を実装として継承し、呼んでも例外にならず `None` が返るため、Protocolの改名にフェイクが静かに追随できなくなる。`tools/check_fake_conformance.py` がpytest内で検出する
+- `save()` の契約（原子的な一意性拒否）は「実装済みだが契約を無視している」形で壊れうる。チェッカでは捕まらないため、`tests/contracts/test_repository_contracts.py` が `tests/fakes/` を走査して実装を**自動列挙**し、全実装へ同じ契約テストを課す。新しいフェイクを足すと登録を忘れようがなく検査対象になる
 
 Fakeは、テストに必要な現実的な振る舞いを持たせます。単にメソッドが呼ばれたことだけを確認するMockとは目的が異なります。
 外部患者IDと患者資格のFakeには、両タスクが事前readを終えてからsaveへ進める同期フックを置き、

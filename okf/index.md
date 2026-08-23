@@ -239,6 +239,7 @@ CoverageのApplication層は `CorporateAccessBoundary` Protocolだけで法人�
 
 実装場所: `app/domain/reception/`
 
+- `coverage_selection.py` — `CoverageSelection` / `SelectedInsuranceSource` / `SelectedPublicExpenseSource`（元資格IDと請求固定値を枠ごとに1対1で束ねる値）
 - `coverage_selection_record.py` — `CoverageSelectionRecord` 選択履歴Aggregate Root
 - `primitives.py` — 履歴ID、業務上の適用日、元資格ID、UTC記録時刻、記録者
 - `repository.py` — `CoverageSelectionRecordRepository`（法人・店舗・患者単位）
