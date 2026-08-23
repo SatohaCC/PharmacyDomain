@@ -65,9 +65,15 @@ paths = ["app/application"]
 threshold = 2
 min_methods = 2
 
+[tool.fake_rules]
+# AGENTS.md の「テストダブルは実装するProtocolの全メンバを上書きする」を実行可能にしたもの。
+# Protocolを明示継承したまま上書きし忘れると、Protocol本体の ... を継承して静かに None を返す。
+root = "."
+paths = ["tests/fakes", "tests/application/access_helpers.py"]
+
 [tool.import_rules]
 # AGENTS.md の「依存の向き」「Applicationコンテキストの依存」を実行可能な形にしたもの。
-# Store / Staff / Patient は CorporateAccessBoundary（Protocol）にだけ依存し、
+# Store / Staff / Patient / Coverage / Reception は CorporateAccessBoundary（Protocol）にだけ依存し、
 # 法人コンテキストの実装には依存しない。
 root = "."
 paths = ["app"]
@@ -84,7 +90,8 @@ paths = ["app"]
     "app.application.staff",
     "app.application.patient",
     "app.application.coverage",
-    "app.application.claim",
+    "app.application.reception",
+    "app.application.composition",
 ]
 # Corporate は他のApplicationコンテキストに依存しない。
 "app.application.corporate" = [
@@ -92,7 +99,8 @@ paths = ["app"]
     "app.application.staff",
     "app.application.patient",
     "app.application.coverage",
-    "app.application.claim",
+    "app.application.reception",
+    "app.application.composition",
 ]
 # Store は Staff にも法人コンテキストの実装にも依存しない。
 "app.application.store" = [
@@ -100,14 +108,16 @@ paths = ["app"]
     "app.application.corporate",
     "app.application.patient",
     "app.application.coverage",
-    "app.application.claim",
+    "app.application.reception",
+    "app.application.composition",
 ]
 # Staff は法人コンテキストの実装に依存しない（Store への依存は一方向で許可）。
 "app.application.staff" = [
     "app.application.corporate",
     "app.application.patient",
     "app.application.coverage",
-    "app.application.claim",
+    "app.application.reception",
+    "app.application.composition",
 ]
 # Patient は他のApplicationコンテキストに依存しない。
 "app.application.patient" = [
@@ -115,7 +125,8 @@ paths = ["app"]
     "app.application.store",
     "app.application.staff",
     "app.application.coverage",
-    "app.application.claim",
+    "app.application.reception",
+    "app.application.composition",
 ]
 # Coverage は法人・PatientのApplication実装に依存せず、ID参照と境界Protocolだけを使う。
 "app.application.coverage" = [
@@ -123,25 +134,38 @@ paths = ["app"]
     "app.application.store",
     "app.application.staff",
     "app.application.patient",
-    "app.application.claim",
+    "app.application.reception",
+    "app.application.composition",
 ]
-# Claimは他コンテキストのApplication実装へ依存せず、参照Boundaryへ依存する。
-"app.application.claim" = [
+# Receptionは他コンテキストのApplication実装へ依存せず、参照Boundaryへ依存する。
+"app.application.reception" = [
     "app.application.corporate",
     "app.application.store",
     "app.application.staff",
     "app.application.patient",
     "app.application.coverage",
+    "app.application.composition",
 ]
 # CoverageはPatientのAggregate/Repositoryを直接参照せず、資格自身のIDと境界だけを扱う。
 "app.domain.coverage" = [
     "app.domain.claim",
+    "app.domain.reception",
     "app.domain.patient.patient",
     "app.domain.patient.external_identifier",
     "app.domain.patient.repository",
 ]
 # ClaimはCoverage・Patient・Storeの集約やRepositoryを直接参照せず、スナップショットとIDだけを扱う。
 "app.domain.claim" = [
+    "app.domain.coverage",
+    "app.domain.reception",
+    "app.domain.patient.patient",
+    "app.domain.patient.external_identifier",
+    "app.domain.patient.repository",
+    "app.domain.store.store",
+    "app.domain.store.repository",
+]
+# ReceptionはClaim Snapshotと共有IDだけを持ち、資格台帳や他集約を直接参照しない。
+"app.domain.reception" = [
     "app.domain.coverage",
     "app.domain.patient.patient",
     "app.domain.patient.external_identifier",

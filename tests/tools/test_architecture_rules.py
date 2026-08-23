@@ -6,6 +6,7 @@ pytest が唯一必ず実行されるゲートなので、ここから呼び出�
 
 from pathlib import Path
 
+from tools.check_fake_conformance import main as check_fake_conformance_main
 from tools.check_imports import main as check_imports_main
 from tools.check_lcom import main as check_lcom_main
 
@@ -23,6 +24,16 @@ def test_import方向ルールに違反がない() -> None:
 def test_application層のLCOM4が閾値を超えていない() -> None:
     # Act
     exit_code = check_lcom_main(["--config", str(_PYPROJECT), "--fail-on-violation"])
+
+    # Assert
+    assert exit_code == 0
+
+
+def test_テスト用Fakeが実装Protocolの全メンバを上書きしている() -> None:
+    # Act
+    exit_code = check_fake_conformance_main(
+        ["--config", str(_PYPROJECT), "--fail-on-violation"]
+    )
 
     # Assert
     assert exit_code == 0

@@ -104,14 +104,13 @@ class StoreFaxNumber(BaseTelephoneNumber):
 - **不変性**: `@dataclass(frozen=True, kw_only=True)` を付与し、状態変更を禁止します。
 - **交換可能性**: 値の変更が必要な場合は新しいインスタンスに置き換えます。
 - **等価性比較**: 保持する属性の値がすべて一致していれば同値とみなされます。
-- **構成要素の型検証**: `__post_init__` で各フィールドが期待する型かを `isinstance` で確認し、
-  違えば `DomainValidationError` を送出します（`StoreNames`、`StoreAddress`、`ContactInfo`、`PersonNames` など）。
+- **構成要素の型検証**: 共通 `ValueObject.__post_init__` が `_normalize_fields()`、MRO単位で解決した宣言型との照合、`validate()` の順に実行します。具象クラスは `__post_init__` を上書きしません。単純型・Enum・Optional・tuple・frozensetの内部まで照合し、違えば `DomainValidationError` を送出します。
 
 ### ファーストクラスコレクション
 
 複数個の値をまとめて扱う概念は、リストを裸で持たずコレクション自体をValue Objectにします。
 `StaffQualifications` は `tuple[BaseQualificationProfile, ...]` を包み、
-「同一の資格区分が重複していないこと」を `__post_init__` で保証したうえで、
+「同一の資格区分が重複していないこと」を `validate()` で保証したうえで、
 `get()` / `has()` / `from_profiles()` / `empty()` を提供します。
 
 ---
@@ -125,12 +124,13 @@ class StoreFaxNumber(BaseTelephoneNumber):
   `Entity.__eq__` は「同一クラスかつ同一ID」だけを見るため、**変更前後のインスタンスは等値になります**。
   値が変わったかを確かめたいときは `id` ではなくフィールドを比較してください。
 - **基底クラスの適用**: `Entity[ID]` または `AggregateRoot[ID]` を継承し、`@dataclass(frozen=True, eq=False, kw_only=True)` を付与します。
+- **共通初期化**: `Entity.__post_init__` もValue Objectと同じ順序で宣言型を照合し、具象集約による共通ガードの迂回を防ぎます。
 - **不変（Immutable）**: 集約も frozen です。状態変更メソッドは `dataclasses.replace()` で
   **新しいインスタンスを返す**ので、呼び出し側は戻り値を受け直します。
 - **ファクトリメソッド**: 新規作成時は `create()` メソッドを介して初期状態の不整合を防ぎます。IDは `XxxId.generate()` で採番します。
 - **Aggregate Root (集約ルート)**: 外部（リポジトリやユースケース層）から直接取得・保存されるアクセスポイントです。
   集約内部の子エンティティは `Entity` を継承し、ルート経由でのみ操作します。
-- **他集約への参照はIDのみ**: `Store` と `Patient` は `corporate_id` だけを持ち、`PatientCoverage` は `corporate_id` と `patient_id` だけを持ちます。`Corporate`、`Patient` 集約そのものは参照しません。将来の `Prescription` と `Claim` も `PatientId` または資格のスナップショットを保持し、集約を直接保持しません。参照先の実在性はID参照Protocolまたは永続化層の外部キー制約で担保します。
+- **他集約への参照はIDのみ**: `Store` と `Patient` は `corporate_id` だけを持ち、`PatientCoverage` は `corporate_id` と `patient_id` だけを持ちます。Receptionの `CoverageSelectionRecord` も元資格IDと不変Snapshotだけを保持し、資格・Patient・StoreのAggregateを保持しません。参照先の実在性はID参照Protocolまたは永続化層の外部キー制約で担保します。
 - **ドメインイベントは持たない**: `AggregateRoot` はイベントの記録・配送機構を意図的に持ちません。
   配送経路（`UnitOfWork` のコミット後にイベントを配送する仕組み）が無い状態でAPIだけ用意しても、
   消費されないリストが増えるだけだからです。必要になった時点で配送経路と併せて導入します。
@@ -155,9 +155,12 @@ await repository.save(store)
 
 現在値を専用フィールドとして持つのではなく、履歴から導出できるものは導出します。
 `Staff` は主所属店舗・兼務店舗のフィールドを持たず、`affiliations`（`StoreAffiliation` のタプル）だけを保持し、
-`current_home_store_id(today)` / `current_concurrent_store_ids(today)` / `can_access_store(store_id, today)`
-が対象日を受け取って計算します。同一日に主所属が複数見つかった場合は
-`PrimaryAffiliationDuplicationError` を送出します。
+`current_home_store_id(today)` / `current_concurrent_store_ids(today)`
+が対象日を受け取って計算します。
+
+導出メソッドは**例外を送出しません**。所属期間の重なりは `Staff.validate()` が構築時に
+禁止するため、対象日に有効な主所属は高々1件であることが保証されているからです。
+読み取り時に検出する設計は、検出が遅れるうえ例外を期待しない呼び出し元へ漏れるため採りません。
 
 ---
 
@@ -181,6 +184,8 @@ await repository.save(store)
 | `InsurancePharmacyNumberUniquenessService` | `app/domain/store/services.py` | 保険薬局指定番号の一意性（システム全体） |
 | `StaffCodeUniquenessService` | `app/domain/staff/services.py` | スタッフコードの一意性（法人単位） |
 | `StaffStoreAssignmentService` | `app/domain/staff/services.py` | スタッフの配属・異動・兼務の調整（集約間） |
+| `PatientCoverageConflictService` | `app/domain/coverage/services.py` | 同一患者・制度・順位の実効期間競合 |
+| `CoverageSelectionService` | `app/domain/coverage/combination.py` | 明示された元資格IDから適用日の不変な選択投影を構築 |
 
 一意性サービスは `ensure_*_is_unique(...)` を持ち、更新時は自分自身を `excluding_id` で除外します。
 
@@ -191,7 +196,9 @@ await repository.save(store)
    - また、集約への直接依存を避けようとして `Staff.transfer_home_store(store_id, store_corporate_id=...)` のように個別の ID 群を引数として渡す設計にすると、「他法人の店舗IDに偽の自法人IDを添えて渡す」といった引数偽装攻撃・バグが生じた際に、エンティティ単体では実在する店舗IDと法人IDの正当な組み合わせを検証できません。
 
 2. **ドメインサービスによる分離解決アプローチ**
-   - **エンティティの責務（自集約の境界）**: `Staff` エンティティは他集約（`Store`）を知らず、`StoreId` と自集約の不変条件（主所属の重複禁止・異動日の前後関係など）の維持に専念します。
+   - **エンティティの責務（自集約の境界）**: `Staff` エンティティは他集約（`Store`）を知らず、`StoreId` と自集約の不変条件の維持に専念します。`Staff.validate()` が守るのは次の2つで、所属期間 `[start_date, end_date]`（`end_date=None` は無期限）の重なりとして判定します。
+     1. `is_primary=True` の所属は、店舗を問わず互いに1日も重ならない（違反は `PrimaryAffiliationDuplicationError`）
+     2. 同一 `store_id` の所属は、`is_primary` を問わず互いに1日も重ならない（違反は `ConcurrentStoreConflictError`）
    - **ドメインサービスの責務（集約間の調整役）**: 無状態なドメインサービス（`StaffStoreAssignmentService`）が、リポジトリ経由で正しくロードされた複数の本物集約オブジェクト（`Staff` と `Store`）を引数として受け取り、集約間の整合性（`store.corporate_id == staff.corporate_id`）を検証します。
    - 本物の `Store` オブジェクトを取り扱うことで偽装すり抜けが構造的に遮断され、安全性とDDDの集約境界保護が両立します。
 
@@ -210,6 +217,12 @@ await repository.save(store)
   異動では「異動日より未来の主所属予約が無いこと」「異動日が現在の主所属開始日より後であること」を確認し、
   現在の主所属を異動日の前日で `close()` してから新しい主所属を追加します。
 
+  **所属期間の重なり検証は本サービスが持ちません。** それは `Staff` 集約の責務であり、
+  `replace()` の戻り値を組み立てた時点で `Staff.validate()` が拒否します。本サービスが担うのは
+  集約間の整合（法人一致）と、集約単体では表現できない遷移ルール（未来の主所属予約との衝突、
+  異動日と現主所属開始日の前後、解除対象の兼務行の存在）だけです。
+  同じルールを両方に置くと、片方を壊しても誰も気づけません。
+
 ---
 
 ## 6. ドメインモデル貧血症（Anemic Domain Model）の防止
@@ -218,7 +231,7 @@ await repository.save(store)
 
 1. **自己検証の徹底**: 入力データの形式チェックやビジネスルールの第一線ガードは Domain Primitive や Value Object で実施する。
 2. **状態変更のカプセル化**: 外部から属性を直接書き換えるのではなく、意図を明確にしたドメインメソッド（例: `change_name()`, `deactivate()`）を介して状態を更新する。集約は frozen なので、そもそも直接代入はできない。
-3. **データと振る舞いの一体化**: データに付随する計算や述語（判定ロジック）は、データを持つオブジェクト自体にプロパティやメソッドとして配置する（`PharmacistProfile.can_bill_insurance()`、`AffiliationPeriod.is_active_on()`、`Staff.can_access_store()` など）。
+3. **データと振る舞いの一体化**: データに付随する計算や述語（判定ロジック）は、データを持つオブジェクト自体にプロパティやメソッドとして配置する（`PharmacistProfile.can_bill_insurance()`、`AffiliationPeriod.is_active_on()`、`AffiliationPeriod.overlaps()` など）。
 
 ---
 
@@ -285,10 +298,10 @@ Domain Repositoryは、集約を永続化・再構築するための抽象です
 患者と外部システムのID対応を管理します。同一法人・同一連携先・同一外部患者IDの組は
 一意とし、無効化して履歴を残します。別の連携先のIDは同じ患者に複数登録できます。
 
-一意性を要求するのは**有効な対応付け**に対してだけです。`get_by_source()` は無効化済みの行も
-返し、「有効な行だけを一意とみなす」判断はユースケース側が持ちます。無効化済みの行まで衝突
-扱いにすると、誤った患者へ紐付けた外部IDを無効化しても正しい患者へ付け替えられず、その外部IDが
-恒久的に使えなくなるためです（無効化が終端になり、履歴を残す意図と矛盾します）。
+一意性を要求するのは**有効な対応付け**に対してだけです。`get_active_by_source()` は有効行だけを
+返すため、無効行の格納順に重複判定が左右されません。`save()` は同じ集約IDを除外した上で、
+同一法人・連携先・外部患者IDの有効行を原子的に一意にする最終防衛契約を持ちます。無効化済みの
+行まで衝突扱いにすると、誤紐付けを無効化した後に正しい患者へ付け替えられなくなるためです。
 
 ### `PatientCoverageRepository`
 
@@ -298,53 +311,57 @@ Domain Repositoryは、集約を永続化・再構築するための抽象です
 | :--- | :--- |
 | `get(*, corporate_id, coverage_id)` | 指定法人の患者資格を取得する。別法人・不存在は `None` |
 | `list_by_patient(*, corporate_id, patient_id)` | 指定法人・患者の資格履歴を取得する |
-| `save(coverage)` | 患者資格を新規登録または変更保存する |
+| `save(coverage)` | 実効期間の競合を原子的に拒否し、患者資格を新規登録または変更保存する |
 
-`PatientCoverage` は資格種別、制度別詳細、適用期間、優先順位、利用状態を持つ独立した
+`PatientCoverage` は資格種別、制度別詳細、制度期間、有効化区間、優先順位を持つ独立した
 Aggregateです。医療保険は適用順位を1に固定し、同一患者・同一期間に複数の保険を置きません。
-公費は第一から第四までの順位を持ち、同じ順位の有効期間重複だけを
+公費は第一から第四までの順位を持ち、同じ順位の実効期間重複だけを
 `PatientCoverageConflictService` で拒否します。そのため、同一期間の医療保険1件と第一公費・
 第二公費を併用できます。医療保険の一意性は順位固定により「同一制度かつ同一順位」の判定へ
 含まれるため、競合サービス側で `coverage_type` を別途分岐させません（分岐させても結果は
 変わらず、同じ規則が2箇所に分散します）。
 
-適用期間は `CoveragePeriod` が `CoverageValidFrom` / `CoverageValidTo` を保持し、日付型の
-検証（`datetime` の誤混入を含む）は `BaseDate` から受け継ぎます。`CoveragePeriod` 自身は
-開始日と終了日の前後関係だけを検証します。レセプトで桁数が定まる番号は桁数をプリミティブの
+制度期間 `CoveragePeriod` は終了日を含む `[valid_from, valid_to]`、台帳行の
+`CoverageActivation` は無効化発効日を含まない `[activated_on, deactivated_on)` です。
+実効期間は両者の交差です。無効化発効日当日は無効で、同日再無効化だけを冪等として許可し、
+異なる発効日への変更は `CoverageDeactivationAlreadyFixedError` で拒否します。日付型の検証
+（`datetime` の誤混入を含む）は `BaseDate` から受け継ぎます。レセプトで桁数が定まる番号は桁数をプリミティブの
 不変条件として持たせます（`InsurerNumber` は6桁または8桁、`PublicPayerNumber` は8桁、
 `PublicRecipientNumber` は7桁、`CoverageBranchNumber` は2桁）。桁数規定のない被保険者記号・
 番号は `CoverageSymbol` / `CoverageCode` として空でないことだけを要求します。
 
-請求時点の資格の固定値はClaim側の
-`CoverageSnapshot` として保存し、現在の資格変更によって過去請求を変化させません。最後に
-使用した組み合わせは `PatientCoverage` に状態として追加せず、Claim側の
-`CoverageUsageRepository.get_latest()` から法人・店舗・患者単位で導出します。
+`CoverageSelectionService` は明示された患者資格IDを本物のAggregateで検証し、Aggregateを保持しない
+`CoverageCombination`（元IDと不変値の投影）を返します。別法人・別患者・適用日範囲外・重複ID・
+未取得ID・医療保険複数・公費順位の重複／欠番を拒否します。請求時点の固定値はClaim側の
+`CoverageSnapshot` として保存し、現在の資格変更によって過去の固定値を変化させません。
 
-### `CoverageUsageRepository`
+### `CoverageSelectionRecordRepository`
 
-[`app/domain/claim/repository.py`](../../app/domain/claim/repository.py)
+[`app/domain/reception/repository.py`](../../app/domain/reception/repository.py)
 
 | 操作 | 役割 |
 | :--- | :--- |
-| `save(usage)` | 請求・調剤時点の適用資格利用履歴を不変スナップショットとして保存する |
-| `get_latest(*, corporate_id, store_id, patient_id)` | 同一法人・店舗・患者で最後に使用した履歴を取得する |
+| `save(record)` | 受付時点の選択履歴を保存する。履歴なので複数行を許可する |
+| `get_latest(*, corporate_id, store_id, patient_id)` | `(recorded_at, id)` の降順で最新履歴を取得する |
 
-`CoverageUsage` は `corporate_id`、`store_id`、`patient_id`、適用日時、請求側専用の
-`CoverageSnapshot`を持ちます。`CoverageSnapshot` は医療保険0〜1件と公費0〜4件を値として
+`CoverageSelectionRecord` は `corporate_id`、`store_id`、`patient_id`、業務上の適用日、
+正規化済み元資格ID列、請求側専用の `CoverageSnapshot`、UTC記録時刻、記録者を持ちます。
+元ID列は空・重複を禁止し、Snapshotの構成件数と一致させます。`CoverageSnapshot` は医療保険0〜1件と公費0〜4件を値として
 固定します。医療保険1件と公費2件のような組み合わせも、公費順位を保持したまま保存できます。
 公費の順位は第一公費から連続していなければならず、第一公費が空で第三公費だけを持つ組み合わせは
 `CoverageCombinationInvalidError` として拒否します（レセプト提出時に返戻されるため、
 凍結前に弾きます）。医療保険の `benefit_ratio` は必須です。給付割合は患者負担額を決める値であり、
 スナップショットが存在する目的そのものなので、資格台帳の `InsuranceCoverageDetails` と
 必須性を揃えます。元の資格台帳を後から参照して過去の値を再構成する設計にはしません。
-最新履歴は受付画面の初期候補であり、今回の適用日で資格期間・有効状態を再検証した後にだけ
-利用します。再検証はClaimが資格台帳を持たないため `CoverageValidityBoundary` へ委ね、
-結果を `LastCoverageUsageCandidateDto.is_still_valid` として返します。
+最新履歴は受付画面の初期候補であり、今回の適用日で元IDの全資格を再ロードし、同じDomain Serviceで
+正規化ID列とSnapshotを再構築した後にだけ利用します。結果は
+`LastCoverageSelectionCandidateDto.is_still_valid` として返します。`CoverageRecordedAt` はaware
+datetimeだけを受け入れてUTCへ正規化します。`DomainPrimitive.__post_init__()` は値の等価性に
+かかわらず正規化値を必ず保持するため、同じ瞬間を表すJST入力もUTC表現で保存されます。
 
-`CoverageUsageTimestamp` は適用日時をUTCへ正規化します。aware な `datetime` の `==` は
-瞬時で比較するため、基底 `DomainPrimitive.__post_init__` の同値判定ではオフセットの違いを
-検出できません。そのため `CoverageUsageTimestamp` は `__post_init__` を上書きし、正規化後の
-値を無条件に保持します。テストで正規化を確認するときも `==` ではなく `isoformat()` を比較します。
+外部患者IDと患者資格の原子的競合拒否はRepository契約ですが、現時点では本番永続化実装が
+ありません。Fakeの検証は本番DB制約の代替ではなく、部分一意索引・期間除外制約・別トランザクション
+統合テストが追加されるまで `RESIDUAL-RISK-DB-01` は未解決です。
 
 ### `save()` という名前
 

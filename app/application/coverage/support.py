@@ -9,6 +9,8 @@ from app.base.application.support import to_optional_text
 from app.base.domain.exceptions import DomainValidationError
 from app.domain.corporate.primitives import CorporateId
 from app.domain.coverage import (
+    CoverageActivatedOn,
+    CoverageActivation,
     CoverageBenefitRatio,
     CoverageBranchNumber,
     CoverageCode,
@@ -30,6 +32,7 @@ from app.domain.coverage.primitives import PatientCoverageId
 from app.domain.coverage.repository import PatientCoverageRepository
 
 __all__ = [
+    "build_activation",
     "build_coverage_period",
     "build_insurance_details",
     "build_priority",
@@ -40,6 +43,11 @@ __all__ = [
     "required_text",
     "to_optional_text",
 ]
+
+
+def build_activation(*, activated_on: date) -> CoverageActivation:
+    """患者資格台帳行の有効化区間を構成する。"""
+    return CoverageActivation(activated_on=CoverageActivatedOn(activated_on))
 
 
 def required_text(raw: str | None, field_name: str) -> str:

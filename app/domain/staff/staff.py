@@ -1,15 +1,17 @@
+from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date
+from itertools import pairwise
 from typing import Self
 
 from app.base.domain.entity import AggregateRoot
-from app.base.domain.primitives.primitives import (
-    BaseEmailAddress,
-    BaseTelephoneNumber,
-)
 from app.base.domain.value_object import PersonNames
 from app.domain.corporate.primitives import CorporateId
-from app.domain.staff.exceptions import PrimaryAffiliationDuplicationError
+from app.domain.staff.exceptions import (
+    ConcurrentStoreConflictError,
+    PrimaryAffiliationDuplicationError,
+)
 from app.domain.staff.primitives import (
     BaseQualificationProfile,
     DietitianProfile,
@@ -17,11 +19,24 @@ from app.domain.staff.primitives import (
     PharmacistProfile,
     RegisteredSellerProfile,
     StaffCode,
+    StaffEmailAddress,
     StaffId,
+    StaffPhoneNumber,
     StaffQualifications,
     StoreAffiliation,
 )
 from app.domain.store.primitives import StoreId
+
+
+def _has_overlapping_period(affiliations: Sequence[StoreAffiliation]) -> bool:
+    """開始日昇順に並べ、隣接する2件だけを比較して期間の重なりを検出する。
+
+    ソート後に重なる組 ``(i, j)``（``i < j``）が存在するなら、
+    ``start_i <= start_{i+1} <= start_j <= end_i`` が成り立つので
+    ``(i, i+1)`` も必ず重なる。よって隣接比較だけで重なりの有無を漏れなく判定できる。
+    """
+    ordered = sorted(affiliations, key=lambda item: item.period.start_date)
+    return any(left.period.overlaps(right.period) for left, right in pairwise(ordered))
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)
@@ -36,12 +51,39 @@ class Staff(AggregateRoot[StaffId]):
     )
     job_title: JobTitle | None = None
     code: StaffCode | None = None
-    phone_number: BaseTelephoneNumber | None = None
-    email: BaseEmailAddress | None = None
+    phone_number: StaffPhoneNumber | None = None
+    email: StaffEmailAddress | None = None
     is_active: bool = True
 
     # 💡 唯一の所属情報（home_store_id等は削除！）
     affiliations: tuple[StoreAffiliation, ...] = ()
+
+    # --- 自集約の不変条件 ---
+
+    def validate(self) -> None:
+        """所属履歴の期間が重ならないことを検証する。
+
+        ``Entity.__post_init__`` から呼ばれるため、``create()`` /
+        ``dataclasses.replace()`` / Repositoryからの復元 / テストの直接構築の
+        すべてがこの検証を通る。不正な所属履歴を持つ ``Staff`` は生成できない。
+        """
+        self._ensure_primary_affiliations_never_overlap()
+        self._ensure_same_store_affiliations_never_overlap()
+
+    def _ensure_primary_affiliations_never_overlap(self) -> None:
+        """主所属は店舗を問わず期間が重ならないことを検証する。"""
+        primaries = [aff for aff in self.affiliations if aff.is_primary]
+        if _has_overlapping_period(primaries):
+            raise PrimaryAffiliationDuplicationError()
+
+    def _ensure_same_store_affiliations_never_overlap(self) -> None:
+        """同一店舗の所属は主所属・兼務を問わず期間が重ならないことを検証する。"""
+        by_store: defaultdict[StoreId, list[StoreAffiliation]] = defaultdict(list)
+        for affiliation in self.affiliations:
+            by_store[affiliation.store_id].append(affiliation)
+        for same_store in by_store.values():
+            if _has_overlapping_period(same_store):
+                raise ConcurrentStoreConflictError()
 
     # --- 権限・資格チェックの委譲プロパティ ---
 
@@ -66,23 +108,20 @@ class Staff(AggregateRoot[StaffId]):
 
     # --- 所属に関する導出メソッド（現在の状態を計算する） ---
 
-    def _active_primary_affiliations(
-        self, target_date: date
-    ) -> tuple[StoreAffiliation, ...]:
-        return tuple(
-            aff
-            for aff in self.affiliations
-            if aff.is_primary and aff.period.is_active_on(target_date)
-        )
-
     def current_home_store_id(self, today: date) -> StoreId | None:
-        """今日時点での主所属店舗を履歴から導出する"""
-        active_affiliations = self._active_primary_affiliations(today)
-        if len(active_affiliations) > 1:
-            raise PrimaryAffiliationDuplicationError(
-                "同じ日付に主所属店舗を複数持てません。"
-            )
-        return active_affiliations[0].store_id if active_affiliations else None
+        """今日時点での主所属店舗を履歴から導出する
+
+        主所属の期間重複は :meth:`validate` が構築時に禁止するため、
+        該当する所属は高々1件であり、この導出は例外を送出しない。
+        """
+        return next(
+            (
+                aff.store_id
+                for aff in self.affiliations
+                if aff.is_primary and aff.period.is_active_on(today)
+            ),
+            None,
+        )
 
     def current_concurrent_store_ids(self, today: date) -> frozenset[StoreId]:
         """今日時点で兼務している店舗一覧を履歴から導出する"""
@@ -92,14 +131,6 @@ class Staff(AggregateRoot[StaffId]):
             if not aff.is_primary and aff.period.is_active_on(today)
         ]
         return frozenset(store_ids)
-
-    def can_access_store(self, store_id: StoreId, today: date) -> bool:
-        """指定された店舗での業務（ログイン等）が可能か判定する"""
-        if not self.is_active:
-            return False
-        return self.current_home_store_id(
-            today
-        ) == store_id or store_id in self.current_concurrent_store_ids(today)
 
     # --- ファクトリメソッド ---
 
@@ -112,8 +143,8 @@ class Staff(AggregateRoot[StaffId]):
         qualifications: StaffQualifications | None = None,
         job_title: JobTitle | None = None,
         code: StaffCode | None = None,
-        phone_number: BaseTelephoneNumber | None = None,
-        email: BaseEmailAddress | None = None,
+        phone_number: StaffPhoneNumber | None = None,
+        email: StaffEmailAddress | None = None,
     ) -> Self:
         """新規スタッフを生成するファクトリメソッド"""
         return cls(

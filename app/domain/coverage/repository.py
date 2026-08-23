@@ -32,5 +32,10 @@ class PatientCoverageRepository(Protocol):
         ...
 
     async def save(self, coverage: PatientCoverage) -> None:
-        """患者資格を新規登録または変更保存する。"""
+        """実効期間の競合を原子的に拒否して患者資格を保存する。
+
+        同一法人・患者・制度・適用順位の実効期間が重なる行を拒否し、
+        ``CoveragePeriodConflictError`` を送出する。同じ集約IDの現在行は
+        競合候補から除外し、自身の期間変更や無効化を妨げない。
+        """
         ...

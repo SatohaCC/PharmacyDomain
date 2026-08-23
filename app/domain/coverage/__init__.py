@@ -1,6 +1,14 @@
 """Coverageコンテキストのドメイン公開窓口。"""
 
+from app.domain.coverage.combination import (
+    CoverageCombination,
+    CoverageSelectionService,
+    SelectedInsuranceCoverage,
+    SelectedPublicExpenseCoverage,
+)
 from app.domain.coverage.exceptions import (
+    CoverageCombinationError,
+    CoverageDeactivationAlreadyFixedError,
     CoverageDetailsMismatchError,
     CoverageDomainError,
     CoveragePeriodConflictError,
@@ -8,9 +16,12 @@ from app.domain.coverage.exceptions import (
 )
 from app.domain.coverage.patient_coverage import PatientCoverage
 from app.domain.coverage.primitives import (
+    CoverageActivatedOn,
+    CoverageActivation,
     CoverageBenefitRatio,
     CoverageBranchNumber,
     CoverageCode,
+    CoverageDeactivatedOn,
     CoverageInsuredType,
     CoveragePeriod,
     CoveragePriority,
@@ -29,15 +40,22 @@ from app.domain.coverage.repository import PatientCoverageRepository
 from app.domain.coverage.services import PatientCoverageConflictService
 
 __all__ = [
+    "CoverageActivatedOn",
+    "CoverageActivation",
     "CoverageBenefitRatio",
     "CoverageBranchNumber",
     "CoverageCode",
+    "CoverageCombination",
+    "CoverageCombinationError",
+    "CoverageDeactivatedOn",
+    "CoverageDeactivationAlreadyFixedError",
     "CoverageDetailsMismatchError",
     "CoverageDomainError",
     "CoverageInsuredType",
     "CoveragePeriod",
     "CoveragePeriodConflictError",
     "CoveragePriority",
+    "CoverageSelectionService",
     "CoverageSymbol",
     "CoverageType",
     "CoverageValidFrom",
@@ -52,4 +70,6 @@ __all__ = [
     "PublicExpenseCoverageDetails",
     "PublicPayerNumber",
     "PublicRecipientNumber",
+    "SelectedInsuranceCoverage",
+    "SelectedPublicExpenseCoverage",
 ]

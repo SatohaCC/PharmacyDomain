@@ -3,30 +3,21 @@
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
 from enum import StrEnum
 
 from app.base.domain.exceptions import DomainValidationError
-from app.base.domain.primitives.base import DomainPrimitive
 from app.base.domain.primitives.primitives import (
     BaseNonNegativeInt,
     BaseNormalizedString,
     BasePositiveInt,
-    EntityUUID,
 )
-
-
-class ClaimCoverageUsageId(EntityUUID):
-    """適用資格利用履歴の一意識別子（UUIDv7）。"""
-
-    identifier_name = "適用資格利用履歴ID"
 
 
 def _ensure_digits(value: str, *, field_name: str, lengths: tuple[int, ...]) -> None:
     """半角数字かつ規定桁数であることを検証する。
 
     スナップショットは資格台帳の値をコピーするだけだが、桁数の検証を台帳側だけに
-    置くと :class:`CoverageSnapshotBoundary` の実装が不正値を組み立てられてしまう。
+    置くと外側のSnapshot変換アダプタが不正値を組み立てられてしまう。
     凍結される側にも同じ不変条件を持たせ、請求時点で確実に弾く。
     """
     pattern = "|".join(f"[0-9]{{{length}}}" for length in lengths)
@@ -100,30 +91,3 @@ class ClaimCoverageBenefitRatio(BaseNonNegativeInt):
         super().validate()
         if self.value > 100:
             raise DomainValidationError("給付割合は100以下で指定してください。")
-
-
-class CoverageUsageTimestamp(DomainPrimitive[datetime]):
-    """適用資格を利用した日時。UTCのタイムゾーン付き日時へ正規化する。"""
-
-    def __post_init__(self) -> None:
-        """基底クラスの同値判定に関係なく、正規化後の値を保持する。"""
-        normalized = self._normalize(self.value)
-        object.__setattr__(self, "value", normalized)
-        self.validate()
-
-    def _normalize(self, value: datetime) -> datetime:
-        if not isinstance(value, datetime):
-            raise DomainValidationError(
-                "適用資格の利用日時は日時型で指定してください。"
-            )
-        if value.tzinfo is None or value.utcoffset() is None:
-            raise DomainValidationError(
-                "適用資格の利用日時はタイムゾーン付きで指定してください。"
-            )
-        return value.astimezone(UTC)
-
-    def validate(self) -> None:
-        if not isinstance(self.value, datetime):
-            raise DomainValidationError(
-                "適用資格の利用日時は日時型で指定してください。"
-            )

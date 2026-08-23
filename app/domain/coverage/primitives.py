@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import date, datetime
 from enum import StrEnum
+from typing import ClassVar
 
 from app.base.domain.exceptions import DomainValidationError
 from app.base.domain.primitives.primitives import (
@@ -14,6 +17,7 @@ from app.base.domain.primitives.primitives import (
     BasePositiveInt,
     EntityUUID,
 )
+from app.base.domain.value_object import ValueObject
 
 
 class PatientCoverageId(EntityUUID):
@@ -117,8 +121,16 @@ class CoverageValidTo(BaseDate):
     """患者資格の適用終了日。"""
 
 
+class CoverageActivatedOn(BaseDate):
+    """患者資格台帳行の有効化発効日。"""
+
+
+class CoverageDeactivatedOn(BaseDate):
+    """患者資格台帳行の無効化発効日。この日自体は有効区間に含まない。"""
+
+
 @dataclass(frozen=True, kw_only=True)
-class CoveragePeriod:
+class CoveragePeriod(ValueObject):
     """患者資格の適用期間。終了日なしは現在も有効であることを表す。
 
     日付型の検証は :class:`CoverageValidFrom` / :class:`CoverageValidTo` が
@@ -128,7 +140,12 @@ class CoveragePeriod:
     valid_from: CoverageValidFrom
     valid_to: CoverageValidTo | None = None
 
-    def __post_init__(self) -> None:
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "valid_from": "適用開始日",
+        "valid_to": "適用終了日",
+    }
+
+    def validate(self) -> None:
         """適用開始日と適用終了日の前後関係を検証する。"""
         if self.valid_to is not None and self.valid_from.value > self.valid_to.value:
             raise DomainValidationError(
@@ -147,7 +164,7 @@ class CoveragePeriod:
 
 
 @dataclass(frozen=True, kw_only=True)
-class InsuranceCoverageDetails:
+class InsuranceCoverageDetails(ValueObject):
     """健康保険資格の制度別詳細。"""
 
     insurer_number: InsurerNumber
@@ -157,10 +174,55 @@ class InsuranceCoverageDetails:
     benefit_ratio: CoverageBenefitRatio
     branch_number: CoverageBranchNumber | None = None
 
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "insurer_number": "保険者番号",
+        "insured_symbol": "被保険者記号",
+        "insured_number": "被保険者番号",
+        "insured_type": "本人・家族区分",
+        "benefit_ratio": "給付割合",
+        "branch_number": "枝番",
+    }
+
 
 @dataclass(frozen=True, kw_only=True)
-class PublicExpenseCoverageDetails:
+class PublicExpenseCoverageDetails(ValueObject):
     """公費負担資格の制度別詳細。"""
 
     payer_number: PublicPayerNumber
     recipient_number: PublicRecipientNumber
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "payer_number": "公費負担者番号",
+        "recipient_number": "公費受給者番号",
+    }
+
+
+@dataclass(frozen=True, kw_only=True)
+class CoverageActivation(ValueObject):
+    """患者資格台帳行の半開有効区間 ``[activated_on, deactivated_on)``。"""
+
+    activated_on: CoverageActivatedOn
+    deactivated_on: CoverageDeactivatedOn | None = None
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "activated_on": "有効化発効日",
+        "deactivated_on": "無効化発効日",
+    }
+
+    def validate(self) -> None:
+        """無効化発効日が有効化発効日より前でないことを検証する。"""
+        if (
+            self.deactivated_on is not None
+            and self.deactivated_on.value < self.activated_on.value
+        ):
+            raise DomainValidationError(
+                "無効化発効日は有効化発効日以降で指定してください。"
+            )
+
+    def is_active_on(self, target_date: date) -> bool:
+        """指定日が半開有効区間に含まれるかを返す。"""
+        if not isinstance(target_date, date) or isinstance(target_date, datetime):
+            raise DomainValidationError("判定日は日付型で指定してください。")
+        return self.activated_on.value <= target_date and (
+            self.deactivated_on is None or target_date < self.deactivated_on.value
+        )

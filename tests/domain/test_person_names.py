@@ -8,8 +8,9 @@ import pytest
 
 from app.base.domain.exceptions import DomainValidationError
 from app.base.domain.primitives.person_primitives import (
-    BasePersonName,
     BasePersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
 )
 from app.base.domain.value_object import PersonName, PersonNameKana, PersonNames
 
@@ -53,10 +54,10 @@ def test_person_name_rejects_raw_string_component() -> None:
     with pytest.raises(DomainValidationError) as exc_info:
         PersonName(
             last_name="山田",  # type: ignore[arg-type]
-            first_name=BasePersonName("太郎"),
+            first_name=PersonNamePart("太郎"),
         )
 
-    assert str(exc_info.value) == "姓は BasePersonName で指定してください。"
+    assert str(exc_info.value) == "姓は PersonNamePart で指定してください。"
 
 
 def test_person_name_kana_rejects_raw_string_component() -> None:
@@ -64,12 +65,10 @@ def test_person_name_kana_rejects_raw_string_component() -> None:
     with pytest.raises(DomainValidationError) as exc_info:
         PersonNameKana(
             last_name="ヤマダ",  # type: ignore[arg-type]
-            first_name=BasePersonNameKana("タロウ"),
+            first_name=PersonNameKanaPart("タロウ"),
         )
 
-    assert str(exc_info.value) == (
-        "姓（カナ）は BasePersonNameKana で指定してください。"
-    )
+    assert str(exc_info.value) == "姓（カナ）は PersonNameKanaPart で指定してください。"
 
 
 def test_person_names_rejects_raw_kanji_value_object() -> None:

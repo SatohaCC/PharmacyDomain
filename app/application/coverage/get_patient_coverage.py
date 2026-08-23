@@ -21,8 +21,9 @@ class PatientCoverageDto:
     coverage_type: str
     valid_from: str
     valid_to: str | None
+    activated_on: str
+    deactivated_on: str | None
     priority: int
-    is_active: bool
     insurer_number: str | None
     insured_symbol: str | None
     insured_number: str | None
@@ -48,8 +49,13 @@ class PatientCoverageDto:
                 if coverage.period.valid_to is not None
                 else None
             ),
+            activated_on=coverage.activation.activated_on.value.isoformat(),
+            deactivated_on=(
+                coverage.activation.deactivated_on.value.isoformat()
+                if coverage.activation.deactivated_on is not None
+                else None
+            ),
             priority=coverage.priority.value,
-            is_active=coverage.is_active,
             insurer_number=(insurance.insurer_number.value if insurance else None),
             insured_symbol=(insurance.insured_symbol.value if insurance else None),
             insured_number=(insurance.insured_number.value if insurance else None),

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta, timezone
-
 import pytest
 
 from app.base.domain.exceptions import DomainValidationError
@@ -19,19 +17,9 @@ from app.domain.claim import (
     ClaimPublicRecipientNumber,
     CoverageCombinationInvalidError,
     CoverageSnapshot,
-    CoverageUsageTimestamp,
     InsuranceCoverageSnapshot,
     PublicExpenseCoverageSnapshot,
 )
-from app.domain.claim.coverage_usage import CoverageUsage
-from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientId
-from app.domain.store.primitives import StoreId
-from tests.fakes.in_memory_coverage_usage_repository import (
-    InMemoryCoverageUsageRepository,
-)
-
-_JST = timezone(timedelta(hours=9))
 
 
 def _create_insurance_snapshot() -> InsuranceCoverageSnapshot:
@@ -52,54 +40,6 @@ def _create_public_snapshot(priority: int) -> PublicExpenseCoverageSnapshot:
         payer_number=ClaimPublicPayerNumber(f"1234567{priority}"),
         recipient_number=ClaimPublicRecipientNumber(f"123456{priority}"),
     )
-
-
-def test_適用資格利用日時_JSTを渡すと_UTCオフセットで保持される() -> None:
-    # Arrange
-    value = datetime(2026, 8, 17, 12, 30, tzinfo=_JST)
-
-    # Act
-    actual = CoverageUsageTimestamp(value)
-
-    # Assert
-    # aware datetime の `==` は瞬時で比較するためオフセットの違いを検出できない。
-    # 正規化されたことを確かめるには保持している表現そのものを比較する。
-    assert actual.value.isoformat() == "2026-08-17T03:30:00+00:00"
-
-
-def test_適用資格利用日時_UTCを渡すと_表現が変わらない() -> None:
-    # Arrange
-    value = datetime(2026, 8, 17, 3, 30, tzinfo=UTC)
-
-    # Act
-    actual = CoverageUsageTimestamp(value)
-
-    # Assert
-    assert actual.value.isoformat() == "2026-08-17T03:30:00+00:00"
-
-
-def test_適用資格利用日時_異なるタイムゾーンを渡すと_同一のUTC表現になる() -> None:
-    # Arrange
-    values = (
-        datetime(2026, 8, 17, 3, 30, tzinfo=UTC),
-        datetime(2026, 8, 17, 12, 30, tzinfo=_JST),
-        datetime(2026, 8, 16, 22, 30, tzinfo=timezone(timedelta(hours=-5))),
-    )
-
-    # Act
-    actual = tuple(CoverageUsageTimestamp(value).value.isoformat() for value in values)
-
-    # Assert
-    assert actual == ("2026-08-17T03:30:00+00:00",) * 3
-
-
-def test_適用資格利用日時_naive日時を渡すと_ドメイン検証エラーになる() -> None:
-    # Arrange
-    value = datetime(2026, 8, 17, 3, 30)
-
-    # Act / Assert
-    with pytest.raises(DomainValidationError):
-        CoverageUsageTimestamp(value)
 
 
 @pytest.mark.parametrize("value", ["1", "0113001", "011300123", "0113001a"])
@@ -217,100 +157,3 @@ def test_医療保険スナップショット_給付割合を省略すると_生
             insured_number=ClaimCoverageCode("456"),
             insured_type=ClaimCoverageInsuredType.SELF,
         )
-
-
-def _create_usage(
-    *,
-    corporate_id: CorporateId,
-    store_id: StoreId,
-    patient_id: PatientId,
-    applied_at: datetime,
-) -> CoverageUsage:
-    """テスト用の利用履歴を生成する。"""
-    return CoverageUsage.create(
-        corporate_id=corporate_id,
-        store_id=store_id,
-        patient_id=patient_id,
-        applied_at=CoverageUsageTimestamp(applied_at),
-        snapshot=CoverageSnapshot(public_expenses=(_create_public_snapshot(1),)),
-    )
-
-
-@pytest.mark.asyncio
-async def test_資格利用履歴Repository_タイムゾーンが混在しても_最新履歴を返す() -> None:
-    # Arrange
-    repository = InMemoryCoverageUsageRepository()
-    corporate_id = CorporateId.generate()
-    store_id = StoreId.generate()
-    patient_id = PatientId.generate()
-    older = _create_usage(
-        corporate_id=corporate_id,
-        store_id=store_id,
-        patient_id=patient_id,
-        applied_at=datetime(2026, 8, 17, 3, 0, tzinfo=UTC),
-    )
-    latest = _create_usage(
-        corporate_id=corporate_id,
-        store_id=store_id,
-        patient_id=patient_id,
-        applied_at=datetime(2026, 8, 17, 12, 30, tzinfo=_JST),
-    )
-    await repository.save(older)
-    await repository.save(latest)
-
-    # Act
-    actual = await repository.get_latest(
-        corporate_id=corporate_id,
-        store_id=store_id,
-        patient_id=patient_id,
-    )
-
-    # Assert
-    assert actual is not None and actual.id == latest.id
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("corporate_id", "store_id", "patient_id"),
-    [
-        ("other_corporate", "same_store", "same_patient"),
-        ("same_corporate", "other_store", "same_patient"),
-        ("same_corporate", "same_store", "other_patient"),
-    ],
-)
-async def test_資格利用履歴Repository_法人店舗患者が異なると_履歴を返さない(
-    corporate_id: str,
-    store_id: str,
-    patient_id: str,
-) -> None:
-    # Arrange
-    repository = InMemoryCoverageUsageRepository()
-    target_corporate_id = CorporateId.generate()
-    target_store_id = StoreId.generate()
-    target_patient_id = PatientId.generate()
-    other_corporate_id = CorporateId.generate()
-    other_store_id = StoreId.generate()
-    other_patient_id = PatientId.generate()
-    stored = _create_usage(
-        corporate_id=(
-            other_corporate_id
-            if corporate_id == "other_corporate"
-            else target_corporate_id
-        ),
-        store_id=other_store_id if store_id == "other_store" else target_store_id,
-        patient_id=other_patient_id
-        if patient_id == "other_patient"
-        else target_patient_id,
-        applied_at=datetime(2026, 8, 17, 3, tzinfo=UTC),
-    )
-    await repository.save(stored)
-
-    # Act
-    actual = await repository.get_latest(
-        corporate_id=target_corporate_id,
-        store_id=target_store_id,
-        patient_id=target_patient_id,
-    )
-
-    # Assert
-    assert actual is None

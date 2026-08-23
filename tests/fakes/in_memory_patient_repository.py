@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 
 from app.domain.corporate.primitives import CorporateId
+from app.domain.patient.exceptions import PatientExternalIdentifierAlreadyExistsError
 from app.domain.patient.external_identifier import PatientExternalIdentifier
 from app.domain.patient.patient import Patient
 from app.domain.patient.primitives import (
@@ -71,21 +72,22 @@ class InMemoryPatientExternalIdentifierRepository(PatientExternalIdentifierRepos
             return None
         return copy.deepcopy(item)
 
-    async def get_by_source(
+    async def get_active_by_source(
         self,
         *,
         corporate_id: CorporateId,
         system_name: ExternalSystemName,
         external_patient_id: ExternalPatientId,
     ) -> PatientExternalIdentifier | None:
-        """連携先と外部患者IDの組で対応付けを取得する。
+        """連携先と外部患者IDの組に一致する有効な対応付けだけを取得する。
 
-        無効化済みの行も返す。「有効な対応付けだけを一意とみなす」判断は
-        ユースケース側の責務であり、Repositoryは保存した行をそのまま返す。
+        無効化済みの行は返さない。誤った患者へ紐付けた外部IDを無効化してから
+        正しい患者へ付け替えられるようにするため、一意とみなすのは有効な行だけ。
         """
         for item in self.items.values():
             if (
-                item.corporate_id == corporate_id
+                item.is_active
+                and item.corporate_id == corporate_id
                 and item.system_name == system_name
                 and item.external_patient_id == external_patient_id
             ):
@@ -106,5 +108,20 @@ class InMemoryPatientExternalIdentifierRepository(PatientExternalIdentifierRepos
         ]
 
     async def save(self, identifier: PatientExternalIdentifier) -> None:
-        """外部識別子をコピーして保存する。"""
+        """有効行の一意性を原子的に拒否して外部識別子を保存する。
+
+        同一法人・連携先・外部患者IDの有効行は1件だけとする。無効化済みの行は
+        衝突扱いにしないため、誤った患者へ紐付けた外部IDを無効化してから正しい
+        患者へ付け替えられる。Applicationの事前readは早期エラー用であり
+        原子性の代替ではないため、保存の直前にも同じ判定を行う。
+        """
+        if identifier.is_active and any(
+            item.is_active
+            and item.id != identifier.id
+            and item.corporate_id == identifier.corporate_id
+            and item.system_name == identifier.system_name
+            and item.external_patient_id == identifier.external_patient_id
+            for item in self.items.values()
+        ):
+            raise PatientExternalIdentifierAlreadyExistsError()
         self.items[identifier.id] = copy.deepcopy(identifier)

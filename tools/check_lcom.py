@@ -72,6 +72,14 @@ def _is_class_or_static_method(method: ast.FunctionDef | ast.AsyncFunctionDef) -
     )
 
 
+def _is_protocol_class(class_node: ast.ClassDef) -> bool:
+    """状態を持たないProtocolを凝集度評価から除外する。"""
+    return any(
+        (_decorator_name(base) or "").rsplit(".", maxsplit=1)[-1] == "Protocol"
+        for base in class_node.bases
+    )
+
+
 def _receiver_name(method: ast.FunctionDef | ast.AsyncFunctionDef) -> str | None:
     positional = [*method.args.posonlyargs, *method.args.args]
     if positional:
@@ -219,6 +227,8 @@ def analyze_source(
     collector.visit(tree)
     metrics: list[ClassMetric] = []
     for class_name, class_node in collector.classes:
+        if _is_protocol_class(class_node):
+            continue
         methods = _class_methods(class_node)
         if len(methods) < min_methods:
             continue

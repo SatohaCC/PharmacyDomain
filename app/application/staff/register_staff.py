@@ -10,11 +10,6 @@ from app.application.access_control import (
     Permission,
 )
 from app.application.staff.support import load_store_or_raise, to_optional_text
-from app.base.domain.primitives.primitives import (
-    BaseEmailAddress,
-    BaseNormalizedString,
-    BaseTelephoneNumber,
-)
 from app.base.domain.value_object import PersonNames
 from app.domain.corporate.primitives import CorporateId
 from app.domain.staff import (
@@ -22,6 +17,7 @@ from app.domain.staff import (
     DietitianProfile,
     DietitianRegistrationNumber,
     InsurancePharmacistRegistration,
+    InsurancePharmacistRegistrationNumber,
     JobTitle,
     PharmacistLicenseNumber,
     PharmacistProfile,
@@ -30,6 +26,8 @@ from app.domain.staff import (
     Staff,
     StaffCode,
     StaffCodeUniquenessService,
+    StaffEmailAddress,
+    StaffPhoneNumber,
     StaffQualifications,
     StaffRepository,
     StaffStoreAssignmentService,
@@ -93,7 +91,9 @@ class RegisterStaffUseCase:
             )
             if raw_ins_num and command.insurance_pharmacist_registration_date:
                 insurance_reg = InsurancePharmacistRegistration(
-                    registration_number=BaseNormalizedString(raw_ins_num),
+                    registration_number=InsurancePharmacistRegistrationNumber(
+                        raw_ins_num
+                    ),
                     registration_date=command.insurance_pharmacist_registration_date,
                 )
             profiles.append(
@@ -150,10 +150,10 @@ class RegisterStaffUseCase:
         )
 
         raw_phone = to_optional_text(command.phone_number)
-        phone_number = BaseTelephoneNumber(raw_phone) if raw_phone else None
+        phone_number = StaffPhoneNumber(raw_phone) if raw_phone else None
 
         raw_email = to_optional_text(command.email)
-        email = BaseEmailAddress(raw_email) if raw_email else None
+        email = StaffEmailAddress(raw_email) if raw_email else None
 
         raw_job_title = to_optional_text(command.job_title)
         job_title = JobTitle(raw_job_title) if raw_job_title else None

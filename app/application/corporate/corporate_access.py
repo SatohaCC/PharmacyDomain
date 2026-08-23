@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.application.access_control.models import Permission
+from app.application.access_control.models import ActorContext, Permission
 from app.application.access_control.policy import AuthorizationService
 from app.application.corporate.support import (
     load_active_corporate_or_raise,
@@ -23,6 +23,11 @@ class CorporateAccessService:
     ) -> None:
         self._repository = repository
         self._authorization = authorization
+
+    @property
+    def actor(self) -> ActorContext:
+        """認可と監査で共有する信頼済み操作主体を返す。"""
+        return self._authorization.actor
 
     async def require_active(
         self,

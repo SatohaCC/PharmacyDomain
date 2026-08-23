@@ -41,3 +41,11 @@ class BasePersonNameKana(BaseNormalizedString):
             raise DomainValidationError(
                 "氏名（カナ）は全角カタカナで入力してください。"
             )
+
+
+class PersonNamePart(BasePersonName):
+    """姓または名として保持する具象プリミティブ。"""
+
+
+class PersonNameKanaPart(BasePersonNameKana):
+    """姓または名のフリガナとして保持する具象プリミティブ。"""

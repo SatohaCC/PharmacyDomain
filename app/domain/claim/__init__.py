@@ -5,7 +5,6 @@ from app.domain.claim.coverage_snapshot import (
     InsuranceCoverageSnapshot,
     PublicExpenseCoverageSnapshot,
 )
-from app.domain.claim.coverage_usage import CoverageUsage
 from app.domain.claim.exceptions import (
     ClaimDomainError,
     CoverageCombinationInvalidError,
@@ -17,13 +16,10 @@ from app.domain.claim.primitives import (
     ClaimCoverageInsuredType,
     ClaimCoveragePriority,
     ClaimCoverageSymbol,
-    ClaimCoverageUsageId,
     ClaimInsurerNumber,
     ClaimPublicPayerNumber,
     ClaimPublicRecipientNumber,
-    CoverageUsageTimestamp,
 )
-from app.domain.claim.repository import CoverageUsageRepository
 
 __all__ = [
     "ClaimCoverageBenefitRatio",
@@ -32,16 +28,12 @@ __all__ = [
     "ClaimCoverageInsuredType",
     "ClaimCoveragePriority",
     "ClaimCoverageSymbol",
-    "ClaimCoverageUsageId",
     "ClaimDomainError",
     "ClaimInsurerNumber",
     "ClaimPublicPayerNumber",
     "ClaimPublicRecipientNumber",
     "CoverageCombinationInvalidError",
     "CoverageSnapshot",
-    "CoverageUsage",
-    "CoverageUsageRepository",
-    "CoverageUsageTimestamp",
     "InsuranceCoverageSnapshot",
     "PublicExpenseCoverageSnapshot",
 ]

@@ -4,6 +4,8 @@ from app.base.domain.primitives.base import DomainPrimitive
 from app.base.domain.primitives.person_primitives import (
     BasePersonName,
     BasePersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
 )
 from app.base.domain.primitives.primitives import (
     BaseAddress,
@@ -38,4 +40,6 @@ __all__ = [
     "DomainPrimitive",
     "EntityStringId",
     "EntityUUID",
+    "PersonNameKanaPart",
+    "PersonNamePart",
 ]

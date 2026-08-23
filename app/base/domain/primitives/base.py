@@ -23,8 +23,7 @@ class DomainPrimitive[T](ABC):
     def __post_init__(self) -> None:
         """データクラスの初期化後に正規化とバリデーションを順に実行する。"""
         normalized = self._normalize(self.value)
-        if normalized != self.value or type(normalized) is not type(self.value):
-            object.__setattr__(self, "value", normalized)
+        object.__setattr__(self, "value", normalized)
         self.validate()
 
     def _normalize(self, value: T) -> T:
