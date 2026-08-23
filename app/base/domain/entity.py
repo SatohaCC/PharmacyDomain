@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from abc import ABC
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
+from app.base.domain.field_guard import ensure_declared_field_types
 from app.base.domain.primitives.base import DomainPrimitive
 
 
@@ -19,6 +21,22 @@ class Entity[ID: DomainPrimitive[Any]](ABC):
     """
 
     id: ID
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {}
+
+    def __post_init__(self) -> None:
+        """正規化、宣言型の照合、業務ルール検証を順に実行する。"""
+        self._normalize_fields()
+        ensure_declared_field_types(self, labels=self._FIELD_LABELS)
+        self.validate()
+
+    def _normalize_fields(self) -> None:
+        """派生クラスが複合フィールドを正規化するためのフック。"""
+        return None
+
+    def validate(self) -> None:
+        """派生クラスが集約固有の不変条件を検証するためのフック。"""
+        return None
 
     def __eq__(self, other: object) -> bool:
         """同一クラスかつ同一IDの場合に二つのエンティティを等しいとみなす。"""

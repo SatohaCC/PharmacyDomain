@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.base.domain.primitives.primitives import BaseNormalizedString
 from app.domain.corporate import CorporateId
 from app.domain.staff import (
     InsurancePharmacistRegistration,
+    InsurancePharmacistRegistrationNumber,
     PharmacistLicenseNumber,
     PharmacistProfile,
     StaffQualifications,
@@ -21,7 +21,7 @@ def test_staff_pharmacist_qualification() -> None:
     # Arrange
     license_num = PharmacistLicenseNumber("123456")
     insurance_reg = InsurancePharmacistRegistration(
-        registration_number=BaseNormalizedString("REG-123"),
+        registration_number=InsurancePharmacistRegistrationNumber("REG-123"),
         registration_date=date(2020, 1, 1),
     )
     profile = PharmacistProfile(
@@ -40,7 +40,7 @@ def test_staff_pharmacist_qualification() -> None:
     assert staff.pharmacist_profile.can_bill_insurance() is True
 
 
-def test_staff_can_access_store_based_on_affiliations() -> None:
+def test_スタッフの所属導出_主所属と兼務が対象日から導出される() -> None:
     # Arrange
     corp_id = CorporateId.generate()
     store_a = create_store(corporate_id=corp_id, name="店舗A")
@@ -56,8 +56,7 @@ def test_staff_can_access_store_based_on_affiliations() -> None:
 
     # Assert
     assert staff.current_home_store_id(date(2026, 1, 15)) == store_a.id
-    assert staff.can_access_store(store_a.id, date(2026, 1, 15)) is True
-    assert staff.can_access_store(store_b.id, date(2026, 1, 15)) is False
+    assert staff.current_concurrent_store_ids(date(2026, 1, 15)) == frozenset()
 
     # Act: store_b に兼務追加
     staff = assignment_service.assign_concurrent_store(
@@ -65,22 +64,7 @@ def test_staff_can_access_store_based_on_affiliations() -> None:
     )
 
     # Assert
-    assert staff.can_access_store(store_b.id, date(2026, 2, 5)) is True
-    assert store_b.id in staff.current_concurrent_store_ids(date(2026, 2, 5))
-
-
-def test_staff_deactivate_disables_store_access() -> None:
-    # Arrange
-    staff = create_staff()
-    store = create_store(corporate_id=staff.corporate_id)
-    assignment_service = StaffStoreAssignmentService()
-    staff = assignment_service.assign_home_store(
-        staff, store, start_date=date(2026, 1, 1)
+    assert staff.current_home_store_id(date(2026, 2, 5)) == store_a.id
+    assert staff.current_concurrent_store_ids(date(2026, 2, 5)) == frozenset(
+        {store_b.id}
     )
-
-    # Act
-    deactivated_staff = staff.deactivate()
-
-    # Assert
-    assert deactivated_staff.is_active is False
-    assert deactivated_staff.can_access_store(store.id, date(2026, 1, 15)) is False

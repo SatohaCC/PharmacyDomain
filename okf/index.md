@@ -3,14 +3,16 @@ type: Index
 title: PharmacyDomain Knowledge Base
 description: PharmacyDomain プロジェクトの設計ガイドライン、実装構成、現在の設計判断をまとめたナレッジベース
 okf_version: "0.2"
-timestamp: 2026-08-15T00:00:00Z
+timestamp: 2026-08-23T00:00:00Z
+status: active
+tags: [okf, index, pharmacy-domain, ddd, architecture]
 ---
 
 # PharmacyDomain Knowledge Base
 
 PharmacyDomain プロジェクトの設計方針、DDDのガイドライン、現在の実装構成を確認するための入口です。
 
-現在は、法人（`Corporate`）・店舗（`Store`）・スタッフ（`Staff`）・患者（`Patient`）・患者資格（`Coverage`）の5コンテキストについて、ドメインモデルとApplicationユースケースを実装しています。認証基盤とは分離したApplication側のAccess Control境界も定義しています。
+現在は、法人（`Corporate`）・店舗（`Store`）・スタッフ（`Staff`）・患者（`Patient`）・患者資格（`Coverage`）・受付（`Reception`）・請求（`Claim`）の7コンテキストについて、ドメインモデルとApplicationユースケースを実装しています（Claimは現在ドメイン層のみ）。認証基盤とは分離したApplication側のAccess Control境界も定義しています。
 APIのシステムエンドポイントは `app/main.py` にありますが、これらのユースケースをHTTPへ接続するAPIルートはまだ実装していません。
 Repositoryは`Protocol`のみで、具体的な永続化実装もまだありません（テスト用のインメモリ実装だけが存在します）。
 
@@ -36,11 +38,13 @@ RepositoryはDomain側で抽象化し、具体的なデータストアへの依�
 
 | 文書 | 内容 |
 | :--- | :--- |
-| [Domain層の実装ガイドライン](ddd/domain.md) | Domain Primitive、Value Object、Entity、Aggregate Root、Domain Service、Repository、各コンテキスト |
+| [OKF 実装・記述・運用ルール](rules.md) | Google Cloud Platform `knowledge-catalog` (OKF v0.2) 仕様に基づく、当リポジトリのナレッジベース構築・Frontmatter仕様・保守ルール |
+| [Domain層 実装ガイドライン & 詳細仕様書](ddd/domain.md) | Domain Primitive、Value Object、Entity、Aggregate Root、Domain Service、Repository の設計思想、および全7コンテキストと Shared Kernel の詳細仕様・不変条件 |
 | [Application層の実装ガイドライン](ddd/application.md) | UseCase、Command / Response DTO、DI、例外、ユースケースの処理フロー、テスト方針 |
 | Access Control（`app/application/access_control/`） | `ActorContext`、ロール・権限、法人スコープ、対象法人の存在・有効状態の確認 |
 | [テスト層の実装ガイドライン](testing.md) | AAAパターン、Domain / Applicationテスト、Fake Repository、例外、非同期テスト |
 | [コードレビューの方針](review.md) | 仕組みで守る原則、依存・壊れやすさ・明示性・検証可能性の観点、機械化しないもの |
+| [変更・決定ログ (ADR)](log.md) | アーキテクチャ決定（ADR）、ドメインモデル改定、OKF更新履歴の時系列記録 |
 
 ## 現在の実装マップ
 
@@ -143,6 +147,7 @@ Store / Staff のユースケースは、この `CorporateAccessService` では�
 
 `Staff` は `corporate_id` を保持し、`Store` 集約には直接依存せず `StoreId` をもとに所属履歴（`affiliations`）を管理します。
 主所属店舗・兼務店舗のフィールドは持たず、`current_home_store_id(today)` / `current_concurrent_store_ids(today)` が履歴から導出します。
+所属履歴の期間重複禁止は `Staff.validate()` が全生成経路（`create()` / `dataclasses.replace()` / Repository復元 / テストの直接構築）で強制します。
 
 なお `app/domain/staff/exceptions.py` にも `StaffNotFoundError`（`DomainError`系）がありますが、ユースケースが送出するのは `app/application/staff/exceptions.py` の同名例外（`ApplicationError`系）です。import 元を取り違えないでください。
 
@@ -211,11 +216,12 @@ Patientの患者番号・外部ID・法人境界・認可・404隠蔽・DTO変�
 実装場所: `app/domain/coverage/`
 
 - `patient_coverage.py` — `PatientCoverage` Aggregate Root
-- `primitives.py` — `PatientCoverageId`、保険／公費種別、適用期間、優先順位、制度別詳細
-- `services.py` — 同一患者・同一制度・同一優先順位の期間競合検証
+- `primitives.py` — `PatientCoverageId`、保険／公費種別、制度期間、有効化区間、優先順位、制度別詳細
+- `combination.py` — 適用資格のID・値投影と `CoverageSelectionService`
+- `services.py` — 同一患者・同一制度・同一優先順位の実効期間競合検証
 - `repository.py` — `PatientCoverageRepository`（法人・患者境界付き）
 
-`PatientCoverage` は `corporate_id` と `patient_id` をIDだけで保持し、`Patient` や `Corporate` のエンティティは保持しません。保険と公費を同じ資格台帳で扱い、複数資格・適用期間・優先順位・無効化を管理します。「最後に使った組み合わせ」や `last_used_at` は資格台帳へ持たせず、請求・調剤時点の `CoverageSnapshot` と利用履歴をClaimコンテキスト側に保存します。
+`PatientCoverage` は `corporate_id` と `patient_id` をIDだけで保持し、`Patient` や `Corporate` のエンティティは保持しません。制度期間 `[valid_from, valid_to]` と台帳行の有効化区間 `[activated_on, deactivated_on)` を分け、両者の交差を実効期間とします。「最後に使った組み合わせ」は資格台帳へ持たせず、受付時の元資格IDと固定値をReception側へ保存します。
 
 #### Application層
 
@@ -231,40 +237,51 @@ Patientの患者番号・外部ID・法人境界・認可・404隠蔽・DTO変�
 
 CoverageのApplication層は `CorporateAccessBoundary` Protocolだけで法人の認可・存在・有効状態を確認し、患者の存在確認も `PatientReferenceBoundary` で `PatientId` だけを受け取ります。他コンテキストのApplication実装やAggregateはimportしません。別法人の資格は `PatientCoverageNotFoundError`（404相当）として隠蔽し、非アクティブ法人の通常操作は拒否します。
 
-### Claimコンテキスト
+### Receptionコンテキスト
 
 #### Domain層
 
-実装場所: `app/domain/claim/`
+実装場所: `app/domain/reception/`
 
-- `coverage_snapshot.py` — `CoverageSnapshot`、保険・公費の請求時点スナップショット
-- `coverage_usage.py` — `CoverageUsage` 利用履歴Aggregate Root
-- `primitives.py` — 利用履歴ID、請求側専用の番号、適用日時
-- `repository.py` — `CoverageUsageRepository`（法人・店舗・患者単位）
+- `coverage_selection.py` — `CoverageSelection` / `SelectedInsuranceSource` / `SelectedPublicExpenseSource`（元資格IDと請求固定値を枠ごとに1対1で束ねる値）
+- `coverage_selection_record.py` — `CoverageSelectionRecord` 選択履歴Aggregate Root
+- `primitives.py` — 履歴ID、業務上の適用日、元資格ID、UTC記録時刻、記録者
+- `repository.py` — `CoverageSelectionRecordRepository`（法人・店舗・患者単位）
 
-Claimは資格台帳の `PatientCoverage` Aggregateを保持せず、選択された資格の値を請求側専用の不変スナップショットとして保存します。スナップショットは保険0〜1件、公費0〜4件（第一〜第四公費）を表現できます。最新の `CoverageUsage` は同一法人・店舗・患者の受付で初期候補として参照できますが、現在の資格期間を再検証するまで自動適用しません。
+Receptionは資格台帳のAggregateを保持せず、正規化済みの元資格ID列とClaim専用の不変 `CoverageSnapshot` を同居させます。業務日 `applied_on` と監査用の `recorded_at` / `recorded_by` を分離し、最新順は `(recorded_at, id)` で決定します。
 
 #### Application層
 
-実装場所: `app/application/claim/`
+実装場所: `app/application/reception/`
 
 | ユースケース | 入力 / 出力 | 主な責務 |
 | :--- | :--- | :--- |
-| `RecordCoverageUsageUseCase` | `RecordCoverageUsageCommand` / `CoverageUsageDto` | 選択資格をBoundaryで検証・スナップショット化し、利用履歴を保存 |
-| `GetLastCoverageUsageUseCase` | `GetLastCoverageUsageQuery` / `CoverageUsageDto \| None` | 同一法人・店舗・患者で最後に使った組み合わせを候補として取得 |
+| `RecordCoverageSelectionUseCase` | `RecordCoverageSelectionCommand` / `CoverageSelectionRecordDto` | Boundaryで検証した選択を認可Actor・注入Clock由来の監査値とともに保存 |
+| `GetLastCoverageSelectionUseCase` | `GetLastCoverageSelectionQuery` / `LastCoverageSelectionCandidateDto \| None` | 最新履歴を元IDとSnapshotの両方で再検証して候補として返す |
 
-Claim Applicationは `CorporateAccessBoundary` と店舗・患者・資格スナップショットの参照Boundaryだけに依存します。Coverage Applicationの具象実装やPatient/Store/CoverageのAggregateを直接保持しません。処方箋は別コンテキストで `PatientId` と処方内容を参照し、保険・公費の適用組み合わせはClaim・調剤受付側で確定します。
+Reception Applicationは `CorporateAccessBoundary` と店舗・患者・資格選択の参照Boundaryだけに依存し、Coverage Applicationや各Aggregateを直接参照しません。実 `CoverageSelectionAdapter` はComposition層に置き、Coverage Repository / Domain ServiceとClaim Snapshot変換を接続します。最新履歴は初期候補にすぎず、`is_still_valid=False` の候補を自動適用してはなりません。
+
+### Claimコンテキスト
+
+実装場所: `app/domain/claim/`
+
+Claimには請求時点で固定する `CoverageSnapshot` と専用プリミティブだけを置きます。Snapshotは医療保険0〜1件、公費0〜4件を表現し、公費順位の重複・欠番を最終防衛として拒否します。現在は到達可能なClaim Applicationユースケースがないため、Claim権限や `app/application/claim/` は定義しません。
 
 ### テスト
 
 実装場所: `tests/`
 
-- `tests/domain/corporate/`、`tests/domain/store/`、`tests/domain/staff/` — 集約、値オブジェクト、Domain Service、Repository契約
-- `tests/domain/test_error_messages.py` — 例外の既定メッセージ
+- `tests/domain/corporate/`、`tests/domain/store/`、`tests/domain/staff/`、`tests/domain/coverage/`、`tests/domain/reception/`、`tests/domain/claim/` — 集約、値オブジェクト、Domain Service、不変条件、Repository契約
+- `tests/domain/test_lifecycle_dialects.py` — 集約ごとの無効化方言（4方言）と、無効化後の一意キー再利用可否の表
+- `tests/domain/test_priority_rules.py` — Shared Kernel の公費順位共通検証関数
 - `tests/domain/test_person_names.py` — Shared Kernel の人名Value Object
-- `tests/application/corporate/`、`tests/application/store/`、`tests/application/staff/` — 各ユースケース
+- `tests/domain/test_error_messages.py` — ドメイン例外の既定メッセージとエラーコード
+- `tests/application/corporate/`、`tests/application/store/`、`tests/application/staff/`、`tests/application/patient/`、`tests/application/coverage/`、`tests/application/reception/` — 各ユースケース
 - `tests/application/access_control/` — Actorのロール、法人スコープ、存在・有効状態の検証
-- `tests/fakes/` — インメモリRepository（`Corporate` / `Store` / `Staff`）
+- `tests/application/composition/` — Coverage台帳とReception境界をつなぐ実アダプタ
+- `tests/contracts/` — Repositoryの `save()` 契約。対象実装を `tests/fakes/` から自動列挙するため、実装を足しても登録漏れが起きない
+- `tests/tools/` — 静的チェッカ本体と、CI・パッケージ構成のゴールデンテスト
+- `tests/fakes/` — インメモリRepository、Reception参照Boundary、`FakeClock`
 - `tests/factories/` — フィールドの多い集約を組み立てる既定値付きファクトリ（`store_factory.py` / `staff_factory.py`）
 
 インメモリRepositoryの`save()`は、本番の永続化層が持つ一意制約を模して重複時に例外を送出します。ユースケース側の事前チェックを外しても検知できる状態を保つためです。あわせて`save_count`を記録し、「変更が無ければ保存しない」ことを検証できるようにしています。
@@ -284,15 +301,15 @@ Claim Applicationは `CorporateAccessBoundary` と店舗・患者・資格スナ
 - Repositoryの保存操作は、新規登録と変更保存の両方を表す`save()`とする。
 - 法人名変更時は`excluding_id`で自身を重複判定から除外する。
 - 事前の重複確認に加え、実際の永続化層でも一意性制約を持たせる。
-- 「入力値が不正（400相当）」と「対象が見つからない（404相当）」を別の例外型で表す。前者は`DomainValidationError`、後者は`CorporateNotFoundError` / `StoreNotFoundError` / `StaffNotFoundError`。ただし継承元は揃っておらず、`CorporateNotFoundError`だけが`NotFoundError`を継承し、店舗・スタッフは各コンテキストの`XxxApplicationError`を継承している。
+- 「入力値が不正（400相当）」と「対象が見つからない（404相当）」を別の例外型で表す。前者は`DomainValidationError`、後者は`CorporateNotFoundError` / `StoreNotFoundError` / `StaffNotFoundError` / `PatientNotFoundError` 等。
 - 他法人の店舗やスタッフへのアクセスは、権限エラーではなく未検出として扱う。存在の推測を許さないため。
 - 任意項目の空文字・空白のみは、Application層の境界で`None`へ正規化する。登録と変更で空文字の意味がぶれないようにするため。
 - 店舗名・店舗コード・スタッフコードの一意性は法人単位で閉じる（別法人の同名・同コードは許可）。保険薬局指定番号だけはシステム全体で一意とする。
-- `Base*`プリミティブは継承専用とし、フィールドの型にはコンテキスト固有の派生クラスを使う。TELとFAXの取り違えを型で防ぎ、エラーメッセージに内部クラス名を出さないため。ただし`Staff.phone_number` / `Staff.email` と `InsurancePharmacistRegistration.registration_number` は現状 基底クラスをそのままフィールド型に使っている。
+- `Base*`プリミティブは継承専用とし、フィールドの型にはコンテキスト固有の派生クラス（`StaffPhoneNumber`, `StaffEmailAddress`, `InsurancePharmacistRegistrationNumber` 等）を使う。TELとFAXの取り違えを型で防ぎ、エラーメッセージに内部クラス名を出さないため。
 - エラーメッセージの項目名を差し込む仕組みは、`EntityUUID.identifier_name`（ID用）と`BaseTelephoneNumber.field_name`（TEL/FAX用）の2つだけで、全プリミティブ共通の仕組みは持たない。それ以外のプリミティブは`validate()`内にメッセージを直接書く。
 - 集約の`change_*`に同値チェックを置かず、「変更が無ければ保存しない」判定はユースケース側に一本化する（法人・店舗では実装済み、スタッフは未実装）。
-- 店舗・スタッフの操作では、Command / Queryの対象`corporate_id`だけで権限を得られないよう、信頼済み`ActorContext`を`CorporateAccessService`で検証する。通常操作は存在・有効状態の確認後に進める。
-- スタッフの所属は`affiliations`の履歴だけを持ち、主所属・兼務は対象日を与えて導出する。同一日に主所属が複数あれば`PrimaryAffiliationDuplicationError`とする。
+- 店舗・スタッフ・患者・資格・受付の操作では、Command / Queryの対象`corporate_id`だけで権限を得られないよう、信頼済み`ActorContext`を`CorporateAccessService`で検証する。通常操作は存在・有効状態の確認後に進める。
+- スタッフの所属は`affiliations`の履歴だけを持ち、主所属・兼務は対象日を与えて導出する。期間の重なりは`Staff.validate()`が構築時に拒否し（主所属同士は`PrimaryAffiliationDuplicationError`、同一店舗は`ConcurrentStoreConflictError`）、導出メソッドは例外を送出しない。
 
 ## 品質ゲート
 
@@ -308,12 +325,16 @@ Claim Applicationは `CorporateAccessBoundary` と店舗・患者・資格スナ
 | :--- | :--- | :--- |
 | `tools/check_imports.py` | `[tool.import_rules.forbidden]` | 依存の向き（外 → 内）とApplicationコンテキスト間の一方向依存 |
 | `tools/check_lcom.py` | `[tool.lcom]` | `app/application/` のクラス凝集度（LCOM4 < 2） |
+| `tools/check_fake_conformance.py` | `[tool.fake_rules]` | テストダブルが実装Protocolの全メンバを上書きしていること |
 
 Applicationコンテキストの依存は次の一方向に限定し、逆向きの `import` は `check_imports` が違反として検出します。
 
 ```mermaid
 flowchart LR
     ST[staff] --> SR[store] --> AC[access_control] --> B[base]
+    P[patient] --> AC
+    COV[coverage] --> AC
+    REC[reception] --> AC
     C[corporate] --> AC
     C -. 実装を注入 .-> SR
 ```
@@ -330,7 +351,35 @@ flowchart LR
 ```bash
 uv run python -m tools.check_imports --verbose --fail-on-violation
 uv run python -m tools.check_lcom --verbose --fail-on-violation
+uv run python -m tools.check_fake_conformance --verbose --fail-on-violation
 ```
+
+### CI
+
+品質ゲートは [.github/workflows/quality-gate.yml](../.github/workflows/quality-gate.yml) が
+`main` への push と全 pull request で実行します。手元で回し忘れても、リモートには必ず結果が出ます。
+
+ゲートは互いに独立したステップに分け、`if: ${{ !cancelled() }}` を付けています。
+1つ落ちても残りを実行するので、1回の push で全部の違反が見えます。
+
+CI が実行するコマンドの集合は [tests/tools/test_ci_quality_gate.py](../tests/tools/test_ci_quality_gate.py)
+の `REQUIRED_GATES` が凍結しています。ワークフローからゲートを1つ静かに削っても、
+残りが緑なら誰も気づけないためです。起動条件（`push` / `pull_request`）も同じテストで固定しています。
+
+**ブランチ保護は設定していません。** したがって CI が赤いまま `main` へ push すること自体は止まりません。
+これは GitHub のリポジトリ設定側の話で、リポジトリ内のファイルからは強制できません。
+「マージをブロックする」ところまで必要になったら、リポジトリ設定で `quality-gate` を必須チェックにします。
+
+### パッケージ構成
+
+`app/` `tests/` `tools/` 配下で `.py` を持つディレクトリには必ず `__init__.py` を置き、
+名前空間パッケージを作りません。[tests/tools/test_package_layout.py](../tests/tools/test_package_layout.py) が強制します。
+
+`__init__.py` が無くても import 自体は通るため、壊れ方が遅れて出ます。
+そのディレクトリだけを指定して `pytest` を回すとリポジトリルートが `sys.path` に入らず
+`ModuleNotFoundError: No module named 'app'` になり、
+別ディレクトリに同名モジュールを置いた瞬間にトップレベル名が衝突して収集が壊れます。
+どちらも書いた本人ではなく、後から触る人に出ます。
 
 ## 開発・検証
 

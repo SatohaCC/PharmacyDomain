@@ -9,6 +9,7 @@ from app.domain.corporate import CorporateId
 from app.domain.staff.primitives import StaffId
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.factories.staff_factory import create_staff
+from tests.fakes.fake_clock import FakeClock
 from tests.fakes.in_memory_staff_repository import InMemoryStaffRepository
 
 
@@ -19,6 +20,7 @@ async def test_get_staff_success() -> None:
     use_case = GetStaffUseCase(
         repository=staff_repo,
         corporate_access=create_vendor_corporate_access(),
+        clock=FakeClock(),
     )
 
     corp_id = CorporateId.generate()
@@ -47,6 +49,7 @@ async def test_get_staff_raises_error_when_staff_not_found() -> None:
     use_case = GetStaffUseCase(
         repository=staff_repo,
         corporate_access=create_vendor_corporate_access(),
+        clock=FakeClock(),
     )
     corp_id = CorporateId.generate()
 

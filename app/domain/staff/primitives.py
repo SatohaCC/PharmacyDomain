@@ -2,16 +2,20 @@ from __future__ import annotations
 
 import re
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import date
 from enum import StrEnum
-from typing import Self
+from typing import ClassVar, Self
 
 from app.base.domain.exceptions import DomainValidationError
 from app.base.domain.primitives.primitives import (
+    BaseEmailAddress,
     BaseNormalizedString,
+    BaseTelephoneNumber,
     EntityUUID,
 )
+from app.base.domain.value_object import ValueObject
 from app.domain.store.primitives import StoreId
 
 
@@ -127,11 +131,29 @@ class SellerRegistrationNumber(BaseNormalizedString):
             )
 
 
+class StaffPhoneNumber(BaseTelephoneNumber):
+    """スタッフの連絡先電話番号。"""
+
+    field_name = "電話番号"
+
+
+class StaffEmailAddress(BaseEmailAddress):
+    """スタッフの連絡先メールアドレス。"""
+
+
+class InsurancePharmacistRegistrationNumber(BaseNormalizedString):
+    """保険薬剤師登録番号。"""
+
+
+class CertificationIssuingOrganizationName(BaseNormalizedString):
+    """薬剤師認定を発行した機関名。"""
+
+
 # --- 資格プロファイル抽象基底クラス ---
 
 
-@dataclass(frozen=True)
-class BaseQualificationProfile(ABC):
+@dataclass(frozen=True, kw_only=True)
+class BaseQualificationProfile(ValueObject, ABC):
     """資格プロファイルの共通基底クラス"""
 
     @property
@@ -149,21 +171,29 @@ class BaseQualificationProfile(ABC):
 
 # --- 個別の資格プロファイル（抽象プロパティを具体的に実装） ---
 @dataclass(frozen=True, kw_only=True)
-class InsurancePharmacistRegistration:
+class InsurancePharmacistRegistration(ValueObject):
     """保険薬剤師登録情報"""
 
-    registration_number: BaseNormalizedString  # 保険薬剤師登録番号
+    registration_number: InsurancePharmacistRegistrationNumber
     registration_date: date  # 登録年月日
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "registration_number": "保険薬剤師登録番号",
+        "registration_date": "登録年月日",
+    }
 
 
 @dataclass(frozen=True, kw_only=True)
-class CertifiedPharmacistInfo:
+class CertifiedPharmacistInfo(ValueObject):
     """研修認定薬剤師の認定情報"""
 
-    issuing_organization: (
-        BaseNormalizedString  # 認定機関（例: 日本薬剤師研修センター等）
-    )
+    issuing_organization: CertificationIssuingOrganizationName
     expiration_date: date  # 有効期限（超重要: 期限切れアラートに必須）
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "issuing_organization": "認定機関",
+        "expiration_date": "有効期限",
+    }
 
     def is_valid_on(self, target_date: date) -> bool:
         """指定した日付時点で認定が有効か判定する"""
@@ -171,10 +201,12 @@ class CertifiedPharmacistInfo:
 
 
 @dataclass(frozen=True, kw_only=True)
-class HealthSupportPharmacistInfo:
+class HealthSupportPharmacistInfo(ValueObject):
     """健康サポート薬剤師研修の修了情報"""
 
     completion_date: date  # 修了年月日
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {"completion_date": "修了年月日"}
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -190,11 +222,12 @@ class PharmacistProfile(BaseQualificationProfile):
     certified_info: CertifiedPharmacistInfo | None = None
     health_support_info: HealthSupportPharmacistInfo | None = None
 
-    def __post_init__(self) -> None:
-        if not isinstance(self.license_number, PharmacistLicenseNumber):
-            raise DomainValidationError(
-                "薬剤師名簿登録番号は PharmacistLicenseNumber で指定してください。"
-            )
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "license_number": "薬剤師名簿登録番号",
+        "insurance_registration": "保険薬剤師登録情報",
+        "certified_info": "研修認定薬剤師情報",
+        "health_support_info": "健康サポート薬剤師情報",
+    }
 
     @property
     def qualification_type(self) -> StaffQualification:
@@ -224,11 +257,10 @@ class DietitianProfile(BaseQualificationProfile):
     registration_number: DietitianRegistrationNumber
     is_registered_dietitian: bool = True
 
-    def __post_init__(self) -> None:
-        if not isinstance(self.registration_number, DietitianRegistrationNumber):
-            raise DomainValidationError(
-                "登録番号は DietitianRegistrationNumber で指定してください。"
-            )
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "registration_number": "登録番号",
+        "is_registered_dietitian": "管理栄養士区分",
+    }
 
     @property
     def qualification_type(self) -> StaffQualification:
@@ -249,11 +281,7 @@ class RegisteredSellerProfile(BaseQualificationProfile):
 
     registration_number: SellerRegistrationNumber
 
-    def __post_init__(self) -> None:
-        if not isinstance(self.registration_number, SellerRegistrationNumber):
-            raise DomainValidationError(
-                "登録番号は SellerRegistrationNumber で指定してください。"
-            )
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {"registration_number": "登録番号"}
 
     @property
     def qualification_type(self) -> StaffQualification:
@@ -267,8 +295,8 @@ class RegisteredSellerProfile(BaseQualificationProfile):
 # --- ファーストクラスコレクション ---
 
 
-@dataclass(frozen=True)
-class StaffQualifications:
+@dataclass(frozen=True, kw_only=True)
+class StaffQualifications(ValueObject):
     """保有資格のコレクション（ファーストクラスコレクション）
 
     何個の資格（ダブル・トリプルライセンス）でも保持でき、
@@ -277,12 +305,11 @@ class StaffQualifications:
 
     _items: tuple[BaseQualificationProfile, ...] = ()
 
-    def __post_init__(self) -> None:
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {"_items": "資格プロファイル"}
+
+    def validate(self) -> None:
+        """資格区分が正しく重複していないことを検証する。"""
         for item in self._items:
-            if not isinstance(item, BaseQualificationProfile):
-                raise DomainValidationError(
-                    "資格プロファイルは BaseQualificationProfile で指定してください。"
-                )
             if not isinstance(item.qualification_type, StaffQualification):
                 raise DomainValidationError("資格プロファイルの資格区分が不正です。")
 
@@ -319,13 +346,19 @@ class StaffQualifications:
 
 
 @dataclass(frozen=True, kw_only=True)
-class AffiliationPeriod:
+class AffiliationPeriod(ValueObject):
     """所属期間（いつからいつまで）を表す Value Object"""
 
     start_date: date
     end_date: date | None = None  # None の場合は「現在も所属中」を意味する
 
-    def __post_init__(self) -> None:
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "start_date": "開始日",
+        "end_date": "終了日",
+    }
+
+    def validate(self) -> None:
+        """開始日と終了日の前後関係を検証する。"""
         if self.end_date and self.start_date > self.end_date:
             raise DomainValidationError("開始日は終了日より前である必要があります。")
 
@@ -335,14 +368,34 @@ class AffiliationPeriod:
             return self.start_date <= target_date
         return self.start_date <= target_date <= self.end_date
 
+    def overlaps(self, other: AffiliationPeriod) -> bool:
+        """この期間と別の期間が1日でも重なるかを返す。
+
+        終了日を含む閉区間 ``[start_date, end_date]`` として扱い、
+        ``end_date`` が ``None`` の期間は無期限（未来側に終わりがない）とみなす。
+        """
+        self_ends_before_other_starts = (
+            self.end_date is not None and self.end_date < other.start_date
+        )
+        other_ends_before_self_starts = (
+            other.end_date is not None and other.end_date < self.start_date
+        )
+        return not (self_ends_before_other_starts or other_ends_before_self_starts)
+
 
 @dataclass(frozen=True, kw_only=True)
-class StoreAffiliation:
+class StoreAffiliation(ValueObject):
     """1つの店舗への所属レコード（履歴書の1行に相当）"""
 
     store_id: StoreId
     period: AffiliationPeriod
     is_primary: bool  # True: 主所属, False: 兼務・応援
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "store_id": "店舗ID",
+        "period": "所属期間",
+        "is_primary": "主所属区分",
+    }
 
     def close(self, end_date: date) -> StoreAffiliation:
         """所属期間を終了する（異動や兼務解除の際に呼ばれる）"""

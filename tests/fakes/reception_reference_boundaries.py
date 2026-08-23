@@ -1,29 +1,26 @@
-"""Claim Applicationが依存する参照境界のフェイク実装。
+"""Reception Applicationが依存する参照境界のフェイク実装。
 
-各Protocolの ``Raises:`` に書かれた契約（他テナントのデータは403ではなく404相当の
-例外で隠蔽する）を実行可能な形で表す。Composition Rootに置かれる本実装も同じ
-契約を満たす必要がある。
+AGENTS.md「Boundaryの例外契約」が求める「定義だけで raise されない例外を残さない」
+を実行可能にするため、各Protocolの ``Raises:`` に書かれた例外をここで実際に送出する。
 """
 
 from __future__ import annotations
 
-from datetime import date
-
-from app.application.claim.exceptions import (
-    ClaimCoverageSelectionError,
-    ClaimPatientNotFoundError,
-    ClaimStoreNotFoundError,
+from app.application.reception.exceptions import (
+    ReceptionCoverageSelectionError,
+    ReceptionPatientNotFoundError,
+    ReceptionStoreNotFoundError,
 )
-from app.application.claim.reference import (
-    CoverageSnapshotBoundary,
+from app.application.reception.reference import (
+    CoverageSelectionBoundary,
     CoverageValidityBoundary,
     PatientReferenceBoundary,
     StoreReferenceBoundary,
 )
-from app.domain.claim.coverage_snapshot import CoverageSnapshot
-from app.domain.claim.primitives import CoverageUsageTimestamp
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientId
+from app.domain.reception.coverage_selection import CoverageSelection
+from app.domain.reception.primitives import CoverageAppliedOn
 from app.domain.store.primitives import StoreId
 
 
@@ -45,7 +42,7 @@ class FakeStoreReference(StoreReferenceBoundary):
     ) -> None:
         """店舗が存在しない、または別法人の場合は404相当を送出する。"""
         if (corporate_id, store_id) not in self.registered:
-            raise ClaimStoreNotFoundError()
+            raise ReceptionStoreNotFoundError()
 
 
 class FakePatientReference(PatientReferenceBoundary):
@@ -66,38 +63,38 @@ class FakePatientReference(PatientReferenceBoundary):
     ) -> None:
         """患者が存在しない、または別法人の場合は404相当を送出する。"""
         if (corporate_id, patient_id) not in self.registered:
-            raise ClaimPatientNotFoundError()
+            raise ReceptionPatientNotFoundError()
 
 
-class FakeCoverageSnapshotSource(CoverageSnapshotBoundary):
-    """資格IDの組に対して用意されたスナップショットを返す境界。"""
+class FakeCoverageSelectionSource(CoverageSelectionBoundary):
+    """資格IDの組に対して用意された選択を返す境界。"""
 
     def __init__(self) -> None:
-        self.snapshots: dict[tuple[str, ...], CoverageSnapshot] = {}
+        self.selections: dict[tuple[str, ...], CoverageSelection] = {}
 
     def register(
         self,
         *,
         coverage_ids: tuple[str, ...],
-        snapshot: CoverageSnapshot,
+        selection: CoverageSelection,
     ) -> None:
-        """資格IDの組に対応するスナップショットを登録する。"""
-        self.snapshots[coverage_ids] = snapshot
+        """資格IDの組に対応する選択を登録する。"""
+        self.selections[coverage_ids] = selection
 
-    async def build_snapshot(
+    async def build_selection(
         self,
         *,
         corporate_id: CorporateId,
         patient_id: PatientId,
         coverage_ids: tuple[str, ...],
-        applied_at: CoverageUsageTimestamp,
-    ) -> CoverageSnapshot:
+        applied_on: CoverageAppliedOn,
+    ) -> CoverageSelection:
         """登録のない資格IDの組は選択エラーとして扱う。"""
-        del corporate_id, patient_id, applied_at
-        snapshot = self.snapshots.get(coverage_ids)
-        if snapshot is None:
-            raise ClaimCoverageSelectionError()
-        return snapshot
+        del corporate_id, patient_id, applied_on
+        selection = self.selections.get(coverage_ids)
+        if selection is None:
+            raise ReceptionCoverageSelectionError()
+        return selection
 
 
 class FakeCoverageValidity(CoverageValidityBoundary):
@@ -105,17 +102,17 @@ class FakeCoverageValidity(CoverageValidityBoundary):
 
     def __init__(self, *, valid: bool = True) -> None:
         self.valid = valid
-        self.calls: list[tuple[CorporateId, PatientId, date]] = []
+        self.calls: list[tuple[CorporateId, PatientId, CoverageSelection]] = []
 
-    async def is_snapshot_valid(
+    async def is_selection_valid(
         self,
         *,
         corporate_id: CorporateId,
         patient_id: PatientId,
-        snapshot: CoverageSnapshot,
-        applied_on: date,
+        selection: CoverageSelection,
+        applied_on: CoverageAppliedOn,
     ) -> bool:
         """呼び出し内容を記録し、設定された有効性を返す。"""
-        del snapshot
-        self.calls.append((corporate_id, patient_id, applied_on))
+        del applied_on
+        self.calls.append((corporate_id, patient_id, selection))
         return self.valid

@@ -8,6 +8,7 @@ from app.domain.corporate.primitives import CorporateId
 from app.domain.coverage.patient_coverage import PatientCoverage
 from app.domain.coverage.primitives import PatientCoverageId
 from app.domain.coverage.repository import PatientCoverageRepository
+from app.domain.coverage.services import PatientCoverageConflictService
 from app.domain.patient.primitives import PatientId
 
 
@@ -43,5 +44,14 @@ class InMemoryPatientCoverageRepository(PatientCoverageRepository):
         ]
 
     async def save(self, coverage: PatientCoverage) -> None:
-        """資格をコピーして保存する。"""
+        """実効期間の競合を原子的に拒否して資格を保存する。
+
+        Applicationの事前readは早期エラー用であり原子性の代替ではないため、
+        Repository契約として保存の直前にも同じ判定を行う。同じ集約IDの現在行は
+        競合候補から除外し、自身の期間変更や無効化を妨げない。
+        """
+        PatientCoverageConflictService().ensure_no_conflict(
+            coverage,
+            [item for item in self.items.values() if item.id != coverage.id],
+        )
         self.items[coverage.id] = copy.deepcopy(coverage)

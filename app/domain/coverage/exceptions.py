@@ -29,3 +29,17 @@ class InsuranceCoveragePriorityError(CoverageDomainError):
 
     default_message = "医療保険の適用順位は1で指定してください。"
     default_code = "INSURANCE_COVERAGE_PRIORITY_INVALID"
+
+
+class CoverageDeactivationAlreadyFixedError(CoverageDomainError):
+    """確定済みの無効化発効日を別の日へ変更しようとした場合の例外。"""
+
+    default_message = "患者資格の無効化発効日はすでに確定しています。"
+    default_code = "COVERAGE_DEACTIVATION_ALREADY_FIXED"
+
+
+class CoverageCombinationError(CoverageDomainError):
+    """適用資格の組み合わせが成立しない場合の例外。"""
+
+    default_message = "適用資格の組み合わせが不正です。"
+    default_code = "COVERAGE_COMBINATION_INVALID"

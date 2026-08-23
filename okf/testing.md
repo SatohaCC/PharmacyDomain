@@ -2,8 +2,10 @@
 type: Guideline
 title: テスト層の実装ガイドライン
 description: PharmacyDomain における AAA パターン、テスト分割、テストダブル、非同期テストの方針。
-tags: [backend, testing, pytest, aaa, ddd]
+okf_version: "0.2"
 timestamp: 2026-08-15T00:00:00Z
+status: active
+tags: [backend, testing, pytest, aaa, ddd]
 ---
 
 # テスト層の実装ガイドライン
@@ -97,14 +99,21 @@ Domain層では、ドメインモデルのルールと振る舞いを検証し�
 | :--- | :--- |
 | `corporate/test_corporate.py` | `Corporate`、値オブジェクト、ID、Repository契約の振る舞い |
 | `corporate/test_corporate_services.py` | `CorporateNameUniquenessService` |
+| `corporate/test_corporate_status.py` | `Corporate` の有効化・無効化状態遷移 |
 | `store/test_store.py` | `Store`の生成と各`change_*` |
 | `store/test_store_primitives.py` | 店舗のプリミティブ・複合VOの境界値と不正値 |
 | `store/test_store_services.py` | 店舗名・店舗コード・保険薬局指定番号の一意性サービス |
 | `staff/test_staff.py` | `Staff`の生成、資格、所属の導出メソッド |
+| `staff/test_staff_invariants.py` | `Staff` の主所属・兼務期間重複禁止の不変条件 |
 | `staff/test_staff_repository.py` | `StaffRepository`契約（法人境界を含む） |
 | `staff/test_staff_services.py` | `StaffCodeUniquenessService`、`StaffStoreAssignmentService` |
-| `test_person_names.py` | Shared Kernelの人名Value Object |
-| `test_error_messages.py` | 例外クラスの既定メッセージ |
+| `coverage/test_coverage_invariants.py` | 資格の制度期間・有効化区間・実効期間交差・競合 |
+| `reception/test_coverage_selection.py` | 適用資格選択の枠構造、元ID重複拒否、スナップショット導出、UTC記録時刻 |
+| `claim/test_claim_invariants.py` | 請求スナップショットの公費順位連続性（1..4）、番号桁数、給付割合必須性 |
+| `test_lifecycle_dialects.py` | 集約ごとの無効化方言（4方言）と一意キー再利用設定の固定 |
+| `test_priority_rules.py` | Shared Kernel の公費順位共通検証関数 |
+| `test_person_names.py` | Shared Kernelの人名Value Object（型ガード含む） |
+| `test_error_messages.py` | 例外クラスの既定メッセージとエラーコード |
 
 Domain層のテストでは、集約やValue Objectをモックしません。実際のオブジェクトを使い、ドメインモデルが期待どおりに状態を守ることを確認します。
 
@@ -119,6 +128,9 @@ Application層では、Commandの変換、ユースケースの処理順序、Re
 | `corporate/` | `test_register_corporate.py`、`test_change_corporate_name.py`、`test_change_representative.py`、`test_get_corporate.py` |
 | `store/` | `test_register_store.py`、`test_change_store_name.py`、`test_change_store_code.py`、`test_change_store_address.py`、`test_change_store_contact_info.py`、`test_change_insurance_pharmacy_number.py`、`test_get_store.py`、`test_list_stores.py`、`test_change_skips_save.py` |
 | `staff/` | `test_register_staff.py`、`test_change_staff_names.py`、`test_update_qualifications.py`、`test_deactivate_staff.py`、`test_transfer_home_store.py`、`test_get_staff.py`、`test_list_staffs.py` |
+| `coverage/` | 資格の登録・取得・一覧・制度期間変更・発効日付き無効化 |
+| `reception/` | 資格選択の登録、最新候補、Actor/Clock監査、Tenant境界 |
+| `composition/` | 実 `CoverageSelectionAdapter` と `SystemUtcClock` |
 
 Application層のテストは、ユースケースごとにファイルを分けます。共通の集約生成処理は`helpers.py`（`corporate/` と `store/`）や`tests/factories/`へ切り出し、テスト本体の責務と準備処理を分離します。
 
@@ -131,24 +143,35 @@ Application層でも、インメモリRepositoryを使い、ドメインモデ�
 
 ### 3.3 テスト用Repository（Fake）
 
-`tests/fakes/` に3つのインメモリRepositoryがあります。
+`tests/fakes/` のインメモリRepositoryは、実装するProtocolごとの最終防衛契約を再現します。
 
 | ファイル | クラス | 実装するProtocol |
 | :--- | :--- | :--- |
 | `in_memory_corporate_repository.py` | `InMemoryCorporateRepository` | `CorporateRepository`、`CorporateCatalogRepository` |
 | `in_memory_store_repository.py` | `InMemoryStoreRepository` | `StoreRepository`、`StoreCatalogRepository` |
 | `in_memory_staff_repository.py` | `InMemoryStaffRepository` | `StaffRepository`、`StaffCatalogRepository` |
+| `in_memory_patient_repository.py` | 患者・外部患者IDRepository | 患者境界、有効な外部IDの原子的な一意性 |
+| `in_memory_patient_coverage_repository.py` | `InMemoryPatientCoverageRepository` | 実効期間の原子的な競合拒否 |
+| `in_memory_coverage_selection_record_repository.py` | `InMemoryCoverageSelectionRecordRepository` | 複数履歴の保存と `(recorded_at, id)` 最新順 |
+| `reception_reference_boundaries.py` | `FakeStoreReference` / `FakePatientReference` / `FakeCoverageSelectionSource` / `FakeCoverageValidity` | Receptionの参照Boundary4種 |
+| `fake_clock.py` | `FakeClock` | `Clock`（固定時刻。`advance()` で明示的に進める） |
 
 共通する性質は次のとおりです。
 
-- `save()`で一意性違反を検証し、重複時は本番の永続化層と同じドメイン例外を送出する
-- `save_count`を数え、「変更が無ければ保存しない」ことを検証できるようにする
+- 一意性を持つRepositoryの`save()`だけが競合を最終検証し、本番永続化層と同じドメイン例外を送出する
+- 履歴Repositoryは複数行を許可し、不要な一意性検証を追加しない
+- `save_count`は保存回数を検証するFakeだけに持たせる
 - `get()`と`list_*()`ではdeep copyを返し、永続化層に近い分離を再現する
 - `InMemoryStaffRepository.get()`は`corporate_id`が一致しない場合に`None`を返し、Protocolの法人境界の契約を守る
 - データベースやネットワークに依存しない
+- 実装するProtocolを**明示継承し、全メンバを上書きする**。上書きし忘れるとProtocol本体の `...` を実装として継承し、呼んでも例外にならず `None` が返るため、Protocolの改名にフェイクが静かに追随できなくなる。`tools/check_fake_conformance.py` がpytest内で検出する
+- `save()` の契約（原子的な一意性拒否）は「実装済みだが契約を無視している」形で壊れうる。チェッカでは捕まらないため、`tests/contracts/test_repository_contracts.py` が `tests/fakes/` を走査して実装を**自動列挙**し、全実装へ同じ契約テストを課す。新しいフェイクを足すと登録を忘れようがなく検査対象になる
 
 Fakeは、テストに必要な現実的な振る舞いを持たせます。単にメソッドが呼ばれたことだけを確認するMockとは目的が異なります。
-`save()`の一意性チェックを残しているのは、ユースケース側の事前チェックを外しても検知できる状態を保つためです。
+外部患者IDと患者資格のFakeには、両タスクが事前readを終えてからsaveへ進める同期フックを置き、
+read-check-writeの競合でも片方だけが成功することを決定的に検証します。ただしFakeが成功しても
+本番DBの原子性は保証されません。部分一意索引・期間除外制約・別トランザクション統合テストが
+揃うまで `RESIDUAL-RISK-DB-01` は未解決です。
 
 ### 3.4 ファクトリ
 
@@ -200,6 +223,8 @@ Domain PrimitiveやValue Objectのテストでは、正常値だけでなく境�
 - 空文字、空白だけの文字列
 - 最大長を超える文字列
 - 無効なUUIDやUUIDv7以外のUUID
+- Composite dataclassへ渡す生文字列、生`date`、tuple内の誤型
+- `date`フィールドへの`datetime`、`int`フィールドへの`bool`
 - 姓または名だけが空の代表者名
 - フォーマット違反（カナ以外の店舗名カナ、桁数違いの電話番号、都道府県コードや調剤区分が不正な保険薬局指定番号など）
 - 同一値への変更
@@ -211,8 +236,8 @@ Domain PrimitiveやValue Objectのテストでは、正常値だけでなく境�
 - テスト間でRepositoryや集約を共有しない
 - 各テストでArrangeを完結させる
 - 実行順序に依存しない
-- 現在時刻、乱数、UUIDなどに依存する場合は、公開された契約を通して検証する
-- 日付に依存するドメイン（スタッフの所属履歴）では、`date.today()`任せにせず対象日を明示的に渡す
+- 現在時刻、乱数、UUIDなどに依存する場合は、公開された契約を通して検証する。Receptionの記録時刻は`FakeClock`を注入する
+- 日付に依存するドメイン（スタッフ所属・患者資格）では、`date.today()`任せにせず対象日を明示的に渡す
 - 外部データベースやネットワークを単体テストから呼び出さない
 
 テストの失敗が別のテストの実行結果に影響しないことを優先します。
@@ -271,3 +296,9 @@ uv run ruff format --check .
 ```
 
 テスト追加後は、対象テストだけでなく全テストを実行し、既存の振る舞いを壊していないことを確認します。
+手元で回し忘れても、`main` への push と pull request では
+[.github/workflows/quality-gate.yml](../.github/workflows/quality-gate.yml) が同じゲートを実行します。
+
+ディレクトリを指定した実行が成り立つのは、`tests/` 配下の全ディレクトリに `__init__.py` があり、
+リポジトリルートが `sys.path` に入るからです。この前提は
+[tests/tools/test_package_layout.py](../tests/tools/test_package_layout.py) が守っています。

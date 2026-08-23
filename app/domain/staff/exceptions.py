@@ -44,12 +44,23 @@ class AffiliationDateConflictError(StaffAffiliationError):
 
 
 class ConcurrentStoreConflictError(StaffAffiliationError):
-    """主所属と兼務店舗の指定に矛盾がある場合のエラー"""
+    """同一店舗の所属期間が主所属・兼務をまたいで重なる場合のエラー
 
+    日付単位ではなく所属期間（閉区間）の重なりに対して、集約の構築時に送出する。
+    """
+
+    default_message = (
+        "同一店舗の所属期間が重複しています。"
+        "異動する場合は対象店舗の兼務を先に解除してください。"
+    )
     default_code = "CONCURRENT_STORE_CONFLICT"
 
 
 class PrimaryAffiliationDuplicationError(StaffAffiliationError):
-    """主所属店舗が同日に複数存在してしまう場合のエラー"""
+    """主所属店舗の所属期間が重複する場合のエラー
 
+    日付単位ではなく所属期間（閉区間）の重なりに対して、集約の構築時に送出する。
+    """
+
+    default_message = "主所属店舗の所属期間が重複しています。"
     default_code = "PRIMARY_AFFILIATION_DUPLICATION"

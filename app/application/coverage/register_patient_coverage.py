@@ -9,6 +9,7 @@ from app.application.access_control import CorporateAccessBoundary, Permission
 from app.application.coverage.get_patient_coverage import PatientCoverageDto
 from app.application.coverage.reference import PatientReferenceBoundary
 from app.application.coverage.support import (
+    build_activation,
     build_coverage_period,
     build_insurance_details,
     build_priority,
@@ -33,6 +34,7 @@ class RegisterPatientCoverageCommand:
     patient_id: str
     coverage_type: str
     valid_from: date
+    activated_on: date
     valid_to: date | None = None
     priority: int = 1
     insurer_number: str | None = None
@@ -101,6 +103,7 @@ class RegisterPatientCoverageUseCase:
             patient_id=patient_id,
             coverage_type=coverage_type,
             period=period,
+            activation=build_activation(activated_on=command.activated_on),
             priority=build_priority(command.priority),
             insurance_details=insurance_details,
             public_expense_details=public_expense_details,

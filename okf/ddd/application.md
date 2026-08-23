@@ -2,8 +2,10 @@
 type: Guideline
 title: Application層の実装ガイドライン
 description: PharmacyDomain におけるユースケース、DTO、依存性注入の設計方針。
-tags: [backend, application, ddd]
+okf_version: "0.2"
 timestamp: 2026-08-15T00:00:00Z
+status: active
+tags: [backend, application, ddd]
 ---
 
 # Application層の実装ガイドライン
@@ -22,8 +24,8 @@ Application層は、外部から受け取った入力をドメインモデルの
 - 永続化はRepositoryの抽象に依存し、データベースやWebフレームワークをApplication層へ持ち込まない。
 - 複数ユースケースに共通する処理は小さなヘルパー（`support.py`）へ切り出す。ただし、全ユースケースを1つの巨大なサービスへ統合しない。
 - 認証済み操作主体は `ActorContext` として認証基盤から受け取り、Command / Queryの対象法人IDとは分離する。未信頼のHTTP入力からActorContextを生成しない。
-- Store / Staff / Patient / Coverage / Claim は法人アクセス境界を Protocol（`CorporateAccessBoundary`）として受け取り、法人コンテキストの実装には依存しない。実装を注入するのは Composition Root。Coverageは `PatientReferenceBoundary` で患者IDの存在だけを確認し、Patient Aggregateを受け取らない。Claimは `CoverageSnapshotBoundary` で資格を請求側の値へ変換し、資格台帳やPatient/StoreのAggregateを受け取らない。
-- 依存は `staff` → `store` → `access_control`、`patient` → `access_control`、`coverage` → `access_control`、`claim` → `access_control`、`corporate` → `access_control` の一方向のみ。Domain層でもCoverageからPatient Aggregate/Repository、ClaimからCoverage・Patient・Store Aggregate/Repositoryへの直接importを禁止し、`tools/check_imports.py` で検出する。
+- Store / Staff / Patient / Coverage / Reception は法人アクセス境界を Protocol（`CorporateAccessBoundary`）として受け取り、法人コンテキストの実装には依存しない。実装を注入するのは Composition Root。Coverageは `PatientReferenceBoundary` で患者IDの存在だけを確認し、Receptionは店舗・患者・資格選択の参照Boundaryだけを受け取る。
+- ReceptionとCoverageの接続は `app/application/composition/coverage_selection_adapter.py` に閉じ込める。Domain層でもCoverageからPatient Aggregate/RepositoryとClaim/Reception、ClaimからCoverage/Reception、ReceptionからCoverage台帳やPatient/Store Aggregate/Repositoryへの直接importを禁止し、`tools/check_imports.py` で検出する。
 
 Application層の責務は「何を、どの順番で呼ぶか」です。法人名の重複や法人名の妥当性などの判断は、Domain層へ委譲します。
 
@@ -37,7 +39,7 @@ Application層の責務は「何を、どの順番で呼ぶか」です。法人
 | Repository | `CorporateRepository`、`StoreRepository`、`StaffRepository`、`PatientRepository` | 集約の取得・保存・検索を抽象化する |
 | Catalog Repository | `StoreCatalogRepository`、`StaffCatalogRepository` | 一覧系ユースケースが使う列挙操作 |
 | Domain Service | `CorporateNameUniquenessService`、`StaffStoreAssignmentService` など | リポジトリを使う一意性ルールや集約間ルールを実行する |
-| Access Control | `ActorContext`、`AuthorizationService`、`CorporateAccessBoundary`（`access_control/`）、`CorporateAccessService`（`corporate/`） | 操作主体のロール・法人スコープ、対象法人の存在・有効状態を検証する。資格台帳とClaim利用履歴の権限を分離する |
+| Access Control | `ActorContext`、`AuthorizationService`、`CorporateAccessBoundary`（`access_control/`）、`CorporateAccessService`（`corporate/`） | 操作主体のロール・法人スコープ、対象法人の存在・有効状態を検証する。認可に使った同じActorをReceptionの監査へ渡す |
 | Response DTO | `CorporateResponseDto`、`StoreDto` / `StoreSummaryDto`、`StaffDto` / `StaffSummaryDto`、`PatientDto`、`PatientExternalIdentifierDto`、`PatientCoverageDto` | APIや画面へ返す読み取り専用のデータを表現する |
 | 共通処理 | `load_corporate_or_raise()`、`load_active_corporate_or_raise()`、`load_store_or_raise()`、`load_staff_or_raise()`、`load_patient_or_raise()`、`load_coverage_or_raise()`、`to_optional_text()`（`app/base/application/support.py`） | 集約取得・法人の有効状態検証・未存在時の例外処理・任意項目の正規化を共通化する |
 
@@ -49,7 +51,7 @@ Command / Query / Response DTO はいずれも `@dataclass(frozen=True, kw_only=
 
 実装場所は `app/application/corporate/` です。ユースケースごとにファイルを分けています。
 `__init__.py` でユースケース、DTO、`CorporateAccessService`、例外、サポート関数を再エクスポートしています。
-ただし Store / Staff / Patient / Coverage はこの `__init__.py` を経由せず、`access_control` の `CorporateAccessBoundary`（Protocol）にだけ依存します。
+ただし Store / Staff / Patient / Coverage / Reception はこの `__init__.py` を経由せず、`access_control` の `CorporateAccessBoundary`（Protocol）にだけ依存します。
 なお法人コンテキスト内のモジュールは、自パッケージの `__init__.py` ではなくサブモジュールを直接 import します（部分初期化による循環を避けるため）。
 
 | ファイル | クラス | 処理 |
@@ -272,10 +274,11 @@ Patientは氏名・任意の生年月日・不変の法人内患者番号を保�
 扱い、Coverageは別コンテキストの `PatientCoverage` として `PatientId` のみで関連付けます。
 Prescriptionは別コンテキストとして扱い、患者集約ではなく `PatientId` のみを参照します。
 
-`RegisterPatientExternalIdentifierUseCase` の重複判定は、`get_by_source()` が返した行の
-`is_active` が真のときだけ `PatientExternalIdentifierAlreadyExistsError` を送出します。
+`RegisterPatientExternalIdentifierUseCase` の早期重複判定は、`get_active_by_source()` が
+有効行を返したときに `PatientExternalIdentifierAlreadyExistsError` を送出します。
 無効化済みの行を衝突扱いにすると、誤紐付けを無効化した後に正しい患者へ付け替える経路が
-なくなり、その外部IDが恒久的に使えなくなるためです。
+なくなり、その外部IDが恒久的に使えなくなるためです。並行登録の最終防衛はRepositoryの
+原子的な `save()` 契約であり、read-check-writeだけでは保証しません。
 
 ### 5.6 Coverageコンテキストのユースケース
 
@@ -283,7 +286,8 @@ Coverageユースケースは `app/application/coverage/` に配置し、`Patien
 `PatientCoverageConflictService`、`CorporateAccessBoundary`、`PatientReferenceBoundary` を
 コンストラクタから受け取ります。保険・公費の詳細は資格種別に応じて値オブジェクトへ変換し、
 医療保険は期間重複を、公費は同一順位の期間重複を登録・期間変更前に検証します。医療保険1件と
-第一公費・第二公費のような複数公費の組み合わせは、Claim側のスナップショットで保持します。
+第一公費・第二公費のような複数公費の組み合わせは、CoverageのDomain Serviceで検証してから
+Claim側のスナップショットへ変換します。
 
 | ファイル | クラス | 処理 |
 | :--- | :--- | :--- |
@@ -293,41 +297,40 @@ Coverageユースケースは `app/application/coverage/` に配置し、`Patien
 | `change_patient_coverage_period.py` | `ChangePatientCoveragePeriodUseCase` | 適用期間を変更し、競合を再検証する |
 | `deactivate_patient_coverage.py` | `DeactivatePatientCoverageUseCase` | 資格を無効化する |
 
-Coverageは他法人の資格を404相当へ隠蔽し、非アクティブ法人の通常操作を拒否します。請求時点
-の `CoverageSnapshot` は将来のClaimコンテキストで保存するため、Coverage DTOに請求・処方の
-情報を混在させません。
+Coverageは他法人の資格を404相当へ隠蔽し、非アクティブ法人の通常操作を拒否します。登録Commandは
+`activated_on`、無効化Commandは `effective_on` を必須で受け取ります。DTOは現在時点のboolではなく
+`activated_on` / `deactivated_on` を返し、適用日の判定を呼び出し側へ明示させます。
 
-### 5.7 Claimコンテキストのユースケース
+### 5.7 Receptionコンテキストのユースケース
 
-Claimユースケースは `app/application/claim/` に配置し、`CoverageUsageRepository`、
-`CorporateAccessBoundary`、店舗・患者の存在確認Boundary、資格を請求側スナップショットへ
-変換する `CoverageSnapshotBoundary` をコンストラクタから受け取ります。Claim Applicationは
-Coverage Applicationの具象実装や資格集約を直接importせず、Boundaryから値を受け取ります。
-利用履歴の登録は `MANAGE_CLAIM`、最新履歴の参照は `VIEW_CLAIM` を要求し、資格台帳の
-`MANAGE_COVERAGE` / `VIEW_COVERAGE` と分離します。
+Receptionユースケースは `app/application/reception/` に配置し、
+`CoverageSelectionRecordRepository`、`CorporateAccessBoundary`、店舗・患者の存在確認Boundary、
+`CoverageSelectionBoundary` / `CoverageValidityBoundary` を受け取ります。登録は
+`MANAGE_RECEPTION`、最新候補の参照は `VIEW_RECEPTION` を要求し、資格台帳の権限と分離します。
 
 | ファイル | クラス | 処理 |
 | :--- | :--- | :--- |
-| `record_coverage_usage.py` | `RecordCoverageUsageUseCase` | 選択された資格を適用日時点で検証・スナップショット化し、利用履歴を保存する |
-| `get_last_coverage_usage.py` | `GetLastCoverageUsageUseCase` | 法人・店舗・患者単位で最後に使った組み合わせを、適用日で再検証した候補として取得する |
-| `get_coverage_usage.py` | `CoverageUsageDto` | スナップショットと利用日時を外部向けDTOへ変換する |
+| `record_coverage_selection.py` | `RecordCoverageSelectionUseCase` | 適用日と資格IDを検証し、認可ActorとClock由来の監査値で選択履歴を保存する |
+| `get_last_coverage_selection.py` | `GetLastCoverageSelectionUseCase` | 最新履歴の元IDとSnapshotを今回の適用日で再検証した候補として返す |
+| `get_coverage_selection.py` | `CoverageSelectionRecordDto` | 元ID列・Snapshot・業務日・監査値を外部向けDTOへ変換する |
 
-最新履歴は自動適用値ではありません。`GetLastCoverageUsageQuery` は今回の適用日
-（`applied_on`）を必須で受け取り、`CoverageValidityBoundary.is_snapshot_valid()` へ再検証を
-委ねた結果を `LastCoverageUsageCandidateDto.is_still_valid` として返します。フラグが `False`
+最新履歴は自動適用値ではありません。`GetLastCoverageSelectionQuery` は今回の適用日を必須で
+受け取り、`CoverageValidityBoundary.is_selection_valid()` へ元ID列とSnapshotの再検証を
+委ねた結果を `LastCoverageSelectionCandidateDto.is_still_valid` として返します。フラグが `False`
 の候補を自動適用してはならず、呼び出し元は資格一覧から再選択させます。「再検証してから使う」
-という規則をDTOの型に載せることで、フラグを見ずに適用する実装を書けなくしています。
+という規則をDTOの型に載せます。
 
 参照Boundary（`StoreReferenceBoundary` / `PatientReferenceBoundary` /
-`CoverageSnapshotBoundary` / `CoverageValidityBoundary`）はProtocolの `Raises:` に例外契約を
-持ちます。他テナントのデータや未存在は403ではなく404相当の `ClaimStoreNotFoundError` /
-`ClaimPatientNotFoundError` / `ClaimCoverageSelectionError` へ畳み込み、`AuthorizationError`
+`CoverageSelectionBoundary` / `CoverageValidityBoundary`）はProtocolの `Raises:` に例外契約を
+持ちます。他テナントのデータや未存在は403ではなく404相当の `ReceptionStoreNotFoundError` /
+`ReceptionPatientNotFoundError` / `ReceptionCoverageSelectionError` へ畳み込み、`AuthorizationError`
 を送出しません（他法人のIDの存在が呼び出し元へ漏れます）。再検証の結果も真偽値へ畳み込み、
-存在の有無を例外で区別しません。この契約は `tests/fakes/claim_reference_boundaries.py` の
-フェイク実装とユースケーステストで実行可能な形にしています。
+存在の有無を例外で区別しません。
 
-処方箋は別コンテキストで `PatientId` と処方内容を扱い、保険・公費の組み合わせは調剤・請求時の
-Claim側で確定します。
+`RecordCoverageSelectionCommand` には記録者・記録時刻を置きません。記録者は認可に使った同じ
+`CorporateAccessBoundary.actor`、記録時刻は注入した `Clock` から取得します。実行時Clockは
+Composition層の `SystemUtcClock` だけが `datetime.now(UTC)` を呼びます。Claimには現在、
+Snapshot以外の到達可能なApplicationユースケースを置かず、Claim権限も定義しません。
 
 ## 6. テスト方針
 

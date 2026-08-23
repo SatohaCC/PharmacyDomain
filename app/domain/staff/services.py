@@ -6,7 +6,6 @@ from app.domain.staff.exceptions import (
     AffiliationDateConflictError,
     ConcurrentStoreConflictError,
     InvalidCorporateAssignmentError,
-    PrimaryAffiliationDuplicationError,
     StaffCodeAlreadyExistsError,
 )
 from app.domain.staff.primitives import (
@@ -84,18 +83,19 @@ class StaffStoreAssignmentService:
             )
 
         # 異動日現在の主所属は、異動日の前日で終了させる。
-        active_primary_affiliations = [
-            (index, affiliation)
-            for index, affiliation in enumerate(new_affiliations)
-            if affiliation.is_primary and affiliation.period.is_active_on(transfer_date)
-        ]
-        if len(active_primary_affiliations) > 1:
-            raise PrimaryAffiliationDuplicationError(
-                "同じ日付に主所属店舗を複数持てません。"
-            )
+        # 主所属の期間重複は Staff.validate() が構築時に禁止するため高々1件。
+        active_primary_affiliation = next(
+            (
+                (index, affiliation)
+                for index, affiliation in enumerate(new_affiliations)
+                if affiliation.is_primary
+                and affiliation.period.is_active_on(transfer_date)
+            ),
+            None,
+        )
 
-        if active_primary_affiliations:
-            index, current_affiliation = active_primary_affiliations[0]
+        if active_primary_affiliation is not None:
+            index, current_affiliation = active_primary_affiliation
             if transfer_date <= current_affiliation.period.start_date:
                 raise AffiliationDateConflictError(
                     "異動日は現在の主所属開始日より後である必要があります。"
@@ -120,19 +120,14 @@ class StaffStoreAssignmentService:
     def assign_concurrent_store(
         self, staff: Staff, store: Store, start_date: date
     ) -> Staff:
-        """兼務店舗を追加する。"""
+        """兼務店舗を追加する。
+
+        同一店舗の期間重複（主所属との衝突・既存兼務との重なり）は
+        ``Staff.validate()`` が構築時に ``ConcurrentStoreConflictError`` として
+        拒否するため、ここで事前判定は行わない。開始日時点しか見ない事前判定は
+        過去へ遡る指定を素通しするため、集約側の期間比較に一本化する。
+        """
         self._ensure_same_corporate(staff, store)
-
-        if staff.current_home_store_id(start_date) == store.id:
-            raise ConcurrentStoreConflictError("主所属店舗は兼務店舗に追加できません。")
-
-        if any(
-            not affiliation.is_primary
-            and affiliation.store_id == store.id
-            and affiliation.period.is_active_on(start_date)
-            for affiliation in staff.affiliations
-        ):
-            raise ConcurrentStoreConflictError("指定店舗は既に兼務店舗です。")
 
         new_affiliation = StoreAffiliation(
             store_id=store.id,

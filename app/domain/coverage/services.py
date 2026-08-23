@@ -22,16 +22,20 @@ class PatientCoverageConflictService:
         違えば同一期間でも併用できる。保険の枠を ``coverage_type`` で別途判定
         しても順位固定により結果は変わらないため、条件は1つに保つ。
         """
-        if not coverage.is_active:
+        effective_period = coverage.effective_period()
+        if effective_period is None:
             return
         for existing in existing_coverages:
-            if existing.id == coverage.id or not existing.is_active:
+            if existing.id == coverage.id:
+                continue
+            existing_effective_period = existing.effective_period()
+            if existing_effective_period is None:
                 continue
             if (
                 existing.corporate_id == coverage.corporate_id
                 and existing.patient_id == coverage.patient_id
                 and existing.coverage_type is coverage.coverage_type
                 and existing.priority == coverage.priority
-                and existing.period.overlaps(coverage.period)
+                and existing_effective_period.overlaps(effective_period)
             ):
                 raise CoveragePeriodConflictError()

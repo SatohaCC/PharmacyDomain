@@ -19,8 +19,8 @@ _CORPORATE_ADMIN_PERMISSIONS = frozenset(
         Permission.MANAGE_PATIENT,
         Permission.VIEW_COVERAGE,
         Permission.MANAGE_COVERAGE,
-        Permission.VIEW_CLAIM,
-        Permission.MANAGE_CLAIM,
+        Permission.VIEW_RECEPTION,
+        Permission.MANAGE_RECEPTION,
     }
 )
 

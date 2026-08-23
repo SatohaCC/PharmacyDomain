@@ -9,9 +9,12 @@ import pytest
 from app.base.domain.exceptions import DomainValidationError
 from app.domain.corporate.primitives import CorporateId
 from app.domain.coverage import (
+    CoverageActivatedOn,
+    CoverageActivation,
     CoverageBenefitRatio,
     CoverageBranchNumber,
     CoverageCode,
+    CoverageDeactivatedOn,
     CoverageInsuredType,
     CoveragePeriod,
     CoveragePeriodConflictError,
@@ -70,6 +73,21 @@ def _create_public_details(priority: int) -> PublicExpenseCoverageDetails:
     )
 
 
+def _create_activation(
+    activated_on: date = _VALID_FROM,
+    deactivated_on: date | None = None,
+) -> CoverageActivation:
+    """テスト用の台帳行有効区間を生成する。"""
+    return CoverageActivation(
+        activated_on=CoverageActivatedOn(activated_on),
+        deactivated_on=(
+            CoverageDeactivatedOn(deactivated_on)
+            if deactivated_on is not None
+            else None
+        ),
+    )
+
+
 def _create_coverage(
     *,
     coverage_type: CoverageType,
@@ -77,29 +95,34 @@ def _create_coverage(
     corporate_id: CorporateId,
     patient_id: PatientId,
     period: CoveragePeriod | None = None,
-    is_active: bool = True,
+    activated_on: date = _VALID_FROM,
+    deactivated_on: date | None = None,
 ) -> PatientCoverage:
-    """テスト用の患者資格を生成する。"""
-    coverage = (
-        PatientCoverage.create(
+    """テスト用の患者資格を生成する。
+
+    ``deactivated_on`` に ``activated_on`` と同日を渡すと実効期間が空になり、
+    「無効化済みで競合しない資格」を表す。
+    """
+    activation = _create_activation(activated_on, deactivated_on)
+    if coverage_type is CoverageType.INSURANCE:
+        return PatientCoverage.create(
             corporate_id=corporate_id,
             patient_id=patient_id,
             coverage_type=coverage_type,
             period=period if period is not None else _create_period(),
+            activation=activation,
             priority=CoveragePriority(priority),
             insurance_details=_create_insurance_details(),
         )
-        if coverage_type is CoverageType.INSURANCE
-        else PatientCoverage.create(
-            corporate_id=corporate_id,
-            patient_id=patient_id,
-            coverage_type=coverage_type,
-            period=period if period is not None else _create_period(),
-            priority=CoveragePriority(priority),
-            public_expense_details=_create_public_details(priority),
-        )
+    return PatientCoverage.create(
+        corporate_id=corporate_id,
+        patient_id=patient_id,
+        coverage_type=coverage_type,
+        period=period if period is not None else _create_period(),
+        activation=activation,
+        priority=CoveragePriority(priority),
+        public_expense_details=_create_public_details(priority),
     )
-    return coverage if is_active else coverage.deactivate()
 
 
 def test_資格順位_第一順位と第四順位を指定すると_生成できる() -> None:
@@ -174,13 +197,15 @@ def test_適用期間_開始日と終了日が同日なら_生成できる() -> 
 def test_適用開始日_日時型を指定すると_ドメイン検証エラーになる() -> None:
     # Arrange / Act / Assert
     with pytest.raises(DomainValidationError):
-        CoverageValidFrom(datetime(2026, 8, 1, 12, 0))
+        # naive日時が拒否されることを確認するテストなので、意図的にtzを付けない。
+        CoverageValidFrom(datetime(2026, 8, 1, 12, 0))  # noqa: DTZ001
 
 
 def test_適用終了日_日時型を指定すると_ドメイン検証エラーになる() -> None:
     # Arrange / Act / Assert
     with pytest.raises(DomainValidationError):
-        CoverageValidTo(datetime(2026, 8, 31, 12, 0))
+        # naive日時が拒否されることを確認するテストなので、意図的にtzを付けない。
+        CoverageValidTo(datetime(2026, 8, 31, 12, 0))  # noqa: DTZ001
 
 
 def test_適用期間_隣接する期間は_重ならない() -> None:
@@ -406,7 +431,7 @@ def test_患者資格競合サービス_無効化済みの既存資格は_競合
         priority=1,
         corporate_id=corporate_id,
         patient_id=patient_id,
-        is_active=False,
+        deactivated_on=_VALID_FROM,
     )
     candidate = _create_coverage(
         coverage_type=CoverageType.PUBLIC_EXPENSE,
@@ -434,7 +459,7 @@ def test_患者資格競合サービス_候補自身が無効なら_競合しな
         priority=1,
         corporate_id=corporate_id,
         patient_id=patient_id,
-        is_active=False,
+        deactivated_on=_VALID_FROM,
     )
 
     # Act / Assert

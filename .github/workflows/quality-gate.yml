@@ -1,0 +1,56 @@
+# AGENTS.md「コマンド & 品質ゲート」に列挙したコマンドを、push / pull request のたびに実行する。
+#
+# ここで実行するコマンドの集合と起動条件は tests/tools/test_ci_quality_gate.py が凍結している。
+# ゲートを1つ増やす・減らすときは AGENTS.md・このファイル・あの表の3つを揃えないと pytest が落ちる。
+name: quality-gate
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+# 同じ ref への連続 push では、古い実行を打ち切って最新だけを残す。
+concurrency:
+  group: quality-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      # astral-sh/setup-uv は v8 以降 vN の浮動タグを打っていないため、正確なバージョンで固定する。
+      # 揃えて checkout も固定する。更新は依存の更新として明示的に行う。
+      - name: リポジトリを取得する
+        uses: actions/checkout@v7.0.1
+
+      - name: uv をセットアップする
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          # Python のバージョンは .python-version が単一の出所なので、ここでは指定しない。
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: 依存を同期する
+        run: uv sync --locked
+
+      # 以降のゲートは互いに独立している。1つ落ちても残りを実行し、
+      # 1回の push で全部の違反が見えるようにする（`!cancelled()`）。
+      - name: テストを実行する（アーキテクチャ規則の検証を含む）
+        run: uv run pytest -q
+
+      - name: 型チェックする
+        if: ${{ !cancelled() }}
+        run: uv run mypy app tests
+
+      - name: Lint する
+        if: ${{ !cancelled() }}
+        run: uv run ruff check .
+
+      - name: フォーマットを検査する
+        if: ${{ !cancelled() }}
+        run: uv run ruff format --check .

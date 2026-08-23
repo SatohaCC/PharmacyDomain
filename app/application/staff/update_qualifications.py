@@ -10,13 +10,13 @@ from app.application.access_control import (
     Permission,
 )
 from app.application.staff.support import load_staff_or_raise, to_optional_text
-from app.base.domain.primitives.primitives import BaseNormalizedString
 from app.domain.corporate.primitives import CorporateId
 from app.domain.staff import (
     BaseQualificationProfile,
     DietitianProfile,
     DietitianRegistrationNumber,
     InsurancePharmacistRegistration,
+    InsurancePharmacistRegistrationNumber,
     PharmacistLicenseNumber,
     PharmacistProfile,
     RegisteredSellerProfile,
@@ -66,7 +66,9 @@ class UpdateStaffQualificationsUseCase:
             )
             if raw_ins_num and command.insurance_pharmacist_registration_date:
                 insurance_reg = InsurancePharmacistRegistration(
-                    registration_number=BaseNormalizedString(raw_ins_num),
+                    registration_number=InsurancePharmacistRegistrationNumber(
+                        raw_ins_num
+                    ),
                     registration_date=command.insurance_pharmacist_registration_date,
                 )
             profiles.append(

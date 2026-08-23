@@ -88,7 +88,7 @@ class RegisterPatientExternalIdentifierUseCase:
         )
         system_name = ExternalSystemName(command.system_name)
         external_patient_id = ExternalPatientId(command.external_patient_id)
-        existing = await self._identifier_repository.get_by_source(
+        existing = await self._identifier_repository.get_active_by_source(
             corporate_id=corporate_id,
             system_name=system_name,
             external_patient_id=external_patient_id,
@@ -96,7 +96,7 @@ class RegisterPatientExternalIdentifierUseCase:
         # 一意性は「有効な対応付け」に対してだけ要求する。無効化済みの行まで衝突
         # 扱いにすると、誤った患者へ紐付けた外部IDを無効化した後に正しい患者へ
         # 付け替える経路がなくなり、その外部IDが恒久的に使えなくなる。
-        if existing is not None and existing.is_active:
+        if existing is not None:
             raise PatientExternalIdentifierAlreadyExistsError()
 
         identifier = PatientExternalIdentifier.create(

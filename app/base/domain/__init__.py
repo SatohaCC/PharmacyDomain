@@ -19,7 +19,10 @@ from app.base.domain.primitives import (
     DomainPrimitive,
     EntityStringId,
     EntityUUID,
+    PersonNameKanaPart,
+    PersonNamePart,
 )
+from app.base.domain.value_object import ValueObject
 
 __all__ = [
     "AggregateRoot",
@@ -42,4 +45,7 @@ __all__ = [
     "Entity",
     "EntityStringId",
     "EntityUUID",
+    "PersonNameKanaPart",
+    "PersonNamePart",
+    "ValueObject",
 ]

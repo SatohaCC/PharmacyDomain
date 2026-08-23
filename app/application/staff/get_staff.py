@@ -10,6 +10,7 @@ from app.application.access_control import (
     Permission,
 )
 from app.application.staff.support import load_staff_or_raise
+from app.base.application.clock import Clock
 from app.domain.corporate.primitives import CorporateId
 from app.domain.staff.primitives import StaffId
 from app.domain.staff.repository import StaffRepository
@@ -46,9 +47,13 @@ class StaffDto:
     current_home_store_id: str | None
 
     @classmethod
-    def from_entity(cls, staff: Staff, target_date: date | None = None) -> StaffDto:
-        check_date = target_date or date.today()
-        home_store_id = staff.current_home_store_id(check_date)
+    def from_entity(cls, staff: Staff, *, target_date: date) -> StaffDto:
+        """指定日時点の導出値を含むDTOへ変換する。
+
+        適用日は必ず呼び出し側が渡す。既定値として ``date.today()`` を使うと
+        「いつ時点の主所属か」が暗黙になり、注入した ``Clock`` を迂回してしまう。
+        """
+        home_store_id = staff.current_home_store_id(target_date)
         return cls(
             id=str(staff.id.value),
             corporate_id=str(staff.corporate_id.value),
@@ -75,9 +80,11 @@ class GetStaffUseCase:
         self,
         repository: StaffRepository,
         corporate_access: CorporateAccessBoundary,
+        clock: Clock,
     ) -> None:
         self._repository = repository
         self._corporate_access = corporate_access
+        self._clock = clock
 
     async def execute(self, query: GetStaffQuery) -> StaffDto:
         corporate_id = CorporateId.parse(query.corporate_id)
@@ -93,4 +100,5 @@ class GetStaffUseCase:
             staff_id=staff_id,
         )
 
-        return StaffDto.from_entity(staff, target_date=query.target_date)
+        target_date = query.target_date or self._clock.now().date()
+        return StaffDto.from_entity(staff, target_date=target_date)

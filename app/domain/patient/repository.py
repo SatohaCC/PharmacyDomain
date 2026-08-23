@@ -56,14 +56,14 @@ class PatientExternalIdentifierRepository(Protocol):
         """指定法人の外部識別子を取得する。"""
         ...
 
-    async def get_by_source(
+    async def get_active_by_source(
         self,
         *,
         corporate_id: CorporateId,
         system_name: ExternalSystemName,
         external_patient_id: ExternalPatientId,
     ) -> PatientExternalIdentifier | None:
-        """連携先と外部患者IDの組で対応付けを取得する。"""
+        """連携先と外部患者IDの組に一致する有効な対応付けだけを取得する。"""
         ...
 
     async def list_by_patient(
@@ -76,5 +76,10 @@ class PatientExternalIdentifierRepository(Protocol):
         ...
 
     async def save(self, identifier: PatientExternalIdentifier) -> None:
-        """外部識別子を新規登録または変更保存する。"""
+        """外部識別子を原子的な有効行一意性の下で保存する。
+
+        同一法人・連携先・外部患者IDの有効行は1件だけとし、同じ集約IDの
+        現在行は競合候補から除外する。競合時は
+        ``PatientExternalIdentifierAlreadyExistsError`` を送出する。
+        """
         ...

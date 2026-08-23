@@ -1,6 +1,7 @@
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Self
+from typing import ClassVar, Self
 
 from app.base.domain.exceptions import DomainValidationError
 from app.base.domain.primitives.primitives import (
@@ -11,6 +12,7 @@ from app.base.domain.primitives.primitives import (
     BaseTelephoneNumber,
     EntityUUID,
 )
+from app.base.domain.value_object import ValueObject
 
 
 class StoreId(EntityUUID):
@@ -103,44 +105,35 @@ class StoreCode(BaseNormalizedString):
 
 
 @dataclass(frozen=True, kw_only=True)
-class StoreNames:
+class StoreNames(ValueObject):
     """店舗名の一式（正式名称・フリガナ・ローマ字）"""
 
     name: StoreName
     kana: StoreNameKana
     romaji: StoreNameRomaji | None = None
 
-    def __post_init__(self) -> None:
-        """店舗名を構成する値オブジェクトの型整合性を検証する。"""
-        if not isinstance(self.name, StoreName):
-            raise DomainValidationError("正式名称は StoreName で指定してください。")
-        if not isinstance(self.kana, StoreNameKana):
-            raise DomainValidationError("フリガナは StoreNameKana で指定してください。")
-        if self.romaji is not None and not isinstance(self.romaji, StoreNameRomaji):
-            raise DomainValidationError(
-                "ローマ字は StoreNameRomaji で指定してください。"
-            )
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "name": "正式名称",
+        "kana": "フリガナ",
+        "romaji": "ローマ字",
+    }
 
 
 @dataclass(frozen=True, kw_only=True)
-class StoreAddress:
+class StoreAddress(ValueObject):
     """所在地情報（郵便番号と住所）。"""
 
     postal_code: StorePostalCode
     address: StoreAddressLine  # 例: "〇〇1-2-3"
 
-    def __post_init__(self) -> None:
-        """住所を構成する値オブジェクトの型整合性を検証する。"""
-        if not isinstance(self.postal_code, StorePostalCode):
-            raise DomainValidationError(
-                "郵便番号は StorePostalCode で指定してください。"
-            )
-        if not isinstance(self.address, StoreAddressLine):
-            raise DomainValidationError("住所は StoreAddressLine で指定してください。")
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "postal_code": "郵便番号",
+        "address": "住所",
+    }
 
 
 @dataclass(frozen=True, kw_only=True)
-class ContactInfo:
+class ContactInfo(ValueObject):
     """連絡先情報。"""
 
     phone_number: StorePhoneNumber
@@ -162,24 +155,21 @@ class ContactInfo:
             email=email if email and email.value else None,
         )
 
-    def __post_init__(self) -> None:
-        """必須の電話番号と任意項目の型を検証する。"""
-        # TEL と FAX は別型なので、取り違えはここで落ちる。
-        if not isinstance(self.phone_number, StorePhoneNumber):
-            raise DomainValidationError(
-                "電話番号は StorePhoneNumber で指定してください。"
-            )
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "phone_number": "電話番号",
+        "fax_number": "FAX番号",
+        "email": "メールアドレス",
+    }
+
+    def _normalize_fields(self) -> None:
+        """未発行の空FAXを未設定へ正規化する。"""
+        if isinstance(self.fax_number, StoreFaxNumber) and not self.fax_number.value:
+            object.__setattr__(self, "fax_number", None)
+
+    def validate(self) -> None:
+        """必須の電話番号が空でないことを検証する。"""
         if not self.phone_number.value:
             raise DomainValidationError("電話番号は空にできません。")
-
-        if self.fax_number is not None and not isinstance(
-            self.fax_number, StoreFaxNumber
-        ):
-            raise DomainValidationError("FAX番号は StoreFaxNumber で指定してください。")
-        if self.email is not None and not isinstance(self.email, StoreEmailAddress):
-            raise DomainValidationError(
-                "メールアドレスは StoreEmailAddress で指定してください。"
-            )
 
 
 class InsurancePharmacyNumber(BaseNormalizedString):
