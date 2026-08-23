@@ -2,8 +2,10 @@
 type: Guideline
 title: Application層の実装ガイドライン
 description: PharmacyDomain におけるユースケース、DTO、依存性注入の設計方針。
-tags: [backend, application, ddd]
+okf_version: "0.2"
 timestamp: 2026-08-15T00:00:00Z
+status: active
+tags: [backend, application, ddd]
 ---
 
 # Application層の実装ガイドライン

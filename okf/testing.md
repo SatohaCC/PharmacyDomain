@@ -2,8 +2,10 @@
 type: Guideline
 title: テスト層の実装ガイドライン
 description: PharmacyDomain における AAA パターン、テスト分割、テストダブル、非同期テストの方針。
-tags: [backend, testing, pytest, aaa, ddd]
+okf_version: "0.2"
 timestamp: 2026-08-15T00:00:00Z
+status: active
+tags: [backend, testing, pytest, aaa, ddd]
 ---
 
 # テスト層の実装ガイドライン
@@ -97,17 +99,21 @@ Domain層では、ドメインモデルのルールと振る舞いを検証し�
 | :--- | :--- |
 | `corporate/test_corporate.py` | `Corporate`、値オブジェクト、ID、Repository契約の振る舞い |
 | `corporate/test_corporate_services.py` | `CorporateNameUniquenessService` |
+| `corporate/test_corporate_status.py` | `Corporate` の有効化・無効化状態遷移 |
 | `store/test_store.py` | `Store`の生成と各`change_*` |
 | `store/test_store_primitives.py` | 店舗のプリミティブ・複合VOの境界値と不正値 |
 | `store/test_store_services.py` | 店舗名・店舗コード・保険薬局指定番号の一意性サービス |
 | `staff/test_staff.py` | `Staff`の生成、資格、所属の導出メソッド |
+| `staff/test_staff_invariants.py` | `Staff` の主所属・兼務期間重複禁止の不変条件 |
 | `staff/test_staff_repository.py` | `StaffRepository`契約（法人境界を含む） |
 | `staff/test_staff_services.py` | `StaffCodeUniquenessService`、`StaffStoreAssignmentService` |
-| `coverage/` | 資格の制度期間・有効化区間・競合・選択組み合わせ |
-| `reception/` | 選択履歴の元ID・監査値・最新順の不変条件 |
-| `test_field_guard.py` | Composite Value Object / Entityの宣言型と実値の照合 |
-| `test_person_names.py` | Shared Kernelの人名Value Object |
-| `test_error_messages.py` | 例外クラスの既定メッセージ |
+| `coverage/test_coverage_invariants.py` | 資格の制度期間・有効化区間・実効期間交差・競合 |
+| `reception/test_coverage_selection.py` | 適用資格選択の枠構造、元ID重複拒否、スナップショット導出、UTC記録時刻 |
+| `claim/test_claim_invariants.py` | 請求スナップショットの公費順位連続性（1..4）、番号桁数、給付割合必須性 |
+| `test_lifecycle_dialects.py` | 集約ごとの無効化方言（4方言）と一意キー再利用設定の固定 |
+| `test_priority_rules.py` | Shared Kernel の公費順位共通検証関数 |
+| `test_person_names.py` | Shared Kernelの人名Value Object（型ガード含む） |
+| `test_error_messages.py` | 例外クラスの既定メッセージとエラーコード |
 
 Domain層のテストでは、集約やValue Objectをモックしません。実際のオブジェクトを使い、ドメインモデルが期待どおりに状態を守ることを確認します。
 

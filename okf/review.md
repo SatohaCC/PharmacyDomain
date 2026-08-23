@@ -2,8 +2,10 @@
 type: Guideline
 title: コードレビューの方針
 description: PharmacyDomain におけるコードレビューの観点。仕組みで守ることを最優先とし、依存・壊れやすさ・明示性・検証可能性の順で確認する。
-tags: [backend, review, architecture, quality]
+okf_version: "0.2"
 timestamp: 2026-08-16T00:00:00Z
+status: active
+tags: [backend, review, architecture, quality]
 ---
 
 # コードレビューの方針

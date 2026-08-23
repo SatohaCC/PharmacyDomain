@@ -3,14 +3,16 @@ type: Index
 title: PharmacyDomain Knowledge Base
 description: PharmacyDomain プロジェクトの設計ガイドライン、実装構成、現在の設計判断をまとめたナレッジベース
 okf_version: "0.2"
-timestamp: 2026-08-15T00:00:00Z
+timestamp: 2026-08-23T00:00:00Z
+status: active
+tags: [okf, index, pharmacy-domain, ddd, architecture]
 ---
 
 # PharmacyDomain Knowledge Base
 
 PharmacyDomain プロジェクトの設計方針、DDDのガイドライン、現在の実装構成を確認するための入口です。
 
-現在は、法人（`Corporate`）・店舗（`Store`）・スタッフ（`Staff`）・患者（`Patient`）・患者資格（`Coverage`）の5コンテキストについて、ドメインモデルとApplicationユースケースを実装しています。認証基盤とは分離したApplication側のAccess Control境界も定義しています。
+現在は、法人（`Corporate`）・店舗（`Store`）・スタッフ（`Staff`）・患者（`Patient`）・患者資格（`Coverage`）・受付（`Reception`）・請求（`Claim`）の7コンテキストについて、ドメインモデルとApplicationユースケースを実装しています（Claimは現在ドメイン層のみ）。認証基盤とは分離したApplication側のAccess Control境界も定義しています。
 APIのシステムエンドポイントは `app/main.py` にありますが、これらのユースケースをHTTPへ接続するAPIルートはまだ実装していません。
 Repositoryは`Protocol`のみで、具体的な永続化実装もまだありません（テスト用のインメモリ実装だけが存在します）。
 
@@ -36,11 +38,13 @@ RepositoryはDomain側で抽象化し、具体的なデータストアへの依�
 
 | 文書 | 内容 |
 | :--- | :--- |
-| [Domain層の実装ガイドライン](ddd/domain.md) | Domain Primitive、Value Object、Entity、Aggregate Root、Domain Service、Repository、各コンテキスト |
+| [OKF 実装・記述・運用ルール](rules.md) | Google Cloud Platform `knowledge-catalog` (OKF v0.2) 仕様に基づく、当リポジトリのナレッジベース構築・Frontmatter仕様・保守ルール |
+| [Domain層 実装ガイドライン & 詳細仕様書](ddd/domain.md) | Domain Primitive、Value Object、Entity、Aggregate Root、Domain Service、Repository の設計思想、および全7コンテキストと Shared Kernel の詳細仕様・不変条件 |
 | [Application層の実装ガイドライン](ddd/application.md) | UseCase、Command / Response DTO、DI、例外、ユースケースの処理フロー、テスト方針 |
 | Access Control（`app/application/access_control/`） | `ActorContext`、ロール・権限、法人スコープ、対象法人の存在・有効状態の確認 |
 | [テスト層の実装ガイドライン](testing.md) | AAAパターン、Domain / Applicationテスト、Fake Repository、例外、非同期テスト |
 | [コードレビューの方針](review.md) | 仕組みで守る原則、依存・壊れやすさ・明示性・検証可能性の観点、機械化しないもの |
+| [変更・決定ログ (ADR)](log.md) | アーキテクチャ決定（ADR）、ドメインモデル改定、OKF更新履歴の時系列記録 |
 
 ## 現在の実装マップ
 
@@ -267,11 +271,12 @@ Claimには請求時点で固定する `CoverageSnapshot` と専用プリミテ�
 
 実装場所: `tests/`
 
-- `tests/domain/corporate/`、`tests/domain/store/`、`tests/domain/staff/`、`tests/domain/coverage/`、`tests/domain/reception/`、`tests/domain/claim/` — 集約、値オブジェクト、Domain Service、Repository契約
-- `tests/domain/test_error_messages.py` — 例外の既定メッセージ
+- `tests/domain/corporate/`、`tests/domain/store/`、`tests/domain/staff/`、`tests/domain/coverage/`、`tests/domain/reception/`、`tests/domain/claim/` — 集約、値オブジェクト、Domain Service、不変条件、Repository契約
+- `tests/domain/test_lifecycle_dialects.py` — 集約ごとの無効化方言（4方言）と、無効化後の一意キー再利用可否の表
+- `tests/domain/test_priority_rules.py` — Shared Kernel の公費順位共通検証関数
 - `tests/domain/test_person_names.py` — Shared Kernel の人名Value Object
-- `tests/domain/test_lifecycle_dialects.py` — 集約ごとの無効化方言と、無効化後の一意キー再利用可否の表
-- `tests/application/corporate/`、`tests/application/store/`、`tests/application/staff/`、`tests/application/patient/`、`tests/application/reception/` — 各ユースケース
+- `tests/domain/test_error_messages.py` — ドメイン例外の既定メッセージとエラーコード
+- `tests/application/corporate/`、`tests/application/store/`、`tests/application/staff/`、`tests/application/patient/`、`tests/application/coverage/`、`tests/application/reception/` — 各ユースケース
 - `tests/application/access_control/` — Actorのロール、法人スコープ、存在・有効状態の検証
 - `tests/application/composition/` — Coverage台帳とReception境界をつなぐ実アダプタ
 - `tests/contracts/` — Repositoryの `save()` 契約。対象実装を `tests/fakes/` から自動列挙するため、実装を足しても登録漏れが起きない
@@ -296,14 +301,14 @@ Claimには請求時点で固定する `CoverageSnapshot` と専用プリミテ�
 - Repositoryの保存操作は、新規登録と変更保存の両方を表す`save()`とする。
 - 法人名変更時は`excluding_id`で自身を重複判定から除外する。
 - 事前の重複確認に加え、実際の永続化層でも一意性制約を持たせる。
-- 「入力値が不正（400相当）」と「対象が見つからない（404相当）」を別の例外型で表す。前者は`DomainValidationError`、後者は`CorporateNotFoundError` / `StoreNotFoundError` / `StaffNotFoundError`。ただし継承元は揃っておらず、`CorporateNotFoundError`だけが`NotFoundError`を継承し、店舗・スタッフは各コンテキストの`XxxApplicationError`を継承している。
+- 「入力値が不正（400相当）」と「対象が見つからない（404相当）」を別の例外型で表す。前者は`DomainValidationError`、後者は`CorporateNotFoundError` / `StoreNotFoundError` / `StaffNotFoundError` / `PatientNotFoundError` 等。
 - 他法人の店舗やスタッフへのアクセスは、権限エラーではなく未検出として扱う。存在の推測を許さないため。
 - 任意項目の空文字・空白のみは、Application層の境界で`None`へ正規化する。登録と変更で空文字の意味がぶれないようにするため。
 - 店舗名・店舗コード・スタッフコードの一意性は法人単位で閉じる（別法人の同名・同コードは許可）。保険薬局指定番号だけはシステム全体で一意とする。
-- `Base*`プリミティブは継承専用とし、フィールドの型にはコンテキスト固有の派生クラスを使う。TELとFAXの取り違えを型で防ぎ、エラーメッセージに内部クラス名を出さないため。ただし`Staff.phone_number` / `Staff.email` と `InsurancePharmacistRegistration.registration_number` は現状 基底クラスをそのままフィールド型に使っている。
+- `Base*`プリミティブは継承専用とし、フィールドの型にはコンテキスト固有の派生クラス（`StaffPhoneNumber`, `StaffEmailAddress`, `InsurancePharmacistRegistrationNumber` 等）を使う。TELとFAXの取り違えを型で防ぎ、エラーメッセージに内部クラス名を出さないため。
 - エラーメッセージの項目名を差し込む仕組みは、`EntityUUID.identifier_name`（ID用）と`BaseTelephoneNumber.field_name`（TEL/FAX用）の2つだけで、全プリミティブ共通の仕組みは持たない。それ以外のプリミティブは`validate()`内にメッセージを直接書く。
 - 集約の`change_*`に同値チェックを置かず、「変更が無ければ保存しない」判定はユースケース側に一本化する（法人・店舗では実装済み、スタッフは未実装）。
-- 店舗・スタッフの操作では、Command / Queryの対象`corporate_id`だけで権限を得られないよう、信頼済み`ActorContext`を`CorporateAccessService`で検証する。通常操作は存在・有効状態の確認後に進める。
+- 店舗・スタッフ・患者・資格・受付の操作では、Command / Queryの対象`corporate_id`だけで権限を得られないよう、信頼済み`ActorContext`を`CorporateAccessService`で検証する。通常操作は存在・有効状態の確認後に進める。
 - スタッフの所属は`affiliations`の履歴だけを持ち、主所属・兼務は対象日を与えて導出する。期間の重なりは`Staff.validate()`が構築時に拒否し（主所属同士は`PrimaryAffiliationDuplicationError`、同一店舗は`ConcurrentStoreConflictError`）、導出メソッドは例外を送出しない。
 
 ## 品質ゲート
@@ -327,6 +332,9 @@ Applicationコンテキストの依存は次の一方向に限定し、逆向き
 ```mermaid
 flowchart LR
     ST[staff] --> SR[store] --> AC[access_control] --> B[base]
+    P[patient] --> AC
+    COV[coverage] --> AC
+    REC[reception] --> AC
     C[corporate] --> AC
     C -. 実装を注入 .-> SR
 ```

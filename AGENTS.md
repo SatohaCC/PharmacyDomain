@@ -24,7 +24,7 @@ uv run python -m tools.check_fake_conformance --verbose --fail-on-violation  # �
 
 ## アーキテクチャ & 設計ルール
 
-- **ナレッジベース**: 正典は [okf/](okf/)。設計方針の決定・変更時はコードと合わせて更新する。
+- **ナレッジベース**: 正典は [okf/](okf/)（OKF仕様・運用ルールは [okf/rules.md](okf/rules.md)）。設計方針の決定・変更時はコードと合わせて更新する。
 - **依存の向き**: 外 → 内（`app/domain/` は FastAPI, DB, `app/application/` に一切非依存）。`tools/check_imports.py` が強制する。
 - **テナント境界**: コンテキストは `corporate` / `store` / `staff` / `patient` / `coverage` / `reception` / `claim` の7つ。集約間は **ID 参照のみ**（他集約のエンティティを直接保持しない）。他テナントデータへのアクセスは 403 ではなく 404（`XxxNotFoundError` または `TenantBoundaryNotFoundError`）として隠蔽する。
 - **認証・認可境界**: 認証基盤が生成した信頼済み `ActorContext` をApplication層へ渡し、Command / Queryの対象 `corporate_id` と分離する。ベンダーシステム管理者は全法人、法人管理者は `ActorContext.corporate_id` と一致する自法人だけを操作できる。HTTP入力から `ActorContext` を組み立てない。
