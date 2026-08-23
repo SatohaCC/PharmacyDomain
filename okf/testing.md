@@ -290,3 +290,9 @@ uv run ruff format --check .
 ```
 
 テスト追加後は、対象テストだけでなく全テストを実行し、既存の振る舞いを壊していないことを確認します。
+手元で回し忘れても、`main` への push と pull request では
+[.github/workflows/quality-gate.yml](../.github/workflows/quality-gate.yml) が同じゲートを実行します。
+
+ディレクトリを指定した実行が成り立つのは、`tests/` 配下の全ディレクトリに `__init__.py` があり、
+リポジトリルートが `sys.path` に入るからです。この前提は
+[tests/tools/test_package_layout.py](../tests/tools/test_package_layout.py) が守っています。

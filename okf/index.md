@@ -267,12 +267,16 @@ Claimには請求時点で固定する `CoverageSnapshot` と専用プリミテ�
 
 実装場所: `tests/`
 
-- `tests/domain/corporate/`、`tests/domain/store/`、`tests/domain/staff/` — 集約、値オブジェクト、Domain Service、Repository契約
+- `tests/domain/corporate/`、`tests/domain/store/`、`tests/domain/staff/`、`tests/domain/coverage/`、`tests/domain/reception/`、`tests/domain/claim/` — 集約、値オブジェクト、Domain Service、Repository契約
 - `tests/domain/test_error_messages.py` — 例外の既定メッセージ
 - `tests/domain/test_person_names.py` — Shared Kernel の人名Value Object
-- `tests/application/corporate/`、`tests/application/store/`、`tests/application/staff/` — 各ユースケース
+- `tests/domain/test_lifecycle_dialects.py` — 集約ごとの無効化方言と、無効化後の一意キー再利用可否の表
+- `tests/application/corporate/`、`tests/application/store/`、`tests/application/staff/`、`tests/application/patient/`、`tests/application/reception/` — 各ユースケース
 - `tests/application/access_control/` — Actorのロール、法人スコープ、存在・有効状態の検証
-- `tests/fakes/` — インメモリRepository（`Corporate` / `Store` / `Staff`）
+- `tests/application/composition/` — Coverage台帳とReception境界をつなぐ実アダプタ
+- `tests/contracts/` — Repositoryの `save()` 契約。対象実装を `tests/fakes/` から自動列挙するため、実装を足しても登録漏れが起きない
+- `tests/tools/` — 静的チェッカ本体と、CI・パッケージ構成のゴールデンテスト
+- `tests/fakes/` — インメモリRepository、Reception参照Boundary、`FakeClock`
 - `tests/factories/` — フィールドの多い集約を組み立てる既定値付きファクトリ（`store_factory.py` / `staff_factory.py`）
 
 インメモリRepositoryの`save()`は、本番の永続化層が持つ一意制約を模して重複時に例外を送出します。ユースケース側の事前チェックを外しても検知できる状態を保つためです。あわせて`save_count`を記録し、「変更が無ければ保存しない」ことを検証できるようにしています。
@@ -316,6 +320,7 @@ Claimには請求時点で固定する `CoverageSnapshot` と専用プリミテ�
 | :--- | :--- | :--- |
 | `tools/check_imports.py` | `[tool.import_rules.forbidden]` | 依存の向き（外 → 内）とApplicationコンテキスト間の一方向依存 |
 | `tools/check_lcom.py` | `[tool.lcom]` | `app/application/` のクラス凝集度（LCOM4 < 2） |
+| `tools/check_fake_conformance.py` | `[tool.fake_rules]` | テストダブルが実装Protocolの全メンバを上書きしていること |
 
 Applicationコンテキストの依存は次の一方向に限定し、逆向きの `import` は `check_imports` が違反として検出します。
 
@@ -338,7 +343,35 @@ flowchart LR
 ```bash
 uv run python -m tools.check_imports --verbose --fail-on-violation
 uv run python -m tools.check_lcom --verbose --fail-on-violation
+uv run python -m tools.check_fake_conformance --verbose --fail-on-violation
 ```
+
+### CI
+
+品質ゲートは [.github/workflows/quality-gate.yml](../.github/workflows/quality-gate.yml) が
+`main` への push と全 pull request で実行します。手元で回し忘れても、リモートには必ず結果が出ます。
+
+ゲートは互いに独立したステップに分け、`if: ${{ !cancelled() }}` を付けています。
+1つ落ちても残りを実行するので、1回の push で全部の違反が見えます。
+
+CI が実行するコマンドの集合は [tests/tools/test_ci_quality_gate.py](../tests/tools/test_ci_quality_gate.py)
+の `REQUIRED_GATES` が凍結しています。ワークフローからゲートを1つ静かに削っても、
+残りが緑なら誰も気づけないためです。起動条件（`push` / `pull_request`）も同じテストで固定しています。
+
+**ブランチ保護は設定していません。** したがって CI が赤いまま `main` へ push すること自体は止まりません。
+これは GitHub のリポジトリ設定側の話で、リポジトリ内のファイルからは強制できません。
+「マージをブロックする」ところまで必要になったら、リポジトリ設定で `quality-gate` を必須チェックにします。
+
+### パッケージ構成
+
+`app/` `tests/` `tools/` 配下で `.py` を持つディレクトリには必ず `__init__.py` を置き、
+名前空間パッケージを作りません。[tests/tools/test_package_layout.py](../tests/tools/test_package_layout.py) が強制します。
+
+`__init__.py` が無くても import 自体は通るため、壊れ方が遅れて出ます。
+そのディレクトリだけを指定して `pytest` を回すとリポジトリルートが `sys.path` に入らず
+`ModuleNotFoundError: No module named 'app'` になり、
+別ディレクトリに同名モジュールを置いた瞬間にトップレベル名が衝突して収集が壊れます。
+どちらも書いた本人ではなく、後から触る人に出ます。
 
 ## 開発・検証
 

@@ -1,7 +1,8 @@
 """アーキテクチャ規則を `uv run pytest` の一部として強制する。
 
-`tools/` のチェッカは、実行されて初めて仕組みになります。CIが無い現状では
-pytest が唯一必ず実行されるゲートなので、ここから呼び出します。
+`tools/` のチェッカは、実行されて初めて仕組みになります。pytest から呼ぶことで、
+手元の `uv run pytest` と CI (`.github/workflows/quality-gate.yml`) の両方で
+必ず実行されます。
 """
 
 from pathlib import Path

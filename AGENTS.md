@@ -18,6 +18,8 @@ uv run python -m tools.check_fake_conformance --verbose --fail-on-violation  # �
 
 - **言語・コメント**: ドキュメント、docstring、エラーメッセージ、テスト名はすべて**日本語**。
 - **品質要求**: `mypy --strict` と `ruff` のチェックを必ずパスさせること。
+- **CI**: 上記4つのゲートは `.github/workflows/quality-gate.yml` が `main` への push と全 pull request で実行する。ゲートを増減するときは、このファイル・本節のコマンド一覧・`tests/tools/test_ci_quality_gate.py` の `REQUIRED_GATES` の3つを揃えないと pytest が落ちる。**ブランチ保護は未設定なので、赤いまま `main` へ push すること自体は止まらない**（GitHubのリポジトリ設定でしか変えられず、リポジトリ内のファイルからは強制できない）。
+- **パッケージ構成**: `app/` `tests/` `tools/` 配下で `.py` を持つディレクトリには必ず `__init__.py` を置く。名前空間パッケージのままだと、(1) そのディレクトリだけを指定して `pytest` を回したときにルートが `sys.path` に入らず `app` を import できない、(2) 別ディレクトリに同名モジュールを置いた瞬間にトップレベル名が衝突して収集が壊れる。`tests/tools/test_package_layout.py` が強制する。
 - **アーキテクチャ規則**: 依存の向き・凝集度・フェイクのProtocol適合は `tools/` の静的チェッカが強制する。設定は `pyproject.toml` の `[tool.import_rules]` / `[tool.lcom]` / `[tool.fake_rules]`、実行は `tests/tools/test_architecture_rules.py` 経由で `pytest` に含まれる。設計ルールを追加するときは、文章だけでなくチェッカの設定にも反映する。
 
 ## アーキテクチャ & 設計ルール
