@@ -221,10 +221,29 @@ classDiagram
     }
 
     class SoapRecord {
-        +SubjectiveInfo subjective
-        +ObjectiveInfo objective
-        +AssessmentInfo assessment
-        +PlanInfo plan
+        +tuple~LabeledNote~ subjective
+        +tuple~LabeledNote~ objective
+        +tuple~LabeledNote~ assessment
+        +tuple~LabeledNote~ plan
+    }
+
+    class LabeledNote {
+        +StatutoryCategory category
+        +BaseFreeText text
+    }
+
+    class StatutoryCategory {
+        <<enumeration>>
+        PATIENT_CONDITION_CHANGE
+        MEDICATION_ADHERENCE
+        RESIDUAL_DRUG
+        CONCURRENT_MEDICATION
+        LIFESTYLE_AND_DIET
+        HANDBOOK_GUIDANCE
+        GENERIC_PREFERENCE
+        PATIENT_INQUIRY
+        FUTURE_PLAN_CAUTION
+        GENERAL
     }
 
     class ProfileUpdateIntents {
@@ -247,6 +266,8 @@ classDiagram
     ConcurrentMedicationRecord --> ProfileProvenance
     MedicationHistoryRecord --> SoapRecord
     MedicationHistoryRecord --> ProfileUpdateIntents
+    SoapRecord --> LabeledNote
+    LabeledNote --> StatutoryCategory
 ```
 
 ### 3.1 `PatientMedicalProfile` の識別子
@@ -309,6 +330,52 @@ classDiagram
 
 確定済薬歴の修正は `MedicationHistoryAmendment`（追記日時・追記者・追記理由・修正後SOAP）として**追記**し、元の記録を保持する。調剤録は3年間の保存義務があり、遡って書き換えられる記録は監査に耐えない。
 
+### 3.7 法定ラベル付きテキスト（`LabeledNote`）と監査・検索性
+
+薬歴の自由記述テキスト（SOAP）に対し、ユーザー（薬剤師）が法で定められた項目のラベル（`StatutoryCategory`）を任意に付与・構造化できる仕様とします。
+
+```mermaid
+flowchart TD
+    subgraph SoapRecord["SoapRecord (SOAP各セクション)"]
+        S["subjective: tuple[LabeledNote, ...]"]
+        O["objective: tuple[LabeledNote, ...]"]
+        A["assessment: tuple[LabeledNote, ...]"]
+        P["plan: tuple[LabeledNote, ...]"]
+    end
+
+    subgraph LabeledNote["LabeledNote (ラベル付きメモ)"]
+        Category["category: StatutoryCategory\n(体調変化 / 併用薬 / 残薬 / 生活背景 / 手帳指導 等)"]
+        Text["text: BaseFreeText\n(実際の自由入力テキスト)"]
+    end
+
+    S --> LabeledNote
+```
+
+#### A. 法定カテゴリ（`StatutoryCategory`）の定義
+
+保険調剤の理解のために（令和8年度）第2節 薬学管理料 通則(4) に基づく分類：
+
+| カテゴリ値 | 日本語ラベル | 法的根拠・実務上の用途 |
+| :--- | :--- | :--- |
+| `PATIENT_CONDITION_CHANGE` | 体調変化・副作用確認 | ウ（ヘ）「患者の服薬中の体調の変化（副作用が疑われる症状など）」 |
+| `MEDICATION_ADHERENCE` | 服薬状況・遵守 | ウ（ニ）「服薬状況」 |
+| `RESIDUAL_DRUG` | 残薬状況・理由 | ウ（ホ）「残薬状況（残薬が生じている場合はその理由）」 |
+| `CONCURRENT_MEDICATION` | 併用薬・他院処方・OTC | ウ（ハ）「併用薬等の状況」 |
+| `LIFESTYLE_AND_DIET` | 生活状況・飲食物相互作用 | ウ（イ）「生活像」および「相互作用が認められる飲食物」 |
+| `HANDBOOK_GUIDANCE` | お薬手帳の活用・指導 | ウ（ト）「手帳活用の有無、指導の要点」 |
+| `GENERIC_PREFERENCE` | 後発医薬品使用意向 | ウ（イ）「後発医薬品の使用に関する患者の意向」 |
+| `PATIENT_INQUIRY` | 患者・家族相談事項 | ウ（ヘ）「患者又はその家族等からの相談事項の要点」 |
+| `FUTURE_PLAN_CAUTION` | 今後指導留意点・フォロー | エ「今後の継続的な薬学的管理及び指導の留意点」 |
+| `GENERAL` | 一般・指定なし | 特定の法定カテゴリに縛られない自由記述（既定値） |
+
+#### B. 導入による3大実務メリット
+1. **個別指導（厚生局監査）での防御力**:
+   - 指導官から「体調変化の確認はどこか」と問われた際、長文の文章内から探す必要がなく、`【体調変化】` ラベルにより一目で確認可能。
+2. **聞き取り漏れを防ぐ入力テンプレート**:
+   - UI上でタグボタン（「体調変化」「併用薬」等）を押すことで、何を聞き取るべきかのチェックリストとして機能し、入力枠が即座に生成される。
+3. **過去薬歴の「項目別串刺し検索」**:
+   - 「過去1年間の【体調変化・副作用】の記録のみを抽出」「【残薬理由】のみを一覧表示」といった高度な薬学的フォローアップが可能。
+
 ---
 
 ## 4. 頭書き要素の由来追跡（Provenance）仕様
@@ -333,7 +400,7 @@ classDiagram
 | # | 不変条件 | 守り手 | 必要な参照 |
 | :---: | :--- | :--- | :--- |
 | 1 | `counselor_id` は薬剤師資格（`StaffQualification.PHARMACIST`）を保持する保険薬剤師 | Domain Service | `Staff` 集約 |
-| 2 | `finalize()` 時、`SoapRecord` の S / O / A / P がいずれも空文字でない | `MedicationHistoryRecord.finalize()` | — |
+| 2 | `finalize()` 時、`SoapRecord` の S / O / A / P の各セクションが最低1件の `LabeledNote`（textが空文字でないもの）を持つ | `MedicationHistoryRecord.finalize()` | — |
 | 3 | `residual_drug` は必須。`has_residual_drugs == True` のとき数量と発生理由が必須（法定記載事項ウ（ホ）「残薬がないときは、その旨を記載すること」） | `ResidualDrugRecord.validate()` | — |
 | 4 | 手帳を活用しなかった場合、理由と患者への指導の有無が記録されている。複数手帳を1冊にまとめなかった場合はその理由も記録されている | `HandbookStatus.validate()` | — |
 | 5 | `ConcurrentMedicationRecord` は `ended_on is None` または `ended_on >= started_on` | `ConcurrentMedicationRecord.validate()` | — |
