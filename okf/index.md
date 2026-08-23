@@ -16,6 +16,8 @@ PharmacyDomain プロジェクトの設計方針、DDDのガイドライン、�
 APIのシステムエンドポイントは `app/main.py` にありますが、これらのユースケースをHTTPへ接続するAPIルートはまだ実装していません。
 Repositoryは`Protocol`のみで、具体的な永続化実装もまだありません（テスト用のインメモリ実装だけが存在します）。
 
+このほかに、**処方箋（`Prescription`）・調剤（`Dispensing`）・薬歴（`MedicationHistory`）の3コンテキストは仕様書のみを先行作成しており、コードは1行も存在しません**（`status: draft`）。実装に着手するときは、各仕様書末尾の「実装時に更新が必要な強制点」を必ず参照してください。
+
 ## アーキテクチャ概要
 
 ```mermaid
@@ -40,6 +42,9 @@ RepositoryはDomain側で抽象化し、具体的なデータストアへの依�
 | :--- | :--- |
 | [OKF 実装・記述・運用ルール](rules.md) | Google Cloud Platform `knowledge-catalog` (OKF v0.2) 仕様に基づく、当リポジトリのナレッジベース構築・Frontmatter仕様・保守ルール |
 | [Domain層 実装ガイドライン & 詳細仕様書](ddd/domain.md) | Domain Primitive、Value Object、Entity、Aggregate Root、Domain Service、Repository の設計思想、および全7コンテキストと Shared Kernel の詳細仕様・不変条件 |
+| [Prescriptionコンテキスト 詳細仕様書](ddd/prescription.md) | **（設計のみ・未実装 / draft）** JAHIS・電子処方箋規格に基づく処方箋原本集約、Rp明細、用法用量、疑義照会、不変条件の仕様 |
+| [Dispensingコンテキスト 詳細仕様書](ddd/dispensing.md) | **（設計のみ・未実装 / draft）** リフィル・分割調剤対応の調剤セッション、変更調剤（代替・数量調整・調製方法の3軸）、調剤鑑査の仕様 |
+| [MedicationHistoryコンテキスト 詳細仕様書](ddd/medication_history.md) | **（設計のみ・未実装 / draft）** 電子薬歴の中核（SOAP指導記録）、服薬指導薬剤師、かかりつけ管理、患者医療プロファイル（頭書き）の仕様 |
 | [Application層の実装ガイドライン](ddd/application.md) | UseCase、Command / Response DTO、DI、例外、ユースケースの処理フロー、テスト方針 |
 | Access Control（`app/application/access_control/`） | `ActorContext`、ロール・権限、法人スコープ、対象法人の存在・有効状態の確認 |
 | [テスト層の実装ガイドライン](testing.md) | AAAパターン、Domain / Applicationテスト、Fake Repository、例外、非同期テスト |
