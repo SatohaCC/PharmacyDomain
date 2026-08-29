@@ -136,8 +136,8 @@ class QuantityAdjustmentInvalidError(DispensingDomainError):
 class SubstitutionWithoutChangeError(DispensingDomainError):
     """変更前と変更後が同一の代替調剤を記録しようとした場合の例外。
 
-    仕様書 §5 不変条件 #9 は「``original_identifier`` / ``original_name`` が
-    欠落しないこと」だが、この2つは :class:`SubstitutionDetail` の必須フィールド
+    ``original_identifier`` / ``original_name`` が欠落しないことは、
+    :class:`SubstitutionDetail` の必須フィールド
     なので**型が既に保証している**。欠落は構築時点で起こりえないため、
     定義だけで raise されない例外にしない（AGENTS.md）。
 

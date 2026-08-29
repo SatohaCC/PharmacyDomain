@@ -1,7 +1,6 @@
 """MedicationHistory Applicationが依存する参照境界。
 
-集約を跨ぐ検証（``okf/ddd/medication_history.md`` §5 の #1 指導者の資格 /
-#8 調剤との一致）は本物の集約・値オブジェクトを受け取る Domain Service が担う。
+集約を跨ぐ検証は、本物の集約・値オブジェクトを受け取る Domain Service が担う。
 それらを**運ぶ**のがこの層の Protocol であり、実装は Composition Root の
 実アダプタに閉じる。
 """
@@ -38,7 +37,7 @@ class StoreReferenceBoundary(Protocol):
 class DispensingReferenceBoundary(Protocol):
     """薬歴が紐付く調剤セッション集約を取り出す境界。
 
-    ``DispensingProcess`` そのものを返す。法人・患者の一致（不変条件 #8）は
+    ``DispensingProcess`` そのものを返す。法人・患者の一致は
     IDだけでは判定できず、Domain Service が本物の集約を必要とする。
     ``MedicationHistoryRecord`` 集約が調剤を保持するわけではない
     （集約モジュールからの import は ``[tool.import_rules.forbidden]`` が禁じている）。

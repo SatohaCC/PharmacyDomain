@@ -40,7 +40,7 @@ class MedicineCatalogRestrictionAdapter(MedicineRestrictionBoundary):
         **マスタに無い薬品は戻り値へ含めない。** 呼び出し側の Domain Service が
         ``MedicineClassificationMissingError`` として拒否する。ここで
         「該当しない」既定値を埋めると、未収載の薬品で麻薬・リフィルの判定が
-        静かに素通りする（``okf/log.md`` ADR-11）。
+        静かに素通りする。
 
         ``UNKNOWN`` も返さない。マスタ行が引けた以上、そこに書かれた事実は
         確定しているためである。``UNKNOWN`` は「マスタが無い」ことではなく

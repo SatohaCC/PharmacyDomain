@@ -306,8 +306,8 @@ class RebuildPatientMedicalProfileCommand:
 class RebuildPatientMedicalProfileUseCase:
     """確定済薬歴から頭書きを作り直す。
 
-    薬歴の保存は成功したが頭書きの保存が失敗した場合の**回復手段**である
-    （``okf/ddd/medication_history.md`` §2.2）。頭書きは投影なので、
+    薬歴の保存は成功したが頭書きの保存が失敗した場合の**回復手段**である。
+    頭書きは投影なので、
     真である薬歴を畳み込めば必ず正しい状態へ戻せる。
 
     既存の頭書きがあれば、その同一性（``id``）を保ったまま中身を差し替える。

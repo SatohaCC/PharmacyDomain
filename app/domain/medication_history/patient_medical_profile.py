@@ -1,13 +1,11 @@
 """患者医療プロファイル（頭書き）集約。
 
 **薬歴からの投影であり、独立した真実を持たない。** その患者の確定済薬歴を
-``counseled_at`` 昇順に畳み込めば決定的に再構築できる
-（``okf/ddd/medication_history.md`` §2.2、``okf/log.md`` ADR-4）。
+``counseled_at`` 昇順に畳み込めば決定的に再構築できる。
 
 そのため**唯一の状態変更メソッドは :meth:`apply` である**。項目ごとの
 ``register_allergy(...)`` のような直接編集を公開しない。公開すると、薬歴に
-由来しない要素を作れてしまい、再構築が不可能になる（不変条件 #6）。
-仕様書のクラス図は個別メソッドを挙げているが、それでは #6 を規約でしか守れない。
+由来しない要素を作れてしまい、再構築が不可能になる。
 """
 
 from __future__ import annotations
@@ -131,8 +129,10 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
     ) -> Self:
         """確定済薬歴の列から頭書きを再構築する。
 
-        ``counseled_at`` 昇順に畳み込む。保存順序 ``save(record)`` →
-        ``save(profile)`` の後者が失敗しても、これで回復できる（§2.2）。
+        ``counseled_at`` 昇順に畳み込む。頭書きは薬歴からの投影なので、
+        確定済薬歴が残ってさえいれば同じ状態を作り直せる。保存順序
+        ``save(record)`` → ``save(profile)`` の後者が失敗したときの回復手段であり、
+        2回の保存を原子的にするものではない（Unit of Work が無いことへの対処）。
         """
         profile = cls.empty_for(corporate_id=corporate_id, patient_id=patient_id)
         for record in sorted(records, key=lambda item: item.counseled_at.value):

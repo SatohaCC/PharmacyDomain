@@ -1,12 +1,12 @@
 """DispensingProcess集約に関わるドメインサービス。
 
 無状態（Stateless）であり、**本物の集約を引数で受け取る**。
-``okf/ddd/dispensing.md`` §5 で守り手が Domain Service になっている不変条件
-（#3 回数 / #5 使用期間 / #6 次回予定日 / #8 変更制限 / #13 剤の対応）を担う。
+調剤回数、使用期間、次回予定日、変更制限、剤の対応など、
+``DispensingProcess`` 単独では判定できない整合性を担う。
 
-調剤者・鑑査者が薬剤師かどうか（#10）はここに無い。Staff 集約の事実であり、
+調剤者・鑑査者が薬剤師かどうかは Staff 集約の事実であり、
 Prescription の疑義照会実施者と同じく Application 層の資格 Boundary が取り出した
-``StaffQualifications`` を受け取る形にする（ステップ9）。
+``StaffQualifications`` を受け取って判定する。
 """
 
 from __future__ import annotations
@@ -176,7 +176,7 @@ class DispensingConsistencyService:
         self.ensure_schedule_is_valid(process, prescription, previous=previous)
 
     # ------------------------------------------------------------------
-    # #13 剤・薬品の対応
+    # 剤・薬品の対応
     # ------------------------------------------------------------------
 
     def ensure_rps_match_prescription(
@@ -202,7 +202,7 @@ class DispensingConsistencyService:
                     )
 
     # ------------------------------------------------------------------
-    # #8 変更制限
+    # 変更制限
     # ------------------------------------------------------------------
 
     def ensure_substitutions_are_allowed(
@@ -228,7 +228,7 @@ class DispensingConsistencyService:
                 _ensure_category_is_allowed(medicine, prescribed)
 
     # ------------------------------------------------------------------
-    # #3 調剤回数
+    # 調剤回数
     # ------------------------------------------------------------------
 
     def ensure_iteration_is_within_instruction(
@@ -260,7 +260,7 @@ class DispensingConsistencyService:
             _ensure_within(iteration=iteration, limit=1, instruction="通常処方箋")
 
     # ------------------------------------------------------------------
-    # #5 / #6 調剤日
+    # 調剤日
     # ------------------------------------------------------------------
 
     def ensure_schedule_is_valid(
@@ -301,7 +301,7 @@ class DispensingConsistencyService:
         計算した値ではない。計算に倒すと、実際の受け渡し予定と食い違う。
 
         前回セッションが渡されないときは判定を飛ばさずに拒否する。各回は別の
-        保険薬局で行われうる（``okf/ddd/dispensing.md`` §1.2）が、その場合も
+        保険薬局で行われうるが、その場合も
         調剤の状況は情報提供を通じて渡される前提であり、「分からないので通す」に
         倒すと予定日の判定が常に素通りする。
         """
@@ -370,7 +370,7 @@ def _ensure_category_is_allowed(
 
 
 class DispensingPharmacistService:
-    """調剤者・鑑査者が薬剤師資格を持つかを検証する（不変条件 #10）。
+    """調剤者・鑑査者が薬剤師資格を持つかを検証する。
 
     薬剤師かどうかは Staff 集約が持つ事実であり、``DispensingProcess`` は
     ``StaffId`` しか持たない。Staff 集約を直接参照すると集約間の直接依存になるため、

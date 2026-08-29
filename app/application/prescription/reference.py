@@ -1,14 +1,15 @@
 """Prescription Applicationが依存する参照境界。
 
-Prescription は他コンテキストの集約を保持しない。集約が単独で判定できない
-不変条件（``okf/ddd/prescription.md`` §5 の #5 / #6 / #7 / #8）に必要な事実は、
-ここで定義した Protocol を通じて **本物の値オブジェクト**として受け取り、
-Domain Service へ渡す。
+Prescription は他コンテキストの集約を保持しない。麻薬を含む処方箋か、リフィル
+指示を適用できる薬品か、公費負担ありとした枠に患者資格の裏付けがあるか、疑義
+照会の実施者が薬剤師か。いずれも処方箋集約だけでは判定できず、医薬品マスタ・
+患者資格・スタッフ資格の事実が要る。その事実を、ここで定義した Protocol を通じて
+**本物の値オブジェクト**として受け取り、Domain Service へ渡す。
 
-**Boundary は Application層に置く。** 仕様書は当初これを Domain層の
-``reference.py`` に置く想定だったが、既存の Boundary（Coverage / Reception）は
-すべて Application層にあり、Domain Service は本物のオブジェクトを引数で受け取る。
-置き場所を混在させると「どちらに置くか」が規約になり、必ず片方へ倒れる。
+**Boundary は Application層に置く。** Domain層へ置く案もあったが、既存の
+Boundary（Coverage / Reception）はすべて Application層にあり、Domain Service は
+本物のオブジェクトを引数で受け取る形で揃っている。置き場所を混在させると
+「どちらに置くか」が規約になり、必ず片方へ倒れる。
 """
 
 from __future__ import annotations
@@ -65,7 +66,7 @@ class PatientReferenceBoundary(Protocol):
 class StaffQualificationBoundary(Protocol):
     """Staff集約を渡さず、保有資格だけを取り出す境界。
 
-    疑義照会の実施者が薬剤師かどうか（不変条件 #8）の**判定そのものは行わない**。
+    疑義照会の実施者が薬剤師かどうかの**判定そのものは行わない**。
     判定は ``InquiryPharmacistService`` が担い、この境界は判定材料を運ぶ。
     境界側で判定させると、同じ規則が実装ごとに分岐する。
     """

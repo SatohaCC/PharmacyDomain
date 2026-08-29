@@ -124,7 +124,7 @@ class Test適用日:
 
 
 class Test未収載の扱い:
-    """fail-closed（ADR-11）がアダプタでも保たれること。"""
+    """fail-closedがアダプタでも保たれること。"""
 
     async def test_マスタに無い薬品は_戻り値に含めない(self) -> None:
         """「該当しない」既定値で埋めると、未収載の薬品で判定が素通りする。"""

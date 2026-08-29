@@ -35,7 +35,7 @@ class SubstitutionDetail(ValueObject):
     """軸1: 代替調剤の記録。処方薬品を別の薬品へ置き換えたときだけ持つ。
 
     処方箋の変更制限（別表16 の 3〜6・8）に反しないかは処方箋集約を参照する
-    ため、ここでは判定できない（``okf/ddd/dispensing.md`` §5 不変条件 #8）。
+    ため、ここでは判定できない。
     """
 
     category: SubstitutionCategory

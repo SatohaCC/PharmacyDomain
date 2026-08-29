@@ -36,7 +36,7 @@ class ListDispensingsByPrescriptionUseCase:
         """指定法人・処方箋の調剤セッションをDTOで返す。
 
         リフィル・分割の各回は別の保険薬局で行われうるため、**返る件数は
-        その処方箋の総調剤回数と一致しない**（``okf/ddd/dispensing.md`` §1.2）。
+        その処方箋の総調剤回数と一致しない**。
         呼び出し側が件数から回数を導出してはならない。
         """
         corporate_id = CorporateId.parse(query.corporate_id)

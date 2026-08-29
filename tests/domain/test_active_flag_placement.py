@@ -2,8 +2,7 @@
 
 ``tests/domain/test_lifecycle_dialects.py`` は **集約ルート** の無効化方言を守るが、
 子の Value Object に ``is_active`` を足しても検出できない。
-``okf/ddd/medication_history.md`` §3.2 はこれを「仕組みで守れない箇所」として
-レビュー任せにしていたが、レビューは仕組みではない。
+以前はこの制約をレビュー任せにしていたが、レビューは仕組みではない。
 
 危ないのは**期間を持つ子レコードに真偽フラグを足すこと**である。
 ``ConcurrentMedicationRecord`` は ``ended_on`` で継続中かどうかが決まるので、

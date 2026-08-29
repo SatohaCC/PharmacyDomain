@@ -314,7 +314,7 @@ paths = ["app"]
 ]
 # 2つの集約は調剤セッション集約を参照しない。
 # validate() から他集約を読めてしまうと、ロードできない検証を書けてしまう。
-# 調剤との一致（不変条件 #8）は services.py が本物の集約を引数で受け取って判定する。
+# 調剤との一致は services.py が本物の集約を引数で受け取って判定する。
 "app.domain.medication_history.medication_history_record" = [
     "app.domain.dispensing.dispensing_process",
 ]

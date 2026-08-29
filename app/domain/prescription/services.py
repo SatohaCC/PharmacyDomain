@@ -84,8 +84,7 @@ class NarcoticPrescriptionService:
 
     「その薬品が麻薬か」は医薬品マスタ側の属性であり、``Prescription`` 集約は
     薬品コードと名称しか持たない。したがって集約の ``validate()`` では判定できず、
-    本物の分類を受け取る無状態 Domain Service が担当する
-    （``okf/ddd/prescription.md`` §5 不変条件 #5）。
+    本物の分類を受け取る無状態 Domain Service が担当する。
     """
 
     def ensure_narcotic_details_present(
@@ -125,8 +124,7 @@ class RefillEligibilityService:
 
     判定基準は「投与量に限度が定められている医薬品」および「貼付剤（鎮痛・消炎に
     係る効能効果を有するもので、麻薬・向精神薬であるもの、専ら皮膚疾患に用いる
-    ものを除く）」であり、いずれも医薬品マスタ側の属性である
-    （``okf/ddd/prescription.md`` §5 不変条件 #6）。
+    ものを除く）」であり、いずれも医薬品マスタ側の属性である。
 
     **「麻薬・向精神薬・湿布薬」のような例示列挙で実装してはならない。**
     麻薬・向精神薬の貼付剤は「貼付剤」の定義から除外され、別途「投与量に限度が
@@ -171,7 +169,7 @@ class RefillEligibilityService:
 
 
 class InquiryPharmacistService:
-    """疑義照会の実施者が薬剤師資格を持つかを検証する（不変条件 #8）。
+    """疑義照会の実施者が薬剤師資格を持つかを検証する。
 
     薬剤師かどうかは Staff 集約が持つ事実であり、``Prescription`` 集約は
     ``StaffId`` しか持たない。Staff 集約そのものを Prescription から参照すると
@@ -192,7 +190,7 @@ class InquiryPharmacistService:
 
 
 class PublicExpenseBurdenService:
-    """薬品の公費負担区分が患者資格の裏付けを持つかを検証する（不変条件 #7）。
+    """薬品の公費負担区分が患者資格の裏付けを持つかを検証する。
 
     処方箋は公費の番号を持たず「第一公費が負担する」という枠だけを持つ。
     その枠が実在するかは受付で確定した資格選択にしか無いため、集約単独では

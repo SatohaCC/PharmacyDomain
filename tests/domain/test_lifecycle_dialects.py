@@ -27,7 +27,7 @@ from enum import Enum
 import app.domain
 from app.base.domain.entity import AggregateRoot
 
-#: 許可するライフサイクル表現。ここを増やすときは okf/ddd/domain.md も更新する。
+#: 許可するライフサイクル表現。
 ALLOWED_DIALECTS = frozenset({"none", "active_flag", "status_enum", "dated_activation"})
 
 #: 集約名 → ライフサイクル方言。実装を変えたらここも変える。
@@ -77,7 +77,6 @@ ACTIVE_FLAG_KEY_REUSE: dict[str, bool] = {
 #: 一致してしまって検出できない（この検出漏れは以前このファイルの
 #: docstring が「既知の限界」として挙げていたもの）。
 #:
-#: 組を足すときは ``okf/ddd/domain.md`` の方言表も更新する。
 _DATED_ACTIVATION_VOCABULARIES: tuple[frozenset[str], ...] = (
     frozenset({"activated_on", "deactivated_on"}),
     frozenset({"listed_on", "withdrawn_on"}),

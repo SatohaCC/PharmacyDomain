@@ -35,7 +35,7 @@ class MedicineCatalogRepository(Protocol):
         :meth:`save` の契約により存在しないため、戻り値は一意に定まる。
 
         マスタに無い薬品は ``None`` を返す。呼び出し側はこれを「該当しない」へ
-        倒してはならない（``okf/log.md`` ADR-11 の fail-closed）。
+        倒さず、判定不能として拒否する。
         """
         ...
 

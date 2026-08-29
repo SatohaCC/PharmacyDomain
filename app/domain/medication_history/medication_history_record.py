@@ -5,8 +5,7 @@
 
 **集約が単独で検証できることだけを ``validate()`` に置く。** 指導した薬剤師の
 資格は Staff 集約が持ち、調剤セッションとの患者一致は Dispensing 集約が持つ。
-これらは Domain Service が担う
-（``okf/ddd/medication_history.md`` §5 の「守り手」列）。
+これらは Domain Service が担う。
 """
 
 from __future__ import annotations
@@ -73,7 +72,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     def validate(self) -> None:
         """薬歴が単独で判定できる不変条件を検証する。
 
-        SOAP の充足（不変条件 #2）は**確定時にだけ**課す。下書きの途中で
+        SOAP の充足は**確定時にだけ**課す。下書きの途中で
         全セクションを要求すると、聞き取りながら書き足す運用ができない。
         """
         self._ensure_amendments_only_after_finalized()
@@ -157,7 +156,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     # ------------------------------------------------------------------
 
     def update_draft_soap(self, soap: SoapRecord) -> Self:
-        """下書きのSOAPを差し替える（不変条件 #7）。
+        """下書きのSOAPを差し替える。
 
         確定済の薬歴は受け付けない。修正は :meth:`amend` による追記のみ。
         """
@@ -170,7 +169,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         return replace(self, profile_updates=intents)
 
     def finalize(self) -> Self:
-        """薬歴を確定する（不変条件 #2）。
+        """薬歴を確定する。
 
         SOAP の S / O / A / P のいずれかが空なら確定できない。通則(4) が
         服薬状況・体調変化・今後の留意点などを記載事項として求めているため。

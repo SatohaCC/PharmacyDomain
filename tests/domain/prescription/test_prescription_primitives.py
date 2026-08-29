@@ -1,7 +1,7 @@
 """Prescriptionコンテキストのプリミティブ・Value Object のテスト。
 
 規格が定める桁数・値集合の境界をここで固定する。**規格ごとに値集合が異なる
-ものは、どの規格の話かをテスト名か docstring に書く**（``okf/rules.md`` §4.5）。
+ものは、どの規格の話かをテスト名か docstring に書く**。
 """
 
 from __future__ import annotations

@@ -37,8 +37,7 @@ class FinalizeMedicationHistoryUseCase:
 
     2つの書き込みは1つのトランザクションに入っていない。本リポジトリに
     ``UnitOfWork`` は無く、永続化実装が1つも無い段階で導入するのは先回りである。
-    代わりに**頭書きを投影と定義することで整合性を回復可能にしている**
-    （``okf/ddd/medication_history.md`` §2.2、``okf/log.md`` ADR-4）。
+    代わりに**頭書きを投影と定義することで整合性を回復可能にしている**。
     """
 
     def __init__(

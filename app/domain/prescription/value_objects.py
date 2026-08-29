@@ -544,7 +544,7 @@ class MedicineClassification(ValueObject):
     薬価基準の1カラムではない。導出は Composition のアダプタ（腐敗防止層）が行う。
 
     したがってこの型は Shared Kernel の共有語彙ではなく、**Prescription が
-    Boundary から受け取る問い合わせ結果の形**である（``okf/log.md`` ADR-14）。
+    Boundary から受け取る問い合わせ結果の形**である。
     """
 
     identifier: MedicineIdentifier

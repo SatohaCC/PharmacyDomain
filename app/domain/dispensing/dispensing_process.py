@@ -6,8 +6,7 @@
 **集約が単独で検証できることだけを ``validate()`` に置く。** 処方箋の指示の
 範囲内か、前回セッションの次回予定日から前後7日以内か、代替調剤が処方箋の
 変更制限に反しないか、調剤者・鑑査者が薬剤師かは、いずれも他の集約を見ないと
-判定できない。これらは Domain Service が担う
-（``okf/ddd/dispensing.md`` §5 の「守り手」列）。
+判定できない。これらは Domain Service が担う。
 """
 
 from __future__ import annotations
@@ -237,7 +236,7 @@ class DispensingProcess(AggregateRoot[DispensingId]):
 
         処方箋の剤との対応キーなので、重複すると突合が壊れる。連続性は
         要求しない（分割調剤では処方箋の一部の剤だけを調剤しうる）。
-        処方箋側に実在する番号かは Domain Service が判定する（不変条件 #13）。
+        処方箋側に実在する番号かは Domain Service が判定する。
         """
         numbers = [rp.rp_number for rp in self.dispensed_rps]
         if len(numbers) != len(set(numbers)):
@@ -246,8 +245,8 @@ class DispensingProcess(AggregateRoot[DispensingId]):
     def _ensure_iteration_matches_split_reason(self) -> None:
         """分割理由ごとの調剤回数の範囲に収まっていることを検証する。
 
-        リフィル処方箋の総使用回数は処方箋集約が持つので、ここでは判定しない
-        （不変条件 #3 として Domain Service が担う）。
+        リフィル処方箋の総使用回数は処方箋集約が持つので、ここでは判定せず
+        Domain Service に委ねる。
         """
         if self.split_reason is None:
             return
@@ -301,7 +300,7 @@ class DispensingProcess(AggregateRoot[DispensingId]):
 
     @property
     def is_first_iteration(self) -> bool:
-        """1回目の調剤か。使用期間内の判定（不変条件 #5）の対象になる。"""
+        """1回目の調剤か。処方箋の使用期間内かを判定する対象になる。"""
         return self.iteration.value == 1
 
     @property
@@ -398,7 +397,7 @@ class DispensingProcess(AggregateRoot[DispensingId]):
         """調剤内容（変更調剤の3軸を含む）を差し替える。
 
         鑑査不合格による再調製もこの操作で行う。処方箋の変更制限に反する
-        代替が含まれていないかは Domain Service が判定する（不変条件 #8）。
+        代替が含まれていないかは Domain Service が判定する。
         """
         self._ensure_in_progress("調剤内容の変更")
         return replace(self, dispensed_rps=dispensed_rps)

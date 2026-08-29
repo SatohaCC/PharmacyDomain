@@ -24,7 +24,8 @@ uv run python -m tools.check_fake_conformance --verbose --fail-on-violation  # �
 
 ## アーキテクチャ & 設計ルール
 
-- **ナレッジベース**: 正典は [okf/](okf/)（OKF仕様・運用ルールは [okf/rules.md](okf/rules.md)）。設計方針の決定・変更時はコードと合わせて更新する。
+- **正典の分担**: プロジェクト目的と全体像は [docs/README.md](docs/README.md)、重要な設計判断と理由は [docs/decisions.md](docs/decisions.md)、外部根拠と未解決事項は対応する `docs/ddd/` 文書に置く。現在の型と振る舞いは `app/`、実行可能な保証は `tests/` と `tools/`、実装手順と品質ゲートは本ファイルを正典とする。
+- **文書とコードの分離**: コードと通常テストは `docs/` のパス・見出し・ADR番号・文書用の不変条件IDを参照しない。必要な理由は、その箇所だけで理解できる語彙でdocstringやテスト名に書く。文書にはクラス・フィールド・テスト・不変条件の網羅表を複製せず、目的、境界、採否の理由、一次資料の解釈、未解決事項が変わるときだけ更新する。`tests/tools/test_docs_decoupling.py` は、文書を指すことが構文だけで確定する3形式（パス・ADR番号・不変条件ID）を検出して強制する。見出し名は改名・削除後の古い参照を判定できず、普通のドメイン語彙とも衝突するため、機械検査の対象にしない。
 - **依存の向き**: 外 → 内（`app/domain/` は FastAPI, DB, `app/application/` に一切非依存）。`tools/check_imports.py` が強制する。
 - **テナント境界**: コンテキストは `corporate` / `store` / `staff` / `patient` / `coverage` / `reception` / `claim` / `prescription` / `dispensing` / `medication_history` / `medicine_catalog` の11。集約間は **ID 参照のみ**（他集約のエンティティを直接保持しない）。他テナントデータへのアクセスは 403 ではなく 404（`XxxNotFoundError` または `TenantBoundaryNotFoundError`）として隠蔽する。
 - **認証・認可境界**: 認証基盤が生成した信頼済み `ActorContext` をApplication層へ渡し、Command / Queryの対象 `corporate_id` と分離する。ベンダーシステム管理者は全法人、法人管理者は `ActorContext.corporate_id` と一致する自法人だけを操作できる。HTTP入力から `ActorContext` を組み立てない。

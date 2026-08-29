@@ -1,7 +1,7 @@
 """Dispensing Applicationが依存する参照境界。
 
-集約を跨ぐ検証（``okf/ddd/dispensing.md`` §5 の #3 / #5 / #6 / #8 / #10 / #13）は
-本物の集約・値オブジェクトを受け取る Domain Service が担う。それらを**運ぶ**のが
+集約を跨ぐ検証は、本物の集約・値オブジェクトを受け取る Domain Service が担う。
+それらを**運ぶ**のが
 この層の Protocol であり、実装は Composition Root の実アダプタに閉じる。
 
 Prescription コンテキストの Application 実装（``app.application.prescription``）は

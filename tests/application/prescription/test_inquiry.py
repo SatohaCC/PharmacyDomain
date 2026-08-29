@@ -2,7 +2,7 @@
 
 主眼は2つ。
 
-1. 実施者の薬剤師資格（不変条件 #8）が UseCase から必ず検証されること
+1. 実施者の薬剤師資格が UseCase から必ず検証されること
 2. 照会日時・回答日時が**Commandではなく注入Clock**から来ること
    （呼び出し元が過去日時を詐称できない）
 """
@@ -68,7 +68,7 @@ def _start_command(
 
 
 class Test疑義照会の開始:
-    """不変条件 #8 の守り手は Domain Service、資格の取得は Boundary。"""
+    """資格の判定はDomain Service、資格の取得はBoundaryが担う。"""
 
     async def test_薬剤師が照会を開始すると_未回答で記録される(self) -> None:
         # Arrange

@@ -3,8 +3,8 @@
 **このファイルが、医薬品マスタを作った理由そのものである。**
 
 マスタが無かった間、``MedicineRestrictionBoundary`` は「不明」しか答えられず、
-麻薬処方箋とリフィル処方箋は fail-closed で**登録できなかった**
-（``okf/log.md`` ADR-11）。分岐で回避せず失敗させる設計にしてあったので、
+麻薬処方箋とリフィル処方箋は fail-closed で**登録できなかった**。
+分岐で回避せず失敗させる設計にしてあったので、
 マスタを配線すれば分岐を1つも消さずに通るようになる。ここではその両方
 （配線すれば通る／未収載なら依然として通らない）を固定する。
 """
@@ -139,7 +139,7 @@ class Testマスタを配線すると通るようになる:
         assert actual.management_info.narcotic_license_number == "13-1234"
 
     async def test_麻薬なのに麻薬情報が無ければ_依然として拒否される(self) -> None:
-        """マスタを入れても不変条件 #5 は緩まない。"""
+        """マスタを入れても麻薬処方箋の必須事項は緩まない。"""
         # Arrange
         fixture = create_fixture(register_medicine=False)
         catalog = await _catalog_with(
@@ -192,7 +192,7 @@ class Testマスタを配線すると通るようになる:
 
 
 class Test未収載は依然として通らない:
-    """マスタを入れても fail-closed は保たれる（ADR-11）。"""
+    """マスタを入れてもfail-closedは保たれる。"""
 
     async def test_マスタに無い薬品は_登録できない(self) -> None:
         # Arrange

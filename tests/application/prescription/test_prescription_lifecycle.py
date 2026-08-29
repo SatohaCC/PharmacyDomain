@@ -90,7 +90,7 @@ def _cancel_command(
 
 
 class Test調剤可能化:
-    """不変条件 #11。未回答の照会があるうちは進めない。"""
+    """未回答の照会があるうちは調剤可能へ進めない。"""
 
     async def test_照会が無ければ_調剤可能にできる(self) -> None:
         # Arrange

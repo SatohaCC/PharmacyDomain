@@ -1,9 +1,8 @@
 """薬歴のドメインサービスのテスト。
 
-``okf/ddd/medication_history.md`` §5 で守り手が **Domain Service** / **Repository契約**
-になっている不変条件（#1 指導者の資格 / #9 #10 一意性）を固定する。
+指導者の資格と、薬歴・頭書きの一意性を固定する。
 
-#8（調剤セッションとの一致）はここに無い。薬歴の法人・患者・処方箋IDは
+調剤セッションとの一致はここに無い。薬歴の法人・患者・処方箋IDは
 UseCase が調剤セッションからそのまま取るため、食い違う組み合わせを構築できない。
 構築の形は ``tests/application/medication_history`` 側が固定する。
 """
@@ -36,7 +35,7 @@ from tests.factories.medication_history_factory import create_record
 
 
 class Test服薬指導者の資格:
-    """不変条件 #1。薬剤師法第25条の2。"""
+    """薬剤師法第25条の2に基づく指導者の資格を検証する。"""
 
     def test_薬剤師資格があれば_通る(self) -> None:
         # Arrange
@@ -67,7 +66,7 @@ class Test服薬指導者の資格:
 
 
 class Test薬歴の一意性:
-    """不変条件 #10。1回の調剤に確定済の指導記録は1件以下。"""
+    """1回の調剤に確定済の指導記録は1件以下。"""
 
     def test_同一調剤に確定済が2件だと_拒否される(self) -> None:
         # Arrange
@@ -139,7 +138,7 @@ class Test薬歴の一意性:
 
 
 class Test頭書きの一意性:
-    """不変条件 #9。頭書きが2件あると、どちらが投影結果かが決まらない。"""
+    """頭書きが2件あると、どちらが投影結果かが決まらない。"""
 
     def test_同一患者に2件目は_拒否される(self) -> None:
         # Arrange

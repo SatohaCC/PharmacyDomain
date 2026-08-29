@@ -1,7 +1,7 @@
 """処方箋のドメインサービスのテスト。
 
-``okf/ddd/prescription.md`` §5 で守り手が **Domain Service** になっている
-不変条件（#5 麻薬3項目必須 / #6 リフィル適用除外）を固定する。
+麻薬処方箋の必須事項とリフィル適用除外など、**Domain Service** が担う
+集約外の事実を使った検証を固定する。
 
 このファイルの主眼は **fail-closed が本当に効くこと**である。医薬品マスタが
 無い状態で「該当しない」と黙って答える実装になっていないかを、``UNKNOWN`` と
@@ -87,7 +87,7 @@ def _narcotic_details() -> NarcoticPrescriptionDetails:
 
 
 class Test麻薬処方箋:
-    """不変条件 #5。守り手は Domain Service。"""
+    """麻薬処方箋の必須事項をDomain Serviceで検証する。"""
 
     def test_麻薬を含まなければ_麻薬情報が無くても通る(self) -> None:
         # Arrange
@@ -178,7 +178,7 @@ class Test麻薬処方箋:
 
 
 class Testリフィル適用除外:
-    """不変条件 #6。守り手は Domain Service。
+    """リフィル適用除外をDomain Serviceで検証する。
 
     判定基準は「投与量に限度が定められている医薬品」と「貼付剤」であり、
     「麻薬・向精神薬・湿布薬」という例示ではない。
@@ -341,7 +341,7 @@ class Test医薬品分類:
 
 
 class Test疑義照会の実施者資格:
-    """不変条件 #8。守り手は Domain Service、資格の取得は Application の Boundary。"""
+    """資格の判定はDomain Service、資格の取得はApplicationのBoundaryが担う。"""
 
     def test_薬剤師資格があれば_通る(self) -> None:
         # Arrange
@@ -381,7 +381,7 @@ class Test疑義照会の実施者資格:
 
 
 class Test公費負担の裏付け:
-    """不変条件 #7。裏付けの無い公費負担を凍結させない。"""
+    """裏付けの無い公費負担を凍結させない。"""
 
     @staticmethod
     def _prescription_with_burden(burden: PublicExpenseBurden) -> Prescription:
@@ -432,7 +432,7 @@ class Test公費負担の裏付け:
         )
 
     def test_特殊公費は_資格側で表せなければ拒否される(self) -> None:
-        """特殊公費の負担者番号は ``N20`` で Claim の8桁制約を満たせない（ADR-3）。
+        """特殊公費の負担者番号は ``N20`` で Claim の8桁制約を満たせない。
 
         表せない枠を ``True`` で埋めない限り、この向きで必ず落ちる。
         """

@@ -147,7 +147,7 @@ class RegisterPrescriptionUseCase:
         return CoverageSelectionRecordId.parse(value)
 
     async def _verify_medicine_restrictions(self, prescription: Prescription) -> None:
-        """麻薬（#5）とリフィル適用除外（#6）を医薬品マスタ由来の事実で検証する。
+        """麻薬処方箋の必須事項とリフィル適用除外を検証する。
 
         マスタは**処方箋の交付日**で引く。麻薬指定も経過措置期限も時点で
         変わるため、登録処理を実行した日ではなく、その処方箋が書かれた日の
@@ -168,7 +168,7 @@ class RegisterPrescriptionUseCase:
         *,
         record_id: CoverageSelectionRecordId | None,
     ) -> None:
-        """公費負担区分に患者資格の裏付けがあることを検証する（#7）。
+        """公費負担区分に患者資格の裏付けがあることを検証する。
 
         資格選択履歴が紐付いていない処方箋は、裏付けの取りようが無いので
         「どの公費枠も存在しない」として検証する。空の枠を渡すことで、

@@ -1,8 +1,7 @@
 """MedicationHistory集約に関わるドメインサービス。
 
 無状態（Stateless）であり、**本物の集約・値オブジェクトを引数で受け取る**。
-``okf/ddd/medication_history.md`` §5 で守り手が Domain Service になっている
-不変条件（#1 指導者の資格 / #8 調剤セッションとの一致）を担う。
+薬歴単独では判定できない指導者の資格などを検証する。
 """
 
 from __future__ import annotations
@@ -24,7 +23,7 @@ from app.domain.staff.primitives import PharmacistProfile, StaffQualifications
 
 
 class CounselorQualificationService:
-    """服薬指導を行った者が薬剤師資格を持つかを検証する（不変条件 #1）。
+    """服薬指導を行った者が薬剤師資格を持つかを検証する。
 
     薬剤師法第25条の2は情報の提供及び指導の義務を薬剤師に課している。
     薬剤師かどうかは Staff 集約が持つ事実であり、``MedicationHistoryRecord`` は

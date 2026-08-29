@@ -147,10 +147,9 @@ class DosageFormCategory(StrEnum):
 class MedicineCode(BaseNormalizedString):
     """薬品コード。
 
-    桁数はコード体系ごとに異なる（レセプト電算・YJ・HOT・一般名）。
-    ``okf/ddd/prescription.md`` §3.5.B のとおり、各コードマスタの原典で
-    桁数を確認できていないため**桁数は課さない**。推測した桁数を不変条件に
-    すると正当なコードを弾く実装になる。確定してから足す。
+    桁数はコード体系ごとに異なる（レセプト電算・YJ・HOT・一般名）。電子処方箋の
+    処方編・調剤編も薬品レコードを「薬品コード X 13 可変」と定めているため、
+    ここでは固定桁数を課さない。コード体系ごとの妥当性は取り込み元で検証する。
     """
 
 
@@ -282,7 +281,7 @@ class PublicExpenseBurden(ValueObject):
     処方箋の公費枠は第一/第二/第三/**特殊**であり、電子レセプトの第一〜第四とは
     別軸である。特殊公費の負担者番号は ``N20``（漢字半角混在可・数字以外可）で
     ``ClaimPublicPayerNumber``（8桁）の不変条件を満たせないため、Claim へは
-    写さない（``okf/log.md`` ADR-3）。
+    写さない。
     """
 
     first: bool = False

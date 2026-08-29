@@ -34,7 +34,7 @@ class RecordDispensedContentUseCase:
     """代替調剤・減数調剤・調製方法を含む調剤内容を差し替える。
 
     鑑査不合格による再調製もこのユースケースで行う。加算の算定可否は
-    判定しない（``okf/ddd/dispensing.md`` §4 のとおり Claim の責務）。
+    Claimの責務なので判定しない。
     """
 
     def __init__(

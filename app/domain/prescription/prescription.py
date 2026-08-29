@@ -5,8 +5,7 @@
 
 **集約が単独で検証できることだけを ``validate()`` に置く。** 麻薬かどうか、
 リフィル適用除外に当たるかは医薬品マスタ側の属性であり、薬剤師資格は Staff
-集約が持つ。これらは Domain Service が Boundary 経由で判定する
-（``okf/ddd/prescription.md`` §5 の「守り手」列）。
+集約が持つ。これらは Domain Service が Boundary 経由で判定する。
 """
 
 from __future__ import annotations
