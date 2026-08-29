@@ -3,7 +3,7 @@ type: Log
 title: PharmacyDomain Knowledge Base 変更・決定ログ
 description: PharmacyDomain プロジェクトにおけるアーキテクチャ判断、ドメインモデル変更、OKF ナレッジベースの更新履歴。
 okf_version: "0.2"
-timestamp: 2026-08-23T00:00:00Z
+timestamp: 2026-08-29T00:00:00Z
 tags: [okf, adr, log, changelog, history]
 status: active
 ---
@@ -11,6 +11,165 @@ status: active
 # PharmacyDomain Knowledge Base 変更・決定ログ
 
 本ドキュメントは、OKF（Open Knowledge Format）仕様の予約ファイル `log.md` として、プロジェクトにおける設計判断（ADR: Architecture Decision Record）、ドメインモデルの改定、ナレッジベース自体の更新履歴を時系列で記録します。
+
+---
+
+## 2026-08-29: 医薬品マスタ（MedicineCatalog）コンテキストの追加
+
+- **種別**: コンテキスト設計 / ADR
+- **概要**:
+  - `app/domain/medicine_catalog/` と `app/application/medicine_catalog/` を実装。コンテキストは10から11へ。
+  - **麻薬処方箋・リフィル処方箋が登録できるようになった。** マスタが無かった間は fail-closed で失敗していた経路であり、**分岐は1つも消していない**（ADR-11 の設計どおり、マスタを配線するだけで開通した）。
+
+### ADR-14: 医薬品マスタは非テナントの版付き参照データとして持つ
+
+「医薬品マスタもドメインにすべきか」への答えは **yes、ただし既存の全コンテキストが満たす前提を2つ破る**。
+
+| 前提 | 薬価基準収載品目 |
+| :--- | :--- |
+| テナント境界（`corporate_id`）を持つ | **持たない**。国が定めるので法人ごとに違わない |
+| 状態変更コマンド（`change_*`）がある | **無い**。誰も作らず編集せず、外部から取り込む |
+
+`corporate_id` を付けて普通の集約にすると、全法人に同じ行を複製し、改定のたびに
+全テナント分を更新することになる。そこで:
+
+- `Medicine` は法人IDを持たず、`MedicineCatalogRepository` も取らない。
+  `tests/domain/medicine_catalog/test_medicine.py` が「法人IDを持たない」ことを固定する。
+- 取り込み・参照とも `MANAGE_MEDICINE_CATALOG`（ベンダー専用権限）で、
+  `require_vendor_system_admin()` を通す。既存の全ユースケースが
+  `require_active(corporate_id=...)` を通るのに対し、ここだけが例外。
+- 「自局で採用している薬か」「院内製剤か」はテナントごとの判断だが、それは
+  **別集約（自局採用薬）の責務**であり、このコンテキストには持たせない（未実装）。
+
+### ADR-15: 参照マスタは時点で引く
+
+薬価基準は定期改定され経過措置期限がある。**2026-03-31 の調剤は3月版で判定しなければならない。**
+
+- `MedicineCatalogRepository.find_effective(identifier, as_of)` と
+  `MedicineRestrictionBoundary.classify(identifiers, as_of)` は **`as_of` を必ず取る**。
+- 処方箋の判定に渡すのは**交付日**であって処理実行日ではない。その処方箋が書かれた日の
+  マスタで判定しなければ、過去の処方を新しいマスタで誤判定する。
+- 収載期間は**終了日を含む閉区間** `[listed_on, withdrawn_on]` とする。経過措置期限は
+  「その日まで使える」を意味するので、資格の `[activated_on, deactivated_on)`（半開区間）と
+  同じ形にすると期限当日の調剤を誤って弾く。
+- 同一薬品コードで期間が重なる行は Repository契約が原子的に拒否する。重なると、ある日付で
+  引いたときに2行返り「その日のマスタ」が一意に定まらない。
+
+**この `as_of` は既存コードの穴でもあった。** `MedicineRestrictionBoundary.classify()` に
+適用日が無く、プロジェクトが `CoveragePeriod` や `active_concurrent_medications(target_date)` で
+徹底していた「適用日を明示的に受け取る」がここだけ抜けていた。
+
+### ADR-16: マスタは生の事実だけを持ち、規則の答えはアダプタが導出する
+
+`Medicine` が持つのは剤形・効能・麻薬区分・投与量限度といった**薬価基準の事実**である。
+一方 Prescription が要るのは「リフィル適用除外か」という**規則の答え**で、これは
+
+> 貼付剤（鎮痛・消炎に係る効能及び効果を有するものであって、麻薬若しくは向精神薬で
+> あるもの又は専ら皮膚疾患に用いるものを除いたもの）
+
+というリフィルの規則が定める組み合わせであり、薬価基準の1カラムではない。
+
+変換を `app/application/composition/medicine_restriction_adapter.py`（腐敗防止層）へ
+閉じ込めた。どちらかの内側へ寄せると、薬価基準にリフィルの規則が混ざるか、
+処方箋が薬価基準のカラム構成を知ることになる。
+
+あわせて `MedicineClassification` / `MedicineRestrictionFlag` を Shared Kernel から
+`app/domain/prescription/value_objects.py` へ移した。使うのは Prescription だけであり、
+ADR-9 の基準（所有者がいるか）で言えば共有語彙ではなく**問い合わせ結果の形**である。
+
+### ライフサイクル方言の分類器を直した
+
+`Medicine` の収載期間は日付つき無効化だが、フィールド名が `listed_on` / `withdrawn_on` で
+資格の `activated_on` / `deactivated_on` と違うため、分類器は `none` と誤判定していた。
+これは `test_lifecycle_dialects.py` の docstring が「既知の限界」として挙げていたものである。
+
+認める語彙の組を `_DATED_ACTIVATION_VOCABULARIES` に列挙する形へ変え、限界を1段縮めた。
+新しい語彙で日付つき無効化を実装するときは、ここへ組を足す。
+
+### 残っていること
+
+| 項目 | 状態 |
+| :--- | :--- |
+| 薬価基準ファイルの取り込み | 集約と取り込みユースケースはあるが、実ファイル（厚労省の薬価基準、MEDIS の HOT コードマスタ）の読み込みは Infrastructure の仕事で未着手 |
+| 自局採用薬（`StoreFormulary`） | 未実装。採用/不採用・院内製剤・別名・在庫連動はテナント境界を持つ普通の集約として後から足せる |
+| 後発品変更調剤の妥当性 | `Medicine.generic_category` は持たせたが、`SubstitutionCategory.GENERIC_SUBSTITUTION` が本当に後発品への変更かの検証は未実装 |
+| 非テナントの参照権限 | 参照もベンダー専用にしてある。薬剤師向けの検索が要る時点で、法人に属さないデータの参照権限をどう表すか決める |
+
+---
+
+## 2026-08-28: 処方箋・調剤・薬歴コンテキストの実装完了
+
+- **種別**: 実装 / ADR / 仕様書是正
+- **概要**:
+  - `app/domain/prescription/` `app/domain/dispensing/` `app/domain/medication_history/` と、対応する Application層を実装。3文書を `status: draft` → `active` へ変更。
+  - コンテキストは7から10へ。テストは400件から899件へ、`LIFECYCLE_DIALECTS` は7から11エントリへ増えた。
+  - **実装して初めて分かった仕様書の誤りを ADR-13 にまとめた。**
+
+### ADR-9: 所有者のいない語彙は Shared Kernel へ置く
+
+薬品名・薬品コード・用量・用法は Prescription / Dispensing / MedicationHistory の3コンテキストが必要とする。どこに置くかの判断基準を「**所有者がいるか**」とした。
+
+- `PatientId` は Patient 集約の**同一性**であり、参照する側は必ず所有者を指している。所有コンテキストから import するのが正しい。
+- 薬品名はどの集約の同一性でもない。本システムに医薬品集約は存在しない。**所有者のいない語彙**である。
+- 所有者のいないものを Prescription へ置くと、MedicationHistory が「他院で買ったOTCの名前」を表すために Prescription を import することになり、依存が語彙の実態と食い違う。
+
+→ `app/base/domain/medicine.py`（薬品語彙）と `app/base/domain/dosage.py`（用法語彙）を新設した。用法補足（処方編 別表14）は処方箋固有なので移していない。
+
+### ADR-10: 用量に `float` を使わない
+
+不均等服用指示は「各回服用量の合計が1日量と厳密に一致すること」を要求する。実在する用量刻み（0.05刻み等）を `float` で表すと、この一致判定が**正当な処方を弾く**。
+
+実測: 1〜20の整数部 × 0.05刻みの小数部で全数（6,859通り）を試したところ、**869通り（12.7%）で合計が一致しなかった**。
+
+→ `BaseNonNegativeDecimal` / `BasePositiveDecimal` を Shared Kernel に追加し、`float` からの生成を拒否する（`Decimal(0.1)` は小数部55桁になるので桁数チェックが弾く）。Application境界では `str` で受け取る。利用者のいなかった `BaseNonNegativeFloat` / `BasePositiveFloat` は削除した。
+
+### ADR-11: 判定できないことを「該当しない」に倒さない（fail-closed）
+
+「その薬品が麻薬か」「投与量に限度があるか」は処方箋2次元シンボルにも電子処方箋にも含まれず、判定には医薬品マスタが要る。本システムに医薬品マスタは無い。
+
+Boundary を定義して Fake が「麻薬ではない」と答えると、**麻薬処方箋の必須3項目チェックが常に通る**状態になる。これは `check_fake_conformance` が塞いだ「呼んでも例外にならず素通りする」穴を手作りで開けるのと同じである。
+
+→ `MedicineRestrictionFlag` に `UNKNOWN` を明示的に持たせ、Domain Service が `UNKNOWN` と「分類が渡されていない」の両方を拒否する。
+
+**「麻薬を含む処方箋は登録できない」という分岐は書かない。** 書くと、マスタが入ったときに消し忘れる。UseCase は常にマスタを引き、マスタが無いから失敗する、という形にした。
+
+### ADR-12: 引換番号の一意性は受領元ごとの業務判断とする
+
+電子処方箋の引換番号は電子処方箋管理サービスが発行する一意な番号なので、重複は二重取り込みを意味する。一方、紙処方箋の番号は医療機関ごとの採番であり、**法人内で別の医療機関が同じ番号を採番しうる**。
+
+→ `save()` の一意性は `source_type == ELECTRONIC` のときだけ課す。「無効化後に一意キーを再利用できるか」を集約ごとの業務判断として `ACTIVE_FLAG_KEY_REUSE` に記録した既存の形と同じで、全称のルールにしない。
+
+### ADR-13: 仕様書が Domain Service を割り当てた不変条件のうち3件は、構築が既に保証していた
+
+実装して**変異テストで検出した**。いずれも「判定を書いても1度も真にならない」ため、AGENTS.md「定義だけで raise されない例外を残さない」に反する。
+
+| 不変条件 | 仕様書の守り手 | 実際 | 対応 |
+| :--- | :--- | :--- | :--- |
+| 処方箋 #10（別表16 の同一コードが両方に現れない） | `PrescriptionMedicine.validate()` | 2つの列挙が互いに素なので構築できない | 読み込み時の分割チェック `verify_supplement_code_partition()` へ置き換え |
+| 調剤 #9（代替調剤に変更前が欠落しない） | `SubstitutionDetail.validate()` | どちらも必須フィールドなので型が保証済み | 「変更前後が同一の代替調剤」の拒否へ置き換え |
+| 薬歴 #8（調剤セッションと同一法人・同一患者） | Domain Service | UseCase が調剤から値を取るので食い違いを構築できない | Domain Service を削除し、守り手を「構築の形」とした |
+
+**教訓**: 「守り手」を割り当てる前に、その状態が**構築可能かどうか**を確かめる。型で保証済みのものに検証を重ねると、動いているように見えて何も守っていないコードが増える。変異テスト（検証を消して落ちるか見る）がこれを機械的に見つけた。
+
+### 仕様書のその他の是正
+
+| 箇所 | 内容 |
+| :--- | :--- |
+| Boundary の置き場所 | 3文書とも Domain層を想定していたが、既存の Boundary は全て Application層。**Application層に統一**した |
+| 処方箋 #7 / #8、調剤 #10 の「必要な参照」 | 「`Staff` 集約」等を直接参照すると集約間の直接依存になる。`StaffQualifications` などを Boundary 経由で受け取る形へ変更 |
+| 調剤 `cancel(reason)` | 理由の保持先が無く捨てられる設計だった。`cancellation_reason` を集約が保持し「中止状態 ⟺ 理由あり」を強制 |
+| 薬歴 #6（頭書きの直接編集禁止） | `validate()` では防げない。状態変更を `apply(record)` 1つに絞って構造的に不可能にした |
+| 薬歴 §3.2（`is_active` 禁止） | 「レビューだけが歯止め」としていた。`tests/domain/test_active_flag_placement.py` が全 dataclass を走査して守るようにした |
+
+### 未解決のまま残した項目
+
+| 項目 | 状態 |
+| :--- | :--- |
+| 医薬品マスタ | 実装先が無い。麻薬・リフィル処方箋の登録は fail-closed で失敗する |
+| リフィル前後7日の出典 | `okf/refa/` のPDFから日本語テキストを抽出できず、**本文で再確認できていない**。仕様書の記述に従って実装した |
+| リフィルと分割調剤の併用可否 | 規格・通知を確認できていないため規則を追加していない |
+| トランザクション境界 | 調剤完了時（調剤＋処方箋）と薬歴確定時（薬歴＋頭書き）の2箇所で、2つの集約を1トランザクションで書けていない。薬歴側は「頭書きを投影と定義する」ことで回復可能にした（ADR-4）。調剤側は順序で妥協している |
+| 永続化実装・HTTPルート | 全コンテキストで未着手 |
 
 ---
 

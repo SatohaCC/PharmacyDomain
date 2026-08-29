@@ -22,6 +22,7 @@ class Permission(StrEnum):
     VIEW_CORPORATE = "view_corporate"
     MANAGE_CORPORATE = "manage_corporate"
     MANAGE_CORPORATE_STATUS = "manage_corporate_status"
+    MANAGE_MEDICINE_CATALOG = "manage_medicine_catalog"
     VIEW_STORE = "view_store"
     MANAGE_STORE = "manage_store"
     VIEW_STAFF = "view_staff"
@@ -32,6 +33,12 @@ class Permission(StrEnum):
     MANAGE_COVERAGE = "manage_coverage"
     VIEW_RECEPTION = "view_reception"
     MANAGE_RECEPTION = "manage_reception"
+    VIEW_PRESCRIPTION = "view_prescription"
+    MANAGE_PRESCRIPTION = "manage_prescription"
+    VIEW_DISPENSING = "view_dispensing"
+    MANAGE_DISPENSING = "manage_dispensing"
+    VIEW_MEDICATION_HISTORY = "view_medication_history"
+    MANAGE_MEDICATION_HISTORY = "manage_medication_history"
 
 
 @dataclass(frozen=True, kw_only=True)

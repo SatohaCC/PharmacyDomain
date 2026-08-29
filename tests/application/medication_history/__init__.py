@@ -1,0 +1,1 @@
+"""MedicationHistory Application層のテスト。"""

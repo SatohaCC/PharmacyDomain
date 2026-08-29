@@ -3,8 +3,8 @@ type: Specification
 title: 薬歴・服薬指導（MedicationHistory）コンテキスト 詳細仕様書 & ドメイン設計ガイドライン
 description: 電子薬歴の中核をなす服薬管理指導記録（SOAP形式）、服薬指導薬剤師、かかりつけ薬剤師管理、および患者の継続的医療プロファイル（頭書き: アレルギー歴、副作用歴、既往歴、併用薬、残薬状況）のDDD詳細仕様書。日々の薬歴入力から頭書きが更新される投影メカニズムと由来追跡（Provenance）を定義。
 okf_version: "0.2"
-timestamp: 2026-08-23T00:00:00Z
-status: draft
+timestamp: 2026-08-28T00:00:00Z
+status: active
 tags: [backend, domain, medication-history, soap, counseling, patient-profile, atamagaki, ddd, architecture, reference]
 sources:
   - "薬剤師法 第25条の2（情報の提供及び指導）、第28条（調剤録）"
@@ -15,7 +15,8 @@ sources:
 
 # 薬歴・服薬指導（MedicationHistory）コンテキスト 詳細仕様書 & ドメイン設計ガイドライン
 
-> **本文書のステータス**: `draft`（設計のみ・未実装）。`app/domain/medication_history/` は存在しない。実装着手時は [§8 実装時に更新が必要な強制点](#8-実装時に更新が必要な強制点) を必ず参照すること。
+> **本文書のステータス**: `active`（実装済み）。実装は `app/domain/medication_history/` と `app/application/medication_history/` にある。
+> 設計と実装が食い違ったときは**実装が正**であり、本文書を直す。実装が守っている強制点は [§8](#8-実装済みの強制点) を参照。
 
 ## 1. 概要と境界定義（Bounded Context）
 
@@ -404,13 +405,13 @@ flowchart TD
 | 3 | `residual_drug` は必須。`has_residual_drugs == True` のとき数量と発生理由が必須（法定記載事項ウ（ホ）「残薬がないときは、その旨を記載すること」） | `ResidualDrugRecord.validate()` | — |
 | 4 | 手帳を活用しなかった場合、理由と患者への指導の有無が記録されている。複数手帳を1冊にまとめなかった場合はその理由も記録されている | `HandbookStatus.validate()` | — |
 | 5 | `ConcurrentMedicationRecord` は `ended_on is None` または `ended_on >= started_on` | `ConcurrentMedicationRecord.validate()` | — |
-| 6 | 頭書きのすべての要素が `ProfileProvenance`（`source_record_id` / `recorded_by` / `recorded_on`）を持つ。薬歴に由来しない直接編集は許可しない | `PatientMedicalProfile.validate()` | — |
+| 6 | 頭書きのすべての要素が `ProfileProvenance`（`source_record_id` / `recorded_by` / `recorded_on`）を持つ。薬歴に由来しない直接編集は許可しない | **公開APIの形**（状態変更は `apply(record)` のみ。由来は薬歴から組み立てる） | — |
 | 7 | 確定済（`FINALIZED`）の薬歴は `update_draft_soap()` を受け付けない。修正は `amend()` による追記のみ | `MedicationHistoryRecord.update_draft_soap()` | — |
-| 8 | `dispensing_id` が指す調剤セッションが同一法人・同一患者のものであること | Domain Service | `DispensingProcess` 集約 |
+| 8 | `dispensing_id` が指す調剤セッションが同一法人・同一患者のものであること | **構築の形**（`StartMedicationHistoryUseCase` が法人・患者・処方箋IDを取得済みの `DispensingProcess` からそのまま取る） | — |
 | 9 | `PatientMedicalProfile.patient_id` は法人内で一意 | Repository契約 | — |
 | 10 | 同一 `dispensing_id` に対する `FINALIZED` の薬歴は1件以下 | Repository契約 | — |
 
-> #1・#8 は他集約を参照するため `validate()` に書いてはならない。#9・#10 は Application の事前 read では原子性を担保できないため、`save()` が同じ集約IDを除外した上で原子的に拒否する契約とする（AGENTS.md「Repositoryの最終防衛」）。
+> #1 は他集約を参照するため `validate()` に書いてはならない。#8 は当初 Domain Service を割り当てていたが、UseCase が調剤セッションから値を取る限り**食い違う組み合わせを構築できない**ため、判定を置いても1度も raise されない（§8.1）。#9・#10 は Application の事前 read では原子性を担保できないため、`save()` が同じ集約IDを除外した上で原子的に拒否する契約とする（AGENTS.md「Repositoryの最終防衛」）。
 
 ---
 
@@ -508,16 +509,36 @@ class PatientMedicalProfileRepository(Protocol):
 
 ---
 
-## 8. 実装時に更新が必要な強制点
+## 8. 実装済みの強制点
 
-| 更新対象 | 内容 |
+以下は**すでに機械が守っている**。壊すと `pytest` か静的チェッカが落ちる。
+
+| 強制点 | 守っている仕組み |
 | :--- | :--- |
-| `pyproject.toml` `[tool.import_rules.forbidden]` | `app.domain.medication_history` から Claim / Coverage 台帳 / Patient・Store の Aggregate への直接依存を禁止。`Dispensing` は `DispensingId` のみを参照する |
-| `tests/domain/test_lifecycle_dialects.py` の `LIFECYCLE_DIALECTS` | **`"MedicationHistoryRecord": "status_enum"` と `"PatientMedicalProfile": "none"` の2行を追加**。表に行が無い集約は必ず落ちる |
-| `tests/contracts/test_repository_contracts.py` | `PatientMedicalProfileRepository.save()` の `patient_id` 一意契約、`MedicationHistoryRepository.save()` の `dispensing_id` 一意契約を追加 |
-| `pyproject.toml` `[tool.fake_rules]` | `tests/fakes/` に2つの InMemory 実装を置く際にパスを追加 |
-| `okf/ddd/domain.md` §1.1 / §7 / §8 | コンテキスト相関図・ライフサイクル方言表・リポジトリ一覧に MedicationHistory を追加 |
-| `AGENTS.md`「コンテキストは…7つ」 | コンテキスト数と一覧を更新 |
-| `okf/index.md` | 「現在の実装マップ」へ MedicationHistory を追加し、本文書の `status` を `active` へ変更 |
+| 他コンテキストへの依存の向き | `[tool.import_rules.forbidden]` の `app.domain.medication_history` / `app.application.medication_history` の行 |
+| **2つの集約が調剤セッション集約を読めないこと** | 同上の集約モジュール個別の行（Domain Service だけが `DispensingProcess` を import できる） |
+| 無効化方言 | `tests/domain/test_lifecycle_dialects.py` の `"MedicationHistoryRecord": "status_enum"` / `"PatientMedicalProfile": "none"` |
+| `save()` の一意性（#9 / #10） | `tests/contracts/test_repository_contracts.py`（`tests/fakes/` を自動列挙） |
+| **`ConcurrentMedicationRecord` に `is_active` を足さないこと** | `tests/domain/test_active_flag_placement.py`。`app/domain` と `app/base/domain` の全 dataclass を走査し、`is_active` を持つクラスの集合を表で固定する |
+| 頭書きが薬歴から再構築できること（ADR-4） | `tests/domain/medication_history/test_profile_projection.py`。逐次適用と一括再構築の一致・入力順非依存・決定性を固定する |
+| 権限の分類 | `policy.py` の `_verify_permission_classification()` |
 
-> **`is_active` に関する注意（§3.2 の再掲）**: `ConcurrentMedicationRecord` は集約ルートではないため、`is_active: bool` を足しても `test_lifecycle_dialects.py` は落ちない。仕組みで守れない箇所なので、レビュー時に必ず確認すること。
+### 8.1 実装時に判明した仕様書の誤り
+
+| 箇所 | 誤り | 対応 |
+| :--- | :--- | :--- |
+| §5 #8 の守り手 | 「Domain Service」。だが UseCase が調剤セッションから法人・患者・処方箋IDを取る限り**構築できない状態**であり、判定は1度も真にならない | Domain Service を削除し、守り手を「構築の形」とした。`Command` に `patient_id` が無いことをテストで固定 |
+| §5 #6 の守り手 | 「`PatientMedicalProfile.validate()`」。だが構築時検証では「薬歴に由来しない直接編集」を防げない | 状態変更を `apply(record)` **1つに絞った**。個別の `register_*` は公開しない |
+| §3.2 `is_active` 禁止 | 「レビューだけが歯止め」としていた | 走査テストで守るようにした（レビューは仕組みではない） |
+| §3 `LifestyleProfile lifestyle` | 非Optional。だが全要素が由来を持つ以上、未投影の状態を表せない | `LifestyleProfile | None` に変更した |
+
+---
+
+## 9. 未解決のまま残していること
+
+| 項目 | 状態 |
+| :--- | :--- |
+| 確定時のトランザクション境界 | `save(record)` と `save(profile)` が同一トランザクションに無い。`UnitOfWork` が無いため、**頭書きを投影と定義して回復可能性で代替**している（§2.2）。回復手段は `RebuildPatientMedicalProfileUseCase` |
+| 3年保存の運用 | 保存期間（施行規則第16条・通則(6)）は永続化実装の責務。ドメインには表現していない |
+| 調剤録としての利用 | 薬歴は調剤録を兼ねうるが、施行規則第16条の記載事項を満たすかの検証は未実装 |
+| 永続化実装 | 無い |

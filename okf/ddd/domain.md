@@ -3,7 +3,7 @@ type: Guideline
 title: Domain層 実装ガイドライン & 詳細仕様書
 description: PharmacyDomain におけるドメイン層の設計思想、構成要素、基底クラスの役割、および全7コンテキスト（Corporate, Store, Staff, Patient, Coverage, Reception, Claim）とShared Kernelの詳細仕様・不変条件・実装パターン。
 okf_version: "0.2"
-timestamp: 2026-08-23T00:00:00Z
+timestamp: 2026-08-29T00:00:00Z
 status: active
 tags: [backend, domain, primitives, value-object, ddd, architecture, reference]
 ---
@@ -28,6 +28,8 @@ flowchart TD
         VO[ValueObject]
         FG[field_guard]
         PR[priority_rules]
+        MED[medicine 薬品語彙]
+        DOS[dosage 用法語彙]
     end
 
     subgraph CoreContexts["コア・テナント / 組織"]
@@ -43,6 +45,17 @@ flowchart TD
         Claim["CoverageSnapshot (請求資格スナップショット)"]
     end
 
+    subgraph ReferenceData["参照マスタ（非テナント）"]
+        Medicine["Medicine (薬価基準収載品目 / 版付き参照データ)"]
+    end
+
+    subgraph PharmacyFlow["調剤の流れ"]
+        Prescription["Prescription (処方箋原本集約)"]
+        Dispensing["DispensingProcess (調剤セッション集約)"]
+        MedHistory["MedicationHistoryRecord (薬歴集約)"]
+        Profile["PatientMedicalProfile (頭書き / 投影)"]
+    end
+
     Store -. CorporateId .-> Corporate
     Staff -. CorporateId .-> Corporate
     Staff -. StoreId (所属履歴) .-> Store
@@ -53,7 +66,24 @@ flowchart TD
     Reception --> Claim
     Coverage --> SharedKernel
     Claim --> SharedKernel
+
+    Prescription -. CorporateId / StoreId / PatientId .-> Patient
+    Prescription -. CoverageSelectionRecordId .-> Reception
+    Dispensing -. PrescriptionId .-> Prescription
+    MedHistory -. DispensingId / PrescriptionId .-> Dispensing
+    MedHistory -- "確定時に投影" --> Profile
+    Prescription --> MED
+    Dispensing --> MED
+    MedHistory --> MED
+    Prescription --> DOS
+    Dispensing --> DOS
+    Prescription -. "規制区分（Boundary + アダプタ）" .-> Medicine
+    Medicine --> MED
 ```
+
+> **薬品語彙・用法語彙は Shared Kernel に置く。** どちらも「どの集約の同一性でもない」語彙であり、
+> 3コンテキストが同じものを必要とする。所有コンテキストへ置くと、薬歴が「他院で買ったOTCの名前」を
+> 表すために Prescription を import することになり、依存が語彙の実態と食い違う（`okf/log.md` ADR-9）。
 
 ### 1.2 DDD 構成要素
 
@@ -103,11 +133,29 @@ flowchart TD
 - `BaseTelephoneNumber`: 電話番号（0始まりの10桁または11桁、`field_name` でTEL/FAXを区別）。
 - `BaseEmailAddress`: メールアドレス（RFC準拠の正規表現チェック、最大254文字）。
 - `BaseNonNegativeInt` / `BasePositiveInt`: 0以上の整数 / 1以上の整数。
-- `BaseNonNegativeFloat` / `BasePositiveFloat`: 0.0以上の実数 / 0.0超の実数。
+- `BaseNonNegativeDecimal` / `BasePositiveDecimal`: 0以上 / 0超の `Decimal`（整数部・小数部の桁数を `ClassVar` で指定）。**用量に `float` は使わない**（`okf/log.md` ADR-10）。`float` からの生成は桁数チェックが弾く。
+- `BaseAwareTimestamp`: タイムゾーン付き日時（UTCへ正規化。naive は「どのタイムゾーンで記録されたか」を復元できず監査に使えないので拒否）。
+- `ensure_digits()`: レセプト番号の桁数（保険者番号6/8桁など）を検証する共通関数。Coverage と Claim の重複を集約したもの。
 - `BasePersonName` / `BasePersonNameKana`: 人名（漢字・カナ。カナはNFKCで半角カナを全角カタカナへ自動正規化）。
 - `PersonNamePart` / `PersonNameKanaPart`: 姓・名それぞれの単一パーツ。
 
-### 2.3 共通 Value Object (`value_object.py`)
+### 2.3 薬品語彙 (`medicine.py`) と用法語彙 (`dosage.py`)
+
+Prescription / Dispensing / MedicationHistory の3コンテキストが共有する。**所有者のいない語彙**なので、
+所有コンテキストからの import ではなく Shared Kernel に置く（`PatientId` のような「集約の同一性」とは扱いが違う）。
+
+| ファイル | 主な型 |
+| :--- | :--- |
+| `medicine.py` | `MedicineCodeType` / `MedicineCode` / `MedicineIdentifier` / `MedicineName` / `MedicineUnit` / `DosageAmount` / `SingleDoseAmount` / `ConversionFactor` / `DispensingQuantity` / `RpNumber` / `MedicineLineNumber` / `DosageFormCategory` / `PublicExpenseBurden` |
+| `dosage.py` | `DosageCodeType` / `DosageCode` / `DosageName` / `DailyFrequency` / `DosageInstruction` |
+
+薬品の**規制区分**（`MedicineClassification` / `MedicineRestrictionFlag`）はここに置かない。
+これは「Prescription が Boundary から受け取る問い合わせ結果の形」であって共有語彙ではなく、
+`app/domain/prescription/value_objects.py` にある（`okf/log.md` ADR-14）。
+各フラグが `UNKNOWN` を持つのは、医薬品マスタを引けなかったときに「該当しない」と黙って
+答えないための fail-closed 設計である（ADR-11）。
+
+### 2.4 共通 Value Object (`value_object.py`)
 
 - `PersonName`: `last_name: PersonNamePart`, `first_name: PersonNamePart`（`full_name` プロパティを提供）。
 - `PersonNameKana`: `last_name: PersonNameKanaPart`, `first_name: PersonNameKanaPart`（`full_name` カナを提供）。
@@ -196,13 +244,20 @@ await repository.save(store)
 
 無効化の表し方は4方言に限られ、`tests/domain/test_lifecycle_dialects.py` がこの割り当てを凍結しています。
 
+`dated_activation` は**語彙が集約ごとに違う**（資格は有効化/無効化、医薬品マスタは収載/経過措置）。分類器は認める語彙の組を `_DATED_ACTIVATION_VOCABULARIES` に列挙しており、新しい語彙で日付つき無効化を実装するときはここへ組を足す（足さないと `none` と誤分類される）。
+
 | 方言 | 表現 | 該当する集約 | 一意キー再利用 | 理由・業務判断 |
 | :--- | :--- | :--- | :---: | :--- |
 | `none` | 無効化の概念を持たない | `Store`, `Patient`, `CoverageSelectionRecord` | - | 閉局・患者削除の要求ユースケースが未導入のため。 |
+| `none` | 無効化の概念を持たない | `PatientMedicalProfile` | - | 頭書きは薬歴からの投影なので「無効化」という状態が無い。要素の終了は併用薬の `ended_on` など要素側の期間で表す。 |
 | `active_flag` | `is_active: bool` | `Staff` | **不可** | 過去の調剤録・監査証跡の追跡性を保護するため、スタッフコードは再利用させない。 |
 | `active_flag` | `is_active: bool` | `PatientExternalIdentifier` | **可** | 誤った患者へ紐付けた外部IDを無効化してから正しい患者へ付け替えるため。 |
 | `status_enum` | `status: CorporateStatus` | `Corporate` | - | ベンダー管理者専用の有効化・無効化制御。 |
+| `status_enum` | `status: PrescriptionStatus` | `Prescription` | - | 受付済 → 調剤可能 → 調剤済。「疑義照会中」は状態にせず `has_open_inquiry` から導出する。 |
+| `status_enum` | `status: DispensingProcessStatus` | `DispensingProcess` | - | 調製中 → 最終鑑査済 → 交付済。鑑査不合格は状態を戻さず調製中に留める。 |
+| `status_enum` | `status: MedicationHistoryStatus` | `MedicationHistoryRecord` | - | 下書き → 確定済。確定後の修正は `amend()` による追記のみ（3年保存の監査に耐えるため）。 |
 | `dated_activation` | `activation: CoverageActivation` | `PatientCoverage` | - | `[activated_on, deactivated_on)` による半開区間管理。 |
+| `dated_activation` | `effective_period: MedicineEffectivePeriod` | `Medicine` | - | 収載日〜経過措置期限。**期限当日までは使えるので閉区間** `[listed_on, withdrawn_on]` であり、資格の半開区間とは区間の取り方が違う。 |
 
 ---
 
@@ -224,6 +279,11 @@ Domain Repository は集約を永続化・再構築するための抽象（`Prot
 | `PatientExternalIdentifierRepository` | `app/domain/patient/repository.py` | `get()`, `get_active_by_source()`, `list_by_patient()`, `save()`（有効行原子的重複拒否） |
 | `PatientCoverageRepository` | `app/domain/coverage/repository.py` | `get()`, `list_by_patient()`, `save()`（実効期間原子的競合拒否） |
 | `CoverageSelectionRecordRepository` | `app/domain/reception/repository.py` | `save(record)`（履歴保存・一意制約なし）, `get_latest(*, corporate_id, store_id, patient_id)` |
+| `PrescriptionRepository` | `app/domain/prescription/repository.py` | `get()`, `get_by_document_number()`, `list_by_patient()`, `save()`（**電子処方箋のときだけ**引換番号の原子的重複拒否） |
+| `DispensingProcessRepository` | `app/domain/dispensing/repository.py` | `get()`, `list_by_prescription()`（`iteration` 昇順・自局分のみ）, `save()`（`(corporate_id, prescription_id, iteration)` の原子的重複拒否） |
+| `MedicationHistoryRepository` | `app/domain/medication_history/repository.py` | `get()`, `get_by_dispensing()`（確定済のみ）, `list_by_patient()`（`counseled_at` 降順）, `save()`（同一調剤の**確定済**の原子的重複拒否） |
+| `PatientMedicalProfileRepository` | `app/domain/medication_history/repository.py` | `get_by_patient()`（未投影は `None`）, `save()`（`patient_id` の原子的重複拒否） |
+| `MedicineCatalogRepository` | `app/domain/medicine_catalog/repository.py` | **法人IDを取らない**。`get()`, `find_effective(identifier, as_of)`, `list_versions()`, `save()`（同一薬品コードの収載期間の原子的重複拒否） |
 
 ---
 
@@ -526,6 +586,47 @@ classDiagram
 - **スナップショットの必須項目**: `InsuranceCoverageSnapshot.benefit_ratio` は患者負担額決定のため**必須**。
 - **順位規則の最終防衛**: 公費は第一公費から欠番なく連続（Shared Kernel の `find_priority_violation`）。
 - **番号桁数の防衛線**: `ClaimInsurerNumber`(6/8桁), `ClaimPublicPayerNumber`(8桁), `ClaimPublicRecipientNumber`(7桁), `ClaimCoverageBranchNumber`(2桁)。
+
+### 9.8 Prescription（処方箋）コンテキスト (`app/domain/prescription/`)
+
+医師・歯科医師が交付した処方箋原本の完全性と、薬剤師法第24条に基づく疑義照会を管理する。
+詳細は [処方箋コンテキスト 詳細仕様書](prescription.md)。
+
+- **集約**: `Prescription`（`PrescriptionRp` → `PrescriptionMedicine` の2段の入れ子と、`PrescriptionInquiry`（Entity）を持つ）。
+- **受領元で使えるコードが違う**: `MedicineCodeType` は JAHIS（紙）で7種、電子処方箋（処方編 別表15）で3種。`source_type` と組み合わせて初めて判定できる。
+- **「疑義照会中」を状態にしない**: `has_open_inquiry` から導出する。状態にすると、照会解決後の戻り先が `status` だけで決まらず、「照会中なのに未回答0件」という矛盾が構築できてしまう。
+- **集約を跨ぐ検証**: 麻薬3項目の必須（#5）、リフィル適用除外（#6）、公費負担の裏付け（#7）、照会実施者の資格（#8）は Domain Service が本物の値を受け取って判定する。
+
+### 9.9 Dispensing（調剤）コンテキスト (`app/domain/dispensing/`)
+
+1枚の処方箋に対する**1回ごと**の調剤作業・変更調剤・最終鑑査を管理する。
+詳細は [調剤コンテキスト 詳細仕様書](dispensing.md)。
+
+- **集約**: `DispensingProcess`（`DispensedRp` → `DispensedMedicine`）。1処方箋に対し 1..N。
+- **変更調剤は3軸**: 何を出したか（`substitution`）/ どれだけ出したか（`quantity_adjustment`）/ どう加工したか（`preparations`）。互いに排他ではないので単一の列挙では表現できない。
+- **調剤終了区分が処方箋を終わらせる**: `completion_type == COMPLETED` が `Prescription` を調剤済へ進める契機であり、「調剤回数が総使用回数に達したこと」ではない。
+- **加算の算定可否は持たない**: Claim コンテキストの責務。ここで排他にすると、実際に行った調製を記録できなくなる。
+
+### 9.10 MedicationHistory（薬歴・服薬指導）コンテキスト (`app/domain/medication_history/`)
+
+服薬指導記録（SOAP）と患者の継続的医療プロファイル（頭書き）を管理する。
+詳細は [薬歴コンテキスト 詳細仕様書](medication_history.md)。
+
+- **集約は2つ**: `MedicationHistoryRecord`（真の記録）と `PatientMedicalProfile`（**投影**）。
+- **頭書きは薬歴から決定的に再構築できる**: 状態変更は `apply(record)` だけで、由来（`ProfileProvenance`）は薬歴から組み立てる。これにより `save(record)` → `save(profile)` の後者が失敗しても回復できる（`UnitOfWork` の代わり）。
+- **確定後は追記のみ**: `amend()` は元の SOAP を書き換えず積む。調剤録は3年保存であり、遡って書き換えられる記録は監査に耐えない。
+- **併用薬に `is_active` を持たせない**: 継続中かは `ended_on` から導出する。子レコードなので方言表では守れず、`tests/domain/test_active_flag_placement.py` が代わりに守る。
+
+### 9.11 MedicineCatalog（医薬品マスタ）コンテキスト (`app/domain/medicine_catalog/`)
+
+薬価基準収載品目の**版付きの参照データ**。**このコンテキストだけがテナント境界を持たない。**
+
+- **集約**: `Medicine`（`MedicineEffectivePeriod` を持つ）。状態変更コマンドは無い。
+- **法人IDを持たない**: 薬価基準は国が定めるので法人ごとに違わない。`corporate_id` を付けて法人ごとに複製すると、改定のたびに全テナント分を更新する羽目になる。「自局で採用している薬か」はテナントごとの判断だが、それは別集約（自局採用薬・未実装）の責務。
+- **時点で引く**: `find_effective(identifier, as_of)`。麻薬指定も経過措置期限も改定で変わるので、「今」で引くと過去の処方を新しいマスタで判定してしまう。処方箋の判定に渡すのは**交付日**である。
+- **収載期間は閉区間**: `[listed_on, withdrawn_on]`。経過措置期限は「その日まで使える」を意味するため、資格の半開区間とは区間の取り方が違う。同じ形にすると期限当日の調剤を誤って弾く。
+- **生の事実だけを持つ**: 剤形・効能・麻薬区分・投与量限度。「リフィル適用除外の貼付剤か」は薬価基準ではなくリフィルの規則が定める組み合わせなので、`app/application/composition/medicine_restriction_adapter.py`（腐敗防止層）が導出する。
+- **権限**: 取り込み・参照とも `MANAGE_MEDICINE_CATALOG`（ベンダーシステム管理者専用）。法人管理者に与えると、1法人の操作で全法人のマスタが変わる。
 
 ---
 

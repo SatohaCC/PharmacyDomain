@@ -98,6 +98,10 @@ paths = ["app"]
     "app.application.coverage",
     "app.application.reception",
     "app.application.composition",
+    "app.application.prescription",
+    "app.application.dispensing",
+    "app.application.medication_history",
+    "app.application.medicine_catalog",
 ]
 # Corporate は他のApplicationコンテキストに依存しない。
 "app.application.corporate" = [
@@ -107,6 +111,10 @@ paths = ["app"]
     "app.application.coverage",
     "app.application.reception",
     "app.application.composition",
+    "app.application.prescription",
+    "app.application.dispensing",
+    "app.application.medication_history",
+    "app.application.medicine_catalog",
 ]
 # Store は Staff にも法人コンテキストの実装にも依存しない。
 "app.application.store" = [
@@ -116,6 +124,10 @@ paths = ["app"]
     "app.application.coverage",
     "app.application.reception",
     "app.application.composition",
+    "app.application.prescription",
+    "app.application.dispensing",
+    "app.application.medication_history",
+    "app.application.medicine_catalog",
 ]
 # Staff は法人コンテキストの実装に依存しない（Store への依存は一方向で許可）。
 "app.application.staff" = [
@@ -124,6 +136,10 @@ paths = ["app"]
     "app.application.coverage",
     "app.application.reception",
     "app.application.composition",
+    "app.application.prescription",
+    "app.application.dispensing",
+    "app.application.medication_history",
+    "app.application.medicine_catalog",
 ]
 # Patient は他のApplicationコンテキストに依存しない。
 "app.application.patient" = [
@@ -133,6 +149,10 @@ paths = ["app"]
     "app.application.coverage",
     "app.application.reception",
     "app.application.composition",
+    "app.application.prescription",
+    "app.application.dispensing",
+    "app.application.medication_history",
+    "app.application.medicine_catalog",
 ]
 # Coverage は法人・PatientのApplication実装に依存せず、ID参照と境界Protocolだけを使う。
 "app.application.coverage" = [
@@ -142,6 +162,10 @@ paths = ["app"]
     "app.application.patient",
     "app.application.reception",
     "app.application.composition",
+    "app.application.prescription",
+    "app.application.dispensing",
+    "app.application.medication_history",
+    "app.application.medicine_catalog",
 ]
 # Receptionは他コンテキストのApplication実装へ依存せず、参照Boundaryへ依存する。
 "app.application.reception" = [
@@ -150,6 +174,56 @@ paths = ["app"]
     "app.application.staff",
     "app.application.patient",
     "app.application.coverage",
+    "app.application.composition",
+    "app.application.prescription",
+    "app.application.dispensing",
+    "app.application.medication_history",
+    "app.application.medicine_catalog",
+]
+# Prescriptionは他コンテキストのApplication実装へ依存せず、参照Boundaryへ依存する。
+"app.application.prescription" = [
+    "app.application.corporate",
+    "app.application.store",
+    "app.application.staff",
+    "app.application.patient",
+    "app.application.coverage",
+    "app.application.reception",
+    "app.application.composition",
+]
+# Dispensingは他コンテキストのApplication実装へ依存せず、参照Boundaryへ依存する。
+"app.application.dispensing" = [
+    "app.application.corporate",
+    "app.application.store",
+    "app.application.staff",
+    "app.application.patient",
+    "app.application.coverage",
+    "app.application.reception",
+    "app.application.prescription",
+    "app.application.composition",
+]
+# MedicationHistoryは他コンテキストのApplication実装へ依存せず、参照Boundaryへ依存する。
+"app.application.medication_history" = [
+    "app.application.corporate",
+    "app.application.store",
+    "app.application.staff",
+    "app.application.patient",
+    "app.application.coverage",
+    "app.application.reception",
+    "app.application.prescription",
+    "app.application.dispensing",
+    "app.application.composition",
+]
+# 医薬品マスタのApplicationは、どのコンテキストのApplication実装にも依存しない。
+"app.application.medicine_catalog" = [
+    "app.application.corporate",
+    "app.application.store",
+    "app.application.staff",
+    "app.application.patient",
+    "app.application.coverage",
+    "app.application.reception",
+    "app.application.prescription",
+    "app.application.dispensing",
+    "app.application.medication_history",
     "app.application.composition",
 ]
 # CoverageはPatientのAggregate/Repositoryを直接参照せず、資格自身のIDと境界だけを扱う。
@@ -178,6 +252,88 @@ paths = ["app"]
     "app.domain.patient.repository",
     "app.domain.store.store",
     "app.domain.store.repository",
+]
+# Receptionは下流の処方箋・調剤・薬歴に依存しない（逆流の禁止）。
+"app.domain.reception.coverage_selection_record" = ["app.domain.prescription"]
+# 処方箋は下流コンテキストと資格台帳の集約・リポジトリを直接参照しない。
+# 他コンテキストの primitives（ID）は既存の Coverage→Patient と同じく許可する。
+"app.domain.prescription" = [
+    "app.domain.dispensing",
+    "app.domain.medication_history",
+    "app.domain.claim",
+    "app.domain.coverage",
+    "app.domain.patient.patient",
+    "app.domain.patient.external_identifier",
+    "app.domain.patient.repository",
+    "app.domain.store.store",
+    "app.domain.store.repository",
+    "app.domain.staff.staff",
+    "app.domain.staff.repository",
+    "app.domain.reception.coverage_selection_record",
+    "app.domain.reception.coverage_selection",
+    "app.domain.reception.repository",
+]
+# 調剤は下流コンテキストと資格台帳へ依存せず、他集約はID・Snapshot・Boundaryで参照する。
+# 処方箋については集約そのものを Domain Service が引数で受け取るため、
+# パッケージ全体では禁止せず、集約モジュールにだけ禁止を課す（下の行）。
+"app.domain.dispensing" = [
+    "app.domain.medication_history",
+    "app.domain.claim",
+    "app.domain.coverage",
+    "app.domain.reception",
+    "app.domain.patient.patient",
+    "app.domain.patient.external_identifier",
+    "app.domain.patient.repository",
+    "app.domain.store.store",
+    "app.domain.store.repository",
+    "app.domain.staff.staff",
+    "app.domain.staff.repository",
+]
+# 調剤セッション集約は処方箋集約を参照しない。
+# validate() から他集約を読めてしまうと、ロードできない検証を書けてしまう。
+"app.domain.dispensing.dispensing_process" = [
+    "app.domain.prescription.prescription",
+    "app.domain.prescription.repository",
+    "app.domain.prescription.services",
+]
+# 薬歴は下流の請求と資格台帳へ依存せず、上流はIDと集約の引き渡しだけで扱う。
+"app.domain.medication_history" = [
+    "app.domain.claim",
+    "app.domain.coverage",
+    "app.domain.reception",
+    "app.domain.patient.patient",
+    "app.domain.patient.external_identifier",
+    "app.domain.patient.repository",
+    "app.domain.store.store",
+    "app.domain.store.repository",
+    "app.domain.staff.staff",
+    "app.domain.staff.repository",
+    "app.domain.dispensing.repository",
+    "app.domain.prescription.prescription",
+    "app.domain.prescription.repository",
+]
+# 2つの集約は調剤セッション集約を参照しない。
+# validate() から他集約を読めてしまうと、ロードできない検証を書けてしまう。
+# 調剤との一致（不変条件 #8）は services.py が本物の集約を引数で受け取って判定する。
+"app.domain.medication_history.medication_history_record" = [
+    "app.domain.dispensing.dispensing_process",
+]
+"app.domain.medication_history.patient_medical_profile" = [
+    "app.domain.dispensing.dispensing_process",
+]
+# 医薬品マスタは全コンテキストの下流に置かず、どのコンテキストにも依存しない葉にする。
+# 薬価基準は国が定める参照データであり、テナントも患者も処方も知らない。
+"app.domain.medicine_catalog" = [
+    "app.domain.corporate",
+    "app.domain.store",
+    "app.domain.staff",
+    "app.domain.patient",
+    "app.domain.coverage",
+    "app.domain.reception",
+    "app.domain.claim",
+    "app.domain.prescription",
+    "app.domain.dispensing",
+    "app.domain.medication_history",
 ]
 
 [tool.pytest.ini_options]

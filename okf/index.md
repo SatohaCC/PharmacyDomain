@@ -3,7 +3,7 @@ type: Index
 title: PharmacyDomain Knowledge Base
 description: PharmacyDomain プロジェクトの設計ガイドライン、実装構成、現在の設計判断をまとめたナレッジベース
 okf_version: "0.2"
-timestamp: 2026-08-23T00:00:00Z
+timestamp: 2026-08-29T00:00:00Z
 status: active
 tags: [okf, index, pharmacy-domain, ddd, architecture]
 ---
@@ -12,11 +12,11 @@ tags: [okf, index, pharmacy-domain, ddd, architecture]
 
 PharmacyDomain プロジェクトの設計方針、DDDのガイドライン、現在の実装構成を確認するための入口です。
 
-現在は、法人（`Corporate`）・店舗（`Store`）・スタッフ（`Staff`）・患者（`Patient`）・患者資格（`Coverage`）・受付（`Reception`）・請求（`Claim`）の7コンテキストについて、ドメインモデルとApplicationユースケースを実装しています（Claimは現在ドメイン層のみ）。認証基盤とは分離したApplication側のAccess Control境界も定義しています。
+現在は、法人（`Corporate`）・店舗（`Store`）・スタッフ（`Staff`）・患者（`Patient`）・患者資格（`Coverage`）・受付（`Reception`）・請求（`Claim`）・処方箋（`Prescription`）・調剤（`Dispensing`）・薬歴（`MedicationHistory`）・医薬品マスタ（`MedicineCatalog`）の11コンテキストについて、ドメインモデルとApplicationユースケースを実装しています（Claimは現在ドメイン層のみ）。認証基盤とは分離したApplication側のAccess Control境界も定義しています。
 APIのシステムエンドポイントは `app/main.py` にありますが、これらのユースケースをHTTPへ接続するAPIルートはまだ実装していません。
 Repositoryは`Protocol`のみで、具体的な永続化実装もまだありません（テスト用のインメモリ実装だけが存在します）。
 
-このほかに、**処方箋（`Prescription`）・調剤（`Dispensing`）・薬歴（`MedicationHistory`）の3コンテキストは仕様書のみを先行作成しており、コードは1行も存在しません**（`status: draft`）。実装に着手するときは、各仕様書末尾の「実装時に更新が必要な強制点」を必ず参照してください。
+永続化実装（`app/infra/`）とHTTPルート（`app/presentational/`）は全コンテキストで未着手です。Repository は Protocol と `tests/fakes/` のインメモリ実装までで、本番DBでの競合安全性は未解決として扱います。
 
 ## アーキテクチャ概要
 
@@ -41,10 +41,10 @@ RepositoryはDomain側で抽象化し、具体的なデータストアへの依�
 | 文書 | 内容 |
 | :--- | :--- |
 | [OKF 実装・記述・運用ルール](rules.md) | Google Cloud Platform `knowledge-catalog` (OKF v0.2) 仕様に基づく、当リポジトリのナレッジベース構築・Frontmatter仕様・保守ルール |
-| [Domain層 実装ガイドライン & 詳細仕様書](ddd/domain.md) | Domain Primitive、Value Object、Entity、Aggregate Root、Domain Service、Repository の設計思想、および全7コンテキストと Shared Kernel の詳細仕様・不変条件 |
-| [Prescriptionコンテキスト 詳細仕様書](ddd/prescription.md) | **（設計のみ・未実装 / draft）** JAHIS・電子処方箋規格に基づく処方箋原本集約、Rp明細、用法用量、疑義照会、不変条件の仕様 |
-| [Dispensingコンテキスト 詳細仕様書](ddd/dispensing.md) | **（設計のみ・未実装 / draft）** リフィル・分割調剤対応の調剤セッション、変更調剤（代替・数量調整・調製方法の3軸）、調剤鑑査の仕様 |
-| [MedicationHistoryコンテキスト 詳細仕様書](ddd/medication_history.md) | **（設計のみ・未実装 / draft）** 電子薬歴の中核（SOAP指導記録）、服薬指導薬剤師、かかりつけ管理、患者医療プロファイル（頭書き）の仕様 |
+| [Domain層 実装ガイドライン & 詳細仕様書](ddd/domain.md) | Domain Primitive、Value Object、Entity、Aggregate Root、Domain Service、Repository の設計思想、および全11コンテキストと Shared Kernel の詳細仕様・不変条件 |
+| [Prescriptionコンテキスト 詳細仕様書](ddd/prescription.md) | JAHIS・電子処方箋規格に基づく処方箋原本集約、Rp明細、用法用量、疑義照会、不変条件の仕様 |
+| [Dispensingコンテキスト 詳細仕様書](ddd/dispensing.md) | リフィル・分割調剤対応の調剤セッション、変更調剤（代替・数量調整・調製方法の3軸）、調剤鑑査の仕様 |
+| [MedicationHistoryコンテキスト 詳細仕様書](ddd/medication_history.md) | 電子薬歴の中核（SOAP指導記録）、服薬指導薬剤師、かかりつけ管理、患者医療プロファイル（頭書き）の仕様 |
 | [Application層の実装ガイドライン](ddd/application.md) | UseCase、Command / Response DTO、DI、例外、ユースケースの処理フロー、テスト方針 |
 | Access Control（`app/application/access_control/`） | `ActorContext`、ロール・権限、法人スコープ、対象法人の存在・有効状態の確認 |
 | [テスト層の実装ガイドライン](testing.md) | AAAパターン、Domain / Applicationテスト、Fake Repository、例外、非同期テスト |
@@ -60,15 +60,20 @@ RepositoryはDomain側で抽象化し、具体的なデータストアへの依�
 **Domain（`app/base/domain/`）**
 
 - `primitives/base.py` — `DomainPrimitive[T]`（frozen、生成時に `_normalize()` → `validate()`）
-- `primitives/primitives.py` — `EntityUUID`（UUIDv7）、`EntityStringId`、`BaseNormalizedString`、`BasePostalCode`、`BaseAddress`、`BaseFreeText`、`BaseDate`、`BaseTelephoneNumber`、`BaseEmailAddress`、`BaseNonNegativeInt` / `BasePositiveInt`、`BaseNonNegativeFloat` / `BasePositiveFloat`
+- `primitives/primitives.py` — `EntityUUID`（UUIDv7）、`EntityStringId`、`BaseNormalizedString`、`BasePostalCode`、`BaseAddress`、`BaseFreeText`、`BaseDate`、`BaseTelephoneNumber`、`BaseEmailAddress`、`BaseNonNegativeInt` / `BasePositiveInt`、`BaseNonNegativeDecimal` / `BasePositiveDecimal`、`BaseAwareTimestamp`、`ensure_digits()`
 - `primitives/person_primitives.py` — `BasePersonName`、`BasePersonNameKana`（NFKCで半角カナを全角へ正規化）
 - `entity.py` — `Entity[ID]` と `AggregateRoot[ID]`（いずれも `frozen=True, eq=False, kw_only=True`）
 - `value_object.py` — `PersonName`、`PersonNameKana`、`PersonNames`
+- `medicine.py` — 薬品語彙（`MedicineIdentifier`、`MedicineName`、`DosageAmount`、`DosageFormCategory`、`PublicExpenseBurden` ほか）
+- `dosage.py` — 用法語彙（`DosageInstruction`、`DosageCodeType`、`DosageCode`、`DosageName`、`DailyFrequency`）
+- `priority_rules.py` — `find_priority_violation()`（公費順位の規則）
 - `exceptions.py` — `DomainError` と `DomainValidationError`
 
 **Application（`app/base/application/`）**
 
 - `exceptions.py` — `ApplicationError`、`NotFoundError`（404相当）、`AuthorizationError`（403相当）
+- `clock.py` — `Clock`（現在時刻を外側から供給する境界。`date.today()` / naive な `datetime.now()` は ruff `DTZ` が禁止する）
+- `support.py` — `to_optional_text()`（空文字を `None` へ正規化。各コンテキストの `support.py` は再エクスポートのみ）
 
 ### Corporateコンテキスト
 
@@ -272,22 +277,96 @@ Reception Applicationは `CorporateAccessBoundary` と店舗・患者・資格�
 
 Claimには請求時点で固定する `CoverageSnapshot` と専用プリミティブだけを置きます。Snapshotは医療保険0〜1件、公費0〜4件を表現し、公費順位の重複・欠番を最終防衛として拒否します。現在は到達可能なClaim Applicationユースケースがないため、Claim権限や `app/application/claim/` は定義しません。
 
+### Prescriptionコンテキスト
+
+実装場所: `app/domain/prescription/` / `app/application/prescription/`
+
+処方箋原本の完全性と疑義照会を管理します。詳細は [処方箋コンテキスト 詳細仕様書](ddd/prescription.md)。
+
+| ユースケース | 主な責務 |
+| :--- | :--- |
+| `RegisterPrescriptionUseCase` | 処方箋の受付登録。麻薬（#5）・リフィル適用除外（#6）・公費負担の裏付け（#7）を医薬品マスタ由来の事実で検証する |
+| `StartInquiryUseCase` / `ResolveInquiryUseCase` | 疑義照会の開始と回答。実施者の薬剤師資格を確認し、日時は注入 `Clock` から採る |
+| `ReadyForDispensingUseCase` | 処方内容の確定。未回答の疑義照会があるうちは進めない |
+| `CancelPrescriptionUseCase` / `GetPrescriptionUseCase` | 取消と取得 |
+
+**医薬品マスタが無いため、麻薬処方箋・リフィル処方箋の登録は fail-closed で失敗します。** `MedicineRestrictionBoundary` が `UNKNOWN` を返し、Domain Service がそれを拒否するためです。「マスタが無いので該当しない」と黙って通す実装にはしていません。
+
+### Dispensingコンテキスト
+
+実装場所: `app/domain/dispensing/` / `app/application/dispensing/`
+
+1回ごとの調剤作業・変更調剤・最終鑑査を管理します。詳細は [調剤コンテキスト 詳細仕様書](ddd/dispensing.md)。
+
+| ユースケース | 主な責務 |
+| :--- | :--- |
+| `StartDispensingUseCase` | 調剤セッションの開始。処方箋の指示（回数・使用期間・剤の対応・変更制限）との整合を `DispensingConsistencyService` が一括で検証する |
+| `RecordDispensedContentUseCase` | 変更調剤3軸の記録。**差し替えのたびに**変更制限を再検証する |
+| `RecordAuditUseCase` / `VerifyDispensingUseCase` | 処方鑑査（調製前）と最終鑑査（調製後） |
+| `CompleteDispensingUseCase` | 交付と完了。`completion_type == COMPLETED` のときだけ処方箋を調剤済へ進める |
+| `GetDispensingUseCase` / `ListDispensingsByPrescriptionUseCase` | 取得と一覧（自局実施分のみ） |
+
+調剤セッションと処方箋の2つの書き込みは同一トランザクションに入っていません（`UnitOfWork` が未実装）。実際に起きた事実である調剤セッションを先に確定させる順序で妥協しています。
+
+### MedicationHistoryコンテキスト
+
+実装場所: `app/domain/medication_history/` / `app/application/medication_history/`
+
+服薬指導記録（SOAP）と頭書きを管理します。詳細は [薬歴コンテキスト 詳細仕様書](ddd/medication_history.md)。
+
+| ユースケース | 主な責務 |
+| :--- | :--- |
+| `StartMedicationHistoryUseCase` | 薬歴の下書き作成。法人・患者・処方箋IDは調剤セッションからそのまま取る |
+| `UpdateMedicationHistoryDraftUseCase` | 下書きの SOAP と頭書き差分の差し替え |
+| `FinalizeMedicationHistoryUseCase` | 確定と頭書きへの投影。**`save(record)` → `save(profile)` の順** |
+| `AmendMedicationHistoryUseCase` | 確定済への追記（元の SOAP は書き換えない） |
+| `GetPatientMedicalProfileUseCase` / `RebuildPatientMedicalProfileUseCase` | 頭書きの取得と、薬歴からの再構築（保存失敗時の回復手段） |
+
+頭書きは薬歴からの投影であり、状態変更は `apply(record)` だけです。個別の `register_*` を公開しないことで、「薬歴に由来しない直接編集」を構造的に不可能にしています。
+
+### MedicineCatalogコンテキスト
+
+実装場所: `app/domain/medicine_catalog/` / `app/application/medicine_catalog/`
+
+薬価基準収載品目の**版付きの参照データ**です。**このコンテキストだけがテナント境界を持ちません。**
+
+| 特徴 | 内容 |
+| :--- | :--- |
+| 法人ID | 持たない。薬価基準は国が定めるので法人ごとに違わない |
+| 状態変更 | 無い。誰も作らず編集せず、外部から取り込む。訂正は新しい収載期間の行として積む |
+| 引き方 | `find_effective(identifier, as_of)`。麻薬指定も経過措置期限も時点で変わる |
+| 権限 | 取り込み・参照とも `MANAGE_MEDICINE_CATALOG`（ベンダーシステム管理者専用） |
+
+`Medicine` が持つのは**マスタの生の事実**（剤形・効能・麻薬区分・投与量限度）だけです。
+「リフィル適用除外の貼付剤か」は薬価基準ではなくリフィルの規則が定める組み合わせなので、
+`app/application/composition/medicine_restriction_adapter.py`（腐敗防止層）が導出して
+`MedicineRestrictionBoundary` を満たします。
+
+**これにより、麻薬処方箋・リフィル処方箋の登録が可能になりました。** マスタが無かった間は
+fail-closed で失敗していた経路です（分岐は1つも消していません）。
+
 ### テスト
 
 実装場所: `tests/`
 
-- `tests/domain/corporate/`、`tests/domain/store/`、`tests/domain/staff/`、`tests/domain/coverage/`、`tests/domain/reception/`、`tests/domain/claim/` — 集約、値オブジェクト、Domain Service、不変条件、Repository契約
+- `tests/domain/corporate/`、`tests/domain/store/`、`tests/domain/staff/`、`tests/domain/coverage/`、`tests/domain/reception/`、`tests/domain/claim/`、`tests/domain/prescription/`、`tests/domain/dispensing/`、`tests/domain/medication_history/` — 集約、値オブジェクト、Domain Service、不変条件
 - `tests/domain/test_lifecycle_dialects.py` — 集約ごとの無効化方言（4方言）と、無効化後の一意キー再利用可否の表
+- `tests/domain/test_active_flag_placement.py` — `is_active` を持ってよいクラスの表（集約ルートだけ。期間から導出できる子レコードに足すと落ちる）
 - `tests/domain/test_priority_rules.py` — Shared Kernel の公費順位共通検証関数
+- `tests/domain/test_decimal_primitives.py` — `Decimal` 基底。6,859通りの用量刻みで `float` が使えないことを固定する
+- `tests/domain/test_medicine.py` — Shared Kernel の薬品語彙
+- `tests/domain/medication_history/test_profile_projection.py` — 頭書きが薬歴から決定的に再構築できること（ADR-4）
+- `tests/domain/medicine_catalog/` — 収載期間・麻薬区分・リフィル適用除外の導出、非テナント境界
+- `tests/application/prescription/test_register_with_catalog.py` — マスタを配線すると麻薬・リフィル処方箋が登録できること、未収載なら依然として通らないこと
 - `tests/domain/test_person_names.py` — Shared Kernel の人名Value Object
 - `tests/domain/test_error_messages.py` — ドメイン例外の既定メッセージとエラーコード
-- `tests/application/corporate/`、`tests/application/store/`、`tests/application/staff/`、`tests/application/patient/`、`tests/application/coverage/`、`tests/application/reception/` — 各ユースケース
+- `tests/application/corporate/`、`tests/application/store/`、`tests/application/staff/`、`tests/application/patient/`、`tests/application/coverage/`、`tests/application/reception/`、`tests/application/prescription/`、`tests/application/dispensing/`、`tests/application/medication_history/` — 各ユースケース
 - `tests/application/access_control/` — Actorのロール、法人スコープ、存在・有効状態の検証
-- `tests/application/composition/` — Coverage台帳とReception境界をつなぐ実アダプタ
+- `tests/application/composition/` — Coverage台帳とReception境界、医薬品マスタとPrescription境界をつなぐ実アダプタ
 - `tests/contracts/` — Repositoryの `save()` 契約。対象実装を `tests/fakes/` から自動列挙するため、実装を足しても登録漏れが起きない
 - `tests/tools/` — 静的チェッカ本体と、CI・パッケージ構成のゴールデンテスト
-- `tests/fakes/` — インメモリRepository、Reception参照Boundary、`FakeClock`
-- `tests/factories/` — フィールドの多い集約を組み立てる既定値付きファクトリ（`store_factory.py` / `staff_factory.py`）
+- `tests/fakes/` — インメモリRepository、各コンテキストの参照Boundary、`FakeClock`
+- `tests/factories/` — フィールドの多い集約を組み立てる既定値付きファクトリ（`store_factory.py` / `staff_factory.py` / `prescription_factory.py` / `dispensing_factory.py` / `medication_history_factory.py`）
 
 インメモリRepositoryの`save()`は、本番の永続化層が持つ一意制約を模して重複時に例外を送出します。ユースケース側の事前チェックを外しても検知できる状態を保つためです。あわせて`save_count`を記録し、「変更が無ければ保存しない」ことを検証できるようにしています。
 

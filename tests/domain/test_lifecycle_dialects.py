@@ -9,10 +9,11 @@ UseCase が存在しないため、いま全集約へ広げるのは先回りに
 新しい集約が増えても、既存集約の方言が変わっても、下の表を編集しない限り
 pytest が落ちる。次に集約を足す人の目の前に必ずこの表が出てくる。
 
-既知の限界: 分類はフィールド名と宣言型で行うため、まったく新しい語彙
-（例 ``retirement: Retirement``）で既存集約に無効化を実装すると ``none`` と
-分類され、表と一致してしまい検出できない。一方、新しい集約は表に行が無いので
-必ず落ちる。最大の穴（集約が増えるたびに方言が増える）は塞がっている。
+既知の限界: 分類はフィールド名と宣言型で行うため、``_DATED_ACTIVATION_VOCABULARIES``
+にも ``is_active`` / ``status`` にも当てはまらない語彙（例 ``retirement: Retirement``）で
+既存集約に無効化を実装すると ``none`` と分類され、表と一致してしまい検出できない。
+一方、新しい集約は表に行が無いので必ず落ちる。最大の穴（集約が増えるたびに
+方言が増える）は塞がっている。
 """
 
 from __future__ import annotations
@@ -33,9 +34,26 @@ ALLOWED_DIALECTS = frozenset({"none", "active_flag", "status_enum", "dated_activ
 LIFECYCLE_DIALECTS: dict[str, str] = {
     "Corporate": "status_enum",
     "CoverageSelectionRecord": "none",
+    # 調剤調製中 → 最終鑑査済 → 交付済 と進み、中止は別の終端になる。
+    # 鑑査不合格は状態を戻さず ``IN_PROGRESS`` に留めるので、
+    # 「不合格なのに交付できる」状態を作らずに再調製へ入れる。
+    "DispensingProcess": "status_enum",
+    # 薬歴は下書き→確定と進み、確定後の修正は追記（amend）で積む。
+    # 遡って書き換えられる記録は3年保存の監査に耐えないため、状態を戻さない。
+    "MedicationHistoryRecord": "status_enum",
+    # 医薬品マスタは収載日〜経過措置期限で有効期間が決まる。期限当日までは
+    # 使えるので閉区間であり、資格の半開区間とは区間の取り方が違う。
+    "Medicine": "dated_activation",
     "Patient": "none",
+    # 頭書きは薬歴からの投影なので「無効化」という状態を持たない。
+    # 要素の終了は併用薬の ended_on など、要素側の期間で表す。
+    "PatientMedicalProfile": "none",
     "PatientCoverage": "dated_activation",
     "PatientExternalIdentifier": "active_flag",
+    # 受付済 → 調剤可能 → 調剤済 と進み、取消は別の終端になる。
+    # 「疑義照会中」は状態にせず ``has_open_inquiry`` から導出しているので、
+    # 方言は ``status_enum`` 1つに収まる。
+    "Prescription": "status_enum",
     "Staff": "active_flag",
     "Store": "none",
 }
@@ -51,7 +69,19 @@ ACTIVE_FLAG_KEY_REUSE: dict[str, bool] = {
     "Staff": False,
 }
 
-_DATED_ACTIVATION_FIELDS = frozenset({"activated_on", "deactivated_on"})
+#: ``dated_activation`` 方言として認めるフィールド名の組。
+#:
+#: 語彙は集約ごとに違う（資格は有効化/無効化、医薬品マスタは収載/経過措置）が、
+#: 「日付で有効期間が決まる」という表現は同じである。1組だけを見る実装だと、
+#: 別の語彙で日付つき無効化を実装した集約が ``none`` と誤分類され、表とも
+#: 一致してしまって検出できない（この検出漏れは以前このファイルの
+#: docstring が「既知の限界」として挙げていたもの）。
+#:
+#: 組を足すときは ``okf/ddd/domain.md`` の方言表も更新する。
+_DATED_ACTIVATION_VOCABULARIES: tuple[frozenset[str], ...] = (
+    frozenset({"activated_on", "deactivated_on"}),
+    frozenset({"listed_on", "withdrawn_on"}),
+)
 
 
 def _import_all_domain_modules() -> None:
@@ -94,6 +124,14 @@ def _resolved_field_types(cls: type[object]) -> dict[str, object]:
     return resolved
 
 
+def _is_dated_activation(annotation: type[object]) -> bool:
+    """フィールドの型が、日付で有効期間を表す語彙のいずれかに合致するかを返す。"""
+    field_names = {item.name for item in fields(annotation)}  # type: ignore[arg-type]
+    return any(
+        field_names >= vocabulary for vocabulary in _DATED_ACTIVATION_VOCABULARIES
+    )
+
+
 def _classify(cls: type[object]) -> str:
     """集約のライフサイクル方言を判定する。"""
     found: set[str] = set()
@@ -109,7 +147,7 @@ def _classify(cls: type[object]) -> str:
         elif (
             isinstance(annotation, type)
             and is_dataclass(annotation)
-            and {item.name for item in fields(annotation)} >= _DATED_ACTIVATION_FIELDS
+            and _is_dated_activation(annotation)
         ):
             found.add("dated_activation")
     if len(found) > 1:

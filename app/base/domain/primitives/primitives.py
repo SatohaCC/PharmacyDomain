@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any, ClassVar, Self
 
 from app.base.domain.exceptions import DomainValidationError
@@ -168,6 +169,41 @@ class BaseDate(DomainPrimitive[date]):
             )
 
 
+class BaseAwareTimestamp(DomainPrimitive[datetime]):
+    """タイムゾーン付き日時の基底クラス。UTCへ正規化して保持する。
+
+    naive な日時は「どのタイムゾーンで記録されたか」を復元できず監査に使えない
+    ため拒否する。同じ検証を各コンテキストへ書き写すと、片方だけ naive を
+    受け入れる実装に倒れるので、定義はここ1つに閉じる
+    （``ensure_digits`` と同じ理由）。
+
+    現在時刻の取得は行わない。値は注入された ``Clock`` 由来のものを受け取る
+    （AGENTS.md「資格の時間境界」。ruff ``DTZ005`` が裸の ``datetime.now()``
+    を禁止している）。
+    """
+
+    #: エラーメッセージに出す項目名。継承側で上書きする。
+    timestamp_name: ClassVar[str] = "日時"
+
+    def _normalize(self, value: datetime) -> datetime:
+        if not isinstance(value, datetime):
+            raise DomainValidationError(
+                f"{self.timestamp_name}は日時型で指定してください。"
+            )
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise DomainValidationError(
+                f"{self.timestamp_name}はタイムゾーン付きで指定してください。"
+            )
+        return value.astimezone(UTC)
+
+    def validate(self) -> None:
+        """日時型であることを検証する。"""
+        if not isinstance(self.value, datetime):
+            raise DomainValidationError(
+                f"{self.timestamp_name}は日時型で指定してください。"
+            )
+
+
 class BaseTelephoneNumber(DomainPrimitive[str]):
     """TELとFAXに共通するバリデーションを持つ基底クラス。継承して使う。"""
 
@@ -214,6 +250,27 @@ class BaseEmailAddress(BaseNormalizedString):
             raise DomainValidationError("メールアドレスの形式が不正です。")
 
 
+def ensure_digits(value: str, *, field_name: str, lengths: tuple[int, ...]) -> None:
+    """半角数字かつ規定桁数であることを検証する。
+
+    レセプト・処方箋で桁数が定まっている番号（保険者番号、公費負担者番号、
+    公費受給者番号、枝番、医療機関コード等）は、桁数が違えば提出時に返戻される。
+    登録時に弾かないと不正値がそのまま Snapshot へ凍結され、請求まで気付けない
+    ため、桁数はプリミティブの不変条件として持たせる。
+
+    同じ規則を Coverage / Claim / Prescription が必要とする。規則本体が複数箇所に
+    あると片方だけ直る事故が起きるので、Shared Kernel に1つだけ置く
+    （``priority_rules.py`` と同じ判断）。この関数は ``str`` と ``int`` しか
+    扱わないので「``app.base`` は利用側のコンテキストに依存しない」規則も破らない。
+    """
+    pattern = "|".join(f"[0-9]{{{length}}}" for length in lengths)
+    if not re.fullmatch(pattern, value):
+        expected = "桁または".join(str(length) for length in lengths)
+        raise DomainValidationError(
+            f"{field_name}は半角数字{expected}桁で指定してください。"
+        )
+
+
 class BaseNonNegativeInt(DomainPrimitive[int]):
     """0以上の整数を表す基底クラス。"""
 
@@ -233,20 +290,117 @@ class BasePositiveInt(BaseNonNegativeInt):
             raise DomainValidationError("値は正の値である必要があります。")
 
 
-class BaseNonNegativeFloat(DomainPrimitive[float]):
-    """0以上の実数を表す基底クラス（点数・用量・価格用）。"""
+class BaseNonNegativeDecimal(DomainPrimitive[Decimal]):
+    """0以上の十進数を表す基底クラス（用量・変換係数・点数用）。
+
+    ``float`` を使わない。用量には 0.05 刻みが実在し、二進浮動小数では
+    ``0.05 + 0.05 + 0.05`` が ``0.15`` と一致しない。処方箋の不均等服用は
+    「各回服用量の合計が1日量と一致すること」を不変条件に持つため、
+    ``float`` で実装すると正当な処方を弾く（実在する用量刻み19種から
+    3回分を総当りした 6,859 通りのうち 869 通り＝12.7% が不一致）。
+
+    コンストラクタは ``Decimal`` だけを受け取り、文字列からの復元は
+    :meth:`parse` に閉じ込める（``EntityUUID`` が ``uuid.UUID`` を直に
+    組み立てる箇所を1つにしているのと同じ形）。Python に十進数リテラルは
+    無いので、呼び出し側は ``DosageAmount(Decimal("1.5"))`` または
+    ``DosageAmount.parse("1.5")`` と書く。
+
+    ``Decimal(0.1)`` のように float 経由で作られた値は
+    ``0.1000000000000000055511151231257827021181583404541015625`` になり、
+    小数部55桁として :meth:`_ensure_digits_within_limit` が弾く。逆に
+    ``Decimal(0.5)`` は二進で厳密に表現できるため誤差を持たず、通ってよい。
+    桁数上限がそのまま「float 由来の誤差」の検出器として働く。
+    """
+
+    #: 整数部の最大桁数。派生クラスで上書きする。
+    max_integer_digits: ClassVar[int] = 12
+    #: 小数部の最大桁数。派生クラスで上書きする。
+    max_decimal_places: ClassVar[int] = 5
+    #: エラーメッセージに使う項目名。派生クラスで上書きする。
+    quantity_name: ClassVar[str] = "値"
+
+    def _normalize(self, value: Any) -> Any:
+        """型注釈を無視した呼び出しに備えた実行時の防御。
+
+        ``float`` は誤差を持ち込むため、値が入ってくる瞬間に拒否する。
+        後段で丸めても失われた情報は取り戻せない。
+        """
+        if isinstance(value, bool):
+            raise DomainValidationError(
+                f"{self.quantity_name}は数値である必要があります。"
+            )
+        if isinstance(value, float):
+            raise DomainValidationError(
+                f"{self.quantity_name}は誤差が入らないよう、floatではなく"
+                f"Decimalで指定してください。文字列からは parse() を使います。"
+                f"受け取った値: {value!r}。"
+            )
+        return value
+
+    @classmethod
+    def parse(cls, raw: str | int | Decimal) -> Self:
+        """外部入力（DBの列値・APIのリクエスト・CSV）から復元する。
+
+        Raises:
+            DomainValidationError: 十進数として解釈できない場合。呼び出し元が
+                HTTPの4xxへ変換できるよう ``InvalidOperation`` ではなく
+                ドメイン例外に統一している。
+        """
+        if isinstance(raw, Decimal):
+            return cls(raw)
+        try:
+            return cls(Decimal(str(raw).strip()))
+        except InvalidOperation as exc:
+            raise DomainValidationError(
+                f"{cls.quantity_name}は数値として解釈できる必要があります。"
+                f"受け取った値: {raw!r}。"
+            ) from exc
 
     def validate(self) -> None:
-        if not isinstance(self.value, (int, float)) or isinstance(self.value, bool):
-            raise DomainValidationError("値は数値である必要があります。")
+        if not isinstance(self.value, Decimal):
+            got = type(self.value).__name__
+            raise DomainValidationError(
+                f"{self.quantity_name}は数値である必要があります。受け取った型: {got}。"
+            )
+        if not self.value.is_finite():
+            raise DomainValidationError(
+                f"{self.quantity_name}は有限の数値である必要があります。"
+            )
         if self.value < 0:
-            raise DomainValidationError("値は0以上である必要があります。")
+            raise DomainValidationError(
+                f"{self.quantity_name}は0以上である必要があります。"
+            )
+        self._ensure_digits_within_limit()
+
+    def _ensure_digits_within_limit(self) -> None:
+        """整数部・小数部の桁数が規定内であることを検証する。"""
+        _sign, digits, exponent = self.value.as_tuple()
+        if not isinstance(exponent, int):
+            # NaN / Infinity のときだけ 'n' / 'N' / 'F' が入る。直前の
+            # is_finite() で除外済みだが、型としては到達しうるため潰す。
+            raise DomainValidationError(
+                f"{self.quantity_name}は有限の数値である必要があります。"
+            )
+        decimal_places = max(0, -exponent)
+        integer_digits = max(0, len(digits) + exponent)
+        if decimal_places > self.max_decimal_places:
+            raise DomainValidationError(
+                f"{self.quantity_name}の小数部は{self.max_decimal_places}桁以内で"
+                f"指定してください。"
+            )
+        if integer_digits > self.max_integer_digits:
+            raise DomainValidationError(
+                f"{self.quantity_name}の整数部は{self.max_integer_digits}桁以内で"
+                f"指定してください。"
+            )
 
 
-class BasePositiveFloat(BaseNonNegativeFloat):
-    """0より大きい正の実数を表す基底クラス。"""
+class BasePositiveDecimal(BaseNonNegativeDecimal):
+    """0より大きい十進数を表す基底クラス。"""
 
     def validate(self) -> None:
         super().validate()
         if self.value <= 0:
-            raise DomainValidationError("値は正の値である必要があります。")
+            raise DomainValidationError(
+                f"{self.quantity_name}は正の値である必要があります。"
+            )

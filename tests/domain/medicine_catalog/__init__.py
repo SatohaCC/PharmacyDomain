@@ -1,0 +1,1 @@
+"""MedicineCatalogドメイン層のテスト。"""

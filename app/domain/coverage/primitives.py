@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -16,6 +15,7 @@ from app.base.domain.primitives.primitives import (
     BaseNormalizedString,
     BasePositiveInt,
     EntityUUID,
+    ensure_digits,
 )
 from app.base.domain.value_object import ValueObject
 
@@ -40,21 +40,6 @@ class CoverageInsuredType(StrEnum):
     FAMILY = "family"
 
 
-def _ensure_digits(value: str, *, field_name: str, lengths: tuple[int, ...]) -> None:
-    """半角数字かつ規定桁数であることを検証する。
-
-    保険者番号や公費負担者番号は、桁数が違えば電子レセプトの提出時に返戻される。
-    登録時に弾かないと不正値がそのまま :class:`CoverageSnapshot` へ凍結され、
-    請求まで気付けないため、桁数はプリミティブの不変条件として持たせる。
-    """
-    pattern = "|".join(f"[0-9]{{{length}}}" for length in lengths)
-    if not re.fullmatch(pattern, value):
-        expected = "桁または".join(str(length) for length in lengths)
-        raise DomainValidationError(
-            f"{field_name}は半角数字{expected}桁で指定してください。"
-        )
-
-
 class CoverageCode(BaseNormalizedString):
     """被保険者番号など、桁数が規定されていない保険・公費の符号。"""
 
@@ -64,7 +49,7 @@ class InsurerNumber(BaseNormalizedString):
 
     def validate(self) -> None:
         super().validate()
-        _ensure_digits(self.value, field_name="保険者番号", lengths=(6, 8))
+        ensure_digits(self.value, field_name="保険者番号", lengths=(6, 8))
 
 
 class CoverageSymbol(BaseNormalizedString):
@@ -76,7 +61,7 @@ class CoverageBranchNumber(BaseNormalizedString):
 
     def validate(self) -> None:
         super().validate()
-        _ensure_digits(self.value, field_name="枝番", lengths=(2,))
+        ensure_digits(self.value, field_name="枝番", lengths=(2,))
 
 
 class CoveragePriority(BasePositiveInt):
@@ -102,7 +87,7 @@ class PublicPayerNumber(BaseNormalizedString):
 
     def validate(self) -> None:
         super().validate()
-        _ensure_digits(self.value, field_name="公費負担者番号", lengths=(8,))
+        ensure_digits(self.value, field_name="公費負担者番号", lengths=(8,))
 
 
 class PublicRecipientNumber(BaseNormalizedString):
@@ -110,7 +95,7 @@ class PublicRecipientNumber(BaseNormalizedString):
 
     def validate(self) -> None:
         super().validate()
-        _ensure_digits(self.value, field_name="公費受給者番号", lengths=(7,))
+        ensure_digits(self.value, field_name="公費受給者番号", lengths=(7,))
 
 
 class CoverageValidFrom(BaseDate):

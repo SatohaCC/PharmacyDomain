@@ -63,9 +63,9 @@ okf/
 ├── ddd/                # トピック別サブディレクトリ (例: DDD 関連)
 │   ├── domain.md              # Domain層 実装ガイドライン & 詳細仕様書
 │   ├── application.md         # Application層の実装ガイドライン
-│   ├── prescription.md        # Prescriptionコンテキスト 詳細仕様書 (draft)
-│   ├── dispensing.md          # Dispensingコンテキスト 詳細仕様書 (draft)
-│   └── medication_history.md  # MedicationHistoryコンテキスト 詳細仕様書 (draft)
+│   ├── prescription.md        # Prescriptionコンテキスト 詳細仕様書
+│   ├── dispensing.md          # Dispensingコンテキスト 詳細仕様書
+│   └── medication_history.md  # MedicationHistoryコンテキスト 詳細仕様書
 └── refa/               # 外部参照資料 (PDF、公的文書等)
 ```
 

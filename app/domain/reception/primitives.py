@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from typing import ClassVar
 
-from app.base.domain.exceptions import DomainValidationError
-from app.base.domain.primitives.base import DomainPrimitive
 from app.base.domain.primitives.primitives import (
+    BaseAwareTimestamp,
     BaseDate,
     BaseNormalizedString,
     EntityUUID,
@@ -29,21 +28,10 @@ class CoverageAppliedOn(BaseDate):
     """受付で資格を適用する業務日。"""
 
 
-class CoverageRecordedAt(DomainPrimitive[datetime]):
+class CoverageRecordedAt(BaseAwareTimestamp):
     """資格選択を記録したUTC時刻。"""
 
-    def _normalize(self, value: datetime) -> datetime:
-        if not isinstance(value, datetime):
-            raise DomainValidationError("記録時刻は日時型で指定してください。")
-        if value.tzinfo is None or value.utcoffset() is None:
-            raise DomainValidationError(
-                "記録時刻はタイムゾーン付きで指定してください。"
-            )
-        return value.astimezone(UTC)
-
-    def validate(self) -> None:
-        if not isinstance(self.value, datetime):
-            raise DomainValidationError("記録時刻は日時型で指定してください。")
+    timestamp_name: ClassVar[str] = "記録時刻"
 
 
 class OperatorPrincipalId(BaseNormalizedString):

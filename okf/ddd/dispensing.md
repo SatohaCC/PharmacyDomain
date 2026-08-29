@@ -3,8 +3,8 @@ type: Specification
 title: 調剤（Dispensing）コンテキスト 詳細仕様書 & ドメイン設計ガイドライン
 description: 処方箋に対する1回ごとの調剤セッション（リフィル/分割調剤 1..N対応）、変更調剤（代替調剤・数量調整・調製方法の3軸）、調剤薬剤師・鑑査薬剤師の紐付けと不変条件を定義。
 okf_version: "0.2"
-timestamp: 2026-08-23T00:00:00Z
-status: draft
+timestamp: 2026-08-28T00:00:00Z
+status: active
 tags: [backend, domain, dispensing, verification, substitution, generic, ddd, architecture, reference]
 sources:
   - "薬剤師法 第19条・第23条・第25条の2・第26条"
@@ -14,7 +14,8 @@ sources:
 
 # 調剤（Dispensing）コンテキスト 詳細仕様書 & ドメイン設計ガイドライン
 
-> **本文書のステータス**: `draft`（設計のみ・未実装）。`app/domain/dispensing/` は存在しない。実装着手時は [§8 実装時に更新が必要な強制点](#8-実装時に更新が必要な強制点) を必ず参照すること。
+> **本文書のステータス**: `active`（実装済み）。実装は `app/domain/dispensing/` と `app/application/dispensing/` にある。
+> 設計と実装が食い違ったときは**実装が正**であり、本文書を直す。実装が守っている強制点は [§8](#8-実装済みの強制点) を参照。
 
 ## 1. 概要と境界定義（Bounded Context）
 
@@ -229,7 +230,7 @@ flowchart TD
 | `DOSAGE_FORM_CHANGE` | 剤形変更調剤（例: 普通錠から口腔内崩壊錠・散剤） |
 
 - **`ORIGINAL_AS_PRESCRIBED` という値は持たない。** 処方どおりの場合は `substitution is None` である。「処方どおり」を表す値と `None` の両方があると、同じ事実に2通りの表現ができてしまう。
-- `SubstitutionDetail` が存在するとき `original_identifier` / `original_name` は**必須**（何から変えたか分からない代替調剤は記録として無意味）。
+- `SubstitutionDetail` が存在するとき `original_identifier` / `original_name` は**必須**（何から変えたか分からない代替調剤は記録として無意味）。型で必須にしてあるので欠落は構築できない。実装が拒否するのは「**変更前と変更後が同一**」の方（§5 #9）。
 - `Prescription` 側の `GenericSubstitutionRestriction`（別表16 の 3〜6・8）と矛盾する代替は許されない。これは処方箋集約を参照するため Domain Service が判定する（§5 不変条件 #8）。
 
 ### 3.2 軸2: 数量調整（`QuantityAdjustmentReason`）
@@ -287,8 +288,8 @@ Claim 側が持つべき排他ルール（保険調剤の理解のために 令�
 | 6 | リフィル**2回目以降**の調剤日は、前回セッションが記録した `next_dispensing_date` の**前後7日以内**であること | Domain Service | 同一処方箋の前回 `DispensingProcess` |
 | 7 | 減数調剤（`QuantityAdjustment`）では用法・用量を変更せず、数量のみを減らす。`quantity < prescribed_quantity` かつ `quantity > 0` | `DispensedRp.validate()` | — |
 | 8 | 代替調剤が処方箋の `GenericSubstitutionRestriction`（後発品変更不可・剤形変更不可・含量規格変更不可・先発医薬品患者希望）に反しないこと | Domain Service | `Prescription` の該当薬品 |
-| 9 | `SubstitutionDetail` が存在するとき `original_identifier` / `original_name` が欠落しないこと | `SubstitutionDetail.validate()` | — |
-| 10 | `dispenser_id` と `verification.verifier_id` はいずれも薬剤師資格（`StaffQualification.PHARMACIST`）を保持する保険薬剤師であること | Domain Service | `Staff` 集約 |
+| 9 | ~~`SubstitutionDetail` が存在するとき `original_identifier` / `original_name` が欠落しないこと~~ → **判定不能**。どちらも必須フィールドなので型が既に保証している。実装では代わりに「**変更前と変更後が同一の代替調剤**」を拒否する（`SubstitutionWithoutChangeError`）。判定に調剤後の値が要るため守り手は `DispensedMedicine` | `DispensedMedicine.validate()` | — |
+| 10 | `dispenser_id` と `verification.verifier_id` はいずれも薬剤師資格（`StaffQualification.PHARMACIST`）を保持する保険薬剤師であること | Domain Service（`DispensingPharmacistService`） | `StaffQualifications`（`StaffQualificationBoundary` 経由） |
 | 11 | 調剤を行った本人（`dispenser_id`）と鑑査を行った本人（`verifier_id`）が**それぞれ**記録されていること（管理薬剤師による一括代行署名の禁止） | `DispensingProcess.validate()` | — |
 | 12 | `DispensingProcessStatus.COMPLETED` へ遷移するには `DispensingVerification.result == PASSED` が記録済みであること | `DispensingProcess.complete()` | — |
 | 13 | `dispensed_rps` は1件以上。`RpNumber` は処方箋の Rp 番号に対応すること | 件数は `DispensingProcess.validate()`<br/>対応は Domain Service | `Prescription.rps` |
@@ -312,7 +313,7 @@ stateDiagram-v2
 | `IN_PROGRESS` | 調剤調製中。処方鑑査・調製・変更調剤の記録が可能 |
 | `VERIFIED` | 最終鑑査に合格。交付待ち |
 | `COMPLETED` | 患者へ交付済みの終端状態。参照のみ |
-| `CANCELLED` | 調剤中止の終端状態。参照のみ |
+| `CANCELLED` | 調剤中止の終端状態。参照のみ。**中止理由（`cancellation_reason`）を必須で保持する**（理由の無い中止は調剤録の記載として再現できない） |
 
 ---
 
@@ -378,14 +379,38 @@ class DispensingProcessRepository(Protocol):
 
 ---
 
-## 8. 実装時に更新が必要な強制点
+## 8. 実装済みの強制点
 
-| 更新対象 | 内容 |
+以下は**すでに機械が守っている**。壊すと `pytest` か静的チェッカが落ちる。
+
+| 強制点 | 守っている仕組み |
 | :--- | :--- |
-| `pyproject.toml` `[tool.import_rules.forbidden]` | `app.domain.dispensing` から MedicationHistory / Claim / Coverage 台帳 / Patient・Store の Aggregate への直接依存を禁止。`Prescription` 集約は Domain Service が引数で受け取るため直接 import は不要 |
-| `tests/domain/test_lifecycle_dialects.py` の `LIFECYCLE_DIALECTS` | **`"DispensingProcess": "status_enum"` の行を追加**。表に行が無い集約は必ず落ちる |
-| `tests/contracts/test_repository_contracts.py` | `save()` の `(corporate_id, prescription_id, iteration)` 重複拒否契約を追加。`tests/fakes/` 配下は自動列挙されるため、Fake を追加すれば全実装に課される |
-| `pyproject.toml` `[tool.fake_rules]` | `tests/fakes/` に `InMemoryDispensingProcessRepository` を置く際にパスを追加 |
-| `okf/ddd/domain.md` §1.1 / §7 / §8 | コンテキスト相関図・ライフサイクル方言表・リポジトリ一覧に Dispensing を追加 |
-| `AGENTS.md`「コンテキストは…7つ」 | コンテキスト数と一覧を更新 |
-| `okf/index.md` | 「現在の実装マップ」へ Dispensing を追加し、本文書の `status` を `active` へ変更 |
+| 他コンテキストへの依存の向き | `[tool.import_rules.forbidden]` の `app.domain.dispensing` / `app.application.dispensing` の行 |
+| **集約が処方箋集約を読めないこと** | 同上の `app.domain.dispensing.dispensing_process` の行（Domain Service だけが `Prescription` を import できる） |
+| 無効化方言 | `tests/domain/test_lifecycle_dialects.py` の `"DispensingProcess": "status_enum"` |
+| `save()` の `(corporate_id, prescription_id, iteration)` 一意性 | `tests/contracts/test_repository_contracts.py`（`tests/fakes/` を自動列挙） |
+| 分割理由ごとの回数範囲 | `_SPLIT_ITERATION_RANGES` の読み込み時チェック（`RuntimeError`） |
+| 変更制限と代替調剤の対応表 | `verify_substitution_restriction_table()`（読み込み時 `RuntimeError`） |
+| 権限の分類 | `policy.py` の `_verify_permission_classification()` |
+
+### 8.1 実装時に判明した仕様書の誤り
+
+| 箇所 | 誤り | 対応 |
+| :--- | :--- | :--- |
+| §5 #9 | 必須フィールドの欠落は構築できない。書いても1度も raise されない | 「変更前後が同一の代替調剤」の拒否へ置き換えた |
+| §5 #10 の必要な参照 | 「`Staff` 集約」を Dispensing から参照すると集約間の直接依存になる | `StaffQualifications` を Boundary 経由で受け取る形へ変更 |
+| §2 `cancel(reason)` | 理由の保持先が無く、渡しても捨てられる設計だった | `cancellation_reason` を集約が保持し、「中止状態 ⟺ 理由あり」を `validate()` が強制する |
+| Boundary の置き場所 | 記載なし | **Application層**（`app/application/dispensing/reference.py`）に統一した |
+
+---
+
+## 9. 未解決のまま残していること
+
+| 項目 | 状態 |
+| :--- | :--- |
+| **リフィル前後7日の出典** | 仕様書は「保険調剤の理解のために（令和8年度）」を挙げているが、`okf/refa/` のPDFは日本語テキストを抽出できず**本文で再確認できていない**。`REFILL_SCHEDULE_TOLERANCE_DAYS = 7` は本文書の記述に従って実装した |
+| **リフィルと分割調剤の併用可否** | 規格・通知を確認できていないため規則を追加していない。現在の実装では両方の上限がそれぞれ適用される（厳しい方が効く） |
+| 調剤完了時のトランザクション境界 | `save(process)` と処方箋の調剤済遷移が同一トランザクションに無い。`UnitOfWork` が無いため、調剤セッションを先に確定させる順序で妥協している |
+| 他薬局実施回の把握 | 自局分のみ保持する（§1.2）。`list_by_prescription()` の件数は総調剤回数と一致しない |
+| 加算の算定可否 | Claim コンテキストの責務（§4）。本コンテキストには実装しない |
+| 永続化実装 | 無い |

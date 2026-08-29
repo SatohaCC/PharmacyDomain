@@ -1,0 +1,1 @@
+"""MedicationHistoryドメイン層のテスト。"""

@@ -3,8 +3,8 @@ type: Specification
 title: 処方箋（Prescription）コンテキスト 詳細仕様書 & ドメイン設計ガイドライン
 description: JAHIS院外処方箋2次元シンボル規約（Ver.1.11）、厚労省電子処方箋管理サービス仕様（処方編Ver2.4）、保険調剤の理解のためにに基づく処方箋コンテキスト（Prescription）のDDD詳細仕様書。処方箋原本の完全性、Rp明細、用法用量、疑義照会、リフィル・分割指示、不変条件を定義。
 okf_version: "0.2"
-timestamp: 2026-08-23T00:00:00Z
-status: draft
+timestamp: 2026-08-29T00:00:00Z
+status: active
 tags: [backend, domain, prescription, jahis, electronic-prescription, ddd, architecture, reference]
 sources:
   - "JAHIS 院外処方箋２次元シンボル記録条件規約 Ver.1.11（okf/refa/）"
@@ -15,7 +15,8 @@ sources:
 
 # 処方箋（Prescription）コンテキスト 詳細仕様書 & ドメイン設計ガイドライン
 
-> **本文書のステータス**: `draft`（設計のみ・未実装）。`app/domain/prescription/` は存在しない。実装着手時は [§8 実装時に更新が必要な強制点](#8-実装時に更新が必要な強制点) を必ず参照すること。
+> **本文書のステータス**: `active`（実装済み）。実装は `app/domain/prescription/` と `app/application/prescription/` にある。
+> 設計と実装が食い違ったときは**実装が正**であり、本文書を直す。実装が守っている強制点は [§8](#8-実装済みの強制点) を参照。
 
 ## 1. 概要と境界定義（Bounded Context）
 
@@ -281,7 +282,9 @@ classDiagram
 | `CoverageSelectionRecordId` | `app.domain.reception.primitives` | 受付時に選択された資格の履歴 | 上げない。ただし **Reception → Prescription の逆流を禁止する規則が必要** |
 | `StaffId` | `app.domain.staff.primitives` | 疑義照会実施薬剤師 | 上げない |
 | `PersonNames` | `app.base.domain.value_object` | 処方医氏名 | 既に Shared Kernel |
-| `MedicineName` / `MedicineCode` / `MedicineUnit` | 本コンテキスト | Dispensing / MedicationHistory からも参照される | **要検討**。3コンテキストが同じ薬品語彙を必要とするため、Shared Kernel（`app/base/domain/`）へ上げる案が有力。実装着手時に決定し `log.md` へ記録する |
+| `MedicineName` / `MedicineCode` / `MedicineUnit` / `DosageAmount` ほか | `app.base.domain.medicine` | 3コンテキストが同じ薬品語彙を必要とする | **Shared Kernel へ上げた**（`log.md` ADR-9）。判断基準は「所有者がいるか」。薬品はどの集約の同一性でもない |
+| `MedicineClassification` / `MedicineRestrictionFlag` | 本コンテキスト（`value_objects.py`） | 医薬品マスタ Boundary の戻り値の形 | **上げない**。使うのは Prescription だけであり、共有語彙ではなく問い合わせ結果の形（ADR-14） |
+| `DosageInstruction` / `DosageCodeType` / `DosageCode` / `DosageName` / `DailyFrequency` | `app.base.domain.dosage` | 用法は処方・調剤・薬歴のいずれもが持つ | **Shared Kernel へ上げた**（ADR-9 と同じ基準）。用法補足（別表14）は処方箋固有なので本コンテキストに残す |
 
 ---
 
@@ -614,10 +617,10 @@ stateDiagram-v2
 | 4 | `DosageAmount` は 0 を超える正の値（整数部6桁＋小数部5桁）。`UnitConversion` の係数も 0 を超える正の値 | 各 Primitive の `validate()` | — |
 | 5 | 麻薬を含む処方箋は `NarcoticPrescriptionDetails`（施用者免許番号・患者住所・患者電話番号）が必須 | Domain Service | 医薬品マスタ Boundary（麻薬区分） |
 | 6 | リフィル指示は「投与量に限度が定められている医薬品」「貼付剤（麻薬・向精神薬・皮膚疾患用を除く）」を含む処方箋に適用できない。`total_refill_count` は 2 または 3 | 回数は `RefillInstruction.validate()`<br/>適用除外は Domain Service | 医薬品マスタ Boundary（投与量限度・貼付剤区分） |
-| 7 | 薬品の `PublicExpenseBurden` で `1:負担する` とした枠は、患者資格に存在する公費の範囲内でなければならない | Application層 | `CoverageValidityBoundary`（Reception） |
-| 8 | `PrescriptionInquiry.pharmacist_id` は薬剤師資格（`StaffQualification.PHARMACIST`）を保持するスタッフ | Domain Service | `Staff` 集約 |
+| 7 | 薬品の `PublicExpenseBurden` で `1:負担する` とした枠は、患者資格に存在する公費の範囲内でなければならない | Domain Service（`PublicExpenseBurdenService`） | `PublicExpenseAvailabilityBoundary`（Application層） |
+| 8 | `PrescriptionInquiry.pharmacist_id` は薬剤師資格（`StaffQualification.PHARMACIST`）を保持するスタッフ | Domain Service（`InquiryPharmacistService`） | `StaffQualifications`（`StaffQualificationBoundary` 経由） |
 | 9 | `source_type == ELECTRONIC` のとき、全薬品の `MedicineIdentifier.code_type` は `RECEIPT` / `YJ` / `GENERIC` のいずれかでなければならない（処方編 別表15 で 1・3・6 は未使用／使用しない） | `Prescription.validate()` | — |
-| 10 | 同一薬品の `substitution_restriction` と `supplements` に、別表16 の同一コードが同時に現れない | `PrescriptionMedicine.validate()` | — |
+| 10 | ~~同一薬品の `substitution_restriction` と `supplements` に、別表16 の同一コードが同時に現れない~~ → **判定不能**。`MedicineSupplementType`（1・2・7）と `GenericSubstitutionRestrictionType`（3〜6・8）は互いに素な列挙なので、この状態は構築できない。実装では読み込み時チェック `verify_supplement_code_partition()` が**2つの列挙が別表16 を過不足なく分割していること**を守る | 読み込み時チェック | — |
 | 11 | `has_open_inquiry == True` のとき `ready_for_dispensing()` は拒否される | `Prescription.ready_for_dispensing()` | — |
 | 12 | `UnequalDosageInstruction` の各回服用量の合計が薬品の1日量と一致する | `UnequalDosageInstruction.validate()` | — |
 | 13 | `MedicalInstitutionCode` は7桁。`MedicalInstitutionPrefectureCode` は 01〜47。処方医の漢字氏名は必須 | 各 Primitive の `validate()` | — |
@@ -682,16 +685,37 @@ AGENTS.md「到達可能なClaim UseCaseがない間はClaim権限を定義し�
 
 ---
 
-## 8. 実装時に更新が必要な強制点
+## 8. 実装済みの強制点
 
-本コンテキストを実装するとき、**文書だけを書いても以下を更新しないと `pytest` が落ちる、あるいは規約が機械で守られない**。
+以下は**すでに機械が守っている**。壊すと `pytest` か静的チェッカが落ちる。
 
-| 更新対象 | 内容 |
+| 強制点 | 守っている仕組み |
 | :--- | :--- |
-| `pyproject.toml` `[tool.import_rules.forbidden]` | `app.domain.prescription` から Dispensing / MedicationHistory / Claim / Coverage 台帳への直接依存を禁止。`app.application.prescription` から他コンテキストのApplication実装への依存を禁止 |
-| `tests/domain/test_lifecycle_dialects.py` の `LIFECYCLE_DIALECTS` | **`"Prescription": "status_enum"` の行を追加**。表に行が無い集約は必ず落ちる |
-| `okf/ddd/domain.md` §1.1 / §7 / §8 | コンテキスト相関図・ライフサイクル方言表・リポジトリ一覧に Prescription を追加 |
-| `pyproject.toml` `[tool.fake_rules]` | `tests/fakes/` に `InMemoryPrescriptionRepository` を置く際にパスを追加 |
-| `AGENTS.md`「コンテキストは…7つ」 | コンテキスト数と一覧を更新 |
-| `okf/index.md` | 「現在の実装マップ」へ Prescription を追加し、本文書の `status` を `active` へ変更 |
-| `okf/log.md` | 特殊公費を `ClaimCoveragePriority` へ写さない決定（§3.5.E）をADRとして記録 |
+| 他コンテキストへの依存の向き | `pyproject.toml` `[tool.import_rules.forbidden]` の `app.domain.prescription` / `app.application.prescription` の行 |
+| 無効化方言 | `tests/domain/test_lifecycle_dialects.py` の `"Prescription": "status_enum"` |
+| `save()` の引換番号一意性 | `tests/contracts/test_repository_contracts.py`（`tests/fakes/` を自動列挙） |
+| 別表16 の分割（旧 #10） | `verify_supplement_code_partition()`（読み込み時 `RuntimeError`） |
+| 権限の分類 | `app/application/access_control/policy.py` の `_verify_permission_classification()`（読み込み時 `RuntimeError`） |
+| 用量に `float` を使わない | `BaseNonNegativeDecimal` が `float` を拒否。`tests/domain/test_decimal_primitives.py` が6,859通りで固定 |
+
+### 8.1 実装時に判明した仕様書の誤り
+
+| 箇所 | 誤り | 対応 |
+| :--- | :--- | :--- |
+| §5 #10 | 別表16 の同一コードが両方に現れる状態は**構築できない**（2つの列挙が互いに素）。書いても1度も raise されない | 読み込み時の分割チェックへ置き換えた |
+| §5 #7 の守り手 | 「Application層」では規則の置き場所が定まらない | `PublicExpenseBurdenService`（Domain Service）+ 参照Boundary へ変更 |
+| §5 #8 の必要な参照 | 「`Staff` 集約」を Prescription から参照すると集約間の直接依存になる | `StaffQualifications` を Boundary 経由で受け取る形へ変更 |
+| Boundary の置き場所 | Domain層 `reference.py` を想定していた | 既存の Boundary は全て Application層。**Application層に統一**した |
+
+---
+
+## 9. 未解決のまま残していること
+
+| 項目 | 状態 |
+| :--- | :--- |
+| ~~医薬品マスタ~~ | **解消した**。`app/domain/medicine_catalog/` を実装し、`MedicineCatalogRestrictionAdapter`（Composition）が `MedicineRestrictionBoundary` を満たす。麻薬処方箋・リフィル処方箋が登録できるようになった（`okf/log.md` ADR-14）。未収載の薬品では依然として fail-closed で失敗する |
+| 医薬品マスタの取り込み | 集約と取り込みユースケースはあるが、厚労省の薬価基準ファイル・MEDIS の HOT コードマスタからの実際の読み込みは Infrastructure の仕事で未着手 |
+| 処方箋の公費枠 ↔ 資格台帳の順位の対応 | `PublicExpenseAvailabilityBoundary` の Protocol だけ定義。実アダプタ（Composition）は未実装 |
+| `MedicineCode` の桁数 | 原典で確認できていないため不変条件にしていない（§3.5.B） |
+| 永続化実装 | 無い。`save()` の原子性は Protocol の契約と Fake でしか担保されていない |
+| HTTP ルート | `app/presentational/` は空。既存コンテキストも未接続 |

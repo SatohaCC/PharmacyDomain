@@ -21,6 +21,12 @@ _CORPORATE_ADMIN_PERMISSIONS = frozenset(
         Permission.MANAGE_COVERAGE,
         Permission.VIEW_RECEPTION,
         Permission.MANAGE_RECEPTION,
+        Permission.VIEW_PRESCRIPTION,
+        Permission.MANAGE_PRESCRIPTION,
+        Permission.VIEW_DISPENSING,
+        Permission.MANAGE_DISPENSING,
+        Permission.VIEW_MEDICATION_HISTORY,
+        Permission.MANAGE_MEDICATION_HISTORY,
     }
 )
 
@@ -28,6 +34,9 @@ _VENDOR_ONLY_PERMISSIONS = frozenset(
     {
         Permission.REGISTER_CORPORATE,
         Permission.MANAGE_CORPORATE_STATUS,
+        # 薬価基準は国が定める参照データであり、法人ごとに内容が違わない。
+        # 取り込みは全法人に影響するのでベンダーシステム管理者専用にする。
+        Permission.MANAGE_MEDICINE_CATALOG,
     }
 )
 
