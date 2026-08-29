@@ -54,3 +54,42 @@ jobs:
       - name: フォーマットを検査する
         if: ${{ !cancelled() }}
         run: uv run ruff format --check .
+
+  # 実PostgreSQLを要するテストは別ジョブにする。DBが無い環境では自動でスキップ
+  # されるため、上のジョブでは「実行されたが何も確かめていない」状態になりうる。
+  # ここだけがサーバの実挙動（ON CONFLICT、制約名、部分一意インデックス）を見る。
+  integration:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: pharmacydomain
+          POSTGRES_USER: pharmacydomain
+          POSTGRES_PASSWORD: pharmacydomain-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pharmacydomain -d pharmacydomain"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: リポジトリを取得する
+        uses: actions/checkout@v7.0.1
+
+      - name: uv をセットアップする
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: 依存を同期する
+        run: uv sync --locked
+
+      - name: 実PostgreSQLに対する結合テストを実行する
+        env:
+          TEST_DATABASE_URL: postgresql+asyncpg://pharmacydomain:pharmacydomain-ci-password@localhost:5432/pharmacydomain
+        run: uv run pytest -m integration -q

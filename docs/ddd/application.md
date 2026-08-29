@@ -65,19 +65,23 @@ Boundaryの例外契約には、他法人と未存在をどのNotFound例外へ�
 ## 保存と回復
 
 Repositoryの `save()` が一意性や期間競合の最終防衛です。
-複数集約の保存を伴う処理にはまだUnit of Workがありません。
+複数集約の保存を伴う処理では、PostgreSQL 経路に `UnitOfWork` Protocol と
+`PostgresUnitOfWork` を使います。Composition Root が同じセッションを Repository と
+書き込み Boundary へ渡します。トランザクションの開始・確定は RequestScope が担い、
+複数集約を書き込む Application ユースケースは必須の `UnitOfWork` で開始済みを検証します。
+成功時だけ commit、例外時は rollback します。Domain/Application は SQLAlchemy を import しません。
 
-- 調剤完了と処方箋状態更新は同一トランザクションではない
-- 薬歴確定では真の記録を先に保存し、投影の頭書きは後から再構築できるようにする
+- 調剤完了と処方箋状態更新は PostgreSQL 経路で同一トランザクションへ入る
+- 薬歴確定では真の記録を先に保存し、投影の頭書きを同じ UnitOfWork で続けて保存する。失敗時は薬歴から再構築できる
 
-後者は回復可能ですが、原子性の代替ではありません。本番永続化を追加するときに
-トランザクション境界と再試行方針を決める必要があります。
+後者は回復可能ですが、原子性の代替ではありません。再試行時には同じ境界を
+再利用し、競合時は読み直しからやり直す方針です。
 
 ## 現在の外側
 
-業務ユースケースを接続するHTTPルート、具体的Repository、Composition Rootは未実装です。
-したがって、Domain/Applicationテストが通ることと、本番で認証・DB競合・トランザクションが
-安全であることは分けて評価します。
+全コンテキストの具体的 Repository と Composition Root は実装済みですが、業務ユースケースを
+接続するHTTPルートと認証基盤は未実装です。したがって、Domain/Applicationテストが通ることと、
+本番で認証・DB競合が安全であることは分けて評価します。
 
 現在のクラスとDTOは `app/application/`、振る舞いの保証は `tests/application/`、
 依存規則は `tools/check_imports.py` を確認してください。

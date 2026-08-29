@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.common import UnitOfWork
 from app.application.dispensing.get_dispensing import DispensingProcessDto
 from app.application.dispensing.reference import PrescriptionCompletionBoundary
 from app.application.dispensing.support import load_dispensing_or_raise, parse_enum
@@ -35,6 +36,12 @@ class CompleteDispensingUseCase:
     リフィル処方箋情報レコード(521)）。「調剤回数が総使用回数に達したこと」
     ではない。規格は「達していないが次回以降の調剤が不要となった場合」も終了と
     定めるため、判断は調剤側から渡される。
+
+    調剤セッションの保存と処方箋の状態更新は、片方だけが残ると調剤の記録と
+    処方箋の状態が食い違う。**トランザクションの開始・確定を実行スコープが
+    担い、ユースケースは必須の UnitOfWork で境界が開始済みであることを確認する。**
+    永続化実装はトランザクションの外では読み書きできないため、境界を張り忘れた
+    まま2件を書き込む経路は存在しない。
     """
 
     def __init__(
@@ -42,19 +49,16 @@ class CompleteDispensingUseCase:
         repository: DispensingProcessRepository,
         corporate_access: CorporateAccessBoundary,
         prescription_completion: PrescriptionCompletionBoundary,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._repository = repository
         self._corporate_access = corporate_access
         self._prescription_completion = prescription_completion
+        self._unit_of_work = unit_of_work
 
     async def execute(self, command: CompleteDispensingCommand) -> DispensingProcessDto:
-        """調剤セッションを完了し、終了区分なら処方箋も調剤済にする。
-
-        調剤セッションの保存を先に行う。**この2つの書き込みは1つのトランザクションに
-        入っていない**（本システムにはまだ Unit of Work が無い）。順序を逆にすると、
-        処方箋だけが調剤済になって調剤の記録が残らない状態を作りうるため、
-        実際に起きた事実である調剤セッションを先に確定させる。
-        """
+        """調剤セッションを完了し、終了区分なら処方箋も調剤済にする。"""
+        self._unit_of_work.ensure_active()
         corporate_id = CorporateId.parse(command.corporate_id)
         await self._corporate_access.require_active(
             corporate_id=corporate_id,

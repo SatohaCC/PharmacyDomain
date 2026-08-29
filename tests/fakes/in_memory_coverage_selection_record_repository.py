@@ -26,6 +26,18 @@ class InMemoryCoverageSelectionRecordRepository(CoverageSelectionRecordRepositor
         """履歴をコピーして保存する。一意性制約は課さない。"""
         self.items[record.id] = copy.deepcopy(record)
 
+    async def get(
+        self,
+        *,
+        corporate_id: CorporateId,
+        record_id: CoverageSelectionRecordId,
+    ) -> CoverageSelectionRecord | None:
+        """指定法人の履歴をIDで取得する。別法人なら ``None`` を返す。"""
+        record = self.items.get(record_id)
+        if record is None or record.corporate_id != corporate_id:
+            return None
+        return copy.deepcopy(record)
+
     async def get_latest(
         self,
         *,

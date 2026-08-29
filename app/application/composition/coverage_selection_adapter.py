@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from app.application.reception.exceptions import ReceptionCoverageSelectionError
+from app.application.reception.reference import (
+    CoverageSelectionBoundary,
+    CoverageValidityBoundary,
+)
 from app.domain.claim import (
     ClaimCoverageBenefitRatio,
     ClaimCoverageBranchNumber,
@@ -33,8 +37,13 @@ from app.domain.reception.coverage_selection import (
 from app.domain.reception.primitives import CoverageAppliedOn, SourceCoverageId
 
 
-class CoverageSelectionAdapter:
-    """元資格IDを検証し、枠ごとにIDと請求固定値を束ねた選択を構築する。"""
+class CoverageSelectionAdapter(CoverageSelectionBoundary, CoverageValidityBoundary):
+    """元資格IDを検証し、枠ごとにIDと請求固定値を束ねた選択を構築する。
+
+    2つのProtocolを明示継承するのは、``tools/check_fake_conformance.py`` に
+    上書き漏れを検出させるためである。構造的部分型のままだと、Protocol側に
+    メンバが増えても実アダプタは静かに取り残される。
+    """
 
     def __init__(
         self,

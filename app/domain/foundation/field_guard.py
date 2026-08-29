@@ -11,9 +11,22 @@ from typing import Any, TypeVar, Union, cast, get_args, get_origin
 
 from app.domain.foundation.exceptions import DomainValidationError
 
+# 型注釈はクラス定義後に変わらないので、解決結果をクラスをキーに使い回す。
+# functools.cache は mypy が type[...] を Hashable と見なさないため使わない。
+_DECLARED_FIELD_TYPES_CACHE: dict[type[Any], tuple[tuple[str, object], ...]] = {}
+
 
 def _declared_field_types(cls: type[Any]) -> tuple[tuple[str, object], ...]:
-    """具象クラスから見て最も近い宣言元のフィールド型を解決する。"""
+    """具象クラスから見て最も近い宣言元のフィールド型を解決する。
+
+    クラスの型注釈は定義後に変わらないので、解決結果をクラス単位で使い回す。
+    ここは全 Value Object / Entity の生成ごとに呼ばれ、キャッシュしないと
+    1インスタンスにつき「フィールド数×MRO段数」回の注釈評価が走る。DBから
+    集約をまとめて復元する経路では、この評価だけで復元時間の大半を占める。
+    """
+    cached = _DECLARED_FIELD_TYPES_CACHE.get(cls)
+    if cached is not None:
+        return cached
     declared: list[tuple[str, object]] = []
     for field in fields(cls):
         for owner in cls.__mro__:
@@ -33,7 +46,9 @@ def _declared_field_types(cls: type[Any]) -> tuple[tuple[str, object], ...]:
             raise RuntimeError(
                 f"{cls.__qualname__}.{field.name} の型注釈が見つかりません。"
             )
-    return tuple(declared)
+    resolved = tuple(declared)
+    _DECLARED_FIELD_TYPES_CACHE[cls] = resolved
+    return resolved
 
 
 def _ensure_resolved(

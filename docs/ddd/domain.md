@@ -47,7 +47,9 @@ FastAPI、DB、Application層へ依存しません。現在の型やメソッド
 
 RepositoryはDomain層のProtocolです。Applicationの事前readは分かりやすいエラーのために使いますが、
 一意性や期間競合の最終防衛は `save()` の原子的な契約です。
-本番永続化がない現状では、この原子性は未証明です。
+永続化対象の全コンテキストについて PostgreSQL の一意制約・排他制約と
+Repository 実装で原子性の最終防衛を置き、Unit of Work から commit します。
+Claim は現時点では Domain 層のみのため、永続化対象には含めません。
 
 ## 時間とライフサイクル
 
@@ -92,6 +94,6 @@ Repository契約は `tests/contracts/`、FakeのProtocol適合は `tools/check_f
 
 ## 未解決事項
 
-- 本番RepositoryとDB制約がなく、競合時の原子性を証明できない
-- Unit of Workがなく、複数集約保存の途中失敗を一括でロールバックできない
-- Infrastructureがないため、保持期間、監査、移行、マスタ取り込みの運用設計が残る
+- 全コンテキストの本番Repository、DB制約、楽観ロックは実装済み。実PostgreSQL結合テストで競合・境界を確認済み
+- 複数集約保存は PostgreSQL の Unit of Work で一括ロールバックする。HTTPルートと認証基盤は未実装
+- 保持期間、監査、移行、マスタ取り込みの運用設計が残る

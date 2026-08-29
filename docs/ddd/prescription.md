@@ -81,9 +81,10 @@ Prescriptionが所有するもの:
 ## 未解決事項
 
 - MedicineCatalog集約はあるが、薬価基準・HOTコード等からの実データ取り込みがない
-- 処方箋の公費枠とCoverage台帳を接続する `PublicExpenseAvailabilityBoundary` の実アダプタがない
+- 処方箋の公費枠とCoverage台帳を接続する `PublicExpenseAvailabilityBoundary` の実アダプタは実装済み
 - 後発品変更調剤で、変更先が本当に後発品かを検証していない
-- 本番Repositoryがなく、引換番号一意性の原子性は未証明
+- PostgreSQL Repository は実装済みで、引換番号一意性は partial unique index と
+  Domain 例外へ写像する。全コンテキストの競合安全性は実PostgreSQL結合テストで確認する
 - 業務HTTPルートがない
 
 関連する判断履歴は [設計判断](../decisions.md) のADR-1〜3、6、11〜16を参照します。

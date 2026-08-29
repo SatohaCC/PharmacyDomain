@@ -1,8 +1,35 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pharmacydomain}
+      POSTGRES_USER: ${POSTGRES_USER:-pharmacydomain}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pharmacydomain-dev-password}
+    ports:
+      # 開発機のループバックにだけ公開する。0.0.0.0 に開くと同一ネットワークから
+      # 開発用資格情報で接続できてしまう。
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pharmacydomain} -d ${POSTGRES_DB:-pharmacydomain}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   api:
     build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://pharmacydomain:pharmacydomain-dev-password@postgres:5432/pharmacydomain}
     ports:
       - "8000:8000"
     volumes:
       - ./app:/app/app
+      - ./migrations:/app/migrations
     command: uv run --frozen uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:

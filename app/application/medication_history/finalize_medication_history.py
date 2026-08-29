@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.common import UnitOfWork
 from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
 )
@@ -35,9 +36,12 @@ class FinalizeMedicationHistoryUseCase:
     （``RebuildPatientMedicalProfileUseCase``）。逆順にすると、根拠のない
     頭書きレコードだけが残り、どの薬歴に由来するかを追えなくなる。
 
-    2つの書き込みは1つのトランザクションに入っていない。本リポジトリに
-    ``UnitOfWork`` は無く、永続化実装が1つも無い段階で導入するのは先回りである。
-    代わりに**頭書きを投影と定義することで整合性を回復可能にしている**。
+    2つの書き込みを同じトランザクションへ入れる開始・確定は実行スコープが
+    担い、ユースケースは必須の UnitOfWork で境界の開始済みだけを確認する。
+    PostgreSQL 経路では後者が失敗すれば薬歴の確定ごと巻き戻る。トランザクションを
+    持たない経路（インメモリ）では、何もしない UnitOfWork を渡しても頭書きだけが
+    取り残されうるが、**頭書きを投影と定義しているので薬歴から再構築して回復
+    できる**（``RebuildPatientMedicalProfileUseCase``）。
     """
 
     def __init__(
@@ -45,15 +49,18 @@ class FinalizeMedicationHistoryUseCase:
         record_repository: MedicationHistoryRepository,
         profile_repository: PatientMedicalProfileRepository,
         corporate_access: CorporateAccessBoundary,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._record_repository = record_repository
         self._profile_repository = profile_repository
         self._corporate_access = corporate_access
+        self._unit_of_work = unit_of_work
 
     async def execute(
         self, command: FinalizeMedicationHistoryCommand
     ) -> MedicationHistoryDto:
         """SOAPの充足を集約に確認させてから確定し、頭書きへ投影する。"""
+        self._unit_of_work.ensure_active()
         corporate_id = CorporateId.parse(command.corporate_id)
         await self._corporate_access.require_active(
             corporate_id=corporate_id,

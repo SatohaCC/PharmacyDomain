@@ -1,0 +1,1 @@
+"""PharmacyDomain の Alembic マイグレーション。"""

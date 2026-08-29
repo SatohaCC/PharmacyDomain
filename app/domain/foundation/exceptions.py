@@ -39,3 +39,16 @@ class DomainValidationError(DomainError):
 
     default_message = "ドメインプリミティブに不正な値が指定されました。"
     default_code = "DOMAIN_VALIDATION_ERROR"
+
+
+class ConcurrentModificationError(DomainError):
+    """読み込みから保存までの間に同じ集約が別トランザクションで更新された。
+
+    集約を1行のJSONBとして保存する実装では、後から保存した側が行全体を
+    上書きするため、失われた更新は放置すると誰にも気づかれない。永続化実装は
+    読み込んだ世代と保存時の世代が一致しないことを検出してこの例外を送出し、
+    呼び出し側に再読込からのやり直しを促す。
+    """
+
+    default_message = "対象データが他の操作で更新されています。やり直してください。"
+    default_code = "CONCURRENT_MODIFICATION"

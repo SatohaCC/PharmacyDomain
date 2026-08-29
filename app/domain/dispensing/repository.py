@@ -49,5 +49,9 @@ class DispensingProcessRepository(Protocol):
         記録がいずれも二重になる。
 
         Applicationの事前readは早期エラー用であり原子性の代替ではない。
+
+        読み込みから保存までの間に同じ集約が別トランザクションで更新されて
+        いた場合、上書きせずに ``ConcurrentModificationError`` を送出する。
+        同時更新が起こりえない実装（インメモリなど）では送出されない。
         """
         ...
