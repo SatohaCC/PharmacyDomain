@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from enum import StrEnum
 
 from app.base.domain.exceptions import DomainValidationError
@@ -10,22 +9,8 @@ from app.base.domain.primitives.primitives import (
     BaseNonNegativeInt,
     BaseNormalizedString,
     BasePositiveInt,
+    ensure_digits,
 )
-
-
-def _ensure_digits(value: str, *, field_name: str, lengths: tuple[int, ...]) -> None:
-    """半角数字かつ規定桁数であることを検証する。
-
-    スナップショットは資格台帳の値をコピーするだけだが、桁数の検証を台帳側だけに
-    置くと外側のSnapshot変換アダプタが不正値を組み立てられてしまう。
-    凍結される側にも同じ不変条件を持たせ、請求時点で確実に弾く。
-    """
-    pattern = "|".join(f"[0-9]{{{length}}}" for length in lengths)
-    if not re.fullmatch(pattern, value):
-        expected = "桁または".join(str(length) for length in lengths)
-        raise DomainValidationError(
-            f"{field_name}は半角数字{expected}桁で指定してください。"
-        )
 
 
 class ClaimCoverageCode(BaseNormalizedString):
@@ -37,7 +22,7 @@ class ClaimInsurerNumber(BaseNormalizedString):
 
     def validate(self) -> None:
         super().validate()
-        _ensure_digits(self.value, field_name="保険者番号", lengths=(6, 8))
+        ensure_digits(self.value, field_name="保険者番号", lengths=(6, 8))
 
 
 class ClaimPublicPayerNumber(BaseNormalizedString):
@@ -45,7 +30,7 @@ class ClaimPublicPayerNumber(BaseNormalizedString):
 
     def validate(self) -> None:
         super().validate()
-        _ensure_digits(self.value, field_name="公費負担者番号", lengths=(8,))
+        ensure_digits(self.value, field_name="公費負担者番号", lengths=(8,))
 
 
 class ClaimPublicRecipientNumber(BaseNormalizedString):
@@ -53,7 +38,7 @@ class ClaimPublicRecipientNumber(BaseNormalizedString):
 
     def validate(self) -> None:
         super().validate()
-        _ensure_digits(self.value, field_name="公費受給者番号", lengths=(7,))
+        ensure_digits(self.value, field_name="公費受給者番号", lengths=(7,))
 
 
 class ClaimCoverageSymbol(BaseNormalizedString):
@@ -65,7 +50,7 @@ class ClaimCoverageBranchNumber(BaseNormalizedString):
 
     def validate(self) -> None:
         super().validate()
-        _ensure_digits(self.value, field_name="枝番", lengths=(2,))
+        ensure_digits(self.value, field_name="枝番", lengths=(2,))
 
 
 class ClaimCoverageInsuredType(StrEnum):

@@ -1,0 +1,1 @@
+"""Prescription Application層のテスト。"""

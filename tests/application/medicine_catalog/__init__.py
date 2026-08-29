@@ -1,0 +1,1 @@
+"""MedicineCatalog Application層のテスト。"""
