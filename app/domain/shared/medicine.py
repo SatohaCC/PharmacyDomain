@@ -1,32 +1,29 @@
-"""処方・調剤・薬歴が共有する薬品語彙（Shared Kernel）。
+"""処方・調剤・薬歴・医薬品マスタが共有する薬品語彙（Shared Kernel）。
 
 ここに置く理由は「**所有者がいないから**」である。
 
 ``PatientId`` は Patient 集約の同一性なので、参照する側は所有コンテキストから
-import するのが正しい（``app.domain.coverage`` が ``app.domain.patient.primitives``
-を import している既存の形）。一方 ``MedicineName`` はどの集約の同一性でもなく、
-本システムに医薬品集約は存在しない。所有者のいない語彙を特定のコンテキストへ
-置くと、薬歴が「他院で買ったOTCの名前」を表すためだけに処方箋コンテキストを
-import することになり、依存の向きが語彙の実態と食い違う。
+import するのが正しい。一方 ``MedicineCatalogEntryId`` は版付きマスタ行の
+同一性であり、``MedicineName`` や ``MedicineIdentifier`` は処方・調剤・薬歴にも
+現れる。マスタに存在しない他院処方やOTCも表すため、これらは特定集約の
+同一性ではない。
 
-``app.base`` は利用側のコンテキストに依存しないという規則は守られている
-（このモジュールは ``app.domain`` を一切 import しない）。``priority_rules.py``
-が Coverage と Claim の共有先として Shared Kernel に置かれているのと同じ形。
+このモジュールは各コンテキストへ依存せず、Domain基盤だけに依存する。
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import ClassVar
 
-from app.base.domain.exceptions import DomainValidationError
-from app.base.domain.primitives.primitives import (
+from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.foundation.primitives.primitives import (
     BaseNormalizedString,
     BasePositiveDecimal,
     BasePositiveInt,
 )
-from app.base.domain.value_object import ValueObject
+from app.domain.foundation.value_object import ValueObject
 
 
 class MedicineCodeType(StrEnum):
@@ -269,69 +266,3 @@ class MedicineIdentifier(ValueObject):
                 f"薬品コード種別が「{self.code_type.label}」のときは"
                 "薬品コードが必要です。"
             )
-
-
-@dataclass(frozen=True, kw_only=True)
-class PublicExpenseBurden(ValueObject):
-    """薬品単位の公費負担区分。
-
-    出典: JAHIS Ver.1.11 レコードNo.231 負担区分レコード
-    （処方箋内出力／未出力混在不可、全薬品出力 or 全薬品未出力、1薬品に1レコード）。
-
-    処方箋の公費枠は第一/第二/第三/**特殊**であり、電子レセプトの第一〜第四とは
-    別軸である。特殊公費の負担者番号は ``N20``（漢字半角混在可・数字以外可）で
-    ``ClaimPublicPayerNumber``（8桁）の不変条件を満たせないため、Claim へは
-    写さない。
-    """
-
-    first: bool = False
-    second: bool = False
-    third: bool = False
-    special: bool = False
-
-    _FIELD_LABELS: ClassVar[dict[str, str]] = {
-        "first": "第一公費負担区分",
-        "second": "第二公費負担区分",
-        "third": "第三公費負担区分",
-        "special": "特殊公費負担区分",
-    }
-
-    @property
-    def bears_any(self) -> bool:
-        """いずれかの公費が負担するか。"""
-        return self.first or self.second or self.third or self.special
-
-    #: 公費枠の並び。判定を枠ごとの ``if`` で書くと枠の追加時に必ず書き漏れる。
-    _SLOTS: ClassVar[tuple[str, ...]] = ("first", "second", "third", "special")
-
-    def uncovered_slots_against(
-        self, available: PublicExpenseBurden
-    ) -> tuple[str, ...]:
-        """自分が負担ありとした枠のうち、``available`` に無い枠の名称を返す。
-
-        「負担しない」とした枠は裏付けが無くても構わないので対象にしない。
-        戻り値は表示用の日本語名称であり、空タプルなら裏付けが揃っている。
-        """
-        return tuple(
-            self._FIELD_LABELS[slot]
-            for slot in self._SLOTS
-            if getattr(self, slot) and not getattr(available, slot)
-        )
-
-
-def _verify_public_expense_slots_are_complete() -> None:
-    """公費枠の並びが実フィールドを網羅していることを検証する。
-
-    枠を1つ足して ``_SLOTS`` への追記を忘れると、その枠だけ裏付けの検証を
-    素通りする。読み込み時に落とすための不変条件チェックであり、
-    最適化実行（``python -O``）でも省略されないよう ``assert`` は使わない。
-    """
-    declared = frozenset(PublicExpenseBurden._SLOTS)
-    actual = frozenset(item.name for item in fields(PublicExpenseBurden))
-    if declared != actual:
-        raise RuntimeError(
-            "PublicExpenseBurden の公費枠一覧がフィールド定義と一致していません。"
-        )
-
-
-_verify_public_expense_slots_are_complete()

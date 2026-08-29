@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from app.base.domain.medicine import MedicineLineNumber, RpNumber
 from app.domain.dispensing.dispensing_process import (
     DispensedMedicine,
     DispensingProcess,
@@ -41,6 +40,7 @@ from app.domain.prescription.prescription import (
     PrescriptionRp,
 )
 from app.domain.prescription.primitives import GenericSubstitutionRestrictionType
+from app.domain.shared.medicine import MedicineLineNumber, RpNumber
 from app.domain.staff.primitives import PharmacistProfile, StaffQualifications
 
 #: リフィル2回目以降の調剤日が、前回の次回調剤予定日から離れてよい日数。

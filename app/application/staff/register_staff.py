@@ -10,8 +10,8 @@ from app.application.access_control import (
     Permission,
 )
 from app.application.staff.support import load_store_or_raise, to_optional_text
-from app.base.domain.value_object import PersonNames
 from app.domain.corporate.primitives import CorporateId
+from app.domain.shared.person_name import PersonNames
 from app.domain.staff import (
     BaseQualificationProfile,
     DietitianProfile,

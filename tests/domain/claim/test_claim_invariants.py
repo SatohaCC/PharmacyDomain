@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from app.base.domain.exceptions import DomainValidationError
 from app.domain.claim import (
     ClaimCoverageBenefitRatio,
     ClaimCoverageBranchNumber,
@@ -20,6 +19,7 @@ from app.domain.claim import (
     InsuranceCoverageSnapshot,
     PublicExpenseCoverageSnapshot,
 )
+from app.domain.foundation.exceptions import DomainValidationError
 
 
 def _create_insurance_snapshot() -> InsuranceCoverageSnapshot:

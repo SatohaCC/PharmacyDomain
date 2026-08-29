@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.base.domain.priority_rules import PriorityViolation, find_priority_violation
+from app.domain.shared.priority_rules import PriorityViolation, find_priority_violation
 
 
 @pytest.mark.parametrize(

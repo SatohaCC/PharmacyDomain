@@ -3,13 +3,13 @@ from __future__ import annotations
 import pytest
 
 from app.application.access_control import ActorContext, AuthorizationService
+from app.application.common.exceptions import AuthorizationError
 from app.application.corporate import CorporateAccessService
 from app.application.corporate.change_corporate_status import (
     ChangeCorporateStatusCommand,
     ChangeCorporateStatusUseCase,
 )
 from app.application.corporate.get_corporate import GetCorporateUseCase
-from app.base.application.exceptions import AuthorizationError
 from app.domain.corporate import CorporateStatus
 from tests.application.corporate.helpers import save_corporate
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository

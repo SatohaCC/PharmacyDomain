@@ -5,7 +5,6 @@ import uuid
 
 import pytest
 
-from app.base.domain.exceptions import DomainValidationError
 from app.domain.corporate import (
     Corporate,
     CorporateCatalogRepository,
@@ -15,6 +14,7 @@ from app.domain.corporate import (
     CorporateRepository,
     CorporateRepresentativeName,
 )
+from app.domain.foundation.exceptions import DomainValidationError
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository
 
 

@@ -11,7 +11,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import ClassVar
 
-from app.base.domain.primitives.primitives import (
+from app.domain.foundation.primitives.primitives import (
     BaseAwareTimestamp,
     BaseFreeText,
     BaseNormalizedString,

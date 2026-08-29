@@ -5,13 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.common.clock import Clock
 from app.application.prescription.get_prescription import PrescriptionDto
 from app.application.prescription.support import (
     load_prescription_or_raise,
     parse_enum,
     required_text,
 )
-from app.base.application.clock import Clock
 from app.domain.corporate.primitives import CorporateId
 from app.domain.prescription import (
     InquiryNumber,

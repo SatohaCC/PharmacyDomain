@@ -10,8 +10,8 @@ tags: [backend, domain, ddd, architecture]
 # Domain層の設計概要
 
 Domain層は業務上の事実、不変条件、状態遷移を所有する最内周です。
-FastAPI、DB、Application層へ依存しません。現在の型やメソッドの詳細は `app/domain/` と
-`app/base/domain/`、保証されている条件は `tests/domain/` を直接確認します。
+FastAPI、DB、Application層へ依存しません。現在の型やメソッドの詳細は `app/domain/`、
+保証されている条件は `tests/domain/` を直接確認します。
 
 ## コンテキスト境界
 

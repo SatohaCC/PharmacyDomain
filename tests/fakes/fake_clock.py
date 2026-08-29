@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from app.base.application.clock import Clock
+from app.application.common.clock import Clock
 
 #: 固定の既定時刻（aware UTC）。テストが日付を指定しないときに使う。
 DEFAULT_NOW = datetime(2026, 8, 23, 3, 0, tzinfo=UTC)

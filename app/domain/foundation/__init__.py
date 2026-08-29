@@ -1,13 +1,8 @@
-"""コンテキスト横断で使う値オブジェクトの基底クラス群。"""
+"""各Domainコンテキストを支えるモデリング基盤。"""
 
-from app.base.domain.primitives.base import DomainPrimitive
-from app.base.domain.primitives.person_primitives import (
-    BasePersonName,
-    BasePersonNameKana,
-    PersonNameKanaPart,
-    PersonNamePart,
-)
-from app.base.domain.primitives.primitives import (
+from app.domain.foundation.entity import AggregateRoot, Entity
+from app.domain.foundation.exceptions import DomainError, DomainValidationError
+from app.domain.foundation.primitives import (
     BaseAddress,
     BaseAwareTimestamp,
     BaseDate,
@@ -20,12 +15,15 @@ from app.base.domain.primitives.primitives import (
     BasePositiveInt,
     BasePostalCode,
     BaseTelephoneNumber,
+    DomainPrimitive,
     EntityStringId,
     EntityUUID,
     ensure_digits,
 )
+from app.domain.foundation.value_object import ValueObject
 
 __all__ = [
+    "AggregateRoot",
     "BaseAddress",
     "BaseAwareTimestamp",
     "BaseDate",
@@ -34,16 +32,16 @@ __all__ = [
     "BaseNonNegativeDecimal",
     "BaseNonNegativeInt",
     "BaseNormalizedString",
-    "BasePersonName",
-    "BasePersonNameKana",
     "BasePositiveDecimal",
     "BasePositiveInt",
     "BasePostalCode",
     "BaseTelephoneNumber",
+    "DomainError",
     "DomainPrimitive",
+    "DomainValidationError",
+    "Entity",
     "EntityStringId",
     "EntityUUID",
-    "PersonNameKanaPart",
-    "PersonNamePart",
+    "ValueObject",
     "ensure_digits",
 ]

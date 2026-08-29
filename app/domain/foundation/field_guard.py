@@ -9,7 +9,7 @@ from dataclasses import fields
 from datetime import date, datetime
 from typing import Any, TypeVar, Union, cast, get_args, get_origin
 
-from app.base.domain.exceptions import DomainValidationError
+from app.domain.foundation.exceptions import DomainValidationError
 
 
 def _declared_field_types(cls: type[Any]) -> tuple[tuple[str, object], ...]:

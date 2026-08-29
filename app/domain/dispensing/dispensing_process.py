@@ -14,20 +14,6 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Self
 
-from app.base.domain.dosage import DosageInstruction
-from app.base.domain.entity import AggregateRoot
-from app.base.domain.medicine import (
-    DispensingQuantity,
-    DosageAmount,
-    DosageFormCategory,
-    MedicineIdentifier,
-    MedicineLineNumber,
-    MedicineName,
-    MedicineUnit,
-    PublicExpenseBurden,
-    RpNumber,
-)
-from app.base.domain.value_object import ValueObject
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.exceptions import (
     CancellationReasonMismatchError,
@@ -66,8 +52,22 @@ from app.domain.dispensing.value_objects import (
     QuantityAdjustment,
     SubstitutionDetail,
 )
+from app.domain.foundation.entity import AggregateRoot
+from app.domain.foundation.value_object import ValueObject
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import PrescriptionId
+from app.domain.shared.dosage import DosageInstruction
+from app.domain.shared.medicine import (
+    DispensingQuantity,
+    DosageAmount,
+    DosageFormCategory,
+    MedicineIdentifier,
+    MedicineLineNumber,
+    MedicineName,
+    MedicineUnit,
+    RpNumber,
+)
+from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.staff.primitives import StaffId
 from app.domain.store.primitives import StoreId
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from app.application.reception.exceptions import ReceptionCoverageSelectionError
-from app.base.domain.exceptions import DomainError
 from app.domain.claim import (
     ClaimCoverageBenefitRatio,
     ClaimCoverageBranchNumber,
@@ -24,6 +23,7 @@ from app.domain.coverage import (
     PatientCoverageId,
     PatientCoverageRepository,
 )
+from app.domain.foundation.exceptions import DomainError
 from app.domain.patient.primitives import PatientId
 from app.domain.reception.coverage_selection import (
     CoverageSelection,

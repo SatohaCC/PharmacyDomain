@@ -6,9 +6,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import ClassVar, Self
 
-from app.base.domain.entity import AggregateRoot
 from app.domain.claim.coverage_snapshot import CoverageSnapshot
 from app.domain.corporate.primitives import CorporateId
+from app.domain.foundation.entity import AggregateRoot
 from app.domain.patient.primitives import PatientId
 from app.domain.reception.coverage_selection import CoverageSelection
 from app.domain.reception.primitives import (

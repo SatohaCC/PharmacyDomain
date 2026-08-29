@@ -13,22 +13,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import Self
 
-from app.base.domain.dosage import DosageInstruction
-from app.base.domain.entity import AggregateRoot, Entity
-from app.base.domain.medicine import (
-    DispensingQuantity,
-    DosageAmount,
-    DosageFormCategory,
-    MedicineIdentifier,
-    MedicineLineNumber,
-    MedicineName,
-    MedicineUnit,
-    PublicExpenseBurden,
-    RpNumber,
-    SingleDoseAmount,
-)
-from app.base.domain.value_object import ValueObject
 from app.domain.corporate.primitives import CorporateId
+from app.domain.foundation.entity import AggregateRoot, Entity
+from app.domain.foundation.value_object import ValueObject
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.exceptions import (
     DuplicatedDosageSupplementError,
@@ -70,6 +57,19 @@ from app.domain.prescription.value_objects import (
     UnitConversion,
 )
 from app.domain.reception.primitives import CoverageSelectionRecordId
+from app.domain.shared.dosage import DosageInstruction
+from app.domain.shared.medicine import (
+    DispensingQuantity,
+    DosageAmount,
+    DosageFormCategory,
+    MedicineIdentifier,
+    MedicineLineNumber,
+    MedicineName,
+    MedicineUnit,
+    RpNumber,
+    SingleDoseAmount,
+)
+from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.staff.primitives import StaffId
 from app.domain.store.primitives import StoreId
 

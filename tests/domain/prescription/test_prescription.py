@@ -11,11 +11,6 @@ from decimal import Decimal
 
 import pytest
 
-from app.base.domain.medicine import (
-    DosageAmount,
-    MedicineCodeType,
-    PublicExpenseBurden,
-)
 from app.domain.prescription import (
     DosageSupplement,
     DosageSupplementText,
@@ -42,6 +37,11 @@ from app.domain.prescription import (
     UnequalDosageTotalMismatchError,
 )
 from app.domain.prescription.primitives import verify_supplement_code_partition
+from app.domain.shared.medicine import (
+    DosageAmount,
+    MedicineCodeType,
+)
+from app.domain.shared.public_expense import PublicExpenseBurden
 from tests.factories.prescription_factory import (
     create_medicine,
     create_prescription,

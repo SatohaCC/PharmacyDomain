@@ -16,8 +16,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import ClassVar, Self
 
-from app.base.domain.medicine import MedicineName
-from app.base.domain.value_object import ValueObject
+from app.domain.foundation.value_object import ValueObject
 from app.domain.medication_history.exceptions import (
     ConcurrentMedicationPeriodInvertedError,
     HandbookGuidanceRequiredError,
@@ -46,6 +45,7 @@ from app.domain.medication_history.primitives import (
     StatutoryCategory,
 )
 from app.domain.prescription.primitives import MedicalInstitutionName
+from app.domain.shared.medicine import MedicineName
 from app.domain.staff.primitives import StaffId
 
 

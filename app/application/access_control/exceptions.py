@@ -1,6 +1,6 @@
 """認可・境界検証固有のアプリケーション例外。"""
 
-from app.base.application.exceptions import NotFoundError
+from app.application.common.exceptions import NotFoundError
 
 
 class TenantBoundaryNotFoundError(NotFoundError):

@@ -21,13 +21,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import ClassVar
 
-from app.base.domain.value_object import ValueObject
 from app.domain.claim.coverage_snapshot import (
     CoverageSnapshot,
     InsuranceCoverageSnapshot,
     PublicExpenseCoverageSnapshot,
 )
 from app.domain.claim.primitives import ClaimCoveragePriority
+from app.domain.foundation.value_object import ValueObject
 from app.domain.reception.exceptions import CoverageSelectionInvalidError
 from app.domain.reception.primitives import SourceCoverageId
 

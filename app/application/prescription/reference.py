@@ -18,11 +18,12 @@ from collections.abc import Mapping
 from datetime import date
 from typing import Protocol
 
-from app.base.domain.medicine import MedicineIdentifier, PublicExpenseBurden
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.value_objects import MedicineClassification
 from app.domain.reception.primitives import CoverageSelectionRecordId
+from app.domain.shared.medicine import MedicineIdentifier
+from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.staff.primitives import StaffId, StaffQualifications
 from app.domain.store.primitives import StoreId
 

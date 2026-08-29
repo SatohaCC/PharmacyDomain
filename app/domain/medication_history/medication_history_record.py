@@ -13,9 +13,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import Self
 
-from app.base.domain.entity import AggregateRoot
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.primitives import DispensingId
+from app.domain.foundation.entity import AggregateRoot
 from app.domain.medication_history.exceptions import (
     MedicationHistoryAlreadyFinalizedError,
     MedicationHistoryNotFinalizedError,

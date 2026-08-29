@@ -85,10 +85,61 @@ root = "."
 paths = ["app"]
 
 [tool.import_rules.forbidden]
-# Shared Kernel は、それを利用する側のコンテキストに依存しない。
-"app.base" = ["app.domain", "app.application", "fastapi", "sqlalchemy"]
+# Domain基盤はShared Kernel・個別コンテキスト・外側の層に依存しない。
+"app.domain.foundation" = [
+    "app.domain.shared",
+    "app.domain.corporate",
+    "app.domain.store",
+    "app.domain.staff",
+    "app.domain.patient",
+    "app.domain.coverage",
+    "app.domain.reception",
+    "app.domain.claim",
+    "app.domain.prescription",
+    "app.domain.dispensing",
+    "app.domain.medication_history",
+    "app.domain.medicine_catalog",
+    "app.application",
+    "fastapi",
+    "sqlalchemy",
+]
+# Shared Kernel はDomain基盤にだけ依存し、個別コンテキストへ依存しない。
+"app.domain.shared" = [
+    "app.domain.corporate",
+    "app.domain.store",
+    "app.domain.staff",
+    "app.domain.patient",
+    "app.domain.coverage",
+    "app.domain.reception",
+    "app.domain.claim",
+    "app.domain.prescription",
+    "app.domain.dispensing",
+    "app.domain.medication_history",
+    "app.domain.medicine_catalog",
+    "app.application",
+    "fastapi",
+    "sqlalchemy",
+]
 # Domain層は Application層・Web/DBフレームワークに一切依存しない。
 "app.domain" = ["app.application", "fastapi", "sqlalchemy"]
+# Application共通基盤はDomain層や個別Applicationコンテキストに依存しない。
+"app.application.common" = [
+    "app.domain",
+    "app.application.access_control",
+    "app.application.corporate",
+    "app.application.store",
+    "app.application.staff",
+    "app.application.patient",
+    "app.application.coverage",
+    "app.application.reception",
+    "app.application.composition",
+    "app.application.prescription",
+    "app.application.dispensing",
+    "app.application.medication_history",
+    "app.application.medicine_catalog",
+    "fastapi",
+    "sqlalchemy",
+]
 # 認可基盤は個別コンテキストに依存しない（leafを維持する）。
 "app.application.access_control" = [
     "app.application.corporate",

@@ -25,7 +25,7 @@ from dataclasses import fields, is_dataclass
 from enum import Enum
 
 import app.domain
-from app.base.domain.entity import AggregateRoot
+from app.domain.foundation.entity import AggregateRoot
 
 #: 許可するライフサイクル表現。
 ALLOWED_DIALECTS = frozenset({"none", "active_flag", "status_enum", "dated_activation"})

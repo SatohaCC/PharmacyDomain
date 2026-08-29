@@ -4,8 +4,8 @@ import pytest
 
 from app.application.corporate import CorporateNotFoundError
 from app.application.store.exceptions import StoreNotFoundError
-from app.base.domain.exceptions import DomainError, DomainValidationError
 from app.domain.corporate.exceptions import CorporateNameAlreadyExistsError
+from app.domain.foundation.exceptions import DomainError, DomainValidationError
 from app.domain.store.exceptions import (
     StoreCodeAlreadyExistsError,
     StoreNameAlreadyExistsError,

@@ -5,13 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.common.clock import Clock
 from app.application.dispensing.get_dispensing import DispensingProcessDto
 from app.application.dispensing.reference import StaffQualificationBoundary
 from app.application.dispensing.support import (
     load_dispensing_or_raise,
     to_optional_text,
 )
-from app.base.application.clock import Clock
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing import (
     AuditNotes,

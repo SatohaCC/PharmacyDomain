@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.common.clock import Clock
 from app.application.dispensing.exceptions import (
     PrescriptionNotReadyForDispensingError,
 )
@@ -21,7 +22,6 @@ from app.application.dispensing.support import (
     parse_enum,
     to_optional_text,
 )
-from app.base.application.clock import Clock
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing import (
     DispensedDate,

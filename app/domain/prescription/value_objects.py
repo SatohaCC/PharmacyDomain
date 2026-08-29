@@ -13,13 +13,7 @@ from datetime import date, timedelta
 from enum import StrEnum
 from typing import ClassVar
 
-from app.base.domain.medicine import (
-    ConversionFactor,
-    DosageAmount,
-    MedicineIdentifier,
-    MedicineUnit,
-)
-from app.base.domain.value_object import PersonNames, ValueObject
+from app.domain.foundation.value_object import ValueObject
 from app.domain.prescription.exceptions import (
     ApplicationSiteCodeRequiredError,
     DepartmentCodeRequiredError,
@@ -66,6 +60,13 @@ from app.domain.prescription.primitives import (
     SplitIteration,
     SubstitutionRestrictionReason,
 )
+from app.domain.shared.medicine import (
+    ConversionFactor,
+    DosageAmount,
+    MedicineIdentifier,
+    MedicineUnit,
+)
+from app.domain.shared.person_name import PersonNames
 
 #: 使用期限の指定がない場合の実効日数。交付日を含めて4日間。
 #: 出典: 保険調剤の理解のために（令和8年度）「処方箋の使用期間は、交付の日を

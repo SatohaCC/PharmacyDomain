@@ -10,13 +10,7 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from app.base.domain.dosage import (
-    DosageCode,
-    DosageCodeType,
-    DosageInstruction,
-    DosageName,
-)
-from app.base.domain.exceptions import DomainValidationError
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.prescription import (
     DEFAULT_VALID_DAYS,
     ApplicationSiteCode,
@@ -47,6 +41,12 @@ from app.domain.prescription import (
     SplitInstruction,
     SplitIteration,
     SplitIterationOutOfRangeError,
+)
+from app.domain.shared.dosage import (
+    DosageCode,
+    DosageCodeType,
+    DosageInstruction,
+    DosageName,
 )
 
 

@@ -14,7 +14,7 @@ from app.application.access_control import (
     Permission,
     TenantBoundaryNotFoundError,
 )
-from app.base.application.exceptions import AuthorizationError
+from app.application.common.exceptions import AuthorizationError
 from app.domain.corporate import CorporateId
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]

@@ -11,15 +11,6 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.base.domain.exceptions import DomainValidationError
-from app.base.domain.medicine import (
-    DispensingQuantity,
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
-    MedicineName,
-    RpNumber,
-)
 from app.domain.dispensing import (
     AuditTimestamp,
     CancellationReasonMismatchError,
@@ -45,6 +36,15 @@ from app.domain.dispensing import (
     VerificationNotPassedError,
     VerificationResult,
     VerificationTimestamp,
+)
+from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.shared.medicine import (
+    DispensingQuantity,
+    MedicineCode,
+    MedicineCodeType,
+    MedicineIdentifier,
+    MedicineName,
+    RpNumber,
 )
 from app.domain.staff.primitives import StaffId
 from tests.factories.dispensing_factory import (

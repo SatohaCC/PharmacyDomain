@@ -3,6 +3,29 @@
 プロジェクトの重要な設計判断と、その採用理由・却下理由を時系列で残します。
 現在の型と振る舞いはコード、保証範囲はテストと静的チェッカを正とします。
 
+## 2026-08-29: 共通コードを所属する層へ配置した
+
+- **種別**: アーキテクチャ整理 / ADR
+- **概要**: `app/base/` を廃止し、Domain基盤・Shared Kernel・Application共通基盤を所属する層へ分離した。
+
+### ADR-22: 「共有されること」と「所属する層」を別の軸として扱う
+
+従来の `app/base/domain/` と `app/base/application/` は依存方向を守っていたが、
+`base` がDomain・Applicationと同列に見え、DDDのShared Kernelという語を
+Applicationの例外や入力正規化にまで広げていた。また、モデリング基底と
+人名・薬品・用法などの業務語彙が同じパッケージに混在していた。
+
+そこで、Domainの技術的なモデリング基盤を `app/domain/foundation/`、
+所有者のいない語彙と複数コンテキストで共有する規則を `app/domain/shared/`、
+Application層の共通処理を `app/application/common/` に置く。
+Shared Kernelという呼称はDomainの共有語彙と規則にだけ使う。
+
+配置変更で依存の葉が崩れないよう、Domain基盤は個別コンテキストにもShared Kernelにも
+依存せず、Shared KernelはDomain基盤にだけ依存し、Application共通基盤はDomain層にも
+個別Applicationコンテキストにも依存しないことを静的import検査で強制する。
+
+---
+
 ## 2026-08-29: 文書とコードの責務を分離した
 
 - **種別**: ドキュメント設計 / ADR
@@ -157,10 +180,10 @@ ADR-9 の基準（所有者がいるか）で言えば共有語彙ではなく**
 薬品名・薬品コード・用量・用法は Prescription / Dispensing / MedicationHistory の3コンテキストが必要とする。どこに置くかの判断基準を「**所有者がいるか**」とした。
 
 - `PatientId` は Patient 集約の**同一性**であり、参照する側は必ず所有者を指している。所有コンテキストから import するのが正しい。
-- 薬品名はどの集約の同一性でもない。本システムに医薬品集約は存在しない。**所有者のいない語彙**である。
+- 薬品名は MedicineCatalog の版付きマスタ行の同一性ではなく、処方・調剤・薬歴で共通に使う値である。カタログ未収載の持参薬やOTCも表せるため、**所有者のいない語彙**である。
 - 所有者のいないものを Prescription へ置くと、MedicationHistory が「他院で買ったOTCの名前」を表すために Prescription を import することになり、依存が語彙の実態と食い違う。
 
-→ `app/base/domain/medicine.py`（薬品語彙）と `app/base/domain/dosage.py`（用法語彙）を新設した。用法補足（処方編 別表14）は処方箋固有なので移していない。
+→ 現在は `app/domain/shared/medicine.py`（薬品語彙）と `app/domain/shared/dosage.py`（用法語彙）に置く。用法補足（処方編 別表14）は処方箋固有なので移していない。
 
 ### ADR-10: 用量に `float` を使わない
 
@@ -280,7 +303,7 @@ Boundary を定義して Fake が「麻薬ではない」と答えると、**麻
 - **概要**:
   - `Staff` 集約の所属履歴（`affiliations`）において、主所属の重複禁止および同一店舗の重複禁止不変条件を `Staff.validate()` で構築時に全域で強制。
   - 適用資格の選択構造を元資格ID列とスナップショットの平坦分離から、`CoverageSelection`（枠構造で元資格IDと固定値を不可分に束ねる設計）へ移行。
-  - 公費順位の規則（上限4件・重複なし・第一公費から連続）を Shared Kernel（`app/base/domain/priority_rules.py`）に一元化。
+  - 公費順位の規則（上限4件・重複なし・第一公費から連続）を Shared Kernel（現在の `app/domain/shared/priority_rules.py`）に一元化。
 
 ---
 
@@ -309,5 +332,5 @@ Boundary を定義して Fake が「麻薬ではない」と答えると、**麻
 - **種別**: 初期設計
 - **概要**:
   - マルチテナント法人（`Corporate`）、店舗（`Store`）、スタッフ（`Staff`）、患者（`Patient`）のオニオンアーキテクチャを確立。
-  - Domain Primitive（UUIDv7、不変オブジェクト）体系を `app/base/domain/primitives/` に整備。
+  - Domain Primitive（UUIDv7、不変オブジェクト）体系を現在の `app/domain/foundation/primitives/` に整備。
   - Access Control 境界（`ActorContext`、`CorporateAccessBoundary`）の分離を定義。

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from app.application.access_control.exceptions import TenantBoundaryNotFoundError
 from app.application.access_control.models import ActorContext, ActorRole, Permission
-from app.base.application.exceptions import AuthorizationError
+from app.application.common.exceptions import AuthorizationError
 from app.domain.corporate.primitives import CorporateId
 
 _CORPORATE_ADMIN_PERMISSIONS = frozenset(

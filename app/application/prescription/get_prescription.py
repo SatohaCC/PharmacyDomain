@@ -10,10 +10,6 @@ from dataclasses import dataclass
 
 from app.application.access_control import CorporateAccessBoundary, Permission
 from app.application.prescription.support import load_prescription_or_raise
-from app.base.domain.dosage import (
-    DosageInstruction,
-)
-from app.base.domain.medicine import PublicExpenseBurden
 from app.domain.corporate.primitives import CorporateId
 from app.domain.prescription import (
     DepartmentInfo,
@@ -33,6 +29,10 @@ from app.domain.prescription import (
     PrescriptionRp,
     UnitConversion,
 )
+from app.domain.shared.dosage import (
+    DosageInstruction,
+)
+from app.domain.shared.public_expense import PublicExpenseBurden
 
 
 @dataclass(frozen=True, kw_only=True)

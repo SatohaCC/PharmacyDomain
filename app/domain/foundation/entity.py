@@ -1,4 +1,4 @@
-"""DDD エンティティおよび集約ルートの基底クラス定義（Shared Kernel）。"""
+"""DDD エンティティおよび集約ルートの基底クラス定義。"""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-from app.base.domain.field_guard import ensure_declared_field_types
-from app.base.domain.primitives.base import DomainPrimitive
+from app.domain.foundation.field_guard import ensure_declared_field_types
+from app.domain.foundation.primitives.base import DomainPrimitive
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)

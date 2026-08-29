@@ -1,8 +1,8 @@
 from dataclasses import dataclass, replace
 from typing import Self
 
-from app.base.domain.entity import AggregateRoot
 from app.domain.corporate.primitives import CorporateId
+from app.domain.foundation.entity import AggregateRoot
 from app.domain.store.primitives import (
     ContactInfo,
     InsurancePharmacyNumber,

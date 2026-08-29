@@ -6,7 +6,6 @@ from datetime import date, datetime
 
 import pytest
 
-from app.base.domain.exceptions import DomainValidationError
 from app.domain.corporate.primitives import CorporateId
 from app.domain.coverage import (
     CoverageActivatedOn,
@@ -32,6 +31,7 @@ from app.domain.coverage import (
     PublicPayerNumber,
     PublicRecipientNumber,
 )
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.patient.primitives import PatientId
 from tests.fakes.in_memory_patient_coverage_repository import (
     InMemoryPatientCoverageRepository,

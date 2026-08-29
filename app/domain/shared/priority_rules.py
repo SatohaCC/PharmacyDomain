@@ -10,8 +10,7 @@
 対応づける。Coverage と Claim は互いに import できない（`[tool.import_rules]`
 が双方向で禁止している）ため、共有先は Shared Kernel になる。
 
-この関数は int の列だけを扱い `app.domain` に一切依存しないので、
-「`app.base` は利用側のコンテキストに依存しない」規則も破らない。
+この関数は int の列だけを扱い、各Domainコンテキストへ依存しない。
 """
 
 from __future__ import annotations

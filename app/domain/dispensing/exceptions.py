@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.base.domain.exceptions import DomainError
+from app.domain.foundation.exceptions import DomainError
 
 
 class DispensingDomainError(DomainError):

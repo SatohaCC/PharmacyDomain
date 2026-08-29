@@ -31,11 +31,6 @@ from app.application.prescription.inputs import (
     DosageInstructionInput,
     PublicExpenseBurdenInput,
 )
-from app.base.domain.medicine import (
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
-)
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription import (
@@ -46,6 +41,11 @@ from app.domain.prescription import (
     PrescriptionDocumentNumberUniquenessService,
     PublicExpenseBurdenService,
     RefillEligibilityService,
+)
+from app.domain.shared.medicine import (
+    MedicineCode,
+    MedicineCodeType,
+    MedicineIdentifier,
 )
 from app.domain.staff.primitives import (
     PharmacistLicenseNumber,

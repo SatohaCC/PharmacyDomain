@@ -6,8 +6,8 @@ import uuid
 
 import pytest
 
-from app.base.domain.exceptions import DomainValidationError
 from app.domain.corporate import CorporateId
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.store import (
     ContactInfo,
     InsurancePharmacyNumber,

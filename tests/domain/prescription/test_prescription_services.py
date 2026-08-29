@@ -12,10 +12,6 @@ from __future__ import annotations
 
 import pytest
 
-from app.base.domain.medicine import (
-    MedicineIdentifier,
-    PublicExpenseBurden,
-)
 from app.domain.prescription import (
     InquiryPharmacistQualificationError,
     MedicineClassification,
@@ -40,6 +36,10 @@ from app.domain.prescription.services import (
     PublicExpenseBurdenService,
     RefillEligibilityService,
 )
+from app.domain.shared.medicine import (
+    MedicineIdentifier,
+)
+from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.staff.primitives import (
     DietitianProfile,
     DietitianRegistrationNumber,

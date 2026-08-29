@@ -6,10 +6,10 @@ from dataclasses import dataclass
 
 from app.application.access_control import CorporateAccessBoundary, Permission
 from app.application.patient.support import load_patient_or_raise
-from app.base.domain.value_object import PersonNames
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientId
 from app.domain.patient.repository import PatientRepository
+from app.domain.shared.person_name import PersonNames
 
 
 @dataclass(frozen=True, kw_only=True)

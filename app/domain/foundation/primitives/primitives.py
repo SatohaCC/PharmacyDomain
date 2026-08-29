@@ -8,8 +8,8 @@ from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, ClassVar, Self
 
-from app.base.domain.exceptions import DomainValidationError
-from app.base.domain.primitives.base import DomainPrimitive
+from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.foundation.primitives.base import DomainPrimitive
 
 
 class EntityUUID(DomainPrimitive[uuid.UUID]):
@@ -259,9 +259,9 @@ def ensure_digits(value: str, *, field_name: str, lengths: tuple[int, ...]) -> N
     ため、桁数はプリミティブの不変条件として持たせる。
 
     同じ規則を Coverage / Claim / Prescription が必要とする。規則本体が複数箇所に
-    あると片方だけ直る事故が起きるので、Shared Kernel に1つだけ置く
+    あると片方だけ直る事故が起きるので、Domain基盤に1つだけ置く
     （``priority_rules.py`` と同じ判断）。この関数は ``str`` と ``int`` しか
-    扱わないので「``app.base`` は利用側のコンテキストに依存しない」規則も破らない。
+    扱わず、各Domainコンテキストへ依存しない。
     """
     pattern = "|".join(f"[0-9]{{{length}}}" for length in lengths)
     if not re.fullmatch(pattern, value):

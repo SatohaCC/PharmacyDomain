@@ -7,11 +7,6 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import ClassVar
 
-from app.base.domain.priority_rules import (
-    PriorityViolation,
-    find_priority_violation,
-)
-from app.base.domain.value_object import ValueObject
 from app.domain.corporate.primitives import CorporateId
 from app.domain.coverage.exceptions import CoverageCombinationError
 from app.domain.coverage.patient_coverage import PatientCoverage
@@ -22,7 +17,12 @@ from app.domain.coverage.primitives import (
     PatientCoverageId,
     PublicExpenseCoverageDetails,
 )
+from app.domain.foundation.value_object import ValueObject
 from app.domain.patient.primitives import PatientId
+from app.domain.shared.priority_rules import (
+    PriorityViolation,
+    find_priority_violation,
+)
 
 #: 公費は第一公費から第四公費までを同時に適用できる。
 MAXIMUM_PUBLIC_EXPENSE_COUNT = 4

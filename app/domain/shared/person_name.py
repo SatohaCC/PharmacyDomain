@@ -1,37 +1,60 @@
-"""コンテキスト横断で使う複合 Value Object。"""
+"""複数コンテキストで共有する人名語彙（Shared Kernel）。"""
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import ClassVar, Self
 
-from app.base.domain.field_guard import ensure_declared_field_types
-from app.base.domain.primitives.person_primitives import (
-    PersonNameKanaPart,
-    PersonNamePart,
-)
+from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.foundation.primitives.primitives import BaseNormalizedString
+from app.domain.foundation.value_object import ValueObject
 
 
-@dataclass(frozen=True, kw_only=True)
-class ValueObject:
-    """複合 Value Object の初期化順序を統一する基底クラス。"""
-
-    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {}
-
-    def __post_init__(self) -> None:
-        """正規化、宣言型の照合、業務ルール検証を順に実行する。"""
-        self._normalize_fields()
-        ensure_declared_field_types(self, labels=self._FIELD_LABELS)
-        self.validate()
-
-    def _normalize_fields(self) -> None:
-        """派生クラスが複合フィールドを正規化するためのフック。"""
-        return None
+@dataclass(frozen=True)
+class BasePersonName(BaseNormalizedString):
+    """人名（漢字・アルファベット等）の基底プリミティブ。"""
 
     def validate(self) -> None:
-        """派生クラスが値オブジェクト固有の不変条件を検証するためのフック。"""
-        return None
+        if not self.value:
+            raise DomainValidationError("氏名は空にできません。")
+        if len(self.value) > 50:
+            raise DomainValidationError("氏名は50文字以内で入力してください。")
+
+
+@dataclass(frozen=True)
+class BasePersonNameKana(BaseNormalizedString):
+    """人名（フリガナ・全角カタカナ）の基底プリミティブ。
+
+    空白の正規化に加え、NFKCにより半角カナを全角カタカナへ変換します。
+    """
+
+    # 全角カタカナ（小書き・ヵ・ヶを含む）、長音符(ー)、中黒(・)、スペースを許容する正規表現
+    KANA_PATTERN: ClassVar[re.Pattern[str]] = re.compile(r"^[ァ-ヶー・\s]+$")
+
+    def _normalize(self, value: str) -> str:
+        normalized = super()._normalize(value)
+        return unicodedata.normalize("NFKC", normalized)
+
+    def validate(self) -> None:
+        if not self.value:
+            raise DomainValidationError("氏名（カナ）は空にできません。")
+        if len(self.value) > 50:
+            raise DomainValidationError("氏名（カナ）は50文字以内で入力してください。")
+        if not self.KANA_PATTERN.fullmatch(self.value):
+            raise DomainValidationError(
+                "氏名（カナ）は全角カタカナで入力してください。"
+            )
+
+
+class PersonNamePart(BasePersonName):
+    """姓または名として保持する具象プリミティブ。"""
+
+
+class PersonNameKanaPart(BasePersonNameKana):
+    """姓または名のフリガナとして保持する具象プリミティブ。"""
 
 
 @dataclass(frozen=True, kw_only=True)

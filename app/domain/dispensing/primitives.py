@@ -12,7 +12,7 @@
 **ドメイン固有の概念**であり、規格の写像ではない。
 
 薬品そのものの語彙（``MedicineName`` / ``DosageAmount`` 等）は所有者がいないため
-Shared Kernel の ``app/base/domain/medicine.py`` にある。
+Shared Kernel の ``app/domain/shared/medicine.py`` にある。
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import ClassVar
 
-from app.base.domain.primitives.primitives import (
+from app.domain.foundation.primitives.primitives import (
     BaseAwareTimestamp,
     BaseDate,
     BaseFreeText,

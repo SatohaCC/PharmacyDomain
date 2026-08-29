@@ -5,12 +5,12 @@
 
 from enum import StrEnum
 
-from app.base.domain.exceptions import DomainValidationError
-from app.base.domain.primitives.primitives import (
+from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.foundation.primitives.primitives import (
     BaseNormalizedString,
     EntityUUID,
 )
-from app.base.domain.value_object import PersonName
+from app.domain.shared.person_name import PersonName
 
 
 class CorporateId(EntityUUID):

@@ -3,13 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Self
 
-from app.base.domain.entity import AggregateRoot
 from app.domain.corporate.primitives import (
     CorporateId,
     CorporateName,
     CorporateRepresentativeName,
     CorporateStatus,
 )
+from app.domain.foundation.entity import AggregateRoot
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)

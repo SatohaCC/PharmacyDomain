@@ -1,4 +1,4 @@
-"""Application層の境界で共有する入力正規化処理（Shared Kernel）。"""
+"""Application層の境界で共有する入力正規化処理。"""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ def to_optional_text(raw: str | None) -> str | None:
 
     コンテキストごとに同じ関数を複製すると正規化ルールの変更が片方だけに入り、
     同じ空文字が店舗では項目解除・資格では検証エラーという分岐を生む。そのため
-    定義はこのShared Kernelに1つだけ置き、各コンテキストの ``support.py`` は
+    定義はApplication共通基盤に1つだけ置き、各コンテキストの ``support.py`` は
     再エクスポートするだけに留める。
 
     Args:

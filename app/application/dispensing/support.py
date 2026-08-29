@@ -9,34 +9,13 @@ from __future__ import annotations
 from decimal import Decimal
 from enum import StrEnum
 
+from app.application.common.input_normalization import to_optional_text
 from app.application.dispensing.exceptions import DispensingNotFoundError
 from app.application.dispensing.inputs import (
     DispensedMedicineInput,
     DispensedRpInput,
     QuantityAdjustmentInput,
     SubstitutionInput,
-)
-from app.base.application.support import to_optional_text
-from app.base.domain.dosage import (
-    DailyFrequency,
-    DosageCode,
-    DosageCodeType,
-    DosageInstruction,
-    DosageName,
-)
-from app.base.domain.exceptions import DomainValidationError
-from app.base.domain.medicine import (
-    DispensingQuantity,
-    DosageAmount,
-    DosageFormCategory,
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
-    MedicineLineNumber,
-    MedicineName,
-    MedicineUnit,
-    PublicExpenseBurden,
-    RpNumber,
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing import (
@@ -52,6 +31,27 @@ from app.domain.dispensing import (
     SubstitutionDetail,
     SubstitutionReason,
 )
+from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.shared.dosage import (
+    DailyFrequency,
+    DosageCode,
+    DosageCodeType,
+    DosageInstruction,
+    DosageName,
+)
+from app.domain.shared.medicine import (
+    DispensingQuantity,
+    DosageAmount,
+    DosageFormCategory,
+    MedicineCode,
+    MedicineCodeType,
+    MedicineIdentifier,
+    MedicineLineNumber,
+    MedicineName,
+    MedicineUnit,
+    RpNumber,
+)
+from app.domain.shared.public_expense import PublicExpenseBurden
 
 __all__ = [
     "build_dispensed_rps",
