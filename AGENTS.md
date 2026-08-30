@@ -92,7 +92,7 @@ uv run python -m tools.check_fake_conformance --verbose --fail-on-violation  # �
 
 1. `app/application/<context>/<use_case_name>.py` に `XxxCommand` DTO と `XxxUseCase` クラスを同居作成。
 2. 処理フロー: Command 文字列 → Primitive 変換 → `CorporateAccessService` → `load_*_or_raise()` → Domain Service（検証） → 集約の `change_*`（戻り値受け直し） → `repository.save()`。認可に必要なActorはCommandへ入れず、UseCaseの依存として注入する。
-3. 返却値は `XxxDto.from_entity()`（エンティティを直接返さない）。
+3. 返却値は ID Primitive か `XxxDto.from_entity()` とし、**集約を直接返さない**。集約を返すと、外側が適用日を取る導出（`current_home_store_id` 等）を直接呼べてしまい、「いつ時点の値か」が経路ごとにばらける。`tests/application/test_use_case_return_types.py` が全 `*UseCase.execute` の戻り値注釈を集めて、合併型・`list` / `tuple` の中まで含めて `Entity` の派生を検出する。
 4. `__init__.py` の `__all__` に追加し、`tests/application/<context>/test_<use_case_name>.py` を作成。
 
 ## graphify

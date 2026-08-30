@@ -27,6 +27,7 @@ from app.domain.staff import (
     StaffCode,
     StaffCodeUniquenessService,
     StaffEmailAddress,
+    StaffId,
     StaffPhoneNumber,
     StaffQualifications,
     StaffRepository,
@@ -126,7 +127,13 @@ class RegisterStaffUseCase:
             else StaffQualifications.empty()
         )
 
-    async def execute(self, command: RegisterStaffCommand) -> Staff:
+    async def execute(self, command: RegisterStaffCommand) -> StaffId:
+        """スタッフを登録し、採番されたIDを返す。
+
+        集約そのものを返さない。返すと、呼び出し側が導出メソッドを適用日なしで
+        呼べてしまい、「いつ時点の主所属か」が暗黙になる。適用日つきの表現が
+        要るなら ``GetStaffUseCase`` を使う。
+        """
         corporate_id = CorporateId.parse(command.corporate_id)
         await self._corporate_access.require_active(
             corporate_id=corporate_id,
@@ -184,4 +191,4 @@ class RegisterStaffUseCase:
             )
 
         await self._staff_repository.save(staff)
-        return staff
+        return staff.id
