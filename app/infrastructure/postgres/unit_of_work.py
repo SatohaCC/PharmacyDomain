@@ -47,7 +47,9 @@ class PostgresUnitOfWork:
     def ensure_active(self) -> None:
         """アプリケーション処理がこの Unit of Work 内で実行中か検証する。"""
         if self._session is None:
-            raise RuntimeError("PostgresUnitOfWork のコンテキスト外では実行できません。")
+            raise RuntimeError(
+                "PostgresUnitOfWork のコンテキスト外では実行できません。"
+            )
 
     def record_version(
         self,

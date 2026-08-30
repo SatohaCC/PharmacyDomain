@@ -48,6 +48,7 @@ from tests.fakes.medication_history_reference_boundaries import (
     FakeDispensingSource,
     FakeMedicationHistoryStoreReference,
 )
+from tests.fakes.null_unit_of_work import NullUnitOfWork
 
 
 def create_pharmacist_qualifications() -> StaffQualifications:
@@ -141,7 +142,7 @@ def create_fixture() -> MedicationHistoryFixture:
             record_repository, corporate_access
         ),
         finalize=FinalizeMedicationHistoryUseCase(
-            record_repository, profile_repository, corporate_access
+            record_repository, profile_repository, corporate_access, NullUnitOfWork()
         ),
         amend=AmendMedicationHistoryUseCase(
             record_repository,

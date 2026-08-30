@@ -60,6 +60,7 @@ from tests.fakes.fake_clock import FakeClock
 from tests.fakes.in_memory_dispensing_process_repository import (
     InMemoryDispensingProcessRepository,
 )
+from tests.fakes.null_unit_of_work import NullUnitOfWork
 
 
 def create_pharmacist_qualifications() -> StaffQualifications:
@@ -220,7 +221,7 @@ def create_fixture(*, prescription: Prescription | None = None) -> DispensingFix
             clock,
         ),
         complete=CompleteDispensingUseCase(
-            repository, corporate_access, prescription_source
+            repository, corporate_access, prescription_source, NullUnitOfWork()
         ),
         get=GetDispensingUseCase(repository, corporate_access),
         list_by_prescription=ListDispensingsByPrescriptionUseCase(

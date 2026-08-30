@@ -184,7 +184,7 @@ def test_Repository一式が同じUnit_of_Workを共有する() -> None:
     # Act
     repositories = scope.repositories
     shared: set[int] = {
-        id(getattr(getattr(repositories, item.name), "_unit_of_work"))
+        id(getattr(repositories, item.name)._unit_of_work)
         for item in fields(repositories)
     }
 

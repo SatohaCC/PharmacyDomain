@@ -110,7 +110,9 @@ _STORE_ADAPTERS = [
         MedicationHistoryStoreNotFoundError,
         id="薬歴",
     ),
-    pytest.param(ReceptionStoreReferenceAdapter, ReceptionStoreNotFoundError, id="受付"),
+    pytest.param(
+        ReceptionStoreReferenceAdapter, ReceptionStoreNotFoundError, id="受付"
+    ),
 ]
 
 _PATIENT_ADAPTERS = [

@@ -93,9 +93,7 @@ class PostgresRequestScope:
     ) -> None:
         self._unit_of_work = unit_of_work
         repositories = PostgresRepositorySet.create(unit_of_work)
-        corporate_access = CorporateAccessService(
-            repositories.corporate, authorization
-        )
+        corporate_access = CorporateAccessService(repositories.corporate, authorization)
         self._repositories = repositories
         self._use_cases = PostgresUseCaseRegistry(
             corporate=build_corporate_use_cases(repositories, corporate_access),
