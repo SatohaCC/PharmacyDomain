@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.base.domain.exceptions import DomainError
+from app.domain.foundation.exceptions import DomainError
 
 
 class DispensingDomainError(DomainError):
@@ -183,17 +183,6 @@ class SubstitutionNotAllowedError(DispensingDomainError):
 # --------------------------------------------------------------------------
 # 担当者・状態遷移
 # --------------------------------------------------------------------------
-
-
-class SelfVerificationNotAllowedError(DispensingDomainError):
-    """調剤者本人が最終鑑査を行おうとした場合の例外。
-
-    調剤した本人と鑑査した本人がそれぞれ記録されていることを要求する
-    （管理薬剤師による一括代行署名の禁止）。
-    """
-
-    default_message = "最終鑑査は調剤を行った薬剤師以外が行う必要があります。"
-    default_code = "DISPENSING_SELF_VERIFICATION_NOT_ALLOWED"
 
 
 class VerificationNotPassedError(DispensingDomainError):

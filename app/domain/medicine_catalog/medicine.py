@@ -17,9 +17,8 @@ from dataclasses import dataclass
 from datetime import date
 from typing import ClassVar, Self
 
-from app.base.domain.entity import AggregateRoot
-from app.base.domain.medicine import MedicineIdentifier, MedicineName, MedicineUnit
-from app.base.domain.value_object import ValueObject
+from app.domain.foundation.entity import AggregateRoot
+from app.domain.foundation.value_object import ValueObject
 from app.domain.medicine_catalog.exceptions import (
     MedicineCodeRequiredError,
     MedicineEffectivePeriodInvertedError,
@@ -33,6 +32,7 @@ from app.domain.medicine_catalog.primitives import (
     MedicineWithdrawnOn,
     NarcoticCategory,
 )
+from app.domain.shared.medicine import MedicineIdentifier, MedicineName, MedicineUnit
 
 
 @dataclass(frozen=True, kw_only=True)

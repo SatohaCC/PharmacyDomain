@@ -6,13 +6,15 @@ from dataclasses import fields
 
 import pytest
 
-from app.base.domain.exceptions import DomainValidationError
-from app.base.domain.primitives.person_primitives import (
+from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.shared.person_name import (
     BasePersonNameKana,
+    PersonName,
+    PersonNameKana,
     PersonNameKanaPart,
     PersonNamePart,
+    PersonNames,
 )
-from app.base.domain.value_object import PersonName, PersonNameKana, PersonNames
 
 
 def test_person_name_create_normalizes_whitespace() -> None:

@@ -36,7 +36,6 @@ from app.application.prescription.support import (
     parse_source_type,
     to_optional_text,
 )
-from app.base.domain.medicine import PublicExpenseBurden
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription import (
@@ -49,6 +48,7 @@ from app.domain.prescription import (
     RefillEligibilityService,
 )
 from app.domain.reception.primitives import CoverageSelectionRecordId
+from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.store.primitives import StoreId
 
 

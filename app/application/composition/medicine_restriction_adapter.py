@@ -14,13 +14,13 @@ from __future__ import annotations
 from datetime import date
 
 from app.application.prescription.reference import MedicineRestrictionBoundary
-from app.base.domain.medicine import MedicineIdentifier
 from app.domain.medicine_catalog.medicine import Medicine
 from app.domain.medicine_catalog.repository import MedicineCatalogRepository
 from app.domain.prescription.value_objects import (
     MedicineClassification,
     MedicineRestrictionFlag,
 )
+from app.domain.shared.medicine import MedicineIdentifier
 
 
 class MedicineCatalogRestrictionAdapter(MedicineRestrictionBoundary):

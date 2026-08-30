@@ -3,8 +3,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import ClassVar, Self
 
-from app.base.domain.exceptions import DomainValidationError
-from app.base.domain.primitives.primitives import (
+from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.foundation.primitives.primitives import (
     BaseAddress,
     BaseEmailAddress,
     BaseNormalizedString,
@@ -12,7 +12,7 @@ from app.base.domain.primitives.primitives import (
     BaseTelephoneNumber,
     EntityUUID,
 )
-from app.base.domain.value_object import ValueObject
+from app.domain.foundation.value_object import ValueObject
 
 
 class StoreId(EntityUUID):

@@ -9,13 +9,13 @@ from app.application.access_control import (
     Permission,
     TenantBoundaryNotFoundError,
 )
+from app.application.common.exceptions import AuthorizationError, NotFoundError
 from app.application.corporate import (
     CorporateAccessService,
     CorporateApplicationError,
     CorporateInactiveError,
     CorporateNotFoundError,
 )
-from app.base.application.exceptions import AuthorizationError, NotFoundError
 from app.domain.corporate import CorporateId, CorporateStatus
 from tests.application.corporate.helpers import save_corporate
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository

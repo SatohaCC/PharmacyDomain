@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from app.base.application.support import to_optional_text
-from app.base.domain.exceptions import DomainValidationError
+from app.application.common.input_normalization import to_optional_text
+from app.domain.foundation.exceptions import DomainValidationError
 
 __all__ = ["parse_enum", "required_text", "to_optional_text"]
 

@@ -26,6 +26,7 @@ from app.domain.prescription import (
     InquiryNotFoundError,
     InquiryPharmacistQualificationError,
     PrescriptionId,
+    PrescriptionStatus,
 )
 from app.domain.staff.primitives import StaffId, StaffQualifications
 from tests.application.prescription.helpers import (
@@ -245,7 +246,8 @@ class Test疑義照会への回答:
                 self._resolve_command(fixture, registered.id, inquiry_number=2)
             )
 
-    async def test_処方削除の回答は_調剤不可として記録される(self) -> None:
+    async def test_処方削除の回答は_調剤不可として記録され取消済になる(self) -> None:
+        """回答の記録だけでは調剤開始を止められないため、状態まで畳む。"""
         # Arrange
         fixture = create_fixture()
         registered = await _register(fixture)
@@ -260,3 +262,4 @@ class Test疑義照会への回答:
         response = actual.inquiries[0].response
         assert response is not None
         assert response.blocks_dispensing
+        assert actual.status == PrescriptionStatus.CANCELLED.value

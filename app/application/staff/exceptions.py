@@ -1,6 +1,6 @@
 """スタッフアプリケーション層（ユースケース）の例外定義。"""
 
-from app.base.application.exceptions import ApplicationError
+from app.application.common.exceptions import ApplicationError
 
 
 class StaffApplicationError(ApplicationError):

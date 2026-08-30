@@ -23,10 +23,6 @@ from app.application.prescription import (
     PrescriptionStoreNotFoundError,
     PublicExpenseBurdenInput,
 )
-from app.base.domain.medicine import (
-    MedicineCodeType,
-    PublicExpenseBurden,
-)
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription import (
@@ -42,6 +38,10 @@ from app.domain.prescription import (
     RefillNotAllowedError,
 )
 from app.domain.reception.primitives import CoverageSelectionRecordId
+from app.domain.shared.medicine import (
+    MedicineCodeType,
+)
+from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.store.primitives import StoreId
 from tests.application.prescription.helpers import (
     ISSUED_ON,

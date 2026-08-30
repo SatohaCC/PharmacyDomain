@@ -15,6 +15,7 @@ from app.application.access_control import (
     AuthorizationService,
     Permission,
 )
+from app.application.common.exceptions import AuthorizationError
 from app.application.medicine_catalog import (
     GetEffectiveMedicineQuery,
     GetEffectiveMedicineUseCase,
@@ -22,9 +23,8 @@ from app.application.medicine_catalog import (
     RegisterMedicineCommand,
     RegisterMedicineUseCase,
 )
-from app.base.application.exceptions import AuthorizationError
-from app.base.domain.exceptions import DomainValidationError
 from app.domain.corporate.primitives import CorporateId
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.medicine_catalog import (
     MedicineEffectivePeriodConflictError,
     MedicineEffectivePeriodConflictService,

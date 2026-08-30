@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from app.base.domain.primitives.primitives import (
+from app.domain.foundation.primitives.primitives import (
     BaseAwareTimestamp,
     BaseDate,
     BaseNormalizedString,

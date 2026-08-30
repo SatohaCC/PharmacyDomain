@@ -5,7 +5,10 @@ description = "A FastAPI application for PharmacyDomain."
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
 dependencies = [
+    "alembic>=1.16,<2.0",
+    "asyncpg>=0.30,<1.0",
     "fastapi>=0.115,<1.0",
+    "sqlalchemy[asyncio]>=2.0,<3.0",
     "uvicorn[standard]>=0.30,<1.0",
 ]
 
@@ -74,8 +77,17 @@ min_methods = 2
 [tool.fake_rules]
 # AGENTS.md の「テストダブルは実装するProtocolの全メンバを上書きする」を実行可能にしたもの。
 # Protocolを明示継承したまま上書きし忘れると、Protocol本体の ... を継承して静かに None を返す。
+# 本番の永続化アダプタも Protocol を明示継承するので、フェイクと同じ穴が開く。
+# Protocol にメンバが増えたとき、Postgres実装が ... を継承して静かに None を返す。
 root = "."
-paths = ["tests/fakes", "tests/application/access_helpers.py"]
+paths = [
+    "tests/fakes",
+    "tests/application/access_helpers.py",
+    "app/infrastructure",
+    # 参照Boundaryの実アダプタも Protocol を明示継承する。構造的部分型のままだと
+    # Protocol にメンバが増えたとき、実アダプタだけが静かに取り残される。
+    "app/application/composition",
+]
 
 [tool.import_rules]
 # AGENTS.md の「依存の向き」「Applicationコンテキストの依存」を実行可能な形にしたもの。
@@ -85,10 +97,64 @@ root = "."
 paths = ["app"]
 
 [tool.import_rules.forbidden]
-# Shared Kernel は、それを利用する側のコンテキストに依存しない。
-"app.base" = ["app.domain", "app.application", "fastapi", "sqlalchemy"]
-# Domain層は Application層・Web/DBフレームワークに一切依存しない。
-"app.domain" = ["app.application", "fastapi", "sqlalchemy"]
+# Domain基盤はShared Kernel・個別コンテキスト・外側の層に依存しない。
+"app.domain.foundation" = [
+    "app.domain.shared",
+    "app.domain.corporate",
+    "app.domain.store",
+    "app.domain.staff",
+    "app.domain.patient",
+    "app.domain.coverage",
+    "app.domain.reception",
+    "app.domain.claim",
+    "app.domain.prescription",
+    "app.domain.dispensing",
+    "app.domain.medication_history",
+    "app.domain.medicine_catalog",
+    "app.application",
+    "fastapi",
+    "sqlalchemy",
+]
+# Shared Kernel はDomain基盤にだけ依存し、個別コンテキストへ依存しない。
+"app.domain.shared" = [
+    "app.domain.corporate",
+    "app.domain.store",
+    "app.domain.staff",
+    "app.domain.patient",
+    "app.domain.coverage",
+    "app.domain.reception",
+    "app.domain.claim",
+    "app.domain.prescription",
+    "app.domain.dispensing",
+    "app.domain.medication_history",
+    "app.domain.medicine_catalog",
+    "app.application",
+    "fastapi",
+    "sqlalchemy",
+]
+# Domain層は Application層・Web/DBフレームワーク・Infrastructureに一切依存しない。
+"app.domain" = ["app.application", "app.infrastructure", "fastapi", "sqlalchemy"]
+# Application層は外側のInfrastructureへ依存しない。具体的なDB adapterは
+# Composition RootからProtocolへ接続する。
+"app.application" = ["app.infrastructure"]
+# Application共通基盤はDomain層や個別Applicationコンテキストに依存しない。
+"app.application.common" = [
+    "app.domain",
+    "app.application.access_control",
+    "app.application.corporate",
+    "app.application.store",
+    "app.application.staff",
+    "app.application.patient",
+    "app.application.coverage",
+    "app.application.reception",
+    "app.application.composition",
+    "app.application.prescription",
+    "app.application.dispensing",
+    "app.application.medication_history",
+    "app.application.medicine_catalog",
+    "fastapi",
+    "sqlalchemy",
+]
 # 認可基盤は個別コンテキストに依存しない（leafを維持する）。
 "app.application.access_control" = [
     "app.application.corporate",
@@ -339,6 +405,12 @@ paths = ["app"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+
+markers = [
+    # tests/integration/conftest.py が自動で付ける。TEST_DATABASE_URL が無ければ
+    # 実行時にスキップされるので、DBの無い環境でも `pytest -q` は緑のまま。
+    "integration: 実PostgreSQLへ接続するテスト。",
+]
 
 # ライブラリ内部から出る非推奨警告を無視する
 filterwarnings = [

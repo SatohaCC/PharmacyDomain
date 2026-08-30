@@ -6,11 +6,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import ClassVar
 
-from app.base.domain.priority_rules import (
-    PriorityViolation,
-    find_priority_violation,
-)
-from app.base.domain.value_object import ValueObject
 from app.domain.claim.exceptions import CoverageCombinationInvalidError
 from app.domain.claim.primitives import (
     ClaimCoverageBenefitRatio,
@@ -22,6 +17,11 @@ from app.domain.claim.primitives import (
     ClaimInsurerNumber,
     ClaimPublicPayerNumber,
     ClaimPublicRecipientNumber,
+)
+from app.domain.foundation.value_object import ValueObject
+from app.domain.shared.priority_rules import (
+    PriorityViolation,
+    find_priority_violation,
 )
 
 #: 公費は第一公費から第四公費までを同時に凍結できる（``ClaimCoveragePriority`` と対）。

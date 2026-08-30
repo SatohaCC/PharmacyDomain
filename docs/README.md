@@ -31,14 +31,15 @@ flowchart LR
     E[外部入力] --> A[Application]
     A --> D[Domain]
     A --> P[Repository / Boundary Protocol]
-    C[Composition Adapter] --> P
-    I[Infrastructure 未実装] -.-> P
+    C[Composition Root / Adapter] --> P
+    I[PostgreSQL Infrastructure] --> P
     T[Tests / Static Checkers] --> A
     T --> D
 ```
 
-2026-08-29時点では、11コンテキストのDomainモデルを実装済みです。
-ClaimはDomain層のみで、業務ユースケースはまだありません。本番永続化と業務HTTPルートも未実装です。
+2026-08-30時点では、11コンテキストのDomainモデルと全コンテキストのPostgreSQL
+Repositoryを実装済みです。ClaimはDomain層のみです。業務HTTPルートと認証基盤、
+薬価基準・HOTコード等の実データ取り込みは未実装です。
 
 ## コンテキスト
 
@@ -88,11 +89,11 @@ ClaimはDomain層のみで、業務ユースケースはまだありません。
 
 ## 未解決事項
 
-- 本番Repository、DB制約、トランザクション境界がなく、競合安全性はFakeとProtocol契約だけでは証明できない
+- 全コンテキストの本番Repository、DB制約、楽観ロック、テナント境界は実装済み。実PostgreSQL結合テストで確認済み
 - 業務ユースケースを接続するHTTPルートとComposition Rootがない
 - 薬価基準・HOTコード等からMedicineCatalogへ取り込むInfrastructureがない
-- Prescriptionの公費枠とCoverage台帳を接続する実アダプタがない
-- Dispensing完了とPrescription更新、MedicationHistory確定と頭書き保存を一体化するUnit of Workがない
+- Prescriptionの公費枠とCoverage台帳を接続するComposition Adapterは実装済み
+- Dispensing完了とPrescription更新、MedicationHistory確定と頭書き保存は PostgreSQL の同一 Unit of Work で一体化した。HTTPルートへの接続は未実装
 - リフィル処方箋と分割調剤の併用可否には原典確認が残る
 - MedicationHistoryを法定調剤録の代替にするための項目充足検証と、3年保存の運用がない
 
@@ -100,7 +101,7 @@ ClaimはDomain層のみで、業務ユースケースはまだありません。
 
 ## 実装と検証
 
-- 現在の実装: `app/domain/`、`app/application/`
+- 現在の実装: `app/domain/`、`app/application/`、`app/infrastructure/postgres/`、`migrations/`
 - 実行可能な契約: `tests/domain/`、`tests/application/`、`tests/contracts/`
 - アーキテクチャ検査: `tools/check_imports.py`、`tools/check_lcom.py`、`tools/check_fake_conformance.py`
 - コマンドとCI: [AGENTS.md](../AGENTS.md)、`.github/workflows/quality-gate.yml`

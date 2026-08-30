@@ -34,7 +34,7 @@ def test_禁止された接頭辞のimportは違反になる() -> None:
 
 def test_許可された接頭辞のimportは違反にならない() -> None:
     # Arrange
-    source = "from app.base.domain.entity import AggregateRoot\n"
+    source = "from app.domain.foundation.entity import AggregateRoot\n"
 
     # Act
     violations = analyze_source(
@@ -230,6 +230,44 @@ paths = ["src/app"]
     )
 
 
+def test_Domain基盤とSharedKernelは全Domainコンテキストへの依存を禁止する() -> None:
+    # Arrange
+    rules = {rule.package: set(rule.forbidden) for rule in load_config().rules}
+    contexts = _direct_packages(
+        Path("app/domain"),
+        prefix="app.domain",
+        excluded={"foundation", "shared"},
+    )
+
+    # Act
+    foundation_forbidden = rules["app.domain.foundation"]
+    shared_forbidden = rules["app.domain.shared"]
+
+    # Assert
+    assert contexts <= foundation_forbidden
+    assert contexts <= shared_forbidden
+    assert "app.domain.shared" in foundation_forbidden
+    assert "app.application" in foundation_forbidden
+    assert "app.application" in shared_forbidden
+
+
+def test_Application共通基盤は全Applicationコンテキストへの依存を禁止する() -> None:
+    # Arrange
+    rules = {rule.package: set(rule.forbidden) for rule in load_config().rules}
+    contexts = _direct_packages(
+        Path("app/application"),
+        prefix="app.application",
+        excluded={"common"},
+    )
+
+    # Act
+    common_forbidden = rules["app.application.common"]
+
+    # Assert
+    assert contexts <= common_forbidden
+    assert "app.domain" in common_forbidden
+
+
 def test_設定ファイルが無い場合は既定値を返す(tmp_path: Path) -> None:
     # Act
     config = load_config(tmp_path / "missing.toml")
@@ -302,3 +340,19 @@ paths = ["app"]
         encoding="utf-8",
     )
     return config_path
+
+
+def _direct_packages(
+    root: Path,
+    *,
+    prefix: str,
+    excluded: set[str],
+) -> set[str]:
+    """直下にPythonモジュールを持つパッケージ名を列挙する。"""
+    return {
+        f"{prefix}.{directory.name}"
+        for directory in root.iterdir()
+        if directory.is_dir()
+        and directory.name not in excluded
+        and any(directory.glob("*.py"))
+    }

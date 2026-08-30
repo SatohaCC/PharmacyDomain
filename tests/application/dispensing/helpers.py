@@ -20,7 +20,6 @@ from app.application.dispensing import (
     SubstitutionInput,
     VerifyDispensingUseCase,
 )
-from app.base.domain.medicine import MedicineCodeType
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing import (
     DispensingConsistencyService,
@@ -28,6 +27,7 @@ from app.domain.dispensing import (
     DispensingPharmacistService,
 )
 from app.domain.prescription import Prescription
+from app.domain.shared.medicine import MedicineCodeType
 from app.domain.staff.primitives import (
     PharmacistLicenseNumber,
     PharmacistProfile,
@@ -60,6 +60,7 @@ from tests.fakes.fake_clock import FakeClock
 from tests.fakes.in_memory_dispensing_process_repository import (
     InMemoryDispensingProcessRepository,
 )
+from tests.fakes.null_unit_of_work import NullUnitOfWork
 
 
 def create_pharmacist_qualifications() -> StaffQualifications:
@@ -220,7 +221,7 @@ def create_fixture(*, prescription: Prescription | None = None) -> DispensingFix
             clock,
         ),
         complete=CompleteDispensingUseCase(
-            repository, corporate_access, prescription_source
+            repository, corporate_access, prescription_source, NullUnitOfWork()
         ),
         get=GetDispensingUseCase(repository, corporate_access),
         list_by_prescription=ListDispensingsByPrescriptionUseCase(

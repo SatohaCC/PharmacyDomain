@@ -41,12 +41,13 @@ from app.domain.dispensing import (
     DispensingProcessStatus,
     IterationExceedsInstructionError,
     PreviousDispensingUnknownError,
-    SelfVerificationNotAllowedError,
     SubstitutionNotAllowedError,
     VerificationNotPassedError,
 )
 from app.domain.prescription import (
     GenericSubstitutionRestrictionType,
+    InquiryNumber,
+    InquiryResultType,
     PrescriptionManagementInfo,
     PrescriptionStatus,
     RefillCount,
@@ -66,7 +67,9 @@ from tests.factories.dispensing_factory import DISPENSED_ON
 from tests.factories.prescription_factory import (
     create_medicine,
     create_prescription,
+    create_response,
     create_rp,
+    start_inquiry,
 )
 
 _NEXT_DATE = date(2026, 9, 21)
@@ -136,6 +139,24 @@ class Test調剤の開始:
         fixture = create_fixture()
         received = fixture.prescription.return_for_inquiry()
         fixture.prescription_source.register(received)
+
+        # Act / Assert
+        with pytest.raises(PrescriptionNotReadyForDispensingError):
+            await fixture.start.execute(create_start_command(fixture))
+
+    async def test_処方医が処方削除と回答した処方箋は_調剤を開始できない(self) -> None:
+        """削除された処方の調剤を止められることを、経路の端から固定する。
+
+        処方箋側が削除の回答を取消済へ畳むので、調剤開始は状態を見るだけで
+        止まる。畳まずに導出値のままにすると、ここが素通りする。
+        """
+        # Arrange
+        fixture = create_fixture()
+        deleted = start_inquiry(fixture.prescription).resolve_inquiry(
+            inquiry_number=InquiryNumber(1),
+            response=create_response(result_type=InquiryResultType.DELETED),
+        )
+        fixture.prescription_source.register(deleted)
 
         # Act / Assert
         with pytest.raises(PrescriptionNotReadyForDispensingError):
@@ -265,22 +286,31 @@ class Test薬剤師資格:
                 )
             )
 
-    async def test_調剤者本人は_最終鑑査できない(self) -> None:
-        """管理薬剤師による一括代行署名の禁止。"""
+    async def test_調剤者本人でも_薬剤師資格があれば最終鑑査できる(self) -> None:
+        """一人薬剤師体制でも調剤を終えられる。
+
+        求めるのは鑑査者が薬剤師であることだけで、調剤者と別人であることは
+        求めない。分離を要求すると、夜間・休日当番や小規模店舗のように薬剤師が
+        1人しかいない適法な体制で調剤を完了できなくなる。
+        """
         # Arrange
         fixture = create_fixture()
         dispensing_id = await _start(fixture)
 
-        # Act / Assert
-        with pytest.raises(SelfVerificationNotAllowedError):
-            await fixture.verify.execute(
-                VerifyDispensingCommand(
-                    corporate_id=str(fixture.corporate_id.value),
-                    dispensing_id=dispensing_id,
-                    verifier_id=str(fixture.dispenser_id.value),
-                    result="passed",
-                )
+        # Act
+        actual = await fixture.verify.execute(
+            VerifyDispensingCommand(
+                corporate_id=str(fixture.corporate_id.value),
+                dispensing_id=dispensing_id,
+                verifier_id=str(fixture.dispenser_id.value),
+                result="passed",
             )
+        )
+
+        # Assert
+        assert actual.status == DispensingProcessStatus.VERIFIED.value
+        assert actual.verification is not None
+        assert actual.verification.verifier_id == str(fixture.dispenser_id.value)
 
 
 class Test処方箋との整合:

@@ -6,7 +6,6 @@ from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from typing import Self
 
-from app.base.domain.entity import AggregateRoot
 from app.domain.corporate.primitives import CorporateId
 from app.domain.coverage.exceptions import (
     CoverageDeactivationAlreadyFixedError,
@@ -25,6 +24,7 @@ from app.domain.coverage.primitives import (
     PatientCoverageId,
     PublicExpenseCoverageDetails,
 )
+from app.domain.foundation.entity import AggregateRoot
 from app.domain.patient.primitives import PatientId
 
 _NONE_TYPE = type(None)

@@ -1,6 +1,6 @@
 """店舗ドメインにおける業務例外定義。"""
 
-from app.base.domain.exceptions import DomainError
+from app.domain.foundation.exceptions import DomainError
 
 
 class StoreDomainError(DomainError):

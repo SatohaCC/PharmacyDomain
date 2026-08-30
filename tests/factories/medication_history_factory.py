@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
-from app.base.domain.medicine import MedicineName
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.primitives import DispensingId
 from app.domain.medication_history import (
@@ -38,6 +37,7 @@ from app.domain.medication_history import (
 )
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import PrescriptionId
+from app.domain.shared.medicine import MedicineName
 from app.domain.staff.primitives import StaffId
 from app.domain.store.primitives import StoreId
 

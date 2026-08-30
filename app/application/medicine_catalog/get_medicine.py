@@ -8,12 +8,12 @@ from datetime import date
 from app.application.access_control import AuthorizationService, Permission
 from app.application.medicine_catalog.exceptions import MedicineNotFoundError
 from app.application.medicine_catalog.support import parse_enum, required_text
-from app.base.domain.medicine import (
+from app.domain.medicine_catalog import Medicine, MedicineCatalogRepository
+from app.domain.shared.medicine import (
     MedicineCode,
     MedicineCodeType,
     MedicineIdentifier,
 )
-from app.domain.medicine_catalog import Medicine, MedicineCatalogRepository
 
 
 @dataclass(frozen=True, kw_only=True)

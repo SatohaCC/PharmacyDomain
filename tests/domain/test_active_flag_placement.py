@@ -8,7 +8,7 @@
 ``ConcurrentMedicationRecord`` は ``ended_on`` で継続中かどうかが決まるので、
 ``is_active`` を足すと同じ事実の表現が2つになり、必ず食い違う。
 
-ここでは ``app/domain`` と ``app/base/domain`` の全 dataclass を走査し、
+ここでは ``app/domain`` の全 dataclass を走査し、
 ``is_active`` を持つクラスの集合が下の表と一致することを要求する。
 """
 
@@ -19,7 +19,6 @@ import importlib
 import pkgutil
 from typing import Any
 
-import app.base.domain
 import app.domain
 
 #: ``is_active`` フィールドを持ってよいクラスと、その理由。
@@ -35,24 +34,23 @@ ALLOWED_ACTIVE_FLAG_OWNERS: dict[str, str] = {
 
 
 def _iter_domain_classes() -> list[Any]:
-    """``app/domain`` と ``app/base/domain`` 配下の dataclass を列挙する。
+    """``app/domain`` 配下の dataclass を列挙する。
 
     ``dataclasses.fields()`` は ``DataclassInstance`` 型を要求するが、走査時点では
     静的に絞り込めないため戻り値は ``Any`` にする。
     """
     found: list[Any] = []
-    for package in (app.domain, app.base.domain):
-        for module_info in pkgutil.walk_packages(
-            package.__path__, prefix=f"{package.__name__}."
-        ):
-            module = importlib.import_module(module_info.name)
-            for value in vars(module).values():
-                if not isinstance(value, type):
-                    continue
-                if value.__module__ != module_info.name:
-                    continue
-                if dataclasses.is_dataclass(value):
-                    found.append(value)
+    for module_info in pkgutil.walk_packages(
+        app.domain.__path__, prefix=f"{app.domain.__name__}."
+    ):
+        module = importlib.import_module(module_info.name)
+        for value in vars(module).values():
+            if not isinstance(value, type):
+                continue
+            if value.__module__ != module_info.name:
+                continue
+            if dataclasses.is_dataclass(value):
+                found.append(value)
     return found
 
 

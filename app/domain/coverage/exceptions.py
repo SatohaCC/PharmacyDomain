@@ -1,6 +1,6 @@
 """Coverageドメインの業務例外。"""
 
-from app.base.domain.exceptions import DomainError
+from app.domain.foundation.exceptions import DomainError
 
 
 class CoverageDomainError(DomainError):

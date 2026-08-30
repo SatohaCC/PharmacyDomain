@@ -9,8 +9,8 @@ from app.application.access_control import (
     Permission,
 )
 from app.application.staff.support import load_staff_or_raise
-from app.base.domain.value_object import PersonNames
 from app.domain.corporate.primitives import CorporateId
+from app.domain.shared.person_name import PersonNames
 from app.domain.staff.primitives import StaffId
 from app.domain.staff.repository import StaffRepository
 

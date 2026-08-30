@@ -3,18 +3,18 @@ from __future__ import annotations
 import pytest
 
 from app.application.access_control import ActorContext, AuthorizationService
+from app.application.common.exceptions import AuthorizationError
 from app.application.corporate import CorporateAccessService
 from app.application.corporate.register_corporate import (
     RegisterCorporateCommand,
     RegisterCorporateUseCase,
 )
-from app.base.application.exceptions import AuthorizationError
-from app.base.domain.exceptions import DomainValidationError
 from app.domain.corporate import (
     CorporateId,
     CorporateNameAlreadyExistsError,
     CorporateNameUniquenessService,
 )
+from app.domain.foundation.exceptions import DomainValidationError
 from tests.application.access_helpers import create_vendor_corporate_access_for
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository
 

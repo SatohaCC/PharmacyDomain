@@ -12,10 +12,10 @@ from app.application.patient.register_patient_external_identifier import (
     RegisterPatientExternalIdentifierCommand,
     RegisterPatientExternalIdentifierUseCase,
 )
-from app.base.domain.value_object import PersonNames
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.exceptions import PatientExternalIdentifierAlreadyExistsError
 from app.domain.patient.patient import Patient
+from app.domain.shared.person_name import PersonNames
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.fakes.in_memory_patient_repository import (
     InMemoryPatientExternalIdentifierRepository,

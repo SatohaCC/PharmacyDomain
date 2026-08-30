@@ -26,6 +26,7 @@ REQUIRED_GATES: tuple[str, ...] = (
     "uv run mypy app tests",
     "uv run ruff check .",
     "uv run ruff format --check .",
+    "uv run pytest -m integration -q",
 )
 
 # ゲートが「実行されるが誰も見ない」状態にならないための最低限のトリガ。

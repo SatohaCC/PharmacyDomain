@@ -5,9 +5,9 @@ from datetime import date
 from itertools import pairwise
 from typing import Self
 
-from app.base.domain.entity import AggregateRoot
-from app.base.domain.value_object import PersonNames
 from app.domain.corporate.primitives import CorporateId
+from app.domain.foundation.entity import AggregateRoot
+from app.domain.shared.person_name import PersonNames
 from app.domain.staff.exceptions import (
     ConcurrentStoreConflictError,
     PrimaryAffiliationDuplicationError,

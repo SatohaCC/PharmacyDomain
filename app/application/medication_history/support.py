@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import date
 from enum import StrEnum
 
+from app.application.common.input_normalization import to_optional_text
 from app.application.medication_history.exceptions import (
     MedicationHistoryNotFoundError,
 )
@@ -19,10 +20,8 @@ from app.application.medication_history.inputs import (
     ResidualDrugInput,
     SoapInput,
 )
-from app.base.application.support import to_optional_text
-from app.base.domain.exceptions import DomainValidationError
-from app.base.domain.medicine import MedicineName
 from app.domain.corporate.primitives import CorporateId
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.medication_history import (
     AdverseReactionSymptom,
     AllergenName,
@@ -57,6 +56,7 @@ from app.domain.medication_history import (
     StopConcurrentMedicationIntent,
 )
 from app.domain.prescription.primitives import MedicalInstitutionName
+from app.domain.shared.medicine import MedicineName
 from app.domain.staff.primitives import StaffId
 
 __all__ = [

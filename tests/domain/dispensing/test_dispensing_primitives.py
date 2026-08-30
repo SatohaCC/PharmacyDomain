@@ -10,7 +10,6 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.base.domain.exceptions import DomainValidationError
 from app.domain.dispensing import (
     AuditTimestamp,
     DispensingCompletionType,
@@ -24,6 +23,7 @@ from app.domain.dispensing import (
     VerificationResult,
     VerificationTimestamp,
 )
+from app.domain.foundation.exceptions import DomainValidationError
 
 
 class Test分割理由と調剤回数:

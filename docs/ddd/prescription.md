@@ -48,6 +48,7 @@ Prescriptionが所有するもの:
 
 - JAHISと電子処方箋は同じレコード番号を使う箇所があっても、使用可能なコード集合を混ぜず、受領元ごとに検証する
 - 疑義照会は調剤編の結果レコードへ送信されるが、内容の対象が処方原本であるためPrescriptionが履歴を所有する
+- 処方削除の回答は処方箋の無効化そのものなので、導出値に留めず記録と同時に取消済へ畳む（調剤済・取消済なら記録だけ残す）
 - リフィル指示は医薬品規制区分を交付日時点で確認し、マスタ未収載・判定不能ならfail-closedで拒否する
 - 医師の分割指示は処方箋の属性だが、薬局判断の分割はDispensing側の各セッションの理由として扱う
 - 処方箋の特殊公費は、数字桁数が固定されたClaimの第四公費へ写さない
@@ -81,9 +82,10 @@ Prescriptionが所有するもの:
 ## 未解決事項
 
 - MedicineCatalog集約はあるが、薬価基準・HOTコード等からの実データ取り込みがない
-- 処方箋の公費枠とCoverage台帳を接続する `PublicExpenseAvailabilityBoundary` の実アダプタがない
+- 処方箋の公費枠とCoverage台帳を接続する `PublicExpenseAvailabilityBoundary` の実アダプタは実装済み
 - 後発品変更調剤で、変更先が本当に後発品かを検証していない
-- 本番Repositoryがなく、引換番号一意性の原子性は未証明
+- PostgreSQL Repository は実装済みで、引換番号一意性は partial unique index と
+  Domain 例外へ写像する。全コンテキストの競合安全性は実PostgreSQL結合テストで確認する
 - 業務HTTPルートがない
 
 関連する判断履歴は [設計判断](../decisions.md) のADR-1〜3、6、11〜16を参照します。

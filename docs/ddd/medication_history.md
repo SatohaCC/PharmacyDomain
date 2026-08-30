@@ -61,7 +61,8 @@ flowchart LR
 頭書き保存に失敗しても、確定済み薬歴を順に再適用する
 `RebuildPatientMedicalProfileUseCase` で回復できます。
 
-これはUnit of Workがない現状での回復策であり、2回の保存を原子的にするものではありません。
+これは投影を再構築するための回復策であり、PostgreSQL 経路では2回の保存を同じ
+Unit of Work で原子的に確定します。
 
 ## 外部根拠
 
@@ -77,10 +78,10 @@ flowchart LR
 
 ## 未解決事項
 
-- 薬歴保存と頭書き保存を一体化するUnit of Workがない
+- HTTPルートと認証基盤がなく、Applicationユースケースを本番入口へ接続していない
 - 法定の3年保存を保証する永続化・運用がない
 - 薬歴を調剤録の代替にできるだけの記載事項を満たす検証がない
-- 本番Repositoryと業務HTTPルートがない
+- 法定保存期間と調剤録代替に必要な運用・項目充足検証がない
 
 現在の項目と振る舞いは `app/domain/medication_history/`、
 ユースケースは `app/application/medication_history/`、保証範囲は対応テストを確認します。

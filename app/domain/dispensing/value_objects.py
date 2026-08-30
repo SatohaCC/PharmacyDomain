@@ -10,12 +10,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import ClassVar
 
-from app.base.domain.medicine import (
-    DispensingQuantity,
-    MedicineIdentifier,
-    MedicineName,
-)
-from app.base.domain.value_object import ValueObject
 from app.domain.dispensing.exceptions import QuantityAdjustmentInvalidError
 from app.domain.dispensing.primitives import (
     AuditNotes,
@@ -26,6 +20,12 @@ from app.domain.dispensing.primitives import (
     VerificationNotes,
     VerificationResult,
     VerificationTimestamp,
+)
+from app.domain.foundation.value_object import ValueObject
+from app.domain.shared.medicine import (
+    DispensingQuantity,
+    MedicineIdentifier,
+    MedicineName,
 )
 from app.domain.staff.primitives import StaffId
 

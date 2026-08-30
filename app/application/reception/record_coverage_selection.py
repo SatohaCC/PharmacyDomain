@@ -6,13 +6,13 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.common.clock import Clock
 from app.application.reception.get_coverage_selection import CoverageSelectionRecordDto
 from app.application.reception.reference import (
     CoverageSelectionBoundary,
     PatientReferenceBoundary,
     StoreReferenceBoundary,
 )
-from app.base.application.clock import Clock
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientId
 from app.domain.reception import (

@@ -14,7 +14,6 @@ from datetime import date, timedelta
 
 import pytest
 
-from app.base.domain.medicine import MedicineCodeType, MedicineIdentifier
 from app.domain.medicine_catalog import (
     Medicine,
     MedicineCodeRequiredError,
@@ -25,6 +24,7 @@ from app.domain.medicine_catalog import (
     NarcoticCategory,
 )
 from app.domain.medicine_catalog.medicine import MedicineEffectivePeriod
+from app.domain.shared.medicine import MedicineCodeType, MedicineIdentifier
 from tests.factories.medicine_catalog_factory import (
     LISTED_ON,
     create_medicine,

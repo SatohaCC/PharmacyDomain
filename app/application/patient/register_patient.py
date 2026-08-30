@@ -6,11 +6,11 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.application.access_control import CorporateAccessBoundary, Permission
-from app.base.domain.value_object import PersonNames
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.patient import Patient
 from app.domain.patient.primitives import PatientBirthDate, PatientId
 from app.domain.patient.repository import PatientRepository
+from app.domain.shared.person_name import PersonNames
 
 
 @dataclass(frozen=True, kw_only=True)

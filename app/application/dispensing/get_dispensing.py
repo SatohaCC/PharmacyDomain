@@ -9,7 +9,6 @@ from dataclasses import dataclass
 
 from app.application.access_control import CorporateAccessBoundary, Permission
 from app.application.dispensing.support import load_dispensing_or_raise
-from app.base.domain.dosage import DosageInstruction
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing import (
     DispensedMedicine,
@@ -22,6 +21,7 @@ from app.domain.dispensing import (
     QuantityAdjustment,
     SubstitutionDetail,
 )
+from app.domain.shared.dosage import DosageInstruction
 
 
 @dataclass(frozen=True, kw_only=True)

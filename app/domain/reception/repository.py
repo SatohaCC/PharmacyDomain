@@ -7,6 +7,7 @@ from typing import Protocol
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientId
 from app.domain.reception.coverage_selection_record import CoverageSelectionRecord
+from app.domain.reception.primitives import CoverageSelectionRecordId
 from app.domain.store.primitives import StoreId
 
 
@@ -15,6 +16,19 @@ class CoverageSelectionRecordRepository(Protocol):
 
     async def save(self, record: CoverageSelectionRecord) -> None:
         """履歴を新規保存する。複数履歴を許可し、一意性制約は課さない。"""
+        ...
+
+    async def get(
+        self,
+        *,
+        corporate_id: CorporateId,
+        record_id: CoverageSelectionRecordId,
+    ) -> CoverageSelectionRecord | None:
+        """指定法人の履歴をIDで取得する。
+
+        他法人の履歴は存在を隠すため ``None`` を返す（403ではなく404相当）。
+        患者の一致までは確認しない。呼び出し側が患者IDで絞る。
+        """
         ...
 
     async def get_latest(

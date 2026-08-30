@@ -13,7 +13,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import ClassVar
 
-from app.base.domain.primitives.primitives import BaseDate, EntityUUID
+from app.domain.foundation.primitives.primitives import BaseDate, EntityUUID
 
 
 class MedicineCatalogEntryId(EntityUUID):

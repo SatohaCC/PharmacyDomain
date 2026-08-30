@@ -10,19 +10,6 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from app.base.domain.dosage import DosageCodeType, DosageInstruction, DosageName
-from app.base.domain.medicine import (
-    DispensingQuantity,
-    DosageAmount,
-    DosageFormCategory,
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
-    MedicineLineNumber,
-    MedicineName,
-    MedicineUnit,
-    RpNumber,
-)
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing import (
     DispensedDate,
@@ -42,6 +29,19 @@ from app.domain.dispensing import (
 )
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import PrescriptionId
+from app.domain.shared.dosage import DosageCodeType, DosageInstruction, DosageName
+from app.domain.shared.medicine import (
+    DispensingQuantity,
+    DosageAmount,
+    DosageFormCategory,
+    MedicineCode,
+    MedicineCodeType,
+    MedicineIdentifier,
+    MedicineLineNumber,
+    MedicineName,
+    MedicineUnit,
+    RpNumber,
+)
 from app.domain.staff.primitives import StaffId
 from app.domain.store.primitives import StoreId
 

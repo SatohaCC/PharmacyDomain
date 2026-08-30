@@ -1,8 +1,8 @@
 """スタッフユースケース間で共有するアプリケーション層の処理。"""
 
+from app.application.common.input_normalization import to_optional_text
 from app.application.staff.exceptions import StaffNotFoundError
 from app.application.store.support import load_store_or_raise
-from app.base.application.support import to_optional_text
 from app.domain.corporate.primitives import CorporateId
 from app.domain.staff import Staff, StaffId, StaffRepository
 

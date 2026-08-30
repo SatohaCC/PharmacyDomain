@@ -6,7 +6,7 @@
 - 厚労省 電子処方箋管理サービス 記録条件仕様（処方編）Ver.2.4 … 別表1〜16
 
 薬品そのものの語彙（``MedicineName`` / ``DosageAmount`` 等）は所有者がいないため
-Shared Kernel の ``app/base/domain/medicine.py`` にある。
+Shared Kernel の ``app/domain/shared/medicine.py`` にある。
 """
 
 from __future__ import annotations
@@ -15,8 +15,8 @@ import re
 from enum import StrEnum
 from typing import ClassVar
 
-from app.base.domain.exceptions import DomainValidationError
-from app.base.domain.primitives.primitives import (
+from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.foundation.primitives.primitives import (
     BaseAddress,
     BaseAwareTimestamp,
     BaseDate,

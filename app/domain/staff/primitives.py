@@ -8,14 +8,14 @@ from datetime import date
 from enum import StrEnum
 from typing import ClassVar, Self
 
-from app.base.domain.exceptions import DomainValidationError
-from app.base.domain.primitives.primitives import (
+from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.foundation.primitives.primitives import (
     BaseEmailAddress,
     BaseNormalizedString,
     BaseTelephoneNumber,
     EntityUUID,
 )
-from app.base.domain.value_object import ValueObject
+from app.domain.foundation.value_object import ValueObject
 from app.domain.store.primitives import StoreId
 
 

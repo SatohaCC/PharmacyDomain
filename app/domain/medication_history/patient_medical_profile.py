@@ -14,9 +14,8 @@ from dataclasses import dataclass, replace
 from datetime import date
 from typing import Self
 
-from app.base.domain.entity import AggregateRoot
-from app.base.domain.medicine import MedicineName
 from app.domain.corporate.primitives import CorporateId
+from app.domain.foundation.entity import AggregateRoot
 from app.domain.medication_history.exceptions import (
     ConcurrentMedicationNotFoundError,
     ProfilePatientMismatchError,
@@ -37,6 +36,7 @@ from app.domain.medication_history.value_objects import (
     ProfileProvenance,
 )
 from app.domain.patient.primitives import PatientId
+from app.domain.shared.medicine import MedicineName
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)

@@ -1,7 +1,7 @@
 """店舗ユースケース間で共有するアプリケーション層の処理。"""
 
+from app.application.common.input_normalization import to_optional_text
 from app.application.store.exceptions import StoreNotFoundError
-from app.base.application.support import to_optional_text
 from app.domain.corporate.primitives import CorporateId
 from app.domain.store.primitives import StoreId
 from app.domain.store.repository import StoreRepository

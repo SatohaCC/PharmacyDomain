@@ -1,6 +1,6 @@
 """ReceptionコンテキストのApplication例外。"""
 
-from app.base.application.exceptions import ApplicationError
+from app.application.common.exceptions import ApplicationError
 
 
 class ReceptionApplicationError(ApplicationError):

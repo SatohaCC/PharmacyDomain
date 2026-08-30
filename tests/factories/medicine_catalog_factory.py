@@ -4,13 +4,6 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.base.domain.medicine import (
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
-    MedicineName,
-    MedicineUnit,
-)
 from app.domain.medicine_catalog import (
     GenericCategory,
     Medicine,
@@ -20,6 +13,13 @@ from app.domain.medicine_catalog import (
     MedicineListedOn,
     MedicineWithdrawnOn,
     NarcoticCategory,
+)
+from app.domain.shared.medicine import (
+    MedicineCode,
+    MedicineCodeType,
+    MedicineIdentifier,
+    MedicineName,
+    MedicineUnit,
 )
 
 LISTED_ON = date(2020, 4, 1)

@@ -5,10 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Self
 
-from app.base.domain.entity import AggregateRoot
-from app.base.domain.value_object import PersonNames
 from app.domain.corporate.primitives import CorporateId
+from app.domain.foundation.entity import AggregateRoot
 from app.domain.patient.primitives import PatientBirthDate, PatientId, PatientNumber
+from app.domain.shared.person_name import PersonNames
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)

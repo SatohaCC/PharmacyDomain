@@ -11,15 +11,6 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.base.domain.exceptions import DomainValidationError
-from app.base.domain.medicine import (
-    DispensingQuantity,
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
-    MedicineName,
-    RpNumber,
-)
 from app.domain.dispensing import (
     AuditTimestamp,
     CancellationReasonMismatchError,
@@ -38,13 +29,21 @@ from app.domain.dispensing import (
     NextDispensingDateMismatchError,
     PreparationMethod,
     QuantityAdjustmentInvalidError,
-    SelfVerificationNotAllowedError,
     SubstitutionCategory,
     SubstitutionDetail,
     SubstitutionWithoutChangeError,
     VerificationNotPassedError,
     VerificationResult,
     VerificationTimestamp,
+)
+from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.shared.medicine import (
+    DispensingQuantity,
+    MedicineCode,
+    MedicineCodeType,
+    MedicineIdentifier,
+    MedicineName,
+    RpNumber,
 )
 from app.domain.staff.primitives import StaffId
 from tests.factories.dispensing_factory import (
@@ -420,15 +419,25 @@ class Test鑑査:
             GENERIC_CODE
         )
 
-    def test_調剤者本人が最終鑑査すると_拒否される(self) -> None:
-        """管理薬剤師による一括代行署名の禁止。"""
+    def test_調剤者本人が最終鑑査しても_合格させられる(self) -> None:
+        """薬剤師が1人しかいない体制でも調剤を終えられる必要がある。
+
+        夜間・休日当番や小規模店舗では、1人の薬剤師が調剤から最終鑑査までを
+        担うことが薬剤師法上も適法に起こりうる。調剤者と鑑査者の分離は法人ごとの
+        運用方針であって集約が単独で判定できる不変条件ではないため、ここでは
+        同一人物を拒否しない。
+        """
         # Arrange
         dispenser_id = StaffId.generate()
         process = create_dispensing(dispenser_id=dispenser_id)
 
-        # Act / Assert
-        with pytest.raises(SelfVerificationNotAllowedError):
-            verify_passed(process, verifier_id=dispenser_id)
+        # Act
+        actual = verify_passed(process, verifier_id=dispenser_id)
+
+        # Assert
+        assert actual.status is DispensingProcessStatus.VERIFIED
+        assert actual.verification is not None
+        assert actual.verification.verifier_id == dispenser_id
 
 
 class Test状態遷移:

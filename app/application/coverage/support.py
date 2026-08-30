@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from datetime import date
 
+from app.application.common.input_normalization import to_optional_text
 from app.application.coverage.exceptions import PatientCoverageNotFoundError
-from app.base.application.support import to_optional_text
-from app.base.domain.exceptions import DomainValidationError
 from app.domain.corporate.primitives import CorporateId
 from app.domain.coverage import (
     CoverageActivatedOn,
@@ -30,6 +29,7 @@ from app.domain.coverage import (
 )
 from app.domain.coverage.primitives import PatientCoverageId
 from app.domain.coverage.repository import PatientCoverageRepository
+from app.domain.foundation.exceptions import DomainValidationError
 
 __all__ = [
     "build_activation",

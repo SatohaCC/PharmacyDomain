@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from app.base.domain.value_object import PersonNames
 from app.domain.corporate import CorporateId
+from app.domain.shared.person_name import PersonNames
 from app.domain.staff import (
     JobTitle,
     Staff,

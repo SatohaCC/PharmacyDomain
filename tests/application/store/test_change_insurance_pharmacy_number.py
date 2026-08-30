@@ -9,8 +9,8 @@ from app.application.store import (
     ChangeInsurancePharmacyNumberUseCase,
 )
 from app.application.store.exceptions import StoreNotFoundError
-from app.base.domain.exceptions import DomainValidationError
 from app.domain.corporate import CorporateId
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.store import InsurancePharmacyNumberUniquenessService
 from app.domain.store.exceptions import InsurancePharmacyNumberAlreadyExistsError
 from tests.application.access_helpers import create_vendor_corporate_access

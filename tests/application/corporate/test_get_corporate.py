@@ -7,7 +7,7 @@ from app.application.corporate.get_corporate import (
     CorporateResponseDto,
     GetCorporateUseCase,
 )
-from app.base.domain.exceptions import DomainValidationError
+from app.domain.foundation.exceptions import DomainValidationError
 from tests.application.access_helpers import create_vendor_corporate_access_for
 from tests.application.corporate.helpers import create_corporate, save_corporate
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository

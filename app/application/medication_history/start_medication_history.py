@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.common.clock import Clock
 from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
 )
@@ -26,7 +27,6 @@ from app.application.medication_history.support import (
     build_soap,
     parse_enum,
 )
-from app.base.application.clock import Clock
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.primitives import DispensingId
 from app.domain.medication_history import (

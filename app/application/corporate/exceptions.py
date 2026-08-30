@@ -1,6 +1,6 @@
 """法人コンテキストのアプリケーション例外。"""
 
-from app.base.application.exceptions import ApplicationError, NotFoundError
+from app.application.common.exceptions import ApplicationError, NotFoundError
 
 
 class CorporateApplicationError(ApplicationError):

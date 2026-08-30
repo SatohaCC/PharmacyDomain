@@ -10,6 +10,7 @@ from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 
+from app.application.common.input_normalization import to_optional_text
 from app.application.prescription.exceptions import PrescriptionNotFoundError
 from app.application.prescription.inputs import (
     DepartmentInput,
@@ -25,32 +26,8 @@ from app.application.prescription.inputs import (
     SubstitutionRestrictionInput,
     UnitConversionInput,
 )
-from app.base.application.support import to_optional_text
-from app.base.domain.dosage import (
-    DailyFrequency,
-    DosageCode,
-    DosageCodeType,
-    DosageInstruction,
-    DosageName,
-)
-from app.base.domain.exceptions import DomainValidationError
-from app.base.domain.medicine import (
-    ConversionFactor,
-    DispensingQuantity,
-    DosageAmount,
-    DosageFormCategory,
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
-    MedicineLineNumber,
-    MedicineName,
-    MedicineUnit,
-    PublicExpenseBurden,
-    RpNumber,
-    SingleDoseAmount,
-)
-from app.base.domain.value_object import PersonNames
 from app.domain.corporate.primitives import CorporateId
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.prescription import (
     ApplicationSiteCode,
     ClinicalInformation,
@@ -109,6 +86,29 @@ from app.domain.prescription import (
     UnequalDosageInstruction,
     UnitConversion,
 )
+from app.domain.shared.dosage import (
+    DailyFrequency,
+    DosageCode,
+    DosageCodeType,
+    DosageInstruction,
+    DosageName,
+)
+from app.domain.shared.medicine import (
+    ConversionFactor,
+    DispensingQuantity,
+    DosageAmount,
+    DosageFormCategory,
+    MedicineCode,
+    MedicineCodeType,
+    MedicineIdentifier,
+    MedicineLineNumber,
+    MedicineName,
+    MedicineUnit,
+    RpNumber,
+    SingleDoseAmount,
+)
+from app.domain.shared.person_name import PersonNames
+from app.domain.shared.public_expense import PublicExpenseBurden
 
 __all__ = [
     "build_department",

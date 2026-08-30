@@ -1,6 +1,6 @@
 """法人ドメイン固有の業務例外定義。"""
 
-from app.base.domain.exceptions import DomainError
+from app.domain.foundation.exceptions import DomainError
 
 
 class CorporateDomainError(DomainError):

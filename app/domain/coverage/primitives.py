@@ -8,8 +8,8 @@ from datetime import date, datetime
 from enum import StrEnum
 from typing import ClassVar
 
-from app.base.domain.exceptions import DomainValidationError
-from app.base.domain.primitives.primitives import (
+from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.foundation.primitives.primitives import (
     BaseDate,
     BaseNonNegativeInt,
     BaseNormalizedString,
@@ -17,7 +17,7 @@ from app.base.domain.primitives.primitives import (
     EntityUUID,
     ensure_digits,
 )
-from app.base.domain.value_object import ValueObject
+from app.domain.foundation.value_object import ValueObject
 
 
 class PatientCoverageId(EntityUUID):
