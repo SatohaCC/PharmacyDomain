@@ -5,6 +5,7 @@ from app.domain.corporate.primitives import CorporateId
 from app.domain.staff.exceptions import (
     AffiliationDateConflictError,
     ConcurrentStoreConflictError,
+    InactiveStaffAssignmentError,
     InvalidCorporateAssignmentError,
     StaffCodeAlreadyExistsError,
 )
@@ -66,11 +67,23 @@ class StaffStoreAssignmentService:
                 "別法人の店舗を割り当てることはできません。"
             )
 
+    def _ensure_staff_is_active(self, staff: Staff) -> None:
+        """無効化済みのスタッフへ所属を追加していないことを検証する。
+
+        ``Staff.deactivate()`` は継続中の所属を退職日で閉じるが、その後に無期限の
+        所属を足せると「退職しているのに所属し続けている」状態が復活する。所属を
+        **増やす**操作にだけ課し、``remove_concurrent_store()`` のように既存の期間を
+        閉じる操作には課さない（退職者の履歴訂正まで止める必要はない）。
+        """
+        if not staff.is_active:
+            raise InactiveStaffAssignmentError()
+
     def transfer_home_store(
         self, staff: Staff, store: Store, transfer_date: date
     ) -> Staff:
         """主所属店舗の異動を行う。"""
         self._ensure_same_corporate(staff, store)
+        self._ensure_staff_is_active(staff)
         new_affiliations = list(staff.affiliations)
 
         # 異動日より未来に既に開始されている主所属予約が存在する場合は衝突エラー
@@ -128,6 +141,7 @@ class StaffStoreAssignmentService:
         過去へ遡る指定を素通しするため、集約側の期間比較に一本化する。
         """
         self._ensure_same_corporate(staff, store)
+        self._ensure_staff_is_active(staff)
 
         new_affiliation = StoreAffiliation(
             store_id=store.id,

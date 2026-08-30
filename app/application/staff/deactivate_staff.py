@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 
 from app.application.access_control import (
     CorporateAccessBoundary,
@@ -19,6 +20,13 @@ class DeactivateStaffCommand:
 
     corporate_id: str
     staff_id: str
+    retired_on: date
+    """退職日。継続中の店舗所属はこの日で終了する。
+
+    既定値を置かない。``date.today()`` を暗黙に使うと、注入した ``Clock`` を
+    迂回したうえで「いつ退職したか」が呼び出し時刻に化ける。退職日は
+    所属履歴に残る業務事実なので、必ず呼び出し側が渡す。
+    """
 
 
 class DeactivateStaffUseCase:
@@ -46,5 +54,5 @@ class DeactivateStaffUseCase:
             staff_id=staff_id,
         )
 
-        updated_staff = staff.deactivate()
+        updated_staff = staff.deactivate(command.retired_on)
         await self._repository.save(updated_staff)

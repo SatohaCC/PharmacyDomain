@@ -9,6 +9,7 @@ from app.domain.corporate.primitives import CorporateId
 from app.domain.foundation.entity import AggregateRoot
 from app.domain.shared.person_name import PersonNames
 from app.domain.staff.exceptions import (
+    AffiliationDateConflictError,
     ConcurrentStoreConflictError,
     PrimaryAffiliationDuplicationError,
 )
@@ -177,12 +178,51 @@ class Staff(AggregateRoot[StaffId]):
 
         return replace(self, qualifications=qualifications)
 
-    def deactivate(self) -> Self:
-        """退職等に伴い無効化する"""
+    def deactivate(self, retired_on: date) -> Self:
+        """退職等に伴い無効化し、退職日以降に及ぶ所属をすべて退職日で打ち切る。
 
-        return replace(self, is_active=False)
+        退職日を必須にするのは、``is_active`` が日付を持たないフラグである一方、
+        :meth:`current_home_store_id` が適用日ごとの導出だからである。
+        フラグだけを倒すと所属期間が無期限のまま残り、退職後の日付でも所属店舗が
+        返る。逆に導出側でフラグを見て打ち切ると、在籍していた**過去日**の所属まで
+        引けなくなり、調剤録・監査の追跡が切れる。退職日をもともと日付つきの
+        所属履歴へ書き込めば、導出は日付つき事実だけの全域関数のまま保たれる。
+
+        すでに退職日以前で終了している所属はそのまま残す。無効化を繰り返した
+        場合、所属はすでに閉じているので**より早い退職日が残る**（後から遅い日を
+        渡しても期間は延びない）。復職後の所属は
+        :class:`~app.domain.staff.services.StaffStoreAssignmentService` で改めて
+        追加するため、再度の無効化はその新しい所属を閉じる。
+
+        Raises:
+            AffiliationDateConflictError: 退職日より後に開始する所属が残っている場合。
+                期間を退職日で閉じると開始日が終了日を追い越すため、勝手に捨てず
+                拒否する（未来の配属予約は退職の前に取り消す必要がある）。
+        """
+        if any(
+            affiliation.period.start_date > retired_on
+            for affiliation in self.affiliations
+        ):
+            raise AffiliationDateConflictError(
+                "退職日より後に開始する所属履歴または予約が存在します。"
+            )
+        closed = tuple(
+            affiliation.close(retired_on)
+            if affiliation.period.end_date is None
+            or affiliation.period.end_date > retired_on
+            else affiliation
+            for affiliation in self.affiliations
+        )
+        return replace(self, is_active=False, affiliations=closed)
 
     def activate(self) -> Self:
-        """有効化（復職等）する"""
+        """有効化（復職等）する。
+
+        所属は復元しない。無効化時に閉じた所属をそのまま開き直すと、退職期間中も
+        在籍していたことになる。復職後の配属は
+        :class:`~app.domain.staff.services.StaffStoreAssignmentService` で改めて
+        行う（どの店舗へ戻るかは復職時に決まる事実であり、退職前の所属から
+        導出できない）。
+        """
 
         return replace(self, is_active=True)
