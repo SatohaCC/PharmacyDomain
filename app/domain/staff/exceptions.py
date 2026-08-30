@@ -64,3 +64,19 @@ class PrimaryAffiliationDuplicationError(StaffAffiliationError):
 
     default_message = "主所属店舗の所属期間が重複しています。"
     default_code = "PRIMARY_AFFILIATION_DUPLICATION"
+
+
+class InactiveStaffAssignmentError(StaffAffiliationError):
+    """無効化済み（退職等）のスタッフへ新しい所属を追加しようとした場合のエラー
+
+    無効化は継続中の所属をすべて退職日で閉じるため、その後に無期限の所属を
+    足せると「退職しているのに所属し続けている」状態が復活する。過去日の
+    所属を後から記録したい場合は、有効化してから所属を追加し、改めて
+    無効化する。
+    """
+
+    default_message = (
+        "無効化されたスタッフに店舗所属を追加することはできません。"
+        "先にスタッフを有効化してください。"
+    )
+    default_code = "INACTIVE_STAFF_ASSIGNMENT"

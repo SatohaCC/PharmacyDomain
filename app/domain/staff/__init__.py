@@ -1,6 +1,7 @@
 from app.domain.staff.exceptions import (
     AffiliationDateConflictError,
     ConcurrentStoreConflictError,
+    InactiveStaffAssignmentError,
     InvalidCorporateAssignmentError,
     PrimaryAffiliationDuplicationError,
     StaffAffiliationError,
@@ -48,6 +49,7 @@ __all__ = [
     "DietitianProfile",
     "DietitianRegistrationNumber",
     "HealthSupportPharmacistInfo",
+    "InactiveStaffAssignmentError",
     "InsurancePharmacistRegistration",
     "InsurancePharmacistRegistrationNumber",
     "InvalidCorporateAssignmentError",

@@ -271,7 +271,7 @@ async def test_無効化したスタッフのコードは_再利用できない(
         repository = PostgresStaffRepository(deactivate)
         loaded = await repository.get(corporate_id=corporate_id, staff_id=staff.id)
         assert loaded is not None
-        await repository.save(loaded.deactivate())
+        await repository.save(loaded.deactivate(date(2026, 3, 31)))
         await deactivate.commit()
 
     # Act & Assert

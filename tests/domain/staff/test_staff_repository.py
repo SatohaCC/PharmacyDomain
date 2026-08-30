@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
 from app.domain.corporate import CorporateId
@@ -130,7 +132,7 @@ async def test_スタッフコード_無効化済みスタッフのコードも_
     corp_id = CorporateId.generate()
     retired = create_staff(corporate_id=corp_id, code="STF-001")
     await repo.save(retired)
-    await repo.save(retired.deactivate())
+    await repo.save(retired.deactivate(date(2026, 3, 31)))
 
     # Act
     actual = await repo.exists_by_code(corporate_id=corp_id, code=StaffCode("STF-001"))
