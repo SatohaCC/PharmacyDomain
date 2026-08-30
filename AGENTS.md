@@ -82,6 +82,24 @@ uv run python -m tools.check_fake_conformance --verbose --fail-on-violation  # �
 - **`AsyncSession` は使い回さない**: セッションは並行実行安全ではないので、Unit of Work とRepositoryは1リクエスト単位で組み立てる。
 - **ドライバの挙動をダブルで代用しない**: 制約名の取り出し方、`ON CONFLICT` が当たる行数、部分一意インデックスが弾く行は、サーバとドライバが決める。テストダブルは推測ではなく実物の構造を写した形にし、実物の確認は `tests/integration/` で行う。実際、制約名は psycopg2 の `diag` ではなく asyncpg 例外の `constraint_name` にあり、ダブルを推測で書いていた間はDBなしのテストだけが緑になっていた。
 
+### プレゼンテーション（HTTP境界）
+
+- **層の位置**: HTTPルータ・例外翻訳・認証窓口は `app/presentational/` に置く。Application / Infrastructure へは依存してよいが、内側からは参照されない。逆向きの import は `tools/check_imports.py` が検出する（`[tool.import_rules.forbidden]` の `app.domain` / `app.application` / `app.infrastructure` の3行）。
+- **失敗応答の契約は1箇所**: ステータス・本文・OpenAPIへの記載は `app/presentational/errors.py` だけが持つ。例外からHTTPステータスへの対応づけはこの表だけが持つ。ルータで `try/except` を書くと、同じ例外がエンドポイントごとに違うステータスで返り、クライアントが分岐を書けなくなる。表は基底クラスへ広く与え、基底と違う扱いにするものだけを個別に載せる。**継承だけに任せてはいけない**（`StoreNotFoundError` は `NotFoundError` ではなく `StoreApplicationError` を継承するので、未検出が422で返る）。取りこぼしは `tests/presentational/test_errors.py` が `app/domain` と `app/application` の全例外クラスを走査し、名前が `NotFoundError` で終わるものは404、`Already` / `Conflict` を含むものは409であることを強制する。
+- **認証はProtocolの向こう側**: `ActorContextProvider` が受け取るのはBearerトークンだけで、ロールと所属法人を決めるのは実装側の責務とする。HTTP入力から `ActorContext` を組み立てない。既定実装 `UnconfiguredActorContextProvider` は常に401を返す。「未設定なら通す」に倒すと、認証基盤を接続し忘れたまま本番へ出た瞬間に全法人のデータが誰でも読み書きできる。
+- **認証はルータ単位で掛ける**: `APIRouter(dependencies=[Depends(get_actor_context)])` とする。ルート関数の引数に頼ると、新しいルートを足したときに書き忘れた1本だけが無認証で公開される。`tests/presentational/test_http_routes.py` が OpenAPI に載る全ルートへ実際に無認証で投げ、401以外を落とす（依存グラフの形ではなく振る舞いで確かめるので、FastAPIの内部構造が変わっても壊れない）。
+- **本文の形を1つに揃える**: `DomainError` / `ApplicationError` / `PresentationError` の3基底に加えて、FastAPI の `RequestValidationError` と Starlette の `HTTPException` にもハンドラを付け、すべて `ErrorResponse`（`code` / `message` / `errors`）へ翻訳する。既定のままだと入力検証は `{"detail": [...]}`、未知のパスは `{"detail": "Not Found"}` になり、同じ422や404で本文の形が食い違う。`errors` は入力検証のときだけ埋まるが、キー自体は常に出す（有無で形が変わると結局2種類を扱うことになる）。500だけは翻訳しない（`Exception` ハンドラを足すとトレースが握り潰される）。
+- **認証方式をOpenAPIへ載せる**: `Authorization` を `Header()` で直接読まず、`fastapi.security.HTTPBearer` を `Depends` に置く。こうすると `securitySchemes` と各操作の `security` が自動で載り、`/docs` の Authorize から試せる。`auto_error=False` にして、ヘッダが無いときの応答をFastAPI任せにしない（既定は403で、しかも本文が共通形にならない）。
+- **返しうるエラーをOpenAPIへ書く**: ルータとルートに `error_responses(...)` を渡す。書かないと生成クライアントは成功応答しか知らず、失敗を型として扱えない。説明の無いステータスを渡すと `KeyError` で落ちるので、返しうるステータスと説明の対応は常に揃う（`tests/presentational/test_errors.py` が全例外クラスから逆算して検査する）。書き込みルートは一意制約違反だけでなく**楽観ロック衝突でも409**になるので、`POST` と `PATCH` には必ず409を書く。
+- **全ユースケースにルートを与える**: Composition Root へ配線してもルートが無ければ外から実行できない。`tests/presentational/test_route_coverage.py` が登録簿の全束・全ユースケースに対して、対応するルータが `use_cases.<項目名>` を参照していることを検査する。束を足してルータを作り忘れても落ちる。
+- **検証できないIDをパスへ載せない**: ユースケースが受け取らないIDをURLへ入れると、URLが検証されない主張を持つ（別患者のIDを混ぜても素通りする）。例えば外部患者IDの取得・無効化は患者IDを取らないので、`/patients/{patient_id}/...` の下ではなく `/patient-external-identifiers/{identifier_id}` に置く。
+- **入れ子の入力はApplication層のDTOをそのまま使う**: 処方箋の剤・調剤内容・SOAPのような入れ子は、Presentation層で写し取らずに `*Input` をリクエストモデルの型に置く。写すとApplication側の項目が増えたときに黙って落ちる項目ができる。未知項目の拒否は入れ子にも効く（`tests/presentational/test_route_coverage.py` が pydantic の挙動として固定している）。
+- **状態の非対称を真偽値へ畳まない**: スタッフの退職は退職日を取って所属を打ち切るが、有効化は所属を復元しない。`PATCH /status` に `is_active` を渡す形にすると、この非対称が本文の真偽値へ隠れる。`POST /retirement` と `POST /reactivation` に分ける。
+- **権限判定をルータへ持ち込まない**: ベンダー専用操作かどうかはユースケースが `Permission` で要求し、`AuthorizationService` が判定する。ルータ側で先回りして弾くと判定が2箇所になり、片方だけ緩む。
+- **未知の項目は拒否する**: リクエスト本文は `RequestModel`（`extra="forbid"`）を継承させる。黙って捨てると、項目名を打ち間違えた変更要求が「成功したのに何も変わらない」応答になる。
+- **開発用の認証は起動点ごと分ける**: 固定トークンで通す開発用の窓口は `app/presentational/dev_main.py` に置き、`create_dev_app()` を uvicorn の `--factory` から呼ぶ。`Dockerfile` の `CMD` は `app.main:app` のまま変えず、開発用の起動点を指すのは `compose.yaml` だけにする。危ないのは環境変数の付け忘れより**起動点の取り違え**なので、`tests/presentational/test_dev_main.py` が `Dockerfile` を読んで `dev_main` を指していないことを検査する。トークンは必須（未設定なら起動しない）で、既定値を持たせない。「未設定なら通す」に倒すと開発用の起動点が無条件の穴になる。
+- **エンジンはlifespanでだけ作る**: `create_app()` はモジュール読み込み時にDBへ触らない。読み込み時に作ると、`DATABASE_URL` が無い環境（テスト・OpenAPI生成）で import しただけで落ちる。トランザクションの開始と確定は `PostgresRequestScope` に任せ、ルータは `commit` も `rollback` も呼ばない。
+
 ## テスト指針
 
 - AAA パターン（`Arrange` / `Act` / `Assert`）。

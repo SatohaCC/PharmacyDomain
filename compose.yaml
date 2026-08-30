@@ -24,12 +24,23 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://pharmacydomain:pharmacydomain-dev-password@postgres:5432/pharmacydomain}
+      # 開発用の固定トークン認証。本番の起動点 (app.main:app) はこれを読まない。
+      DEV_ACTOR_TOKEN: ${DEV_ACTOR_TOKEN:-dev-actor-token}
+      DEV_ACTOR_ROLE: ${DEV_ACTOR_ROLE:-vendor_system_admin}
+      DEV_ACTOR_CORPORATE_ID: ${DEV_ACTOR_CORPORATE_ID:-}
     ports:
-      - "8000:8000"
+      # postgres と同じく開発機のループバックにだけ公開する。既知の開発用トークンで
+      # 全法人を操作できるので、0.0.0.0 に開くと同一ネットワークから全部触れる。
+      - "127.0.0.1:${API_PORT:-8000}:8000"
     volumes:
       - ./app:/app/app
       - ./migrations:/app/migrations
-    command: uv run --frozen uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # 開発用の起動点。`--factory` なのは、環境変数を読むのを import 時ではなく
+    # 呼び出し時にするため。本番イメージの CMD は app.main:app のまま変えない。
+    command: >
+      uv run --frozen uvicorn --factory
+      app.presentational.dev_main:create_dev_app
+      --host 0.0.0.0 --port 8000 --reload
 
 volumes:
   postgres_data:

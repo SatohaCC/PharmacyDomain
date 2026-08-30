@@ -1,13 +1,7 @@
+"""ASGIアプリケーションの起動点。"""
+
 from fastapi import FastAPI
 
-app = FastAPI(title="PharmacyDomain API", version="0.1.0")
+from app.presentational import create_app
 
-
-@app.get("/", tags=["system"])
-def read_root() -> dict[str, str]:
-    return {"message": "PharmacyDomain API is running"}
-
-
-@app.get("/health", tags=["system"])
-def health_check() -> dict[str, str]:
-    return {"status": "ok"}
+app: FastAPI = create_app()
