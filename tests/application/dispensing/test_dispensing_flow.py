@@ -46,6 +46,8 @@ from app.domain.dispensing import (
 )
 from app.domain.prescription import (
     GenericSubstitutionRestrictionType,
+    InquiryNumber,
+    InquiryResultType,
     PrescriptionManagementInfo,
     PrescriptionStatus,
     RefillCount,
@@ -65,7 +67,9 @@ from tests.factories.dispensing_factory import DISPENSED_ON
 from tests.factories.prescription_factory import (
     create_medicine,
     create_prescription,
+    create_response,
     create_rp,
+    start_inquiry,
 )
 
 _NEXT_DATE = date(2026, 9, 21)
@@ -135,6 +139,24 @@ class Test調剤の開始:
         fixture = create_fixture()
         received = fixture.prescription.return_for_inquiry()
         fixture.prescription_source.register(received)
+
+        # Act / Assert
+        with pytest.raises(PrescriptionNotReadyForDispensingError):
+            await fixture.start.execute(create_start_command(fixture))
+
+    async def test_処方医が処方削除と回答した処方箋は_調剤を開始できない(self) -> None:
+        """削除された処方の調剤を止められることを、経路の端から固定する。
+
+        処方箋側が削除の回答を取消済へ畳むので、調剤開始は状態を見るだけで
+        止まる。畳まずに導出値のままにすると、ここが素通りする。
+        """
+        # Arrange
+        fixture = create_fixture()
+        deleted = start_inquiry(fixture.prescription).resolve_inquiry(
+            inquiry_number=InquiryNumber(1),
+            response=create_response(result_type=InquiryResultType.DELETED),
+        )
+        fixture.prescription_source.register(deleted)
 
         # Act / Assert
         with pytest.raises(PrescriptionNotReadyForDispensingError):

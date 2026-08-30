@@ -455,7 +455,12 @@ class Test疑義照会:
                 inquiry_number=InquiryNumber(2), response=create_response()
             )
 
-    def test_処方削除の回答は_調剤不能として導出される(self) -> None:
+    def test_処方削除の回答を受けると_取消済へ畳まれる(self) -> None:
+        """調剤を止められるかどうかを導出値のままにしない。
+
+        下流は状態しか見ないため、導出プロパティに留めると削除された処方でも
+        調剤を開始できてしまう。
+        """
         # Arrange
         prescription = start_inquiry(create_prescription())
 
@@ -467,6 +472,63 @@ class Test疑義照会:
 
         # Assert
         assert actual.has_blocking_inquiry
+        assert actual.status is PrescriptionStatus.CANCELLED
+
+    def test_処方削除の回答を受けた処方は_調剤可能へ進められない(self) -> None:
+        # Arrange
+        prescription = start_inquiry(create_prescription()).resolve_inquiry(
+            inquiry_number=InquiryNumber(1),
+            response=create_response(result_type=InquiryResultType.DELETED),
+        )
+
+        # Act / Assert
+        with pytest.raises(PrescriptionStatusTransitionError):
+            prescription.ready_for_dispensing()
+
+    def test_調剤可能な処方が_処方削除の回答で取消済になる(self) -> None:
+        """照会は調剤可能のままでも開始できるので、この経路も塞ぐ必要がある。"""
+        # Arrange
+        prescription = start_inquiry(create_prescription().ready_for_dispensing())
+
+        # Act
+        actual = prescription.resolve_inquiry(
+            inquiry_number=InquiryNumber(1),
+            response=create_response(result_type=InquiryResultType.DELETED),
+        )
+
+        # Assert
+        assert actual.status is PrescriptionStatus.CANCELLED
+
+    def test_調剤済なら_処方削除の回答は記録だけされる(self) -> None:
+        """渡し終えた薬は後から取り消せないので、状態は動かさず事実だけ残す。"""
+        # Arrange
+        prescription = start_inquiry(
+            create_prescription().ready_for_dispensing()
+        ).complete_dispensing()
+
+        # Act
+        actual = prescription.resolve_inquiry(
+            inquiry_number=InquiryNumber(1),
+            response=create_response(result_type=InquiryResultType.DELETED),
+        )
+
+        # Assert
+        assert actual.status is PrescriptionStatus.DISPENSED
+        assert actual.has_blocking_inquiry
+
+    def test_処方変更の回答なら_取消済にならない(self) -> None:
+        # Arrange
+        prescription = start_inquiry(create_prescription())
+
+        # Act
+        actual = prescription.resolve_inquiry(
+            inquiry_number=InquiryNumber(1),
+            response=create_response(result_type=InquiryResultType.MODIFIED),
+        )
+
+        # Assert
+        assert not actual.has_blocking_inquiry
+        assert actual.status is PrescriptionStatus.RECEIVED
 
     def test_複数の照会のうち1件でも未回答なら_未回答として導出される(self) -> None:
         # Arrange

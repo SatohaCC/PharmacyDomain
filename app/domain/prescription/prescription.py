@@ -406,7 +406,14 @@ class Prescription(AggregateRoot[PrescriptionId]):
     def resolve_inquiry(
         self, *, inquiry_number: InquiryNumber, response: PrescriberResponse
     ) -> Self:
-        """疑義照会に回答を記録する。"""
+        """疑義照会に回答を記録する。
+
+        処方削除の回答は処方箋そのものを無効にするため、記録すると同時に取消へ
+        畳む。調剤を止められるかどうかを導出プロパティのままにすると、下流は
+        「未回答が無いこと」しか状態から読めず、削除された処方の調剤開始を
+        止められない。既に調剤済・取消済なら回答は事実として記録するだけに
+        留める（渡し終えた薬を後から取り消すことはできない）。
+        """
         resolved: list[PrescriptionInquiry] = []
         found = False
         for inquiry in self.inquiries:
@@ -417,7 +424,10 @@ class Prescription(AggregateRoot[PrescriptionId]):
                 resolved.append(inquiry)
         if not found:
             raise InquiryNotFoundError(inquiry_number=inquiry_number.value)
-        return replace(self, inquiries=tuple(resolved))
+        updated = replace(self, inquiries=tuple(resolved))
+        if response.blocks_dispensing and not self.status.is_terminal:
+            return updated._transition_to(PrescriptionStatus.CANCELLED)
+        return updated
 
     # ------------------------------------------------------------------
     # 状態遷移
