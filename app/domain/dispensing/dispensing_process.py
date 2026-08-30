@@ -25,7 +25,6 @@ from app.domain.dispensing.exceptions import (
     DuplicatedDispensedRpNumberError,
     DuplicatedPreparationMethodError,
     NextDispensingDateMismatchError,
-    SelfVerificationNotAllowedError,
     SubstitutionWithoutChangeError,
     VerificationNotPassedError,
 )
@@ -223,7 +222,6 @@ class DispensingProcess(AggregateRoot[DispensingId]):
         self._ensure_rp_numbers_are_unique()
         self._ensure_iteration_matches_split_reason()
         self._ensure_next_dispensing_date_matches_completion_type()
-        self._ensure_verifier_is_not_dispenser()
         self._ensure_cancellation_reason_matches_status()
 
     def _ensure_has_rp(self) -> None:
@@ -277,17 +275,6 @@ class DispensingProcess(AggregateRoot[DispensingId]):
         is_cancelled = self.status is DispensingProcessStatus.CANCELLED
         if has_reason != is_cancelled:
             raise CancellationReasonMismatchError()
-
-    def _ensure_verifier_is_not_dispenser(self) -> None:
-        """調剤者と最終鑑査者が別人であることを検証する。
-
-        管理薬剤師による一括代行署名を防ぐ。両者が薬剤師資格を持つかは
-        Staff 集約を見ないと判定できないので、ここでは同一性だけを見る。
-        """
-        if self.verification is None:
-            return
-        if self.verification.verifier_id == self.dispenser_id:
-            raise SelfVerificationNotAllowedError()
 
     # ------------------------------------------------------------------
     # 導出プロパティ
