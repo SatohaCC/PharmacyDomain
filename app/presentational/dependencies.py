@@ -15,7 +15,7 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.application.access_control import ActorContext, AuthorizationService
-from app.infrastructure.composition import (
+from app.infrastructure.postgres import (
     CorporateUseCases,
     CoverageUseCases,
     DispensingUseCases,

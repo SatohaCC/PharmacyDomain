@@ -8,7 +8,7 @@ from app.application.access_control.policy import AuthorizationService
 from app.application.medicine_catalog.get_medicine import GetEffectiveMedicineUseCase
 from app.application.medicine_catalog.register_medicine import RegisterMedicineUseCase
 from app.domain.medicine_catalog.services import MedicineEffectivePeriodConflictService
-from app.infrastructure.composition.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories import PostgresRepositorySet
 
 
 @dataclass(frozen=True, slots=True)

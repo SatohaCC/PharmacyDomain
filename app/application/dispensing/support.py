@@ -10,6 +10,7 @@ from decimal import Decimal
 from enum import StrEnum
 
 from app.application.common.input_normalization import to_optional_text
+from app.application.common.optional_conversion import build_optional
 from app.application.dispensing.exceptions import DispensingNotFoundError
 from app.application.dispensing.inputs import (
     DispensedMedicineInput,
@@ -88,20 +89,18 @@ def _parse_decimal(raw: str, field_name: str) -> Decimal:
 
 def _build_substitution(source: SubstitutionInput) -> SubstitutionDetail:
     """代替調剤の記録を構成する。"""
-    code = to_optional_text(source.original_code)
-    reason = to_optional_text(source.reason)
     return SubstitutionDetail(
         category=parse_enum(SubstitutionCategory, source.category, "代替調剤種別"),
         original_identifier=MedicineIdentifier(
             code_type=parse_enum(
                 MedicineCodeType, source.original_code_type, "変更前の薬品コード種別"
             ),
-            code=MedicineCode(code) if code is not None else None,
+            code=build_optional(source.original_code, MedicineCode),
         ),
         original_name=MedicineName(
             required_text(source.original_name, "変更前の薬品名称")
         ),
-        reason=SubstitutionReason(reason) if reason is not None else None,
+        reason=build_optional(source.reason, SubstitutionReason),
     )
 
 
@@ -128,12 +127,11 @@ def _build_public_expense_burden(
 
 def _build_medicine(source: DispensedMedicineInput) -> DispensedMedicine:
     """調剤した薬品の1明細を構成する。"""
-    code = to_optional_text(source.code)
     return DispensedMedicine(
         line_number=MedicineLineNumber(source.line_number),
         identifier=MedicineIdentifier(
             code_type=parse_enum(MedicineCodeType, source.code_type, "薬品コード種別"),
-            code=MedicineCode(code) if code is not None else None,
+            code=build_optional(source.code, MedicineCode),
         ),
         name=MedicineName(required_text(source.name, "薬品名称")),
         amount=DosageAmount(_parse_decimal(source.amount, "分量")),
@@ -153,11 +151,10 @@ def _build_medicine(source: DispensedMedicineInput) -> DispensedMedicine:
 
 def _build_dosage_instruction(source: DispensedRpInput) -> DosageInstruction:
     """用法を構成する。"""
-    code = to_optional_text(source.dosage_code)
     return DosageInstruction(
         code_type=parse_enum(DosageCodeType, source.dosage_code_type, "用法コード種別"),
         name=DosageName(required_text(source.dosage_name, "用法名称")),
-        code=DosageCode(code) if code is not None else None,
+        code=build_optional(source.dosage_code, DosageCode),
         daily_frequency=(
             DailyFrequency(source.daily_frequency)
             if source.daily_frequency is not None

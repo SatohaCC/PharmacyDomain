@@ -1,20 +1,77 @@
-"""PostgreSQL Repository 共通処理。"""
+"""集約とテーブルの対応、Repository 共通処理、制約違反判定。
+
+集約は payload（JSONB）を正とし、検索・一意性制約に要る値だけを列へ複製する。
+この設計では同じ導出が「書き込み」と「復元時の照合」の2箇所に現れるため、
+:class:`AggregateMapping` に1度だけ書いて両方が同じ関数を使うようにする。
+:class:`PostgresRepositoryBase` はその対応を受け取って読み書きを行う。
+"""
 
 from __future__ import annotations
 
 import uuid
-from collections.abc import Mapping
+from collections.abc import Callable, Iterator, Mapping
+from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, Table, func
+from sqlalchemy import CursorResult, Select, Table, func
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.foundation.exceptions import ConcurrentModificationError
-from app.infrastructure.postgres.codec import PersistenceMappingError
-from app.infrastructure.postgres.unit_of_work import PostgresUnitOfWork
+from app.infrastructure.postgres.codec import (
+    PersistenceMappingError,
+    decode_aggregate,
+    encode_aggregate,
+)
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
+
+# --------------------------------------------------------------------------
+# 制約違反の判定
+# --------------------------------------------------------------------------
+
+# 例外連鎖のうち、SQLAlchemy と DBAPI ラッパが明示的に張るリンクだけを辿る。
+# ``__context__`` は「処理中に別の例外が起きた」だけの無関係な例外も繋ぐため、
+# 別の制約名を拾ってしまう危険がある。
+_LINK_ATTRIBUTES = ("orig", "__cause__")
+
+
+def constraint_name(error: IntegrityError) -> str | None:
+    """違反した制約の名前を取り出す。
+
+    asyncpg の例外は SQLAlchemy が DBAPI 互換のラッパへ翻訳して ``orig`` に入れる。
+    そのラッパは ``sqlstate`` しか持たず、サーバが返した制約名は翻訳前の元例外
+    （``__cause__``）の ``constraint_name`` にだけ残る。psycopg2 の ``diag`` は
+    asyncpg には存在しないので、例外連鎖をたどって探す。
+    """
+    for candidate in _linked_errors(error):
+        name = getattr(candidate, "constraint_name", None)
+        if isinstance(name, str) and name:
+            return name
+    return None
+
+
+def _linked_errors(error: BaseException) -> Iterator[BaseException]:
+    """例外連鎖を、同じ例外を二度たどらずに列挙する。"""
+    seen: set[int] = set()
+    pending: list[BaseException] = [error]
+    while pending:
+        current = pending.pop(0)
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        yield current
+        for attribute in _LINK_ATTRIBUTES:
+            linked = getattr(current, attribute, None)
+            if isinstance(linked, BaseException):
+                pending.append(linked)
+
+
+# --------------------------------------------------------------------------
+# 集約とテーブルの対応
+# --------------------------------------------------------------------------
 
 
 def closed_date_range_matches(
@@ -35,27 +92,100 @@ def closed_date_range_matches(
     actual_range = actual
     if actual_range.lower != expected.lower or not actual_range.lower_inc:
         return False
+    return _closed_upper(actual_range) == _closed_upper(expected)
 
-    actual_upper = actual_range.upper
-    if actual_upper is None:
-        normalized_actual_upper: date | None = None
-    elif actual_range.upper_inc:
-        normalized_actual_upper = actual_upper
-    else:
-        normalized_actual_upper = actual_upper - timedelta(days=1)
 
-    expected_upper = expected.upper
-    if expected_upper is None:
-        normalized_expected_upper: date | None = None
-    elif expected.upper_inc:
-        normalized_expected_upper = expected_upper
-    else:
-        normalized_expected_upper = expected_upper - timedelta(days=1)
-    return normalized_actual_upper == normalized_expected_upper
+def _closed_upper(value: Range[date]) -> date | None:
+    """範囲の上端を、閉区間の終了日へ揃える。"""
+    upper = value.upper
+    if upper is None:
+        return None
+    return upper if value.upper_inc else upper - timedelta(days=1)
+
+
+def _column_matches(actual: object, expected: object) -> bool:
+    """列の値が、集約から導いた値と同じものを表すか判定する。
+
+    ``daterange`` だけは ``==`` で判定できない。PostgreSQL が境界表現を正規化
+    するため、同じ期間でも ``Range`` の値としては等しくならない。
+    """
+    if isinstance(expected, Range):
+        return closed_date_range_matches(actual, cast("Range[date]", expected))
+    if isinstance(actual, Range):
+        return False
+    return actual == expected
+
+
+@dataclass(frozen=True, slots=True)
+class AggregateMapping[AggregateT]:
+    """1つの集約と、それを保存するテーブルの対応。
+
+    ``search_columns`` は payload を**含まない**。payload は :meth:`row_values`
+    が付けるので、検索列の一覧としてそのまま照合に使える。書き込みと照合が同じ
+    関数を使うので、片方だけ直して「保存はできるが読み戻せない行」を作れない。
+    """
+
+    table: Table
+    aggregate_type: type[AggregateT]
+    label: str
+    search_columns: Callable[[AggregateT], dict[str, object]]
+
+    def row_values(self, aggregate: AggregateT) -> dict[str, object]:
+        """1行に書く値（検索列と payload）を組み立てる。"""
+        return {
+            **self.search_columns(aggregate),
+            "payload": encode_aggregate(aggregate),
+        }
+
+    def identity(self, values: Mapping[str, object]) -> uuid.UUID:
+        """行の値から集約IDを取り出す。"""
+        aggregate_id = values.get("id")
+        if not isinstance(aggregate_id, uuid.UUID):
+            raise PersistenceMappingError(
+                f"{self.label}の id 列が UUID ではありません。"
+            )
+        return aggregate_id
+
+    def decode(self, row: Mapping[str, object]) -> AggregateT:
+        """payload から集約を復元し、検索列との食い違いを拒否する。
+
+        列だけを直接書き換えられた行は、payload と食い違ったまま検索には
+        引っかかる。集約として通すと、検索結果と中身が違う状態が業務処理へ
+        流れ込むので、復元の時点で止める。
+        """
+        payload = row.get("payload")
+        if not isinstance(payload, Mapping):
+            raise PersistenceMappingError(
+                f"{self.label}の payload が JSON オブジェクトではありません。"
+            )
+        aggregate = decode_aggregate(payload, self.aggregate_type)
+        mismatched = sorted(
+            name
+            for name, expected in self.search_columns(aggregate).items()
+            if not _column_matches(row.get(name), expected)
+        )
+        if mismatched:
+            raise PersistenceMappingError(
+                f"{self.label}の検索列と payload が一致しません: "
+                f"{', '.join(mismatched)}。"
+            )
+        return aggregate
+
+
+# --------------------------------------------------------------------------
+# Repository 基底
+# --------------------------------------------------------------------------
 
 
 class PostgresRepositoryBase:
-    """Unit of Work が管理するセッションへアクセスする基底クラス。"""
+    """Unit of Work が管理するセッションで集約を読み書きする基底クラス。
+
+    集約の読み書きは :meth:`find_one` / :meth:`find_all` / :meth:`save_aggregate`
+    だけを通す。**世代の記録を呼び出し側の作法に委ねない。** 委ねると、記録を
+    忘れた読み取り経路だけ楽観ロックの期待値が空になり、その経路の保存が後勝ちの
+    上書きになる。例外も出ないので、実DBで同時更新が起きるまで誰も気づかない。
+    そのため世代を記録する手続きと ``upsert`` は非公開にしてある。
+    """
 
     def __init__(self, unit_of_work: PostgresUnitOfWork) -> None:
         self._unit_of_work = unit_of_work
@@ -65,15 +195,62 @@ class PostgresRepositoryBase:
         """現在の Unit of Work のセッションを返す。"""
         return self._unit_of_work.session
 
-    def remember_version(
+    async def find_one[AggregateT](
         self,
-        row: Mapping[str, object],
-        *,
-        namespace: str = "",
-    ) -> Mapping[str, object]:
-        """読み込んだ行の世代を記録し、行をそのまま返す。
+        mapping: AggregateMapping[AggregateT],
+        statement: Select[Any],
+    ) -> AggregateT | None:
+        """1行を読み、集約へ復元する。該当が無ければ ``None``。"""
+        result = await self.session.execute(statement)
+        row = result.mappings().one_or_none()
+        if row is None:
+            return None
+        return self._restore(mapping, cast(Mapping[str, object], row))
 
-        保存時の期待値になるので、集約を復元する経路は必ずここを通す。
+    async def find_all[AggregateT](
+        self,
+        mapping: AggregateMapping[AggregateT],
+        statement: Select[Any],
+    ) -> list[AggregateT]:
+        """複数行を読み、集約の一覧へ復元する。"""
+        result = await self.session.execute(statement)
+        return [
+            self._restore(mapping, cast(Mapping[str, object], row))
+            for row in result.mappings().all()
+        ]
+
+    async def save_aggregate[AggregateT](
+        self,
+        mapping: AggregateMapping[AggregateT],
+        aggregate: AggregateT,
+    ) -> None:
+        """集約を1行として原子的に登録または更新する。
+
+        Raises:
+            ConcurrentModificationError: 読み込み後に別トランザクションが同じ行を
+                更新していた場合、または未読の集約が既に存在していた場合。
+            sqlalchemy.exc.IntegrityError: 一意制約・排他制約に違反した場合。どの
+                制約をどの業務例外へ写像するかは呼び出し側のRepositoryが決める。
+        """
+        values = mapping.row_values(aggregate)
+        await self._upsert(
+            mapping.table,
+            aggregate_id=mapping.identity(values),
+            values=values,
+        )
+
+    def _restore[AggregateT](
+        self,
+        mapping: AggregateMapping[AggregateT],
+        row: Mapping[str, object],
+    ) -> AggregateT:
+        """行の世代を記録してから集約へ復元する。"""
+        self._remember_version(row, namespace=mapping.table.name)
+        return mapping.decode(row)
+
+    def _remember_version(self, row: Mapping[str, object], *, namespace: str) -> None:
+        """読み込んだ行の世代を、保存時の期待値として記録する。
+
         ``namespace`` は同じ UUID を持つ別テーブルの集約と世代を分離する。
         """
         aggregate_id = row.get("id")
@@ -87,9 +264,8 @@ class PostgresRepositoryBase:
             version,
             namespace=namespace,
         )
-        return row
 
-    async def upsert(
+    async def _upsert(
         self,
         table: Table,
         *,
@@ -105,12 +281,6 @@ class PostgresRepositoryBase:
         更新は、このトランザクションで読み込んだ世代と一致する行だけを対象にする。
         一致しなければ更新対象が0行になり、後勝ちの上書き（lost update）ではなく
         :class:`ConcurrentModificationError` になる。
-
-        Raises:
-            ConcurrentModificationError: 読み込み後に別トランザクションが同じ行を
-                更新していた場合、または未読の集約が既に存在していた場合。
-            sqlalchemy.exc.IntegrityError: 一意制約に違反した場合。どの制約を
-                どの業務例外へ写像するかは呼び出し側のRepositoryが決める。
         """
         # 監査時刻は PostgreSQL の UTC セッション時刻で INSERT/UPDATE に統一する。
         # Application の Clock は業務日・記録時刻などのドメイン入力にだけ使う。
@@ -141,3 +311,11 @@ class PostgresRepositoryBase:
             next_version,
             namespace=namespace,
         )
+
+
+__all__ = [
+    "AggregateMapping",
+    "PostgresRepositoryBase",
+    "closed_date_range_matches",
+    "constraint_name",
+]

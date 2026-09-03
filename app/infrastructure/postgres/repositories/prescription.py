@@ -1,9 +1,10 @@
-"""処方箋の PostgreSQL Repository。"""
+"""処方箋集約の PostgreSQL Repository。
+
+電子処方箋番号は法人内で一意だが、紙の処方箋は同じ番号を持ちうる。一意性を
+課すのは電子処方箋の行だけなので、最終防衛は部分一意インデックスになる。
+"""
 
 from __future__ import annotations
-
-from collections.abc import Mapping
-from typing import cast
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -19,18 +20,16 @@ from app.domain.prescription.primitives import (
     PrescriptionId,
 )
 from app.domain.prescription.repository import PrescriptionRepository
-from app.infrastructure.postgres.codec import (
-    PersistenceMappingError,
-    decode_aggregate,
-    encode_aggregate,
+from app.infrastructure.postgres.repository_base import (
+    AggregateMapping,
+    PostgresRepositoryBase,
+    constraint_name,
 )
-from app.infrastructure.postgres.constraints import constraint_name
-from app.infrastructure.postgres.repository_base import PostgresRepositoryBase
 from app.infrastructure.postgres.schema import prescriptions
 
 
-def row_values(prescription: Prescription) -> dict[str, object]:
-    """集約から、payload と検索・一意性用の列を組み立てる。"""
+def _prescription_columns(prescription: Prescription) -> dict[str, object]:
+    """検索・一意性制約に使う列を処方箋から導く。"""
     return {
         "id": prescription.id.value,
         "corporate_id": prescription.corporate_id.value,
@@ -39,8 +38,15 @@ def row_values(prescription: Prescription) -> dict[str, object]:
         "source_type": prescription.source_type.value,
         "document_number": prescription.document_number.value,
         "status": prescription.status.value,
-        "payload": encode_aggregate(prescription),
     }
+
+
+PRESCRIPTION_MAPPING = AggregateMapping(
+    table=prescriptions,
+    aggregate_type=Prescription,
+    label="処方箋",
+    search_columns=_prescription_columns,
+)
 
 
 class PostgresPrescriptionRepository(PostgresRepositoryBase, PrescriptionRepository):
@@ -53,20 +59,12 @@ class PostgresPrescriptionRepository(PostgresRepositoryBase, PrescriptionReposit
         prescription_id: PrescriptionId,
     ) -> Prescription | None:
         """法人境界を含めてIDで処方箋を検索する。"""
-        result = await self.session.execute(
+        return await self.find_one(
+            PRESCRIPTION_MAPPING,
             select(prescriptions).where(
                 prescriptions.c.corporate_id == corporate_id.value,
                 prescriptions.c.id == prescription_id.value,
-            )
-        )
-        row = result.mappings().one_or_none()
-        if row is None:
-            return None
-        return _decode_row(
-            self.remember_version(
-                cast(Mapping[str, object], row),
-                namespace=prescriptions.name,
-            )
+            ),
         )
 
     async def get_by_document_number(
@@ -76,23 +74,15 @@ class PostgresPrescriptionRepository(PostgresRepositoryBase, PrescriptionReposit
         document_number: PrescriptionDocumentNumber,
     ) -> Prescription | None:
         """法人内の処方箋番号から処方箋を検索する。"""
-        result = await self.session.execute(
+        return await self.find_one(
+            PRESCRIPTION_MAPPING,
             select(prescriptions)
             .where(
                 prescriptions.c.corporate_id == corporate_id.value,
                 prescriptions.c.document_number == document_number.value,
             )
             .order_by(prescriptions.c.id)
-            .limit(1)
-        )
-        row = result.mappings().one_or_none()
-        if row is None:
-            return None
-        return _decode_row(
-            self.remember_version(
-                cast(Mapping[str, object], row),
-                namespace=prescriptions.name,
-            )
+            .limit(1),
         )
 
     async def list_by_patient(
@@ -102,56 +92,23 @@ class PostgresPrescriptionRepository(PostgresRepositoryBase, PrescriptionReposit
         patient_id: PatientId,
     ) -> list[Prescription]:
         """法人・患者で処方箋をID順に列挙する。"""
-        result = await self.session.execute(
+        return await self.find_all(
+            PRESCRIPTION_MAPPING,
             select(prescriptions)
             .where(
                 prescriptions.c.corporate_id == corporate_id.value,
                 prescriptions.c.patient_id == patient_id.value,
             )
-            .order_by(prescriptions.c.id)
+            .order_by(prescriptions.c.id),
         )
-        return [
-            _decode_row(
-                self.remember_version(
-                    cast(Mapping[str, object], row),
-                    namespace=prescriptions.name,
-                )
-            )
-            for row in result.mappings().all()
-        ]
 
     async def save(self, prescription: Prescription) -> None:
         """処方箋を保存し、電子処方箋番号の重複を原子的に拒否する。"""
         try:
-            await self.upsert(
-                prescriptions,
-                aggregate_id=prescription.id.value,
-                values=row_values(prescription),
-            )
+            await self.save_aggregate(PRESCRIPTION_MAPPING, prescription)
         except IntegrityError as error:
             if constraint_name(error) == "uq_prescriptions_electronic_document_number":
                 raise PrescriptionDocumentNumberAlreadyExistsError(
                     document_number=prescription.document_number.value
                 ) from error
             raise
-
-
-def _decode_row(row: Mapping[str, object]) -> Prescription:
-    """DB行の検索列と payload の整合性を確認して復元する。"""
-    payload = row.get("payload")
-    if not isinstance(payload, Mapping):
-        raise PersistenceMappingError(
-            "処方箋の payload が JSON オブジェクトではありません。"
-        )
-    prescription = decode_aggregate(payload, Prescription)
-    if (
-        prescription.id.value != row.get("id")
-        or prescription.corporate_id.value != row.get("corporate_id")
-        or prescription.store_id.value != row.get("store_id")
-        or prescription.patient_id.value != row.get("patient_id")
-        or prescription.source_type.value != row.get("source_type")
-        or prescription.document_number.value != row.get("document_number")
-        or prescription.status.value != row.get("status")
-    ):
-        raise PersistenceMappingError("処方箋の検索列と payload が一致しません。")
-    return prescription

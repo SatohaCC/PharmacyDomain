@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date
 
 from app.application.common.input_normalization import to_optional_text
+from app.application.common.optional_conversion import build_optional
 from app.application.coverage.exceptions import PatientCoverageNotFoundError
 from app.domain.corporate.primitives import CorporateId
 from app.domain.coverage import (
@@ -99,16 +100,11 @@ def build_insurance_details(
     """保険資格の制度別詳細を構成する。"""
     if benefit_ratio is None:
         raise DomainValidationError("給付割合は必須です。")
-    normalized_branch = to_optional_text(branch_number)
     return InsuranceCoverageDetails(
         insurer_number=InsurerNumber(required_text(insurer_number, "保険者番号")),
         insured_symbol=CoverageSymbol(required_text(insured_symbol, "被保険者記号")),
         insured_number=CoverageCode(required_text(insured_number, "被保険者番号")),
-        branch_number=(
-            CoverageBranchNumber(normalized_branch)
-            if normalized_branch is not None
-            else None
-        ),
+        branch_number=build_optional(branch_number, CoverageBranchNumber),
         insured_type=parse_insured_type(insured_type),
         benefit_ratio=CoverageBenefitRatio(benefit_ratio),
     )

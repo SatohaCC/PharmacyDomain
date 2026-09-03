@@ -31,15 +31,12 @@ from app.domain.dispensing.primitives import (
 )
 from app.domain.prescription.prescription import Prescription
 from app.domain.prescription.primitives import PrescriptionStatus
-from app.infrastructure.composition import PostgresCompositionRoot
-from app.infrastructure.postgres.repositories.dispensing import (
+from app.infrastructure.postgres import PostgresCompositionRoot
+from app.infrastructure.postgres.connection import PostgresSettings, PostgresUnitOfWork
+from app.infrastructure.postgres.repositories import (
     PostgresDispensingProcessRepository,
-)
-from app.infrastructure.postgres.repositories.prescription import (
     PostgresPrescriptionRepository,
 )
-from app.infrastructure.postgres.settings import PostgresSettings
-from app.infrastructure.postgres.unit_of_work import PostgresUnitOfWork
 from tests.factories.dispensing_factory import create_dispensing, verify_passed
 from tests.factories.prescription_factory import create_prescription
 from tests.infrastructure.postgres.helpers import create_corporate
@@ -74,7 +71,7 @@ async def _save_corporate_and_dispensing(
 
     unit_of_work = PostgresUnitOfWork(session_factory)
     async with unit_of_work:
-        from app.infrastructure.postgres.repositories.corporate import (
+        from app.infrastructure.postgres.repositories import (
             PostgresCorporateRepository,
         )
 

@@ -268,6 +268,28 @@ def test_Application共通基盤は全Applicationコンテキストへの依存�
     assert "app.domain" in common_forbidden
 
 
+def test_内側の層はWebとDBのフレームワークを直接importできない() -> None:
+    """フレームワークの禁止をDomainで止めると、内側の前提が静かに崩れる。
+
+    ユースケースが ``AsyncSession`` や ``Request`` を引数で受け取れる限り、
+    「具体的なアダプタはComposition RootからProtocolへ接続する」は守られない。
+    ルータが ``commit`` を掴めれば、トランザクション境界が2箇所になる。
+    """
+    # Arrange
+    rules = {rule.package: set(rule.forbidden) for rule in load_config().rules}
+
+    # Act
+    domain_forbidden = rules["app.domain"]
+    application_forbidden = rules["app.application"]
+    presentational_forbidden = rules["app.presentational"]
+
+    # Assert
+    assert {"fastapi", "sqlalchemy"} <= domain_forbidden
+    assert {"fastapi", "sqlalchemy"} <= application_forbidden
+    # HTTP境界は fastapi そのものなので、禁じるのはDBドライバだけ。
+    assert "sqlalchemy" in presentational_forbidden
+
+
 def test_設定ファイルが無い場合は既定値を返す(tmp_path: Path) -> None:
     # Act
     config = load_config(tmp_path / "missing.toml")

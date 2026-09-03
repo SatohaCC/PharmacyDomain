@@ -6,11 +6,11 @@ from dataclasses import dataclass
 
 from app.application.access_control import CorporateAccessBoundary, Permission
 from app.application.common.clock import Clock
+from app.application.common.optional_conversion import build_optional
 from app.application.dispensing.get_dispensing import DispensingProcessDto
 from app.application.dispensing.reference import StaffQualificationBoundary
 from app.application.dispensing.support import (
     load_dispensing_or_raise,
-    to_optional_text,
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing import (
@@ -73,12 +73,11 @@ class RecordAuditUseCase:
             staff_id=auditor_id,
         )
         self._pharmacist_service.ensure_auditor(qualifications)
-        notes = to_optional_text(command.notes)
         process = process.record_audit(
             auditor_id=auditor_id,
             audited_at=AuditTimestamp(self._clock.now()),
             has_issues=command.has_issues,
-            notes=AuditNotes(notes) if notes is not None else None,
+            notes=build_optional(command.notes, AuditNotes),
         )
         await self._repository.save(process)
         return DispensingProcessDto.from_entity(process)

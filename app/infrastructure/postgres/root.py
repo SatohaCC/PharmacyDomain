@@ -1,4 +1,11 @@
-"""1リクエスト分のトランザクションとユースケース一式。"""
+"""Production Composition Root。
+
+上から順に寿命が長くなる。``PostgresUseCaseRegistry`` は1スコープで実行できる
+操作の一覧、``PostgresRequestScope`` は1リクエスト（=1トランザクション）分の
+実行文脈、``PostgresCompositionRoot`` はプロセス全体の入口である。Repository を
+束ねる ``PostgresRepositorySet`` は Application の知識を持たないので
+``app/infrastructure/postgres/repositories`` 側にある。
+"""
 
 from __future__ import annotations
 
@@ -6,45 +13,51 @@ from dataclasses import dataclass
 from types import TracebackType
 from typing import Self
 
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+
 from app.application.access_control.policy import AuthorizationService
 from app.application.common.clock import Clock
+from app.application.composition.system_clock import SystemUtcClock
 from app.application.corporate.corporate_access import CorporateAccessService
-from app.infrastructure.composition.corporate import (
-    CorporateUseCases,
-    build_corporate_use_cases,
-)
-from app.infrastructure.composition.coverage import (
-    CoverageUseCases,
-    build_coverage_use_cases,
-)
-from app.infrastructure.composition.dispensing import (
+from app.infrastructure.postgres.clinical import (
     DispensingUseCases,
-    build_dispensing_use_cases,
-)
-from app.infrastructure.composition.medication_history import (
     MedicationHistoryUseCases,
+    PrescriptionUseCases,
+    build_dispensing_use_cases,
     build_medication_history_use_cases,
+    build_prescription_use_cases,
 )
-from app.infrastructure.composition.medicine_catalog import (
+from app.infrastructure.postgres.connection import (
+    PostgresSettings,
+    PostgresUnitOfWork,
+    create_async_engine_from_settings,
+    create_session_factory,
+)
+from app.infrastructure.postgres.medicine_catalog import (
     MedicineCatalogUseCases,
     build_medicine_catalog_use_cases,
 )
-from app.infrastructure.composition.patient import (
+from app.infrastructure.postgres.organization import (
+    CorporateUseCases,
+    StaffUseCases,
+    StoreUseCases,
+    build_corporate_use_cases,
+    build_staff_use_cases,
+    build_store_use_cases,
+)
+from app.infrastructure.postgres.patient_care import (
+    CoverageUseCases,
     PatientUseCases,
-    build_patient_use_cases,
-)
-from app.infrastructure.composition.prescription import (
-    PrescriptionUseCases,
-    build_prescription_use_cases,
-)
-from app.infrastructure.composition.reception import (
     ReceptionUseCases,
+    build_coverage_use_cases,
+    build_patient_use_cases,
     build_reception_use_cases,
 )
-from app.infrastructure.composition.repositories import PostgresRepositorySet
-from app.infrastructure.composition.staff import StaffUseCases, build_staff_use_cases
-from app.infrastructure.composition.store import StoreUseCases, build_store_use_cases
-from app.infrastructure.postgres.unit_of_work import PostgresUnitOfWork
+from app.infrastructure.postgres.repositories import PostgresRepositorySet
+
+# --------------------------------------------------------------------------
+# ユースケース一式
+# --------------------------------------------------------------------------
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,7 +65,7 @@ class PostgresUseCaseRegistry:
     """コンテキストごとのユースケース束。
 
     ここに並ぶ束の合計が、PostgreSQL 経路から実行できる操作のすべてになる。
-    ``tests/infrastructure/test_composition_completeness.py`` が
+    ``tests/infrastructure/test_composition.py`` が
     ``app/application`` に定義された全ユースケースとの一致を検査するので、
     ユースケースを足して束へ入れ忘れると pytest が落ちる。
     """
@@ -67,6 +80,11 @@ class PostgresUseCaseRegistry:
     dispensing: DispensingUseCases
     medication_history: MedicationHistoryUseCases
     medicine_catalog: MedicineCatalogUseCases
+
+
+# --------------------------------------------------------------------------
+# 1リクエスト分の実行文脈
+# --------------------------------------------------------------------------
 
 
 class PostgresRequestScope:
@@ -148,3 +166,64 @@ class PostgresRequestScope:
                 await self._unit_of_work.commit()
         finally:
             await self._unit_of_work.__aexit__(exc_type, exc_value, traceback)
+
+
+# --------------------------------------------------------------------------
+# プロセス全体の入口
+# --------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class PostgresCompositionRoot:
+    """PostgreSQL アダプタを組み立てる唯一の入口。
+
+    プロセスの寿命を持つのはエンジンとセッションファクトリだけで、Repository も
+    ユースケースもリクエストごとに作り直す。``AsyncSession`` は並行実行安全では
+    ないため、使い回すと同時実行で壊れる。
+    """
+
+    engine: AsyncEngine
+    session_factory: async_sessionmaker[AsyncSession]
+    clock: Clock
+
+    @classmethod
+    def from_settings(
+        cls,
+        settings: PostgresSettings,
+        *,
+        clock: Clock | None = None,
+    ) -> Self:
+        """設定から Composition Root を生成する。
+
+        業務処理へ渡す現在時刻の供給元も**ここでだけ**選ぶ。``SystemUtcClock`` は
+        ``datetime.now(UTC)`` を呼ぶ唯一の場所であり、Domain / Application が
+        暗黙に「今」を読むことを禁じた規則（ruff の ``DTZ``）の逃げ道にしない。
+        行の監査時刻（``created_at`` / ``updated_at``）は Repository が
+        PostgreSQL の UTC 時刻関数で統一する。
+        """
+        engine = create_async_engine_from_settings(settings)
+        return cls(
+            engine=engine,
+            session_factory=create_session_factory(engine),
+            clock=clock if clock is not None else SystemUtcClock(),
+        )
+
+    def request_scope(
+        self,
+        *,
+        authorization: AuthorizationService,
+    ) -> PostgresRequestScope:
+        """1リクエスト分のトランザクションとユースケース一式を組み立てる。
+
+        ``authorization`` は認証基盤が生成した信頼済みの ``ActorContext`` を
+        包んだもので、HTTP 入力から組み立ててはならない。
+        """
+        return PostgresRequestScope(
+            PostgresUnitOfWork(self.session_factory),
+            authorization=authorization,
+            clock=self.clock,
+        )
+
+    async def dispose(self) -> None:
+        """接続プールを解放する。"""
+        await self.engine.dispose()

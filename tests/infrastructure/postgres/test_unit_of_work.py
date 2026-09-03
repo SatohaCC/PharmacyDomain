@@ -88,11 +88,11 @@ async def test_記録した世代が_トランザクション終了で破棄さ�
 
     # Act
     async with unit_of_work:
-        unit_of_work.record_version(aggregate_id, 5)
-        assert unit_of_work.loaded_version(aggregate_id) == 5
+        unit_of_work.record_version(aggregate_id, 5, namespace="corporates")
+        assert unit_of_work.loaded_version(aggregate_id, namespace="corporates") == 5
 
     # Assert
-    assert unit_of_work.loaded_version(aggregate_id) is None
+    assert unit_of_work.loaded_version(aggregate_id, namespace="corporates") is None
 
 
 async def test_巻き戻すと_記録した世代を破棄する() -> None:
@@ -104,8 +104,8 @@ async def test_巻き戻すと_記録した世代を破棄する() -> None:
 
     # Act
     async with unit_of_work:
-        unit_of_work.record_version(aggregate_id, 2)
+        unit_of_work.record_version(aggregate_id, 2, namespace="corporates")
         await unit_of_work.rollback()
 
         # Assert
-        assert unit_of_work.loaded_version(aggregate_id) is None
+        assert unit_of_work.loaded_version(aggregate_id, namespace="corporates") is None

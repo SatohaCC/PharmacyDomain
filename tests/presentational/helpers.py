@@ -88,7 +88,7 @@ from app.domain.store import (
     StoreCodeUniquenessService,
     StoreNameUniquenessService,
 )
-from app.infrastructure.composition import (
+from app.infrastructure.postgres import (
     CorporateUseCases,
     CoverageUseCases,
     MedicineCatalogUseCases,

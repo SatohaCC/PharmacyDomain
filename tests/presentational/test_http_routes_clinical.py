@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from pydantic import TypeAdapter
 
 from app.application.medication_history import SoapInput
-from app.infrastructure.composition import (
+from app.infrastructure.postgres import (
     DispensingUseCases,
     MedicationHistoryUseCases,
     PrescriptionUseCases,

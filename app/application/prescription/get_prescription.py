@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.common.optional_conversion import unwrap
 from app.application.prescription.support import load_prescription_or_raise
 from app.domain.corporate.primitives import CorporateId
 from app.domain.prescription import (
@@ -56,16 +57,10 @@ class MedicalInstitutionDto:
             code=value.code.value,
             prefecture_code=value.prefecture_code.value,
             name=value.name.value,
-            postal_code=(
-                value.postal_code.value if value.postal_code is not None else None
-            ),
-            address=value.address.value if value.address is not None else None,
-            phone_number=(
-                value.phone_number.value if value.phone_number is not None else None
-            ),
-            fax_number=(
-                value.fax_number.value if value.fax_number is not None else None
-            ),
+            postal_code=unwrap(value.postal_code),
+            address=unwrap(value.address),
+            phone_number=unwrap(value.phone_number),
+            fax_number=unwrap(value.fax_number),
         )
 
 
@@ -83,7 +78,7 @@ class DepartmentDto:
         return cls(
             code_type=value.code_type.value,
             name=value.name.value,
-            code=value.code.value if value.code is not None else None,
+            code=unwrap(value.code),
         )
 
 
@@ -101,7 +96,7 @@ class PrescriberDto:
         return cls(
             full_name=value.names.full_name,
             full_name_kana=value.names.full_name_kana,
-            code=value.code.value if value.code is not None else None,
+            code=unwrap(value.code),
         )
 
 
@@ -136,12 +131,8 @@ class DosageInstructionDto:
         return cls(
             code_type=value.code_type.value,
             name=value.name.value,
-            code=value.code.value if value.code is not None else None,
-            daily_frequency=(
-                value.daily_frequency.value
-                if value.daily_frequency is not None
-                else None
-            ),
+            code=unwrap(value.code),
+            daily_frequency=unwrap(value.daily_frequency),
         )
 
 
@@ -160,8 +151,8 @@ class DosageSupplementDto:
         return cls(
             supplement_type=value.supplement_type.value,
             text=value.text.value,
-            code=value.code.value if value.code is not None else None,
-            site_code=value.site_code.value if value.site_code is not None else None,
+            code=unwrap(value.code),
+            site_code=unwrap(value.site_code),
         )
 
 
@@ -179,7 +170,7 @@ class MedicineSupplementDto:
         return cls(
             supplement_type=value.supplement_type.value,
             text=value.text.value,
-            code=value.code.value if value.code is not None else None,
+            code=unwrap(value.code),
         )
 
 
@@ -198,7 +189,7 @@ class SubstitutionRestrictionDto:
         """変更制限からDTOを生成する。"""
         return cls(
             restriction_type=value.restriction_type.value,
-            reason=value.reason.value if value.reason is not None else None,
+            reason=unwrap(value.reason),
             forbids_generic_substitution=value.forbids_generic_substitution,
         )
 
@@ -259,11 +250,7 @@ class PrescriptionMedicineDto:
         return cls(
             line_number=value.line_number.value,
             code_type=value.identifier.code_type.value,
-            code=(
-                value.identifier.code.value
-                if value.identifier.code is not None
-                else None
-            ),
+            code=unwrap(value.identifier.code),
             name=value.name.value,
             amount=str(value.amount.value),
             unit=value.unit.value,
@@ -321,11 +308,7 @@ class PrescriptionRpDto:
             medicines=tuple(
                 PrescriptionMedicineDto.from_value(item) for item in value.medicines
             ),
-            custom_category_name=(
-                value.custom_category_name.value
-                if value.custom_category_name is not None
-                else None
-            ),
+            custom_category_name=unwrap(value.custom_category_name),
             dosage_supplements=tuple(
                 DosageSupplementDto.from_value(item)
                 for item in value.dosage_supplements

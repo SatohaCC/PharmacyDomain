@@ -19,7 +19,7 @@ from app.domain.corporate.primitives import (
     CorporateRepresentativeName,
 )
 from app.domain.shared.person_name import PersonNamePart
-from app.infrastructure.postgres.unit_of_work import PostgresUnitOfWork
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from tests.fakes.recording_async_session import FakeResult, RecordingAsyncSession
 
 _MIGRATIONS_PACKAGE = "migrations.versions"

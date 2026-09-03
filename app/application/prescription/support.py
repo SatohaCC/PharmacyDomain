@@ -11,6 +11,7 @@ from decimal import Decimal
 from enum import StrEnum
 
 from app.application.common.input_normalization import to_optional_text
+from app.application.common.optional_conversion import build_optional
 from app.application.prescription.exceptions import PrescriptionNotFoundError
 from app.application.prescription.inputs import (
     DepartmentInput,
@@ -165,10 +166,6 @@ def build_medical_institution(
     source: MedicalInstitutionInput,
 ) -> MedicalInstitutionInfo:
     """医療機関情報を構成する。"""
-    postal_code = to_optional_text(source.postal_code)
-    address = to_optional_text(source.address)
-    phone_number = to_optional_text(source.phone_number)
-    fax_number = to_optional_text(source.fax_number)
     return MedicalInstitutionInfo(
         code_type=parse_enum(
             MedicalInstitutionCodeType, source.code_type, "医療機関コード種別"
@@ -178,38 +175,24 @@ def build_medical_institution(
             required_text(source.prefecture_code, "医療機関都道府県コード")
         ),
         name=MedicalInstitutionName(required_text(source.name, "医療機関名称")),
-        postal_code=(
-            MedicalInstitutionPostalCode(postal_code)
-            if postal_code is not None
-            else None
-        ),
-        address=(
-            MedicalInstitutionAddressLine(address) if address is not None else None
-        ),
-        phone_number=(
-            MedicalInstitutionPhoneNumber(phone_number)
-            if phone_number is not None
-            else None
-        ),
-        fax_number=(
-            MedicalInstitutionFaxNumber(fax_number) if fax_number is not None else None
-        ),
+        postal_code=build_optional(source.postal_code, MedicalInstitutionPostalCode),
+        address=build_optional(source.address, MedicalInstitutionAddressLine),
+        phone_number=build_optional(source.phone_number, MedicalInstitutionPhoneNumber),
+        fax_number=build_optional(source.fax_number, MedicalInstitutionFaxNumber),
     )
 
 
 def build_department(source: DepartmentInput) -> DepartmentInfo:
     """診療科情報を構成する。"""
-    code = to_optional_text(source.code)
     return DepartmentInfo(
         code_type=parse_enum(DepartmentCodeType, source.code_type, "診療科コード種別"),
         name=DepartmentName(required_text(source.name, "診療科名")),
-        code=DepartmentCode(code) if code is not None else None,
+        code=build_optional(source.code, DepartmentCode),
     )
 
 
 def build_prescriber(source: PrescriberInput) -> PrescriberInfo:
     """処方医情報を構成する。"""
-    code = to_optional_text(source.code)
     return PrescriberInfo(
         names=PersonNames.create(
             last_name=required_text(source.last_name, "処方医の姓"),
@@ -217,7 +200,7 @@ def build_prescriber(source: PrescriberInput) -> PrescriberInfo:
             last_name_kana=required_text(source.last_name_kana, "処方医の姓カナ"),
             first_name_kana=required_text(source.first_name_kana, "処方医の名カナ"),
         ),
-        code=PrescriberCode(code) if code is not None else None,
+        code=build_optional(source.code, PrescriberCode),
     )
 
 
@@ -238,11 +221,10 @@ def build_period(*, issued_date: date, valid_to: date | None) -> PrescriptionPer
 
 def _build_dosage_instruction(source: DosageInstructionInput) -> DosageInstruction:
     """用法を構成する。"""
-    code = to_optional_text(source.code)
     return DosageInstruction(
         code_type=parse_enum(DosageCodeType, source.code_type, "用法コード種別"),
         name=DosageName(required_text(source.name, "用法名称")),
-        code=DosageCode(code) if code is not None else None,
+        code=build_optional(source.code, DosageCode),
         daily_frequency=(
             DailyFrequency(source.daily_frequency)
             if source.daily_frequency is not None
@@ -253,27 +235,24 @@ def _build_dosage_instruction(source: DosageInstructionInput) -> DosageInstructi
 
 def _build_dosage_supplement(source: DosageSupplementInput) -> DosageSupplement:
     """用法補足を構成する。"""
-    code = to_optional_text(source.code)
-    site_code = to_optional_text(source.site_code)
     return DosageSupplement(
         supplement_type=parse_enum(
             DosageSupplementType, source.supplement_type, "用法補足区分"
         ),
         text=DosageSupplementText(required_text(source.text, "用法補足情報")),
-        code=DosageSupplementCode(code) if code is not None else None,
-        site_code=ApplicationSiteCode(site_code) if site_code is not None else None,
+        code=build_optional(source.code, DosageSupplementCode),
+        site_code=build_optional(source.site_code, ApplicationSiteCode),
     )
 
 
 def _build_medicine_supplement(source: MedicineSupplementInput) -> MedicineSupplement:
     """薬品補足（調製指示）を構成する。"""
-    code = to_optional_text(source.code)
     return MedicineSupplement(
         supplement_type=parse_enum(
             MedicineSupplementType, source.supplement_type, "薬品補足区分"
         ),
         text=MedicineSupplementText(required_text(source.text, "薬品補足情報")),
-        code=DosageSupplementCode(code) if code is not None else None,
+        code=build_optional(source.code, DosageSupplementCode),
     )
 
 
@@ -281,12 +260,11 @@ def _build_substitution_restriction(
     source: SubstitutionRestrictionInput,
 ) -> GenericSubstitutionRestriction:
     """変更制限を構成する。"""
-    reason = to_optional_text(source.reason)
     return GenericSubstitutionRestriction(
         restriction_type=parse_enum(
             GenericSubstitutionRestrictionType, source.restriction_type, "変更制限区分"
         ),
-        reason=SubstitutionRestrictionReason(reason) if reason is not None else None,
+        reason=build_optional(source.reason, SubstitutionRestrictionReason),
     )
 
 
@@ -312,10 +290,9 @@ def _build_public_expense_burden(
 
 def _build_medicine_identifier(source: MedicineInput) -> MedicineIdentifier:
     """薬品識別子（コード種別とコード）を構成する。"""
-    code = to_optional_text(source.code)
     return MedicineIdentifier(
         code_type=parse_enum(MedicineCodeType, source.code_type, "薬品コード種別"),
-        code=MedicineCode(code) if code is not None else None,
+        code=build_optional(source.code, MedicineCode),
     )
 
 
@@ -371,17 +348,14 @@ def _build_medicine(source: MedicineInput) -> PrescriptionMedicine:
 
 def _build_rp(source: RpInput) -> PrescriptionRp:
     """剤（Rp）を構成する。"""
-    custom_category_name = to_optional_text(source.custom_category_name)
     return PrescriptionRp(
         rp_number=RpNumber(source.rp_number),
         category=parse_enum(DosageFormCategory, source.category, "剤形区分"),
         quantity=DispensingQuantity(source.quantity),
         dosage_instruction=_build_dosage_instruction(source.dosage_instruction),
         medicines=tuple(_build_medicine(item) for item in source.medicines),
-        custom_category_name=(
-            DosageFormName(custom_category_name)
-            if custom_category_name is not None
-            else None
+        custom_category_name=build_optional(
+            source.custom_category_name, DosageFormName
         ),
         dosage_supplements=tuple(
             _build_dosage_supplement(item) for item in source.dosage_supplements

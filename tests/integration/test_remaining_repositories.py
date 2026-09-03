@@ -37,29 +37,21 @@ from app.domain.store.exceptions import (
     StoreNameAlreadyExistsError,
 )
 from app.domain.store.primitives import StoreName
-from app.infrastructure.postgres.repositories.corporate import (
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
+from app.infrastructure.postgres.repositories import (
     PostgresCorporateRepository,
-)
-from app.infrastructure.postgres.repositories.coverage import (
-    PostgresPatientCoverageRepository,
-)
-from app.infrastructure.postgres.repositories.medication_history import (
+    PostgresCoverageSelectionRecordRepository,
     PostgresMedicationHistoryRepository,
+    PostgresPatientCoverageRepository,
+    PostgresPatientExternalIdentifierRepository,
     PostgresPatientMedicalProfileRepository,
+    PostgresPatientRepository,
+    PostgresStaffRepository,
+    PostgresStoreRepository,
 )
 from app.infrastructure.postgres.repositories.medicine_catalog import (
     PostgresMedicineCatalogRepository,
 )
-from app.infrastructure.postgres.repositories.patient import (
-    PostgresPatientExternalIdentifierRepository,
-    PostgresPatientRepository,
-)
-from app.infrastructure.postgres.repositories.reception import (
-    PostgresCoverageSelectionRecordRepository,
-)
-from app.infrastructure.postgres.repositories.staff import PostgresStaffRepository
-from app.infrastructure.postgres.repositories.store import PostgresStoreRepository
-from app.infrastructure.postgres.unit_of_work import PostgresUnitOfWork
 from tests.factories.medication_history_factory import create_record
 from tests.factories.medicine_catalog_factory import create_identifier, create_medicine
 from tests.factories.persistence_factory import (

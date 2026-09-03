@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.infrastructure.postgres.settings import (
+from app.infrastructure.postgres.connection import (
     PostgresConfigurationError,
     PostgresSettings,
 )

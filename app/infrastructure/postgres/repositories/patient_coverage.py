@@ -1,10 +1,13 @@
-"""患者資格の PostgreSQL Repository。"""
+"""患者資格の PostgreSQL Repository。
+
+「同一患者・同一順位で実効期間が重なる資格を拒否する」は一意制約では表せない
+ので、``daterange`` と排他制約が最終防衛になる。Applicationの事前readは早期
+エラー用であって、原子性の代替ではない。
+"""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from datetime import date
-from typing import cast
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import Range
@@ -16,15 +19,10 @@ from app.domain.coverage.patient_coverage import PatientCoverage
 from app.domain.coverage.primitives import PatientCoverageId
 from app.domain.coverage.repository import PatientCoverageRepository
 from app.domain.patient.primitives import PatientId
-from app.infrastructure.postgres.codec import (
-    PersistenceMappingError,
-    decode_aggregate,
-    encode_aggregate,
-)
-from app.infrastructure.postgres.constraints import constraint_name
 from app.infrastructure.postgres.repository_base import (
+    AggregateMapping,
     PostgresRepositoryBase,
-    closed_date_range_matches,
+    constraint_name,
 )
 from app.infrastructure.postgres.schema import patient_coverages
 
@@ -43,8 +41,8 @@ def effective_range(coverage: PatientCoverage) -> Range[date] | None:
     return Range(period.valid_from.value, upper, bounds="[]")
 
 
-def row_values(coverage: PatientCoverage) -> dict[str, object]:
-    """集約から、payload と検索・競合判定用の列を組み立てる。"""
+def _coverage_columns(coverage: PatientCoverage) -> dict[str, object]:
+    """検索・競合判定に使う列を資格から導く。"""
     return {
         "id": coverage.id.value,
         "corporate_id": coverage.corporate_id.value,
@@ -52,8 +50,15 @@ def row_values(coverage: PatientCoverage) -> dict[str, object]:
         "coverage_type": coverage.coverage_type.value,
         "priority": coverage.priority.value,
         "effective_range": effective_range(coverage),
-        "payload": encode_aggregate(coverage),
     }
+
+
+PATIENT_COVERAGE_MAPPING = AggregateMapping(
+    table=patient_coverages,
+    aggregate_type=PatientCoverage,
+    label="患者資格",
+    search_columns=_coverage_columns,
+)
 
 
 class PostgresPatientCoverageRepository(
@@ -68,20 +73,12 @@ class PostgresPatientCoverageRepository(
         coverage_id: PatientCoverageId,
     ) -> PatientCoverage | None:
         """法人境界を含めてIDで資格を検索する。"""
-        result = await self.session.execute(
+        return await self.find_one(
+            PATIENT_COVERAGE_MAPPING,
             select(patient_coverages).where(
                 patient_coverages.c.corporate_id == corporate_id.value,
                 patient_coverages.c.id == coverage_id.value,
-            )
-        )
-        row = result.mappings().one_or_none()
-        if row is None:
-            return None
-        return _decode_row(
-            self.remember_version(
-                cast(Mapping[str, object], row),
-                namespace=patient_coverages.name,
-            )
+            ),
         )
 
     async def list_by_patient(
@@ -91,7 +88,8 @@ class PostgresPatientCoverageRepository(
         patient_id: PatientId,
     ) -> list[PatientCoverage]:
         """法人・患者の資格を制度・順位・ID順で返す。"""
-        result = await self.session.execute(
+        return await self.find_all(
+            PATIENT_COVERAGE_MAPPING,
             select(patient_coverages)
             .where(
                 patient_coverages.c.corporate_id == corporate_id.value,
@@ -101,17 +99,8 @@ class PostgresPatientCoverageRepository(
                 patient_coverages.c.coverage_type,
                 patient_coverages.c.priority,
                 patient_coverages.c.id,
-            )
+            ),
         )
-        return [
-            _decode_row(
-                self.remember_version(
-                    cast(Mapping[str, object], row),
-                    namespace=patient_coverages.name,
-                )
-            )
-            for row in result.mappings().all()
-        ]
 
     async def save(self, coverage: PatientCoverage) -> None:
         """実効期間の競合を原子的に拒否して資格を保存する。
@@ -119,35 +108,8 @@ class PostgresPatientCoverageRepository(
         「期間が重なる」は一意制約では表せないため、排他制約が最終防衛になる。
         """
         try:
-            await self.upsert(
-                patient_coverages,
-                aggregate_id=coverage.id.value,
-                values=row_values(coverage),
-            )
+            await self.save_aggregate(PATIENT_COVERAGE_MAPPING, coverage)
         except IntegrityError as error:
             if constraint_name(error) == "excl_patient_coverages_effective_period":
                 raise CoveragePeriodConflictError() from error
             raise
-
-
-def _decode_row(row: Mapping[str, object]) -> PatientCoverage:
-    """DB行の検索列と payload の整合性を確認して復元する。"""
-    payload = row.get("payload")
-    if not isinstance(payload, Mapping):
-        raise PersistenceMappingError(
-            "患者資格の payload が JSON オブジェクトではありません。"
-        )
-    coverage = decode_aggregate(payload, PatientCoverage)
-    if (
-        coverage.id.value != row.get("id")
-        or coverage.corporate_id.value != row.get("corporate_id")
-        or coverage.patient_id.value != row.get("patient_id")
-        or coverage.coverage_type.value != row.get("coverage_type")
-        or coverage.priority.value != row.get("priority")
-        or not closed_date_range_matches(
-            row.get("effective_range"),
-            effective_range(coverage),
-        )
-    ):
-        raise PersistenceMappingError("患者資格の検索列と payload が一致しません。")
-    return coverage

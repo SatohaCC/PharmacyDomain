@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.common.optional_conversion import unwrap
 from app.application.dispensing.support import load_dispensing_or_raise
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing import (
@@ -40,13 +41,9 @@ class SubstitutionDto:
         return cls(
             category=value.category.value,
             original_code_type=value.original_identifier.code_type.value,
-            original_code=(
-                value.original_identifier.code.value
-                if value.original_identifier.code is not None
-                else None
-            ),
+            original_code=unwrap(value.original_identifier.code),
             original_name=value.original_name.value,
-            reason=value.reason.value if value.reason is not None else None,
+            reason=unwrap(value.reason),
         )
 
 
@@ -81,12 +78,8 @@ class DosageInstructionDto:
         return cls(
             code_type=value.code_type.value,
             name=value.name.value,
-            code=value.code.value if value.code is not None else None,
-            daily_frequency=(
-                value.daily_frequency.value
-                if value.daily_frequency is not None
-                else None
-            ),
+            code=unwrap(value.code),
+            daily_frequency=unwrap(value.daily_frequency),
         )
 
 
@@ -114,11 +107,7 @@ class DispensedMedicineDto:
         return cls(
             line_number=value.line_number.value,
             code_type=value.identifier.code_type.value,
-            code=(
-                value.identifier.code.value
-                if value.identifier.code is not None
-                else None
-            ),
+            code=unwrap(value.identifier.code),
             name=value.name.value,
             amount=str(value.amount.value),
             unit=value.unit.value,
@@ -183,7 +172,7 @@ class DispensingAuditDto:
             auditor_id=str(value.auditor_id.value),
             audited_at=value.audited_at.value.isoformat(),
             has_issues=value.has_issues,
-            notes=value.notes.value if value.notes is not None else None,
+            notes=unwrap(value.notes),
         )
 
 
@@ -203,7 +192,7 @@ class DispensingVerificationDto:
             verifier_id=str(value.verifier_id.value),
             verified_at=value.verified_at.value.isoformat(),
             result=value.result.value,
-            notes=value.notes.value if value.notes is not None else None,
+            notes=unwrap(value.notes),
         )
 
 
@@ -244,9 +233,7 @@ class DispensingProcessDto:
             started_at=process.started_at.value.isoformat(),
             status=process.status.value,
             completion_type=process.completion_type.value,
-            split_reason=(
-                process.split_reason.value if process.split_reason is not None else None
-            ),
+            split_reason=unwrap(process.split_reason),
             next_dispensing_date=(
                 process.next_dispensing_date.value.isoformat()
                 if process.next_dispensing_date is not None
@@ -265,11 +252,7 @@ class DispensingProcessDto:
                 if process.verification is not None
                 else None
             ),
-            cancellation_reason=(
-                process.cancellation_reason.value
-                if process.cancellation_reason is not None
-                else None
-            ),
+            cancellation_reason=unwrap(process.cancellation_reason),
         )
 
 
