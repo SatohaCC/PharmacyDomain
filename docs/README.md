@@ -38,8 +38,9 @@ flowchart LR
 ```
 
 2026-08-30時点では、11コンテキストのDomainモデルと全コンテキストのPostgreSQL
-Repositoryを実装済みです。ClaimはDomain層のみです。業務HTTPルートと認証基盤、
-薬価基準・HOTコード等の実データ取り込みは未実装です。
+Repositoryを実装済みです。ClaimはDomain層のみです。HTTP境界は全コンテキストの
+ユースケースを公開済みで、認証基盤と薬価基準・HOTコード等の実データ取り込みは
+未実装です。
 
 ## コンテキスト
 
@@ -90,7 +91,8 @@ Repositoryを実装済みです。ClaimはDomain層のみです。業務HTTPル�
 ## 未解決事項
 
 - 全コンテキストの本番Repository、DB制約、楽観ロック、テナント境界は実装済み。実PostgreSQL結合テストで確認済み
-- 業務ユースケースを接続するHTTPルートとComposition Rootがない
+- Claimは到達可能なUseCaseが無いため、HTTPルートも持たない（Domain層のみ）
+- 資格情報から `ActorContext` を作る認証基盤が無い。既定実装は常に401を返す
 - 薬価基準・HOTコード等からMedicineCatalogへ取り込むInfrastructureがない
 - Prescriptionの公費枠とCoverage台帳を接続するComposition Adapterは実装済み
 - Dispensing完了とPrescription更新、MedicationHistory確定と頭書き保存は PostgreSQL の同一 Unit of Work で一体化した。HTTPルートへの接続は未実装

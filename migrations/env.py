@@ -8,9 +8,11 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import Connection
 
-from app.infrastructure.postgres.engine import create_async_engine_from_settings
+from app.infrastructure.postgres.connection import (
+    PostgresSettings,
+    create_async_engine_from_settings,
+)
 from app.infrastructure.postgres.schema import metadata
-from app.infrastructure.postgres.settings import PostgresSettings
 
 config = context.config
 if config.config_file_name is not None:

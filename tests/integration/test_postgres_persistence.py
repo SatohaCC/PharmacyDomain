@@ -24,16 +24,12 @@ from app.domain.prescription.primitives import (
     PrescriptionDocumentNumber,
     PrescriptionSourceType,
 )
-from app.infrastructure.postgres.repositories.corporate import (
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
+from app.infrastructure.postgres.repositories import (
     PostgresCorporateRepository,
-)
-from app.infrastructure.postgres.repositories.dispensing import (
     PostgresDispensingProcessRepository,
-)
-from app.infrastructure.postgres.repositories.prescription import (
     PostgresPrescriptionRepository,
 )
-from app.infrastructure.postgres.unit_of_work import PostgresUnitOfWork
 from tests.factories.dispensing_factory import create_dispensing
 from tests.factories.prescription_factory import create_prescription
 from tests.infrastructure.postgres.helpers import create_corporate

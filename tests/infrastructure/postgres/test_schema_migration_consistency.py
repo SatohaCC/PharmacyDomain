@@ -8,9 +8,12 @@
 
 from __future__ import annotations
 
+import importlib
 import io
+import pkgutil
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 from alembic.migration import MigrationContext
@@ -19,33 +22,32 @@ from sqlalchemy import Table
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.schema import CreateIndex, CreateTable
 
-from app.infrastructure.postgres import schema
-from app.infrastructure.postgres.repositories import (
-    corporate as corporate_repository,
+from app.infrastructure.postgres import repositories, schema
+from app.infrastructure.postgres.repositories.corporate import CORPORATE_MAPPING
+from app.infrastructure.postgres.repositories.coverage_selection_record import (
+    COVERAGE_SELECTION_RECORD_MAPPING,
 )
-from app.infrastructure.postgres.repositories import (
-    coverage as coverage_repository,
+from app.infrastructure.postgres.repositories.dispensing_process import (
+    DISPENSING_PROCESS_MAPPING,
 )
-from app.infrastructure.postgres.repositories import (
-    dispensing as dispensing_repository,
+from app.infrastructure.postgres.repositories.medication_history import (
+    MEDICATION_HISTORY_RECORD_MAPPING,
 )
-from app.infrastructure.postgres.repositories import (
-    medication_history as medication_history_repository,
+from app.infrastructure.postgres.repositories.medicine_catalog import MEDICINE_MAPPING
+from app.infrastructure.postgres.repositories.patient import PATIENT_MAPPING
+from app.infrastructure.postgres.repositories.patient_coverage import (
+    PATIENT_COVERAGE_MAPPING,
 )
-from app.infrastructure.postgres.repositories import (
-    medicine_catalog as medicine_catalog_repository,
+from app.infrastructure.postgres.repositories.patient_external_identifier import (
+    PATIENT_EXTERNAL_IDENTIFIER_MAPPING,
 )
-from app.infrastructure.postgres.repositories import (
-    patient as patient_repository,
+from app.infrastructure.postgres.repositories.patient_medical_profile import (
+    PATIENT_MEDICAL_PROFILE_MAPPING,
 )
-from app.infrastructure.postgres.repositories import (
-    prescription as prescription_repository,
-)
-from app.infrastructure.postgres.repositories import (
-    reception as reception_repository,
-)
-from app.infrastructure.postgres.repositories import staff as staff_repository
-from app.infrastructure.postgres.repositories import store as store_repository
+from app.infrastructure.postgres.repositories.prescription import PRESCRIPTION_MAPPING
+from app.infrastructure.postgres.repositories.staff import STAFF_MAPPING
+from app.infrastructure.postgres.repositories.store import STORE_MAPPING
+from app.infrastructure.postgres.repository_base import AggregateMapping
 from tests.factories.dispensing_factory import create_dispensing
 from tests.factories.medication_history_factory import create_record
 from tests.factories.medicine_catalog_factory import create_medicine
@@ -72,66 +74,53 @@ _MIGRATIONS_PACKAGE = "migrations.versions"
 _MANAGED_COLUMNS = frozenset({"version", "created_at", "updated_at"})
 
 
-def _row_value_cases() -> list[tuple[str, Table, Mapping[str, object]]]:
-    """各Repositoryが1行に書く値を、対応するテーブルと組にして返す。"""
+def _case[AggregateT](
+    mapping: AggregateMapping[AggregateT], aggregate: AggregateT
+) -> tuple[AggregateMapping[Any], Mapping[str, object]]:
+    """対応を検査する組を作る。
+
+    ``mapping`` と ``aggregate`` の型が食い違う組は型検査で落ちるので、別集約の
+    見本を渡したまま「列は存在する」という無意味な検査が緑になることはない。
+    """
+    return mapping, mapping.row_values(aggregate)
+
+
+def _row_value_cases() -> list[tuple[AggregateMapping[Any], Mapping[str, object]]]:
+    """各Repositoryが1行に書く値を、対応と組にして返す。"""
     return [
-        (
-            "corporates",
-            schema.corporates,
-            corporate_repository.row_values(create_corporate()),
-        ),
-        (
-            "prescriptions",
-            schema.prescriptions,
-            prescription_repository.row_values(create_prescription()),
-        ),
-        (
-            "dispensing_processes",
-            schema.dispensing_processes,
-            dispensing_repository.row_values(create_dispensing()),
-        ),
-        ("stores", schema.stores, store_repository.row_values(create_store())),
-        (
-            "staff_members",
-            schema.staff_members,
-            staff_repository.row_values(create_staff()),
-        ),
-        (
-            "patients",
-            schema.patients,
-            patient_repository.row_values(create_patient()),
-        ),
-        (
-            "patient_external_identifiers",
-            schema.patient_external_identifiers,
-            patient_repository.identifier_row_values(create_external_identifier()),
-        ),
-        (
-            "patient_coverages",
-            schema.patient_coverages,
-            coverage_repository.row_values(create_coverage()),
-        ),
-        (
-            "coverage_selection_records",
-            schema.coverage_selection_records,
-            reception_repository.row_values(create_selection_record()),
-        ),
-        (
-            "medication_history_records",
-            schema.medication_history_records,
-            medication_history_repository.row_values(create_record()),
-        ),
-        (
-            "patient_medical_profiles",
-            schema.patient_medical_profiles,
-            medication_history_repository.profile_row_values(create_medical_profile()),
-        ),
-        (
-            "medicines",
-            schema.medicines,
-            medicine_catalog_repository.row_values(create_medicine()),
-        ),
+        _case(CORPORATE_MAPPING, create_corporate()),
+        _case(STORE_MAPPING, create_store()),
+        _case(STAFF_MAPPING, create_staff()),
+        _case(PATIENT_MAPPING, create_patient()),
+        _case(PATIENT_EXTERNAL_IDENTIFIER_MAPPING, create_external_identifier()),
+        _case(PATIENT_COVERAGE_MAPPING, create_coverage()),
+        _case(COVERAGE_SELECTION_RECORD_MAPPING, create_selection_record()),
+        _case(PRESCRIPTION_MAPPING, create_prescription()),
+        _case(DISPENSING_PROCESS_MAPPING, create_dispensing()),
+        _case(MEDICATION_HISTORY_RECORD_MAPPING, create_record()),
+        _case(PATIENT_MEDICAL_PROFILE_MAPPING, create_medical_profile()),
+        _case(MEDICINE_MAPPING, create_medicine()),
     ]
+
+
+def _declared_mappings() -> list[AggregateMapping[Any]]:
+    """``app/infrastructure/postgres/repositories`` の全ての対応を集める。"""
+    # SQLAlchemy の ``Table`` は ``==`` がSQL式を作るので、値としては比較できない。
+    # 同じ対応を複数のモジュールから見ても1つに畳めるよう、同一性で束ねる。
+    found: dict[int, AggregateMapping[Any]] = {}
+    for module_info in pkgutil.walk_packages(
+        repositories.__path__, prefix=f"{repositories.__name__}."
+    ):
+        module = importlib.import_module(module_info.name)
+        for value in vars(module).values():
+            if isinstance(value, AggregateMapping):
+                found[id(value)] = value
+    return list(found.values())
+
+
+def _case_id(value: object) -> str:
+    """テーブル名をテストIDにする。"""
+    return value.table.name if isinstance(value, AggregateMapping) else ""
 
 
 def _top_level_items(body: str) -> list[str]:
@@ -220,39 +209,39 @@ def _schema_ddl() -> set[str]:
 
 
 @pytest.mark.parametrize(
-    ("table_name", "table", "values"),
+    ("mapping", "values"),
     _row_value_cases(),
-    ids=lambda value: value if isinstance(value, str) else "",
+    ids=_case_id,
 )
 def test_Repositoryが書く列が_テーブル定義に存在する(
-    table_name: str, table: Table, values: Mapping[str, object]
+    mapping: AggregateMapping[Any], values: Mapping[str, object]
 ) -> None:
     """定義に無い列へ書こうとすると、文の組み立て時点で失敗する。"""
     # Arrange
     now = datetime.now(UTC)
 
     # Act
-    statement = postgres_insert(table).values(
+    statement = postgres_insert(mapping.table).values(
         **values, version=1, created_at=now, updated_at=now
     )
 
     # Assert
-    assert table_name in compiled_sql(statement)
+    assert mapping.table.name in compiled_sql(statement)
 
 
 @pytest.mark.parametrize(
-    ("table_name", "table", "values"),
+    ("mapping", "values"),
     _row_value_cases(),
-    ids=lambda value: value if isinstance(value, str) else "",
+    ids=_case_id,
 )
 def test_NOT_NULLの列が_保存時にすべて埋まる(
-    table_name: str, table: Table, values: Mapping[str, object]
+    mapping: AggregateMapping[Any], values: Mapping[str, object]
 ) -> None:
     """既定値を持たない必須列は、Repositoryかupsertのどちらかが必ず埋める。"""
     # Arrange
     required = {
         column.name
-        for column in table.columns
+        for column in mapping.table.columns
         if not column.nullable
         and column.default is None
         and column.server_default is None
@@ -263,28 +252,28 @@ def test_NOT_NULLの列が_保存時にすべて埋まる(
 
     # Assert
     assert required <= supplied, (
-        f"{table_name} の必須列 {sorted(required - supplied)} が保存時に埋まりません。"
+        f"{mapping.table.name} の必須列 {sorted(required - supplied)} が保存時に埋まりません。"
     )
 
 
 @pytest.mark.parametrize(
-    ("table_name", "table", "values"),
+    ("mapping", "values"),
     _row_value_cases(),
-    ids=lambda value: value if isinstance(value, str) else "",
+    ids=_case_id,
 )
 def test_Repositoryが書く列に_未知の列が混ざらない(
-    table_name: str, table: Table, values: Mapping[str, object]
+    mapping: AggregateMapping[Any], values: Mapping[str, object]
 ) -> None:
     """テーブルに無い列名を書くと、実行時までエラーが遅れるので事前に落とす。"""
     # Arrange
-    defined = {column.name for column in table.columns}
+    defined = {column.name for column in mapping.table.columns}
 
     # Act
     unknown = set(values) - defined
 
     # Assert
     assert not unknown, (
-        f"{table_name} に存在しない列へ書こうとしています: {sorted(unknown)}"
+        f"{mapping.table.name} に存在しない列へ書こうとしています: {sorted(unknown)}"
     )
 
 
@@ -371,3 +360,23 @@ def test_マイグレーションのdowngradeが_全テーブルを削除する(
     # Assert
     for table in schema.metadata.sorted_tables:
         assert f"DROP TABLE {table.name}" in dropped
+
+
+def test_全ての集約対応が_列の検査対象になっている() -> None:
+    """Repositoryを足して検査へ入れ忘れると落ちる。
+
+    ここが手作業の一覧のままだと、新しい集約の列が「テーブルに存在するか」も
+    「必須列が埋まるか」も確かめられないまま緑になる。実DBに繋ぐまで誰も
+    気づかない種類の抜けなので、登録簿そのものと突き合わせる。
+    """
+    # Arrange
+    declared = {mapping.table.name for mapping in _declared_mappings()}
+
+    # Act
+    covered = {mapping.table.name for mapping, _ in _row_value_cases()}
+
+    # Assert
+    assert declared == covered, (
+        f"検査されていない集約: {sorted(declared - covered)} / "
+        f"実在しない集約: {sorted(covered - declared)}"
+    )

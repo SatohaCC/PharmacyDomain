@@ -8,12 +8,14 @@ dependencies = [
     "alembic>=1.16,<2.0",
     "asyncpg>=0.30,<1.0",
     "fastapi>=0.115,<1.0",
+    "pydantic>=2.11,<3.0",
     "sqlalchemy[asyncio]>=2.0,<3.0",
     "uvicorn[standard]>=0.30,<1.0",
 ]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28,<1.0",
     "mypy>=2.3,<3.0",
     "pytest>=8.0,<9.0",
     "pytest-asyncio>=0.24,<1.0",
@@ -87,6 +89,9 @@ paths = [
     # 参照Boundaryの実アダプタも Protocol を明示継承する。構造的部分型のままだと
     # Protocol にメンバが増えたとき、実アダプタだけが静かに取り残される。
     "app/application/composition",
+    # 認証基盤の既定実装も ActorContextProvider を明示継承する。上書きし忘れると
+    # 「認証していないのに例外にならず None が返る」経路ができる。
+    "app/presentational",
 ]
 
 [tool.import_rules]
@@ -133,10 +138,30 @@ paths = ["app"]
     "sqlalchemy",
 ]
 # Domain層は Application層・Web/DBフレームワーク・Infrastructureに一切依存しない。
-"app.domain" = ["app.application", "app.infrastructure", "fastapi", "sqlalchemy"]
-# Application層は外側のInfrastructureへ依存しない。具体的なDB adapterは
-# Composition RootからProtocolへ接続する。
-"app.application" = ["app.infrastructure"]
+"app.domain" = [
+    "app.application",
+    "app.infrastructure",
+    "app.presentational",
+    "fastapi",
+    "sqlalchemy",
+]
+# Application層は外側のInfrastructureとHTTP境界へ依存しない。具体的なDB adapterは
+# Composition RootからProtocolへ接続する。フレームワークも直接は使わせない。
+# Domain だけを禁止しても、ユースケースが AsyncSession や Request を引数で
+# 受け取れる限り「Protocol 越しに接続する」という前提は静かに崩れる。
+"app.application" = [
+    "app.infrastructure",
+    "app.presentational",
+    "fastapi",
+    "sqlalchemy",
+]
+# 永続化アダプタとComposition RootはHTTP境界を知らない。逆向き（Presentation →
+# Infrastructure）だけを許し、依存の向きを外から内へ保つ。
+"app.infrastructure" = ["app.presentational"]
+# HTTP境界はDBドライバを直接触らない。トランザクションの開始と確定は
+# PostgresRequestScope だけが持つので、ルータが session や commit を掴めると
+# 境界が2箇所になる。fastapi は禁止しない（HTTP境界そのものなので）。
+"app.presentational" = ["sqlalchemy"]
 # Application共通基盤はDomain層や個別Applicationコンテキストに依存しない。
 "app.application.common" = [
     "app.domain",

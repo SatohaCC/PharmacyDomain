@@ -56,16 +56,14 @@ async def test_register_staff_success() -> None:
     )
 
     # Act
-    created_staff = await use_case.execute(cmd)
+    staff_id = await use_case.execute(cmd)
 
     # Assert
+    created_staff = await staff_repo.get(corporate_id=corp_id, staff_id=staff_id)
     assert created_staff is not None
     assert created_staff.code is not None
     assert created_staff.code.value == "STF-001"
     assert created_staff.current_home_store_id(date(2026, 4, 1)) == store.id
-
-    fetched = await staff_repo.get(corporate_id=corp_id, staff_id=created_staff.id)
-    assert fetched is not None
 
 
 @pytest.mark.asyncio
@@ -130,9 +128,11 @@ async def test_register_staff_with_pharmacist_qualification() -> None:
     )
 
     # Act
-    created_staff = await use_case.execute(cmd)
+    staff_id = await use_case.execute(cmd)
 
     # Assert
+    created_staff = await staff_repo.get(corporate_id=corp_id, staff_id=staff_id)
+    assert created_staff is not None
     assert created_staff.is_pharmacist is True
     assert created_staff.pharmacist_profile is not None
     assert created_staff.pharmacist_profile.license_number.value == "123456"

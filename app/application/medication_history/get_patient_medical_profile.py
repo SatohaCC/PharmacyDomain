@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.common.optional_conversion import unwrap
 from app.application.medication_history.exceptions import (
     PatientMedicalProfileNotFoundError,
 )
@@ -131,11 +132,7 @@ class ConcurrentMedicationDto:
             ended_on=(
                 value.ended_on.isoformat() if value.ended_on is not None else None
             ),
-            prescriber_institution=(
-                value.prescriber_institution.value
-                if value.prescriber_institution is not None
-                else None
-            ),
+            prescriber_institution=unwrap(value.prescriber_institution),
             provenance=ProvenanceDto.from_value(value.provenance),
         )
 

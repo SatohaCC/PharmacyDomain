@@ -10,6 +10,7 @@ from datetime import date
 from enum import StrEnum
 
 from app.application.common.input_normalization import to_optional_text
+from app.application.common.optional_conversion import build_optional
 from app.application.medication_history.exceptions import (
     MedicationHistoryNotFoundError,
 )
@@ -110,7 +111,6 @@ def build_soap(source: SoapInput) -> SoapRecord:
 
 def build_residual_drug(source: ResidualDrugInput) -> ResidualDrugRecord:
     """残薬状況を構成する。"""
-    reason = to_optional_text(source.reason)
     return ResidualDrugRecord(
         has_residual_drugs=source.has_residual_drugs,
         quantity=(
@@ -118,22 +118,19 @@ def build_residual_drug(source: ResidualDrugInput) -> ResidualDrugRecord:
             if source.quantity is not None
             else None
         ),
-        reason=ResidualDrugReason(reason) if reason is not None else None,
+        reason=build_optional(source.reason, ResidualDrugReason),
     )
 
 
 def build_handbook_status(source: HandbookStatusInput) -> HandbookStatus:
     """お薬手帳の活用状況を構成する。"""
-    not_presented_reason = to_optional_text(source.not_presented_reason)
     consolidation_reason = to_optional_text(
         source.multiple_handbooks_not_consolidated_reason
     )
     return HandbookStatus(
         presented=source.presented,
-        not_presented_reason=(
-            HandbookNotPresentedReason(not_presented_reason)
-            if not_presented_reason is not None
-            else None
+        not_presented_reason=build_optional(
+            source.not_presented_reason, HandbookNotPresentedReason
         ),
         guidance_provided=source.guidance_provided,
         multiple_handbooks_not_consolidated_reason=(
@@ -238,8 +235,7 @@ def build_profile_updates(source: ProfileUpdateInput | None) -> ProfileUpdateInt
 
 def _institution_or_none(raw: str | None) -> MedicalInstitutionName | None:
     """処方元医療機関名を構成する。空文字は未指定として扱う。"""
-    value = to_optional_text(raw)
-    return MedicalInstitutionName(value) if value is not None else None
+    return build_optional(raw, MedicalInstitutionName)
 
 
 async def load_record_or_raise(

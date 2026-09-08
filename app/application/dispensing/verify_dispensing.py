@@ -6,12 +6,12 @@ from dataclasses import dataclass
 
 from app.application.access_control import CorporateAccessBoundary, Permission
 from app.application.common.clock import Clock
+from app.application.common.optional_conversion import build_optional
 from app.application.dispensing.get_dispensing import DispensingProcessDto
 from app.application.dispensing.reference import StaffQualificationBoundary
 from app.application.dispensing.support import (
     load_dispensing_or_raise,
     parse_enum,
-    to_optional_text,
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing import (
@@ -74,12 +74,11 @@ class VerifyDispensingUseCase:
             staff_id=verifier_id,
         )
         self._pharmacist_service.ensure_verifier(qualifications)
-        notes = to_optional_text(command.notes)
         process = process.verify(
             verifier_id=verifier_id,
             verified_at=VerificationTimestamp(self._clock.now()),
             result=parse_enum(VerificationResult, command.result, "鑑査結果"),
-            notes=VerificationNotes(notes) if notes is not None else None,
+            notes=build_optional(command.notes, VerificationNotes),
         )
         await self._repository.save(process)
         return DispensingProcessDto.from_entity(process)

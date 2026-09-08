@@ -1,9 +1,12 @@
-"""店舗の PostgreSQL Repository。"""
+"""店舗集約の PostgreSQL Repository。
+
+店舗名と店舗コードは法人内で一意だが、保険薬局指定番号は国が付番するので
+法人をまたいで一意になる。存在確認の絞り込みもその違いに従う。
+"""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any, cast
+from typing import Any
 
 from sqlalchemy import Select, select
 from sqlalchemy.exc import IntegrityError
@@ -22,18 +25,16 @@ from app.domain.store.primitives import (
 )
 from app.domain.store.repository import StoreCatalogRepository, StoreRepository
 from app.domain.store.store import Store
-from app.infrastructure.postgres.codec import (
-    PersistenceMappingError,
-    decode_aggregate,
-    encode_aggregate,
+from app.infrastructure.postgres.repository_base import (
+    AggregateMapping,
+    PostgresRepositoryBase,
+    constraint_name,
 )
-from app.infrastructure.postgres.constraints import constraint_name
-from app.infrastructure.postgres.repository_base import PostgresRepositoryBase
 from app.infrastructure.postgres.schema import stores
 
 
-def row_values(store: Store) -> dict[str, object]:
-    """集約から、payload と検索・一意性用の列を組み立てる。"""
+def _store_columns(store: Store) -> dict[str, object]:
+    """検索・一意性制約に使う列を店舗から導く。"""
     return {
         "id": store.id.value,
         "corporate_id": store.corporate_id.value,
@@ -44,8 +45,15 @@ def row_values(store: Store) -> dict[str, object]:
             if store.insurance_pharmacy_number is None
             else store.insurance_pharmacy_number.value
         ),
-        "payload": encode_aggregate(store),
     }
+
+
+STORE_MAPPING = AggregateMapping(
+    table=stores,
+    aggregate_type=Store,
+    label="店舗",
+    search_columns=_store_columns,
+)
 
 
 class PostgresStoreRepository(
@@ -55,25 +63,15 @@ class PostgresStoreRepository(
 
     async def get(self, store_id: StoreId) -> Store | None:
         """IDで店舗を検索する。"""
-        result = await self.session.execute(
-            select(stores).where(stores.c.id == store_id.value)
-        )
-        row = result.mappings().one_or_none()
-        if row is None:
-            return None
-        return _decode_row(
-            self.remember_version(
-                cast(Mapping[str, object], row),
-                namespace=stores.name,
-            )
+        return await self.find_one(
+            STORE_MAPPING,
+            select(stores).where(stores.c.id == store_id.value),
         )
 
     async def save(self, store: Store) -> None:
         """店舗を保存し、店舗名・店舗コード・保険薬局指定番号の重複を拒否する。"""
         try:
-            await self.upsert(
-                stores, aggregate_id=store.id.value, values=row_values(store)
-            )
+            await self.save_aggregate(STORE_MAPPING, store)
         except IntegrityError as error:
             violated = constraint_name(error)
             if violated == "uq_stores_corporate_name":
@@ -136,35 +134,19 @@ class PostgresStoreRepository(
 
     async def list_by_corporate_id(self, corporate_id: CorporateId) -> list[Store]:
         """法人の店舗を名前順で返す。"""
-        result = await self.session.execute(
+        return await self.find_all(
+            STORE_MAPPING,
             select(stores)
             .where(stores.c.corporate_id == corporate_id.value)
-            .order_by(stores.c.name, stores.c.id)
+            .order_by(stores.c.name, stores.c.id),
         )
-        return [
-            _decode_row(
-                self.remember_version(
-                    cast(Mapping[str, object], row),
-                    namespace=stores.name,
-                )
-            )
-            for row in result.mappings().all()
-        ]
 
     async def list_all(self) -> list[Store]:
         """ベンダー用に全店舗を法人・名前順で返す。"""
-        result = await self.session.execute(
-            select(stores).order_by(stores.c.corporate_id, stores.c.name, stores.c.id)
+        return await self.find_all(
+            STORE_MAPPING,
+            select(stores).order_by(stores.c.corporate_id, stores.c.name, stores.c.id),
         )
-        return [
-            _decode_row(
-                self.remember_version(
-                    cast(Mapping[str, object], row),
-                    namespace=stores.name,
-                )
-            )
-            for row in result.mappings().all()
-        ]
 
     async def _exists(
         self, statement: Select[Any], excluding_id: StoreId | None
@@ -174,28 +156,3 @@ class PostgresStoreRepository(
             statement = statement.where(stores.c.id != excluding_id.value)
         result = await self.session.execute(statement.limit(1))
         return result.scalar_one_or_none() is not None
-
-
-def _decode_row(row: Mapping[str, object]) -> Store:
-    """DB行の検索列と payload の整合性を確認して復元する。"""
-    payload = row.get("payload")
-    if not isinstance(payload, Mapping):
-        raise PersistenceMappingError(
-            "店舗の payload が JSON オブジェクトではありません。"
-        )
-    store = decode_aggregate(payload, Store)
-    code = None if store.code is None else store.code.value
-    number = (
-        None
-        if store.insurance_pharmacy_number is None
-        else store.insurance_pharmacy_number.value
-    )
-    if (
-        store.id.value != row.get("id")
-        or store.corporate_id.value != row.get("corporate_id")
-        or store.names.name.value != row.get("name")
-        or code != row.get("code")
-        or number != row.get("insurance_pharmacy_number")
-    ):
-        raise PersistenceMappingError("店舗の検索列と payload が一致しません。")
-    return store

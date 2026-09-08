@@ -18,7 +18,7 @@ import pytest
 
 import app.application
 from app.application.access_control import ActorContext, AuthorizationService
-from app.infrastructure.composition import (
+from app.infrastructure.postgres import (
     PostgresRequestScope,
     PostgresUseCaseRegistry,
 )
@@ -198,7 +198,7 @@ def test_ユースケース束の一覧が_登録簿の項目と一致する() -
     registry_bundles = set(get_type_hints(PostgresUseCaseRegistry).values())
 
     # Act
-    module = importlib.import_module("app.infrastructure.composition")
+    module = importlib.import_module("app.infrastructure.postgres")
     exported: set[Any] = {
         getattr(module, name)
         for name in module.__all__

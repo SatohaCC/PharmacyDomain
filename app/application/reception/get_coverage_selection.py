@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.application.common.optional_conversion import unwrap
 from app.domain.reception.coverage_selection import CoverageSelection
 from app.domain.reception.coverage_selection_record import CoverageSelectionRecord
 
@@ -53,11 +54,7 @@ class CoverageSelectionDto:
                 insured_symbol=insurance.values.insured_symbol.value,
                 insured_number=insurance.values.insured_number.value,
                 insured_type=insurance.values.insured_type.value,
-                branch_number=(
-                    insurance.values.branch_number.value
-                    if insurance.values.branch_number is not None
-                    else None
-                ),
+                branch_number=unwrap(insurance.values.branch_number),
                 benefit_ratio=insurance.values.benefit_ratio.value,
             )
             if insurance is not None

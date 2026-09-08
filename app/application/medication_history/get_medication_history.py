@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.common.optional_conversion import unwrap
 from app.application.medication_history.support import load_record_or_raise
 from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history import (
@@ -77,8 +78,8 @@ class ResidualDrugDto:
         """残薬状況からDTOを生成する。"""
         return cls(
             has_residual_drugs=value.has_residual_drugs,
-            quantity=value.quantity.value if value.quantity is not None else None,
-            reason=value.reason.value if value.reason is not None else None,
+            quantity=unwrap(value.quantity),
+            reason=unwrap(value.reason),
         )
 
 
@@ -97,15 +98,9 @@ class HandbookStatusDto:
         consolidation = value.multiple_handbooks_not_consolidated_reason
         return cls(
             presented=value.presented,
-            not_presented_reason=(
-                value.not_presented_reason.value
-                if value.not_presented_reason is not None
-                else None
-            ),
+            not_presented_reason=unwrap(value.not_presented_reason),
             guidance_provided=value.guidance_provided,
-            multiple_handbooks_not_consolidated_reason=(
-                consolidation.value if consolidation is not None else None
-            ),
+            multiple_handbooks_not_consolidated_reason=unwrap(consolidation),
         )
 
 
