@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import Any
 
 from sqlalchemy import Select, select
-from sqlalchemy.exc import IntegrityError
 
 from app.domain.corporate.primitives import CorporateId
 from app.domain.store.exceptions import (
@@ -28,7 +27,6 @@ from app.domain.store.store import Store
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,
-    constraint_name,
 )
 from app.infrastructure.postgres.schema import stores
 
@@ -63,31 +61,28 @@ class PostgresStoreRepository(
 
     async def get(self, store_id: StoreId) -> Store | None:
         """IDで店舗を検索する。"""
-        return await self.find_one(
-            STORE_MAPPING,
-            select(stores).where(stores.c.id == store_id.value),
-        )
+        return await self.get_by_id(STORE_MAPPING, store_id)
 
     async def save(self, store: Store) -> None:
         """店舗を保存し、店舗名・店舗コード・保険薬局指定番号の重複を拒否する。"""
-        try:
-            await self.save_aggregate(STORE_MAPPING, store)
-        except IntegrityError as error:
-            violated = constraint_name(error)
-            if violated == "uq_stores_corporate_name":
-                raise StoreNameAlreadyExistsError(
+        await self.save_with_conflict_map(
+            STORE_MAPPING,
+            store,
+            conflicts={
+                "uq_stores_corporate_name": lambda: StoreNameAlreadyExistsError(
                     f"同一法人内に店舗名 '{store.names.name.value}' は既に登録されています。"
-                ) from error
-            if violated == "uq_stores_corporate_code":
-                raise StoreCodeAlreadyExistsError(
+                ),
+                "uq_stores_corporate_code": lambda: StoreCodeAlreadyExistsError(
                     f"同一法人内に店舗コード '{store.code}' は既に登録されています。"
-                ) from error
-            if violated == "uq_stores_insurance_pharmacy_number":
-                raise InsurancePharmacyNumberAlreadyExistsError(
-                    f"保険薬局指定番号 '{store.insurance_pharmacy_number}' "
-                    "は既に別の店舗で登録されています。"
-                ) from error
-            raise
+                ),
+                "uq_stores_insurance_pharmacy_number": lambda: (
+                    InsurancePharmacyNumberAlreadyExistsError(
+                        f"保険薬局指定番号 '{store.insurance_pharmacy_number}' "
+                        "は既に別の店舗で登録されています。"
+                    )
+                ),
+            },
+        )
 
     async def exists_by_name(
         self,

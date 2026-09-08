@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 
 from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history.exceptions import (
@@ -21,7 +20,6 @@ from app.domain.patient.primitives import PatientId
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,
-    constraint_name,
 )
 from app.infrastructure.postgres.schema import patient_medical_profiles
 
@@ -65,9 +63,10 @@ class PostgresPatientMedicalProfileRepository(
 
     async def save(self, profile: PatientMedicalProfile) -> None:
         """患者ごとに1件であることを原子的に保証して保存する。"""
-        try:
-            await self.save_aggregate(PATIENT_MEDICAL_PROFILE_MAPPING, profile)
-        except IntegrityError as error:
-            if constraint_name(error) == "uq_patient_medical_profiles_patient":
-                raise PatientMedicalProfileAlreadyExistsError() from error
-            raise
+        await self.save_with_conflict_map(
+            PATIENT_MEDICAL_PROFILE_MAPPING,
+            profile,
+            conflicts={
+                "uq_patient_medical_profiles_patient": PatientMedicalProfileAlreadyExistsError
+            },
+        )

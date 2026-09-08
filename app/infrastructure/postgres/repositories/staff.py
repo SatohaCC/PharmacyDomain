@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 
 from app.domain.corporate.primitives import CorporateId
 from app.domain.staff.exceptions import StaffCodeAlreadyExistsError
@@ -18,7 +17,6 @@ from app.domain.staff.staff import Staff
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,
-    constraint_name,
 )
 from app.infrastructure.postgres.schema import staff_members
 
@@ -53,24 +51,19 @@ class PostgresStaffRepository(
         staff_id: StaffId,
     ) -> Staff | None:
         """法人境界を含めてIDでスタッフを検索する。"""
-        return await self.find_one(
-            STAFF_MAPPING,
-            select(staff_members).where(
-                staff_members.c.corporate_id == corporate_id.value,
-                staff_members.c.id == staff_id.value,
-            ),
-        )
+        return await self.get_by_id(STAFF_MAPPING, staff_id, corporate_id=corporate_id)
 
     async def save(self, staff: Staff) -> None:
         """スタッフを保存し、法人内のスタッフコード重複を拒否する。"""
-        try:
-            await self.save_aggregate(STAFF_MAPPING, staff)
-        except IntegrityError as error:
-            if constraint_name(error) == "uq_staff_members_corporate_code":
-                raise StaffCodeAlreadyExistsError(
+        await self.save_with_conflict_map(
+            STAFF_MAPPING,
+            staff,
+            conflicts={
+                "uq_staff_members_corporate_code": lambda: StaffCodeAlreadyExistsError(
                     f"同一法人内にスタッフコード '{staff.code}' は既に登録されています。"
-                ) from error
-            raise
+                ),
+            },
+        )
 
     async def exists_by_code(
         self,

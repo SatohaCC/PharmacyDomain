@@ -276,3 +276,13 @@ def build_medication_history_use_cases(
             record_repository, profile_repository, corporate_access
         ),
     )
+
+
+__all__ = [
+    "DispensingUseCases",
+    "MedicationHistoryUseCases",
+    "PrescriptionUseCases",
+    "build_dispensing_use_cases",
+    "build_medication_history_use_cases",
+    "build_prescription_use_cases",
+]

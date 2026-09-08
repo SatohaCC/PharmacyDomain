@@ -36,3 +36,9 @@ def build_medicine_catalog_use_cases(
         ),
         get_effective=GetEffectiveMedicineUseCase(repository, authorization),
     )
+
+
+__all__ = [
+    "MedicineCatalogUseCases",
+    "build_medicine_catalog_use_cases",
+]

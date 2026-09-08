@@ -9,7 +9,6 @@ from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import Range
-from sqlalchemy.exc import IntegrityError
 
 from app.domain.medicine_catalog.exceptions import (
     MedicineEffectivePeriodConflictError,
@@ -21,7 +20,6 @@ from app.domain.shared.medicine import MedicineIdentifier
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,
-    constraint_name,
 )
 from app.infrastructure.postgres.schema import medicines
 
@@ -81,10 +79,7 @@ class PostgresMedicineCatalogRepository(
 
     async def get(self, entry_id: MedicineCatalogEntryId) -> Medicine | None:
         """マスタ行を識別子で取得する。"""
-        return await self.find_one(
-            MEDICINE_MAPPING,
-            select(medicines).where(medicines.c.id == entry_id.value),
-        )
+        return await self.get_by_id(MEDICINE_MAPPING, entry_id)
 
     async def find_effective(
         self,
@@ -116,12 +111,15 @@ class PostgresMedicineCatalogRepository(
 
     async def save(self, medicine: Medicine) -> None:
         """同一薬品コードの収載期間の重複を原子的に拒否して保存する。"""
-        try:
-            await self.save_aggregate(MEDICINE_MAPPING, medicine)
-        except IntegrityError as error:
-            if constraint_name(error) == "excl_medicines_effective_period":
-                code = medicine.identifier.code
-                raise MedicineEffectivePeriodConflictError(
-                    medicine_code=code.value if code is not None else None
-                ) from error
-            raise
+        code = medicine.identifier.code
+        await self.save_with_conflict_map(
+            MEDICINE_MAPPING,
+            medicine,
+            conflicts={
+                "excl_medicines_effective_period": lambda: (
+                    MedicineEffectivePeriodConflictError(
+                        medicine_code=code.value if code is not None else None
+                    )
+                ),
+            },
+        )

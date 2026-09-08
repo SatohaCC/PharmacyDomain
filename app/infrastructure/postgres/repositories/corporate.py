@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 
 from app.domain.corporate.corporate import Corporate
 from app.domain.corporate.exceptions import CorporateNameAlreadyExistsError
@@ -19,7 +18,6 @@ from app.domain.corporate.repository import (
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,
-    constraint_name,
 )
 from app.infrastructure.postgres.schema import corporates
 
@@ -49,19 +47,15 @@ class PostgresCorporateRepository(
 
     async def get(self, corporate_id: CorporateId) -> Corporate | None:
         """IDで法人を検索する。"""
-        return await self.find_one(
-            CORPORATE_MAPPING,
-            select(corporates).where(corporates.c.id == corporate_id.value),
-        )
+        return await self.get_by_id(CORPORATE_MAPPING, corporate_id)
 
     async def save(self, corporate: Corporate) -> None:
         """法人を新規登録または更新し、法人名の重複をDBで拒否する。"""
-        try:
-            await self.save_aggregate(CORPORATE_MAPPING, corporate)
-        except IntegrityError as error:
-            if constraint_name(error) == "uq_corporates_name":
-                raise CorporateNameAlreadyExistsError() from error
-            raise
+        await self.save_with_conflict_map(
+            CORPORATE_MAPPING,
+            corporate,
+            conflicts={"uq_corporates_name": CorporateNameAlreadyExistsError},
+        )
 
     async def exists_by_name(
         self,
