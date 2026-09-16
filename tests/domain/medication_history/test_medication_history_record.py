@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
@@ -269,6 +270,43 @@ class Test追記:
         assert actual.soap.subjective[0].text.value == "交付時の記載。"
         assert actual.effective_soap.subjective[0].text.value == "追記後の記載。"
         assert len(actual.amendments) == 1
+
+    def test_空セクションのあるSOAPは_追記できない(self) -> None:
+        """確定時に課した記載事項の充足を、追記で抜けられないこと。
+
+        下流が読むのは ``effective_soap``（最後の追記）なので、ここを通すと
+        通則(4) が求める記載が確定後に消える。
+        """
+        # Arrange
+        record = create_record().finalize()
+
+        # Act / Assert
+        with pytest.raises(SoapSectionEmptyError):
+            record.amend(
+                amended_soap=SoapRecord(),
+                reason=_REASON,
+                amended_by=StaffId.generate(),
+                amended_at=_AMENDED_AT,
+            )
+
+    def test_実効SOAPが空になる確定済の薬歴は_構築できない(self) -> None:
+        """判定が確定操作ではなく構築時にあること。
+
+        追記メソッドだけで弾くと、Repositoryからの復元がこの判定を素通りする。
+        """
+        # Arrange: 追記の中身だけを空へ差し替えた状態を組み立てる
+        record = create_record().finalize()
+        amended = record.amend(
+            amended_soap=create_soap(),
+            reason=_REASON,
+            amended_by=StaffId.generate(),
+            amended_at=_AMENDED_AT,
+        )
+        emptied = replace(amended.amendments[0], amended_soap=SoapRecord())
+
+        # Act / Assert
+        with pytest.raises(SoapSectionEmptyError):
+            replace(amended, amendments=(emptied,))
 
     def test_追記は_確定済の薬歴にだけ付く(self) -> None:
         """追記だけを持つ下書きは構築できない。"""
