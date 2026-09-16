@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from dataclasses import fields, replace
 from datetime import UTC, datetime
 
 import pytest
@@ -19,9 +20,11 @@ from app.domain.dispensing import (
     DispensingCancellationReason,
     DispensingCompletionType,
     DispensingIterationOutOfRangeError,
+    DispensingProcess,
     DispensingProcessStatus,
     DispensingSplitReason,
     DispensingStatusTransitionError,
+    DispensingVerification,
     DuplicatedDispensedLineNumberError,
     DuplicatedDispensedRpNumberError,
     DuplicatedPreparationMethodError,
@@ -34,6 +37,7 @@ from app.domain.dispensing import (
     SubstitutionWithoutChangeError,
     VerificationNotPassedError,
     VerificationResult,
+    VerificationStatusMismatchError,
     VerificationTimestamp,
 )
 from app.domain.foundation.exceptions import DomainValidationError
@@ -570,3 +574,120 @@ class Test導出プロパティ:
         assert medicine.substitution is not None
         assert medicine.substitution.original_identifier.code is not None
         assert medicine.substitution.original_identifier.code.value != GENERIC_CODE
+
+
+class Test状態と鑑査の整合性:
+    """正常な遷移と直接構築で同じ状態の対応を保証する。"""
+
+    @pytest.mark.parametrize("direct", [False, True], ids=["置換", "直接構築"])
+    @pytest.mark.parametrize(
+        "status", [DispensingProcessStatus.VERIFIED, DispensingProcessStatus.COMPLETED]
+    )
+    @pytest.mark.parametrize("result", [None, VerificationResult.FAILED])
+    def test_鑑査合格のない鑑査済と完了は_構築できない(
+        self,
+        direct: bool,
+        status: DispensingProcessStatus,
+        result: VerificationResult | None,
+    ) -> None:
+        with pytest.raises(VerificationStatusMismatchError) as error:
+            _with_verification_state(status, result, direct=direct)
+        assert error.value.code == "DISPENSING_VERIFICATION_STATUS_MISMATCH"
+
+    @pytest.mark.parametrize("direct", [False, True], ids=["置換", "直接構築"])
+    def test_合格結果のある調製中は_構築できない(self, direct: bool) -> None:
+        with pytest.raises(VerificationStatusMismatchError):
+            _with_verification_state(
+                DispensingProcessStatus.IN_PROGRESS,
+                VerificationResult.PASSED,
+                direct=direct,
+            )
+
+    @pytest.mark.parametrize(
+        ("status", "result"),
+        [
+            (DispensingProcessStatus.IN_PROGRESS, None),
+            (DispensingProcessStatus.IN_PROGRESS, VerificationResult.FAILED),
+            (DispensingProcessStatus.VERIFIED, VerificationResult.PASSED),
+            (DispensingProcessStatus.COMPLETED, VerificationResult.PASSED),
+            (DispensingProcessStatus.CANCELLED, None),
+            (DispensingProcessStatus.CANCELLED, VerificationResult.FAILED),
+            (DispensingProcessStatus.CANCELLED, VerificationResult.PASSED),
+        ],
+    )
+    def test_状態と鑑査が一致する組合せは_構築できる(
+        self, status: DispensingProcessStatus, result: VerificationResult | None
+    ) -> None:
+        actual = _with_verification_state(status, result, direct=True)
+        assert actual.status is status
+        if result is None:
+            assert actual.verification is None
+        else:
+            assert actual.verification is not None
+            assert actual.verification.result is result
+
+    def test_不合格後に再調製して合格すると_完了できる(self) -> None:
+        original = create_dispensing()
+        failed = original.verify(
+            verifier_id=StaffId.generate(),
+            verified_at=VerificationTimestamp(datetime(2026, 8, 24, 2, 0, tzinfo=UTC)),
+            result=VerificationResult.FAILED,
+        )
+        rps = (create_dispensed_rp(quantity=7),)
+        prepared = failed.update_dispensed_rps(rps)
+        passed = verify_passed(prepared)
+        completed = passed.complete(completion_type=DispensingCompletionType.COMPLETED)
+        assert completed.status is DispensingProcessStatus.COMPLETED
+        assert completed.dispensed_rps == rps
+        assert completed.is_verified
+        assert original.verification is None
+        assert failed.dispensed_rps == original.dispensed_rps
+        assert prepared.status is DispensingProcessStatus.IN_PROGRESS
+        assert prepared.verification == failed.verification
+        assert passed.status is DispensingProcessStatus.VERIFIED
+
+    @pytest.mark.parametrize(
+        "result", [None, VerificationResult.FAILED, VerificationResult.PASSED]
+    )
+    def test_取消しても_直前の鑑査記録を保持する(
+        self, result: VerificationResult | None
+    ) -> None:
+        status = (
+            DispensingProcessStatus.VERIFIED
+            if result is VerificationResult.PASSED
+            else DispensingProcessStatus.IN_PROGRESS
+        )
+        original = _with_verification_state(status, result, direct=True)
+        actual = original.cancel(_CANCEL_REASON)
+        assert actual.status is DispensingProcessStatus.CANCELLED
+        assert actual.cancellation_reason == _CANCEL_REASON
+        assert actual.verification == original.verification
+        assert original.status is status
+        assert original.cancellation_reason is None
+
+
+def _with_verification_state(
+    status: DispensingProcessStatus, result: VerificationResult | None, *, direct: bool
+) -> DispensingProcess:
+    """状態の組み合わせ以外は正当な値で集約を再構築する。"""
+    original = create_dispensing()
+    verification = (
+        None
+        if result is None
+        else DispensingVerification(
+            verifier_id=StaffId.generate(),
+            verified_at=VerificationTimestamp(datetime(2026, 8, 24, 2, 0, tzinfo=UTC)),
+            result=result,
+        )
+    )
+    reason = _CANCEL_REASON if status is DispensingProcessStatus.CANCELLED else None
+    if not direct:
+        return replace(
+            original,
+            status=status,
+            verification=verification,
+            cancellation_reason=reason,
+        )
+    values = {item.name: getattr(original, item.name) for item in fields(original)}
+    values.update(status=status, verification=verification, cancellation_reason=reason)
+    return DispensingProcess(**values)

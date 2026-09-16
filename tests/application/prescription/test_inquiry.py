@@ -17,6 +17,7 @@ from app.application.prescription import (
     PrescriptionDto,
     PrescriptionNotFoundError,
     PrescriptionPharmacistNotFoundError,
+    ReadyForDispensingCommand,
     ResolveInquiryCommand,
     StartInquiryCommand,
 )
@@ -263,3 +264,24 @@ class Test疑義照会への回答:
         assert response is not None
         assert response.blocks_dispensing
         assert actual.status == PrescriptionStatus.CANCELLED.value
+
+
+async def test_調剤可能な処方へ照会を開始すると_受付済で保存される() -> None:
+    fixture = create_fixture()
+    registered = await _register(fixture)
+    await fixture.ready_for_dispensing.execute(
+        ReadyForDispensingCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            prescription_id=registered.id,
+        )
+    )
+    actual = await fixture.start_inquiry.execute(_start_command(fixture, registered.id))
+    saved = await fixture.repository.get(
+        corporate_id=fixture.corporate_id,
+        prescription_id=PrescriptionId.parse(registered.id),
+    )
+    assert actual.status == PrescriptionStatus.RECEIVED.value
+    assert actual.has_open_inquiry
+    assert saved is not None
+    assert saved.status is PrescriptionStatus.RECEIVED
+    assert saved.has_open_inquiry

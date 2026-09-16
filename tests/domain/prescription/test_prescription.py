@@ -7,11 +7,13 @@ Domain Service / Boundary が守るもの
 
 from __future__ import annotations
 
+from dataclasses import fields, replace
 from decimal import Decimal
 
 import pytest
 
 from app.domain.prescription import (
+    BlockingInquiryExistsError,
     DosageSupplement,
     DosageSupplementText,
     DosageSupplementType,
@@ -27,6 +29,7 @@ from app.domain.prescription import (
     MedicineSupplementText,
     MedicineSupplementType,
     OpenInquiryExistsError,
+    Prescription,
     PrescriptionMedicineRequiredError,
     PrescriptionRpRequiredError,
     PrescriptionSourceType,
@@ -486,9 +489,10 @@ class Test疑義照会:
             prescription.ready_for_dispensing()
 
     def test_調剤可能な処方が_処方削除の回答で取消済になる(self) -> None:
-        """照会は調剤可能のままでも開始できるので、この経路も塞ぐ必要がある。"""
+        """確定後の照会で受付済へ戻り、削除回答で取消になる。"""
         # Arrange
         prescription = start_inquiry(create_prescription().ready_for_dispensing())
+        assert prescription.status is PrescriptionStatus.RECEIVED
 
         # Act
         actual = prescription.resolve_inquiry(
@@ -502,9 +506,10 @@ class Test疑義照会:
     def test_調剤済なら_処方削除の回答は記録だけされる(self) -> None:
         """渡し終えた薬は後から取り消せないので、状態は動かさず事実だけ残す。"""
         # Arrange
-        prescription = start_inquiry(
-            create_prescription().ready_for_dispensing()
-        ).complete_dispensing()
+        history = start_inquiry(create_prescription())
+        values = {item.name: getattr(history, item.name) for item in fields(history)}
+        values["status"] = PrescriptionStatus.DISPENSED
+        prescription = Prescription(**values)
 
         # Act
         actual = prescription.resolve_inquiry(
@@ -688,3 +693,118 @@ class Test導出プロパティ:
         # Assert
         assert actual.public_expense_burden is not None
         assert actual.public_expense_burden.bears_any
+
+
+class Test状態と照会の整合性:
+    """操作と復元のどちらでも、調剤可能という状態を信頼できる。"""
+
+    def test_調剤可能な処方へ照会を追加すると_受付済へ戻る(self) -> None:
+        original = create_prescription().ready_for_dispensing()
+        actual = start_inquiry(original)
+        assert actual.status is PrescriptionStatus.RECEIVED
+        assert actual.has_open_inquiry
+        assert original.status is PrescriptionStatus.READY_FOR_DISPENSING
+        assert original.inquiries == ()
+
+    def test_照会回答後は_明示的な再確定で調剤可能になる(self) -> None:
+        original = start_inquiry(create_prescription().ready_for_dispensing())
+        answered = original.resolve_inquiry(
+            inquiry_number=InquiryNumber(1), response=create_response()
+        )
+        assert answered.status is PrescriptionStatus.RECEIVED
+        assert not answered.has_open_inquiry
+        assert original.has_open_inquiry
+        assert (
+            answered.ready_for_dispensing().status
+            is PrescriptionStatus.READY_FOR_DISPENSING
+        )
+
+    @pytest.mark.parametrize("direct", [False, True], ids=["置換", "直接構築"])
+    def test_未回答を持つ調剤可能状態は_構築できない(self, direct: bool) -> None:
+        original = start_inquiry(create_prescription())
+        with pytest.raises(OpenInquiryExistsError):
+            _with_prescription_status(
+                original, PrescriptionStatus.READY_FOR_DISPENSING, direct=direct
+            )
+
+    @pytest.mark.parametrize("direct", [False, True], ids=["置換", "直接構築"])
+    def test_調剤禁止回答を持つ調剤可能状態は_構築できない(self, direct: bool) -> None:
+        original = start_inquiry(create_prescription()).resolve_inquiry(
+            inquiry_number=InquiryNumber(1),
+            response=create_response(result_type=InquiryResultType.DELETED),
+        )
+        with pytest.raises(BlockingInquiryExistsError) as error:
+            _with_prescription_status(
+                original, PrescriptionStatus.READY_FOR_DISPENSING, direct=direct
+            )
+        assert error.value.code == "PRESCRIPTION_BLOCKING_INQUIRY_EXISTS"
+
+    @pytest.mark.parametrize(
+        "status", [PrescriptionStatus.RECEIVED, PrescriptionStatus.CANCELLED]
+    )
+    @pytest.mark.parametrize("blocking", [False, True], ids=["未回答", "削除回答"])
+    def test_受付済と取消済は_照会履歴を保持して構築できる(
+        self, status: PrescriptionStatus, blocking: bool
+    ) -> None:
+        original = start_inquiry(create_prescription())
+        if blocking:
+            original = original.resolve_inquiry(
+                inquiry_number=InquiryNumber(1),
+                response=create_response(result_type=InquiryResultType.DELETED),
+            )
+        actual = _with_prescription_status(original, status, direct=True)
+        assert actual.status is status
+        assert actual.inquiries == original.inquiries
+
+    def test_一部の照会だけに回答しても_再確定できない(self) -> None:
+        original = start_inquiry(
+            start_inquiry(create_prescription().ready_for_dispensing())
+        )
+        answered = original.resolve_inquiry(
+            inquiry_number=InquiryNumber(1), response=create_response()
+        )
+        with pytest.raises(OpenInquiryExistsError):
+            answered.ready_for_dispensing()
+        fully_answered = answered.resolve_inquiry(
+            inquiry_number=InquiryNumber(2), response=create_response()
+        )
+        assert (
+            fully_answered.ready_for_dispensing().status
+            is PrescriptionStatus.READY_FOR_DISPENSING
+        )
+
+    @pytest.mark.parametrize(
+        "result", [InquiryResultType.UNCHANGED, InquiryResultType.DELETED]
+    )
+    def test_取消済への事後回答は_取消状態を保持する(
+        self, result: InquiryResultType
+    ) -> None:
+        original = start_inquiry(create_prescription()).cancel()
+        response = create_response(result_type=result)
+        actual = original.resolve_inquiry(
+            inquiry_number=InquiryNumber(1), response=response
+        )
+        assert actual.status is PrescriptionStatus.CANCELLED
+        assert actual.inquiries[0].response == response
+        assert original.has_open_inquiry
+
+    def test_未回答と調剤禁止回答がある場合は_未回答を先に拒否する(self) -> None:
+        original = start_inquiry(start_inquiry(create_prescription())).resolve_inquiry(
+            inquiry_number=InquiryNumber(1),
+            response=create_response(result_type=InquiryResultType.DELETED),
+        )
+        with pytest.raises(OpenInquiryExistsError):
+            replace(original, status=PrescriptionStatus.READY_FOR_DISPENSING)
+
+
+def _with_prescription_status(
+    prescription: Prescription, status: PrescriptionStatus, *, direct: bool
+) -> Prescription:
+    """同じ入力を直接構築または置換の経路へ渡す。"""
+    if not direct:
+        return replace(prescription, status=status)
+    values = {
+        item.name: getattr(prescription, item.name) for item in fields(prescription)
+    }
+    values["status"] = status
+    return Prescription(**values)

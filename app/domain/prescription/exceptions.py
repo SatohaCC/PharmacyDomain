@@ -212,6 +212,15 @@ class InquiryAlreadyResolvedError(PrescriptionDomainError):
     default_code = "PRESCRIPTION_INQUIRY_ALREADY_RESOLVED"
 
 
+class BlockingInquiryExistsError(PrescriptionDomainError):
+    """調剤を妨げる回答と調剤可能状態が併存する場合の例外。"""
+
+    default_message = (
+        "調剤を妨げる疑義照会の回答があるため、処方箋を調剤可能にできません。"
+    )
+    default_code = "PRESCRIPTION_BLOCKING_INQUIRY_EXISTS"
+
+
 class OpenInquiryExistsError(PrescriptionDomainError):
     """未回答の疑義照会があるまま調剤可能へ進めようとした場合の例外。"""
 

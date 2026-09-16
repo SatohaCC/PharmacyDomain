@@ -10,12 +10,14 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
 
 from app.application.access_control import TenantBoundaryNotFoundError
+from app.application.composition.dispensing_references import PrescriptionSourceAdapter
 from app.application.corporate.exceptions import CorporateInactiveError
 from app.application.dispensing import (
     CompleteDispensingCommand,
@@ -29,15 +31,24 @@ from app.application.dispensing import (
     PrescriptionNotReadyForDispensingError,
     RecordAuditCommand,
     RecordDispensedContentCommand,
+    StartDispensingUseCase,
     VerifyDispensingCommand,
+)
+from app.application.prescription import (
+    ReadyForDispensingCommand,
+    ResolveInquiryCommand,
+    StartInquiryCommand,
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing import (
     DispensedRpNotInPrescriptionError,
     DispensingAlreadyExistsError,
+    DispensingConsistencyService,
     DispensingId,
+    DispensingIterationUniquenessService,
     DispensingOutsidePrescriptionPeriodError,
     DispensingPharmacistQualificationError,
+    DispensingPharmacistService,
     DispensingProcessStatus,
     IterationExceedsInstructionError,
     PreviousDispensingUnknownError,
@@ -54,6 +65,7 @@ from app.domain.prescription import (
     RefillInstruction,
 )
 from app.domain.staff.primitives import StaffId, StaffQualifications
+from tests.application.access_helpers import create_vendor_corporate_access_for
 from tests.application.dispensing.helpers import (
     DispensingFixture,
     create_actor_access,
@@ -62,6 +74,12 @@ from tests.application.dispensing.helpers import (
     create_rp_input,
     create_start_command,
     create_substituted_medicine_input,
+)
+from tests.application.prescription.helpers import (
+    PrescriptionFixture,
+)
+from tests.application.prescription.helpers import (
+    create_fixture as create_prescription_fixture,
 )
 from tests.factories.dispensing_factory import DISPENSED_ON
 from tests.factories.prescription_factory import (
@@ -733,3 +751,96 @@ def test_調剤日の既定値が_処方箋の使用期間内である() -> None
 
     # Assert
     assert prescription.period.includes(DISPENSED_ON)
+
+
+async def _shared_prescription_fixtures() -> tuple[
+    DispensingFixture, PrescriptionFixture
+]:
+    """照会の保存を実アダプタ経由で調剤開始へ接続する。"""
+    inquiry = create_prescription_fixture()
+    prescription = create_prescription(
+        corporate_id=inquiry.corporate_id,
+        store_id=inquiry.store_id,
+        patient_id=inquiry.patient_id,
+    )
+    dispensing = create_fixture(prescription=prescription)
+    await inquiry.repository.save(prescription)
+    await inquiry.ready_for_dispensing.execute(
+        ReadyForDispensingCommand(
+            corporate_id=str(prescription.corporate_id.value),
+            prescription_id=str(prescription.id.value),
+        )
+    )
+    start = StartDispensingUseCase(
+        dispensing.repository,
+        create_vendor_corporate_access_for(dispensing.corporate_repository),
+        dispensing.store_reference,
+        PrescriptionSourceAdapter(inquiry.repository),
+        dispensing.staff_qualification,
+        DispensingConsistencyService(),
+        DispensingPharmacistService(),
+        DispensingIterationUniquenessService(),
+        dispensing.clock,
+    )
+    await inquiry.start_inquiry.execute(
+        StartInquiryCommand(
+            corporate_id=str(prescription.corporate_id.value),
+            prescription_id=str(prescription.id.value),
+            pharmacist_id=str(inquiry.pharmacist_id.value),
+            category="dosage",
+            content="用量を再確認する。",
+        )
+    )
+    return replace(dispensing, start=start), inquiry
+
+
+async def test_確定後に照会を追加すると_調剤開始を拒否する() -> None:
+    dispensing, _ = await _shared_prescription_fixtures()
+    with pytest.raises(PrescriptionNotReadyForDispensingError):
+        await dispensing.start.execute(create_start_command(dispensing))
+    assert (
+        await dispensing.repository.list_by_prescription(
+            corporate_id=dispensing.corporate_id,
+            prescription_id=dispensing.prescription.id,
+        )
+        == []
+    )
+
+
+async def test_照会回答と再確定後は_調剤を開始できる() -> None:
+    dispensing, inquiry = await _shared_prescription_fixtures()
+    corporate_id = str(dispensing.corporate_id.value)
+    prescription_id = str(dispensing.prescription.id.value)
+    await inquiry.resolve_inquiry.execute(
+        ResolveInquiryCommand(
+            corporate_id=corporate_id,
+            prescription_id=prescription_id,
+            inquiry_number=1,
+            responded_by="佐藤 一郎",
+            result_type="unchanged",
+            content="処方どおりでよい。",
+        )
+    )
+    with pytest.raises(PrescriptionNotReadyForDispensingError):
+        await dispensing.start.execute(create_start_command(dispensing))
+    assert (
+        await dispensing.repository.list_by_prescription(
+            corporate_id=dispensing.corporate_id,
+            prescription_id=dispensing.prescription.id,
+        )
+        == []
+    )
+    await inquiry.ready_for_dispensing.execute(
+        ReadyForDispensingCommand(
+            corporate_id=corporate_id,
+            prescription_id=prescription_id,
+        )
+    )
+    actual = await dispensing.start.execute(create_start_command(dispensing))
+    saved = await dispensing.repository.list_by_prescription(
+        corporate_id=dispensing.corporate_id,
+        prescription_id=dispensing.prescription.id,
+    )
+    assert len(saved) == 1
+    assert str(saved[0].id.value) == actual.id
+    assert saved[0].status is DispensingProcessStatus.IN_PROGRESS

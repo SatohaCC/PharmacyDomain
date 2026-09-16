@@ -130,9 +130,8 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
         """確定済薬歴の列から頭書きを再構築する。
 
         ``counseled_at`` 昇順に畳み込む。頭書きは薬歴からの投影なので、
-        確定済薬歴が残ってさえいれば同じ状態を作り直せる。保存順序
-        ``save(record)`` → ``save(profile)`` の後者が失敗したときの回復手段であり、
-        2回の保存を原子的にするものではない（Unit of Work が無いことへの対処）。
+        確定済薬歴が残ってさえいれば投影を作り直せる。再構築は履歴からの
+        復元を担い、薬歴と頭書きの保存を原子的にする責務は Unit of Work が担う。
         """
         profile = cls.empty_for(corporate_id=corporate_id, patient_id=patient_id)
         for record in sorted(records, key=lambda item: item.counseled_at.value):

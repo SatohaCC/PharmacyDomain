@@ -2,6 +2,7 @@
 
 from app.domain.prescription.exceptions import (
     ApplicationSiteCodeRequiredError,
+    BlockingInquiryExistsError,
     DepartmentCodeRequiredError,
     DosageSupplementCodeRequiredError,
     DuplicatedDosageSupplementError,
@@ -116,6 +117,7 @@ __all__ = [
     "DEFAULT_VALID_DAYS",
     "ApplicationSiteCode",
     "ApplicationSiteCodeRequiredError",
+    "BlockingInquiryExistsError",
     "ClinicalInformation",
     "ClinicalInformationText",
     "DepartmentCode",

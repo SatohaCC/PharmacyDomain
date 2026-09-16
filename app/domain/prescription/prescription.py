@@ -18,6 +18,7 @@ from app.domain.foundation.entity import AggregateRoot, Entity
 from app.domain.foundation.value_object import ValueObject
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.exceptions import (
+    BlockingInquiryExistsError,
     DuplicatedDosageSupplementError,
     DuplicatedMedicineSupplementError,
     InquiryAlreadyResolvedError,
@@ -266,6 +267,20 @@ class Prescription(AggregateRoot[PrescriptionId]):
         self._ensure_rp_numbers_are_consecutive()
         self._ensure_inquiry_numbers_are_consecutive()
         self._ensure_medicine_code_types_match_source()
+        self._ensure_ready_inquiries_are_resolved()
+
+    def _ensure_ready_inquiries_are_resolved(self) -> None:
+        """調剤可能状態では、未回答と調剤を妨げる回答を許可しない。
+
+        調剤開始側は状態だけで判断するため、操作時だけでなく復元時も検証する。
+        終端状態の履歴への事後回答は、この規則の対象にしない。
+        """
+        if self.status is not PrescriptionStatus.READY_FOR_DISPENSING:
+            return
+        if self.has_open_inquiry:
+            raise OpenInquiryExistsError()
+        if self.has_blocking_inquiry:
+            raise BlockingInquiryExistsError()
 
     def _ensure_has_rp(self) -> None:
         """剤（Rp）が1件以上あることを検証する。"""
@@ -401,7 +416,13 @@ class Prescription(AggregateRoot[PrescriptionId]):
             category=category,
             content=content,
         )
-        return replace(self, inquiries=(*self.inquiries, inquiry))
+        # 照会追加で処方の確定が失効する。状態と履歴を同時に更新し、
+        # 未回答を持つ調剤可能状態を途中にも作らない。
+        return replace(
+            self,
+            inquiries=(*self.inquiries, inquiry),
+            status=PrescriptionStatus.RECEIVED,
+        )
 
     def resolve_inquiry(
         self, *, inquiry_number: InquiryNumber, response: PrescriberResponse
@@ -424,10 +445,12 @@ class Prescription(AggregateRoot[PrescriptionId]):
                 resolved.append(inquiry)
         if not found:
             raise InquiryNotFoundError(inquiry_number=inquiry_number.value)
-        updated = replace(self, inquiries=tuple(resolved))
-        if response.blocks_dispensing and not self.status.is_terminal:
-            return updated._transition_to(PrescriptionStatus.CANCELLED)
-        return updated
+        status = (
+            PrescriptionStatus.CANCELLED
+            if response.blocks_dispensing and not self.status.is_terminal
+            else self.status
+        )
+        return replace(self, inquiries=tuple(resolved), status=status)
 
     # ------------------------------------------------------------------
     # 状態遷移
@@ -439,8 +462,6 @@ class Prescription(AggregateRoot[PrescriptionId]):
         未回答の疑義照会があるうちは進めない。処方の内容がまだ確定していない
         ためであり、これは集約が単独で判定できる。
         """
-        if self.has_open_inquiry:
-            raise OpenInquiryExistsError()
         return self._transition_to(PrescriptionStatus.READY_FOR_DISPENSING)
 
     def return_for_inquiry(self) -> Self:

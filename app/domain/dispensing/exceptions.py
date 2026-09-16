@@ -185,6 +185,13 @@ class SubstitutionNotAllowedError(DispensingDomainError):
 # --------------------------------------------------------------------------
 
 
+class VerificationStatusMismatchError(DispensingDomainError):
+    """調剤状態と最終鑑査の結果が一致しない場合の例外。"""
+
+    default_message = "調剤セッションの状態と最終鑑査の結果が一致しません。"
+    default_code = "DISPENSING_VERIFICATION_STATUS_MISMATCH"
+
+
 class VerificationNotPassedError(DispensingDomainError):
     """最終鑑査に合格していない調剤セッションを完了しようとした場合の例外。"""
 

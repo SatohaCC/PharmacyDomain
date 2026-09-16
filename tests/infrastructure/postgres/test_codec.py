@@ -13,17 +13,38 @@ import pytest
 
 import app.domain
 from app.domain.corporate.corporate import Corporate
-from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing import (
+    DispensingCancellationReason,
+    DispensingCompletionType,
+    DispensingProcess,
+    DispensingProcessStatus,
+    VerificationResult,
+    VerificationStatusMismatchError,
+    VerificationTimestamp,
+)
+from app.domain.foundation.exceptions import DomainError
 from app.domain.foundation.primitives.base import DomainPrimitive
+from app.domain.prescription import (
+    BlockingInquiryExistsError,
+    InquiryNumber,
+    InquiryResultType,
+    OpenInquiryExistsError,
+    PrescriptionStatus,
+)
 from app.domain.prescription.prescription import Prescription
+from app.domain.staff.primitives import StaffId
 from app.infrastructure.postgres.codec import (
     PersistenceMappingError,
     _primitive_value_type,
     decode_aggregate,
     encode_aggregate,
 )
-from tests.factories.dispensing_factory import create_dispensing
-from tests.factories.prescription_factory import create_prescription
+from tests.factories.dispensing_factory import create_dispensing, verify_passed
+from tests.factories.prescription_factory import (
+    create_prescription,
+    create_response,
+    start_inquiry,
+)
 from tests.infrastructure.postgres.helpers import create_corporate
 
 # codec が復元できる Primitive の値型。ここに無い型の Primitive を足すと
@@ -168,3 +189,61 @@ def test_日時は_タイムゾーン付きのまま往復する() -> None:
     encoded = encode_aggregate(restored)
     assert encoded == payload
     assert datetime.now(UTC).tzinfo is not None
+
+
+@pytest.mark.parametrize("blocking", [False, True], ids=["未回答", "削除回答"])
+def test_照会と状態が矛盾する処方payloadは_復元できない(blocking: bool) -> None:
+    original = start_inquiry(create_prescription())
+    expected: type[DomainError] = OpenInquiryExistsError
+    if blocking:
+        original = original.resolve_inquiry(
+            inquiry_number=InquiryNumber(1),
+            response=create_response(result_type=InquiryResultType.DELETED),
+        )
+        expected = BlockingInquiryExistsError
+    payload = encode_aggregate(original)
+    payload["status"] = PrescriptionStatus.READY_FOR_DISPENSING.value
+    with pytest.raises(expected):
+        decode_aggregate(payload, Prescription)
+
+
+@pytest.mark.parametrize(
+    ("status", "result"),
+    [
+        (DispensingProcessStatus.VERIFIED, None),
+        (DispensingProcessStatus.VERIFIED, VerificationResult.FAILED),
+        (DispensingProcessStatus.COMPLETED, None),
+        (DispensingProcessStatus.COMPLETED, VerificationResult.FAILED),
+        (DispensingProcessStatus.IN_PROGRESS, VerificationResult.PASSED),
+    ],
+)
+def test_鑑査と状態が矛盾する調剤payloadは_復元できない(
+    status: DispensingProcessStatus, result: VerificationResult | None
+) -> None:
+    original = create_dispensing()
+    if result is not None:
+        original = original.verify(
+            verifier_id=StaffId.generate(),
+            verified_at=VerificationTimestamp(datetime(2026, 8, 24, 2, 0, tzinfo=UTC)),
+            result=result,
+        )
+    payload = encode_aggregate(original)
+    payload["status"] = status.value
+    with pytest.raises(VerificationStatusMismatchError):
+        decode_aggregate(payload, DispensingProcess)
+
+
+@pytest.mark.parametrize("history", ["調剤完了", "調剤取消", "処方取消"])
+def test_完了と取消の履歴は_JSONで保持される(history: str) -> None:
+    if history == "処方取消":
+        prescription = start_inquiry(create_prescription()).cancel()
+        payload = encode_aggregate(prescription)
+        assert encode_aggregate(decode_aggregate(payload, Prescription)) == payload
+        return
+    process = verify_passed(create_dispensing())
+    if history == "調剤完了":
+        process = process.complete(completion_type=DispensingCompletionType.COMPLETED)
+    else:
+        process = process.cancel(DispensingCancellationReason("患者都合で中止した。"))
+    payload = encode_aggregate(process)
+    assert encode_aggregate(decode_aggregate(payload, DispensingProcess)) == payload

@@ -27,6 +27,7 @@ from app.domain.dispensing.exceptions import (
     NextDispensingDateMismatchError,
     SubstitutionWithoutChangeError,
     VerificationNotPassedError,
+    VerificationStatusMismatchError,
 )
 from app.domain.dispensing.primitives import (
     AuditNotes,
@@ -223,6 +224,21 @@ class DispensingProcess(AggregateRoot[DispensingId]):
         self._ensure_iteration_matches_split_reason()
         self._ensure_next_dispensing_date_matches_completion_type()
         self._ensure_cancellation_reason_matches_status()
+        self._ensure_verification_matches_status()
+
+    def _ensure_verification_matches_status(self) -> None:
+        """状態が示す鑑査結果を構築・復元のどちらでも保証する。
+
+        取消は鑑査の前後どちらでも起こるため、取消前の記録をそのまま保持する。
+        """
+        if self.status is DispensingProcessStatus.CANCELLED:
+            return
+        requires_passed = self.status in (
+            DispensingProcessStatus.VERIFIED,
+            DispensingProcessStatus.COMPLETED,
+        )
+        if self.is_verified != requires_passed:
+            raise VerificationStatusMismatchError()
 
     def _ensure_has_rp(self) -> None:
         """調剤した剤（Rp）が1件以上あることを検証する。"""
@@ -409,10 +425,11 @@ class DispensingProcess(AggregateRoot[DispensingId]):
             result=result,
             notes=notes,
         )
-        verified = replace(self, verification=verification)
-        if not result.is_passed:
-            return verified
-        return verified._transition_to(DispensingProcessStatus.VERIFIED)
+        status = self.status
+        if result.is_passed:
+            self._ensure_can_transition(DispensingProcessStatus.VERIFIED)
+            status = DispensingProcessStatus.VERIFIED
+        return replace(self, verification=verification, status=status)
 
     # ------------------------------------------------------------------
     # 状態遷移
@@ -452,11 +469,6 @@ class DispensingProcess(AggregateRoot[DispensingId]):
             status=DispensingProcessStatus.CANCELLED,
             cancellation_reason=reason,
         )
-
-    def _transition_to(self, target: DispensingProcessStatus) -> Self:
-        """遷移表に従って状態を変更する。"""
-        self._ensure_can_transition(target)
-        return replace(self, status=target)
 
     def _ensure_can_transition(self, target: DispensingProcessStatus) -> None:
         """遷移表に載っている遷移であることを保証する。

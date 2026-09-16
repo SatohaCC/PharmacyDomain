@@ -30,6 +30,7 @@ from app.domain.dispensing.exceptions import (
     SubstitutionNotAllowedError,
     SubstitutionWithoutChangeError,
     VerificationNotPassedError,
+    VerificationStatusMismatchError,
 )
 from app.domain.dispensing.primitives import (
     AuditNotes,
@@ -117,5 +118,6 @@ __all__ = [
     "VerificationNotPassedError",
     "VerificationNotes",
     "VerificationResult",
+    "VerificationStatusMismatchError",
     "VerificationTimestamp",
 ]
