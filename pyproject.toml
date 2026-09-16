@@ -146,7 +146,7 @@ paths = ["app"]
     "sqlalchemy",
 ]
 # Application層は外側のInfrastructureとHTTP境界へ依存しない。具体的なDB adapterは
-# Composition RootからProtocolへ接続する。フレームワークも直接は使わせない。
+# DIからProtocolへ接続する。フレームワークも直接は使わせない。
 # Domain だけを禁止しても、ユースケースが AsyncSession や Request を引数で
 # 受け取れる限り「Protocol 越しに接続する」という前提は静かに崩れる。
 "app.application" = [
@@ -155,8 +155,7 @@ paths = ["app"]
     "fastapi",
     "sqlalchemy",
 ]
-# 永続化アダプタとComposition RootはHTTP境界を知らない。逆向き（Presentation →
-# Infrastructure）だけを許し、依存の向きを外から内へ保つ。
+# 永続化アダプタとDIはHTTP境界を知らない。逆向き（Presentation → Infrastructure）だけを許す。
 "app.infrastructure" = ["app.presentational"]
 # HTTP境界はDBドライバを直接触らない。トランザクションの開始と確定は
 # PostgresRequestScope だけが持つので、ルータが session や commit を掴めると

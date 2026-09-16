@@ -192,3 +192,13 @@ def build_reception_use_cases(
             coverage_selection,
         ),
     )
+
+
+__all__ = [
+    "CoverageUseCases",
+    "PatientUseCases",
+    "ReceptionUseCases",
+    "build_coverage_use_cases",
+    "build_patient_use_cases",
+    "build_reception_use_cases",
+]

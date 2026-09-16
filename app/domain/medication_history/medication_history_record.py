@@ -72,15 +72,35 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     def validate(self) -> None:
         """薬歴が単独で判定できる不変条件を検証する。
 
-        SOAP の充足は**確定時にだけ**課す。下書きの途中で
+        SOAP の充足は**確定済のときだけ**課す。下書きの途中で
         全セクションを要求すると、聞き取りながら書き足す運用ができない。
         """
         self._ensure_amendments_only_after_finalized()
+        self._ensure_finalized_soap_is_complete()
 
     def _ensure_amendments_only_after_finalized(self) -> None:
         """追記が確定済の薬歴にだけ付くことを検証する。"""
         if self.amendments and not self.status.is_finalized:
             raise MedicationHistoryNotFinalizedError()
+
+    def _ensure_finalized_soap_is_complete(self) -> None:
+        """確定済の薬歴に、記載の無いSOAPセクションが無いことを検証する。
+
+        判定対象は ``soap`` ではなく :attr:`effective_soap` とする。下流が読むのは
+        最後の追記の内容なので、``soap`` だけを見ると「確定時は埋まっていたのに
+        追記で空へ戻した薬歴」を通してしまい、通則(4) が記載事項として求める内容が
+        事後に消える。
+
+        確定操作の中ではなくここに置く。そうすると ``finalize()`` / ``amend()`` /
+        ``dataclasses.replace()`` / Repositoryからの復元がすべて同じ判定を通り、
+        空セクションを持つ確定済の薬歴はそもそも構築できなくなる。操作メソッド側に
+        書くと、経路を1つ足すたびに書き写す必要があり、復元経路が素通りする。
+        """
+        if not self.status.is_finalized:
+            return
+        empty_section = self.effective_soap.empty_section_label
+        if empty_section is not None:
+            raise SoapSectionEmptyError(section_label=empty_section)
 
     # ------------------------------------------------------------------
     # 導出プロパティ
@@ -173,11 +193,13 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
 
         SOAP の S / O / A / P のいずれかが空なら確定できない。通則(4) が
         服薬状況・体調変化・今後の留意点などを記載事項として求めているため。
+        判定は :meth:`validate` が構築時に行うので、ここでは状態だけを動かす。
+
+        Raises:
+            MedicationHistoryAlreadyFinalizedError: 既に確定済の場合。
+            SoapSectionEmptyError: 記載の無いSOAPセクションがある場合。
         """
         self._ensure_not_finalized()
-        empty_section = self.soap.empty_section_label
-        if empty_section is not None:
-            raise SoapSectionEmptyError(section_label=empty_section)
         return replace(self, status=MedicationHistoryStatus.FINALIZED)
 
     def amend(
@@ -192,6 +214,11 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
 
         元の ``soap`` は書き換えない。調剤録は3年間の保存義務があり、
         遡って書き換えられる記録は監査に耐えない。
+
+        Raises:
+            MedicationHistoryNotFinalizedError: 未確定の薬歴である場合。
+            SoapSectionEmptyError: 追記後の実効SOAPに記載の無いセクションが
+                できる場合。確定時に課した充足を追記で抜けられないようにする。
         """
         if not self.is_finalized:
             raise MedicationHistoryNotFinalizedError()

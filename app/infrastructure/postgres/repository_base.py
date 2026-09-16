@@ -14,13 +14,14 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, Select, Table, func
+from sqlalchemy import CursorResult, Select, Table, func, select
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.foundation.exceptions import ConcurrentModificationError
+from app.domain.foundation.primitives.base import DomainPrimitive
 from app.infrastructure.postgres.codec import (
     PersistenceMappingError,
     decode_aggregate,
@@ -238,6 +239,48 @@ class PostgresRepositoryBase:
             aggregate_id=mapping.identity(values),
             values=values,
         )
+
+    async def get_by_id[AggregateT](
+        self,
+        mapping: AggregateMapping[AggregateT],
+        aggregate_id: DomainPrimitive[uuid.UUID] | uuid.UUID,
+        *,
+        corporate_id: DomainPrimitive[uuid.UUID] | uuid.UUID | None = None,
+    ) -> AggregateT | None:
+        """主キー（および任意の法人ID）で行を取得する。"""
+        raw_id = (
+            aggregate_id.value
+            if isinstance(aggregate_id, DomainPrimitive)
+            else aggregate_id
+        )
+        statement = select(mapping.table).where(mapping.table.c.id == raw_id)
+        if corporate_id is not None:
+            raw_corp_id = (
+                corporate_id.value
+                if isinstance(corporate_id, DomainPrimitive)
+                else corporate_id
+            )
+            statement = statement.where(mapping.table.c.corporate_id == raw_corp_id)
+        return await self.find_one(mapping, statement)
+
+    async def save_with_conflict_map[AggregateT](
+        self,
+        mapping: AggregateMapping[AggregateT],
+        aggregate: AggregateT,
+        *,
+        conflicts: (
+            Mapping[str, type[Exception] | Callable[[], Exception]] | None
+        ) = None,
+    ) -> None:
+        """集約を保存し、指定された一意制約違反を対応する業務例外へ翻訳する。"""
+        try:
+            await self.save_aggregate(mapping, aggregate)
+        except IntegrityError as error:
+            if conflicts:
+                name = constraint_name(error)
+                if name is not None and name in conflicts:
+                    raise conflicts[name]() from error
+            raise
 
     def _restore[AggregateT](
         self,

@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.exceptions import PatientExternalIdentifierAlreadyExistsError
@@ -24,7 +23,6 @@ from app.domain.patient.repository import PatientExternalIdentifierRepository
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,
-    constraint_name,
 )
 from app.infrastructure.postgres.schema import patient_external_identifiers
 
@@ -63,12 +61,10 @@ class PostgresPatientExternalIdentifierRepository(
         identifier_id: PatientExternalIdentifierId,
     ) -> PatientExternalIdentifier | None:
         """法人境界を含めてIDで外部識別子を検索する。"""
-        return await self.find_one(
+        return await self.get_by_id(
             PATIENT_EXTERNAL_IDENTIFIER_MAPPING,
-            select(patient_external_identifiers).where(
-                patient_external_identifiers.c.corporate_id == corporate_id.value,
-                patient_external_identifiers.c.id == identifier_id.value,
-            ),
+            identifier_id,
+            corporate_id=corporate_id,
         )
 
     async def get_active_by_source(
@@ -113,12 +109,10 @@ class PostgresPatientExternalIdentifierRepository(
 
     async def save(self, identifier: PatientExternalIdentifier) -> None:
         """有効行の一意性を原子的に守って外部識別子を保存する。"""
-        try:
-            await self.save_aggregate(PATIENT_EXTERNAL_IDENTIFIER_MAPPING, identifier)
-        except IntegrityError as error:
-            if (
-                constraint_name(error)
-                == "uq_patient_external_identifiers_active_source"
-            ):
-                raise PatientExternalIdentifierAlreadyExistsError() from error
-            raise
+        await self.save_with_conflict_map(
+            PATIENT_EXTERNAL_IDENTIFIER_MAPPING,
+            identifier,
+            conflicts={
+                "uq_patient_external_identifiers_active_source": PatientExternalIdentifierAlreadyExistsError,
+            },
+        )

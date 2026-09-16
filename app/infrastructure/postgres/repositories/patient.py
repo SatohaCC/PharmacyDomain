@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 
 from app.domain.corporate.primitives import CorporateId
@@ -47,17 +46,13 @@ class PostgresPatientRepository(PostgresRepositoryBase, PatientRepository):
         patient_id: PatientId,
     ) -> Patient | None:
         """法人境界を含めてIDで患者を検索する。"""
-        return await self.find_one(
-            PATIENT_MAPPING,
-            select(patients).where(
-                patients.c.corporate_id == corporate_id.value,
-                patients.c.id == patient_id.value,
-            ),
+        return await self.get_by_id(
+            PATIENT_MAPPING, patient_id, corporate_id=corporate_id
         )
 
     async def save(self, patient: Patient) -> None:
         """患者を保存する。"""
-        await self.save_aggregate(PATIENT_MAPPING, patient)
+        await self.save_with_conflict_map(PATIENT_MAPPING, patient)
 
     async def allocate_patient_number(
         self,

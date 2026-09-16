@@ -18,7 +18,7 @@ import pytest
 
 import app.application
 from app.application.access_control import ActorContext, AuthorizationService
-from app.infrastructure.postgres import (
+from app.infrastructure.di import (
     PostgresRequestScope,
     PostgresUseCaseRegistry,
 )
@@ -93,14 +93,14 @@ def test_配線されたユースケースは_宣言どおりの型で組み立�
     registry = scope.use_cases
 
     # Assert
-    for bundle_field in fields(registry):
-        bundle = getattr(registry, bundle_field.name)
+    for bundle_name in get_type_hints(PostgresUseCaseRegistry):
+        bundle = getattr(registry, bundle_name)
         hints = get_type_hints(type(bundle))
         for use_case_field in fields(bundle):
             use_case = getattr(bundle, use_case_field.name)
             expected = hints[use_case_field.name]
             assert isinstance(use_case, expected), (
-                f"{bundle_field.name}.{use_case_field.name} が {expected} ではない。"
+                f"{bundle_name}.{use_case_field.name} が {expected} ではない。"
             )
 
 
@@ -198,7 +198,7 @@ def test_ユースケース束の一覧が_登録簿の項目と一致する() -
     registry_bundles = set(get_type_hints(PostgresUseCaseRegistry).values())
 
     # Act
-    module = importlib.import_module("app.infrastructure.postgres")
+    module = importlib.import_module("app.infrastructure.di")
     exported: set[Any] = {
         getattr(module, name)
         for name in module.__all__

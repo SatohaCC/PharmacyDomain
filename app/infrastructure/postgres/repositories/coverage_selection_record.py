@@ -52,7 +52,7 @@ class PostgresCoverageSelectionRecordRepository(
 
     async def save(self, record: CoverageSelectionRecord) -> None:
         """履歴を保存する。履歴なので一意性制約は課さない。"""
-        await self.save_aggregate(COVERAGE_SELECTION_RECORD_MAPPING, record)
+        await self.save_with_conflict_map(COVERAGE_SELECTION_RECORD_MAPPING, record)
 
     async def get(
         self,
@@ -61,12 +61,8 @@ class PostgresCoverageSelectionRecordRepository(
         record_id: CoverageSelectionRecordId,
     ) -> CoverageSelectionRecord | None:
         """法人境界を含めてIDで履歴を検索する。"""
-        return await self.find_one(
-            COVERAGE_SELECTION_RECORD_MAPPING,
-            select(coverage_selection_records).where(
-                coverage_selection_records.c.corporate_id == corporate_id.value,
-                coverage_selection_records.c.id == record_id.value,
-            ),
+        return await self.get_by_id(
+            COVERAGE_SELECTION_RECORD_MAPPING, record_id, corporate_id=corporate_id
         )
 
     async def get_latest(

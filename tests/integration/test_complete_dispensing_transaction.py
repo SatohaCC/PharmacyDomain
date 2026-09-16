@@ -31,7 +31,7 @@ from app.domain.dispensing.primitives import (
 )
 from app.domain.prescription.prescription import Prescription
 from app.domain.prescription.primitives import PrescriptionStatus
-from app.infrastructure.postgres import PostgresCompositionRoot
+from app.infrastructure.di import PostgresCompositionRoot
 from app.infrastructure.postgres.connection import PostgresSettings, PostgresUnitOfWork
 from app.infrastructure.postgres.repositories import (
     PostgresDispensingProcessRepository,

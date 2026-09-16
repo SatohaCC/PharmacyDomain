@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientId
@@ -23,7 +22,6 @@ from app.domain.prescription.repository import PrescriptionRepository
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,
-    constraint_name,
 )
 from app.infrastructure.postgres.schema import prescriptions
 
@@ -59,12 +57,8 @@ class PostgresPrescriptionRepository(PostgresRepositoryBase, PrescriptionReposit
         prescription_id: PrescriptionId,
     ) -> Prescription | None:
         """法人境界を含めてIDで処方箋を検索する。"""
-        return await self.find_one(
-            PRESCRIPTION_MAPPING,
-            select(prescriptions).where(
-                prescriptions.c.corporate_id == corporate_id.value,
-                prescriptions.c.id == prescription_id.value,
-            ),
+        return await self.get_by_id(
+            PRESCRIPTION_MAPPING, prescription_id, corporate_id=corporate_id
         )
 
     async def get_by_document_number(
@@ -104,11 +98,14 @@ class PostgresPrescriptionRepository(PostgresRepositoryBase, PrescriptionReposit
 
     async def save(self, prescription: Prescription) -> None:
         """処方箋を保存し、電子処方箋番号の重複を原子的に拒否する。"""
-        try:
-            await self.save_aggregate(PRESCRIPTION_MAPPING, prescription)
-        except IntegrityError as error:
-            if constraint_name(error) == "uq_prescriptions_electronic_document_number":
-                raise PrescriptionDocumentNumberAlreadyExistsError(
-                    document_number=prescription.document_number.value
-                ) from error
-            raise
+        await self.save_with_conflict_map(
+            PRESCRIPTION_MAPPING,
+            prescription,
+            conflicts={
+                "uq_prescriptions_electronic_document_number": lambda: (
+                    PrescriptionDocumentNumberAlreadyExistsError(
+                        document_number=prescription.document_number.value
+                    )
+                ),
+            },
+        )

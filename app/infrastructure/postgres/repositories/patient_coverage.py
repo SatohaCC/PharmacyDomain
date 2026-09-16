@@ -11,7 +11,6 @@ from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import Range
-from sqlalchemy.exc import IntegrityError
 
 from app.domain.corporate.primitives import CorporateId
 from app.domain.coverage.exceptions import CoveragePeriodConflictError
@@ -22,7 +21,6 @@ from app.domain.patient.primitives import PatientId
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,
-    constraint_name,
 )
 from app.infrastructure.postgres.schema import patient_coverages
 
@@ -73,12 +71,8 @@ class PostgresPatientCoverageRepository(
         coverage_id: PatientCoverageId,
     ) -> PatientCoverage | None:
         """法人境界を含めてIDで資格を検索する。"""
-        return await self.find_one(
-            PATIENT_COVERAGE_MAPPING,
-            select(patient_coverages).where(
-                patient_coverages.c.corporate_id == corporate_id.value,
-                patient_coverages.c.id == coverage_id.value,
-            ),
+        return await self.get_by_id(
+            PATIENT_COVERAGE_MAPPING, coverage_id, corporate_id=corporate_id
         )
 
     async def list_by_patient(
@@ -107,9 +101,10 @@ class PostgresPatientCoverageRepository(
 
         「期間が重なる」は一意制約では表せないため、排他制約が最終防衛になる。
         """
-        try:
-            await self.save_aggregate(PATIENT_COVERAGE_MAPPING, coverage)
-        except IntegrityError as error:
-            if constraint_name(error) == "excl_patient_coverages_effective_period":
-                raise CoveragePeriodConflictError() from error
-            raise
+        await self.save_with_conflict_map(
+            PATIENT_COVERAGE_MAPPING,
+            coverage,
+            conflicts={
+                "excl_patient_coverages_effective_period": CoveragePeriodConflictError
+            },
+        )

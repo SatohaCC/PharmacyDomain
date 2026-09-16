@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
@@ -18,7 +17,6 @@ from app.domain.prescription.primitives import PrescriptionId
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,
-    constraint_name,
 )
 from app.infrastructure.postgres.schema import dispensing_processes
 
@@ -56,12 +54,8 @@ class PostgresDispensingProcessRepository(
         dispensing_id: DispensingId,
     ) -> DispensingProcess | None:
         """法人境界を含めてIDで調剤セッションを検索する。"""
-        return await self.find_one(
-            DISPENSING_PROCESS_MAPPING,
-            select(dispensing_processes).where(
-                dispensing_processes.c.corporate_id == corporate_id.value,
-                dispensing_processes.c.id == dispensing_id.value,
-            ),
+        return await self.get_by_id(
+            DISPENSING_PROCESS_MAPPING, dispensing_id, corporate_id=corporate_id
         )
 
     async def list_by_prescription(
@@ -83,14 +77,12 @@ class PostgresDispensingProcessRepository(
 
     async def save(self, process: DispensingProcess) -> None:
         """調剤セッションを保存し、処方箋ごとの回数重複を拒否する。"""
-        try:
-            await self.save_aggregate(DISPENSING_PROCESS_MAPPING, process)
-        except IntegrityError as error:
-            if (
-                constraint_name(error)
-                == "uq_dispensing_processes_prescription_iteration"
-            ):
-                raise DispensingAlreadyExistsError(
-                    iteration=process.iteration.value
-                ) from error
-            raise
+        await self.save_with_conflict_map(
+            DISPENSING_PROCESS_MAPPING,
+            process,
+            conflicts={
+                "uq_dispensing_processes_prescription_iteration": lambda: (
+                    DispensingAlreadyExistsError(iteration=process.iteration.value)
+                ),
+            },
+        )
