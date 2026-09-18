@@ -78,6 +78,10 @@ class RecordingAsyncSession:
             return self._results.pop(0)
         return FakeResult()
 
+    async def scalar(self, statement: Any) -> object:
+        """statementを記録し、次の結果の先頭列を返す。"""
+        return (await self.execute(statement)).scalar_one_or_none()
+
     @property
     def last_statement(self) -> Any:
         """直近に実行したstatement。"""
