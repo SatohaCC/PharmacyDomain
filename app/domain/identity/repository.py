@@ -1,5 +1,6 @@
 """個人アカウントと法人アクセス権の保存契約。"""
 
+from collections.abc import Collection
 from typing import Protocol
 
 from app.domain.corporate.primitives import CorporateId
@@ -47,6 +48,16 @@ class UserAccountRepository(Protocol):
 
     async def get_by_subject(self, subject: ExternalSubjectKey) -> UserAccount | None:
         """確認済み外部主体に対応するアカウントを返す。"""
+        ...
+
+    async def list_by_ids(
+        self, account_ids: Collection[UserAccountId]
+    ) -> list[UserAccount]:
+        """指定したアカウントを一度にまとめて返す。
+
+        法人内の全アクセス権について1件ずつ引くと、管理者の人数に比例して
+        往復が増える。存在しないIDは黙って除く。
+        """
         ...
 
 

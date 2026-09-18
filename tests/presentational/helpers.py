@@ -104,6 +104,9 @@ from app.infrastructure.di import (
     StaffUseCases,
     StoreUseCases,
 )
+from tests.application.staff.access_revocation_helpers import (
+    create_access_revocation,
+)
 from tests.fakes.fake_clock import FakeClock
 from tests.fakes.fake_organization_management import (
     FakeOrganizationLock,
@@ -234,7 +237,7 @@ def create_staff_use_cases(
             staffs, stores, assignment, access
         ),
         activate=ActivateStaffUseCase(staffs, access),
-        deactivate=DeactivateStaffUseCase(staffs, access),
+        deactivate=DeactivateStaffUseCase(staffs, access, create_access_revocation()),
     )
 
 

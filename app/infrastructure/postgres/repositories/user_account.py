@@ -1,5 +1,7 @@
 """個人アカウントのPostgreSQL保存契約。"""
 
+from collections.abc import Collection
+
 from sqlalchemy import select
 
 from app.domain.identity.exceptions import IdentityConflictError
@@ -63,5 +65,18 @@ class PostgresUserAccountRepository(PostgresRepositoryBase, UserAccountRepositor
             USER_ACCOUNT_MAPPING,
             select(user_accounts).where(
                 user_accounts.c.external_subject == subject.value
+            ),
+        )
+
+    async def list_by_ids(
+        self, account_ids: Collection[UserAccountId]
+    ) -> list[UserAccount]:
+        """複数のアカウントを1文でまとめて取得する。"""
+        if not account_ids:
+            return []
+        return await self.find_all(
+            USER_ACCOUNT_MAPPING,
+            select(user_accounts).where(
+                user_accounts.c.id.in_([item.value for item in account_ids])
             ),
         )

@@ -17,6 +17,9 @@ from app.application.staff import (
 from app.domain.corporate import CorporateId
 from app.domain.staff import StaffStoreAssignmentService
 from tests.application.access_helpers import create_vendor_corporate_access
+from tests.application.staff.access_revocation_helpers import (
+    create_access_revocation,
+)
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store
 from tests.fakes.in_memory_staff_repository import InMemoryStaffRepository
@@ -31,6 +34,7 @@ async def test_deactivate_and_activate_staff_success() -> None:
     deactivate_use_case = DeactivateStaffUseCase(
         repository=staff_repo,
         corporate_access=corporate_access,
+        access_revocation=create_access_revocation(),
     )
     activate_use_case = ActivateStaffUseCase(
         repository=staff_repo,
@@ -90,6 +94,7 @@ async def test_無効化した退職者は_退職日の翌日以降の主所属�
     deactivate_use_case = DeactivateStaffUseCase(
         repository=staff_repo,
         corporate_access=corporate_access,
+        access_revocation=create_access_revocation(),
     )
 
     corp_id = CorporateId.generate()

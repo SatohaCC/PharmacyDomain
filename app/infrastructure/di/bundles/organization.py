@@ -9,7 +9,9 @@ from dataclasses import dataclass
 
 from app.application.access_control import AuthorizationService
 from app.application.common.clock import Clock
-from app.application.composition.staff_integrity import ManagedStaffRepository
+from app.application.composition.staff_integrity import (
+    StaffAccessRevocationService,
+)
 from app.application.corporate.change_corporate_name import ChangeCorporateNameUseCase
 from app.application.corporate.change_corporate_status import (
     ChangeCorporateStatusUseCase,
@@ -208,17 +210,16 @@ def build_staff_use_cases(
     unit_of_work: PostgresUnitOfWork,
 ) -> StaffUseCases:
     """スタッフユースケースを組み立てる。"""
-    staff_repository = ManagedStaffRepository(
-        repositories.staff,
-        repositories.store,
-        repositories.manager_assignment,
+    # 任命の再検証は保存前の境界（StaffAssignmentWriteGuard）が全経路へ掛ける
+    # ので、ここでRepositoryを包まない。包むと ``get()`` まで管理操作のロックを
+    # 取り、参照が全書き込みと直列化する。
+    staff_repository = repositories.staff
+    store_repository = repositories.store
+    access_revocation = StaffAccessRevocationService(
         repositories.membership,
         repositories.user_account,
-        clock,
-        unit_of_work,
         PostgresOrganizationLock(unit_of_work),
     )
-    store_repository = repositories.store
     code_uniqueness = StaffCodeUniquenessService(staff_repository)
     assignment = StaffStoreAssignmentService()
     return StaffUseCases(
@@ -246,7 +247,9 @@ def build_staff_use_cases(
             staff_repository, store_repository, assignment, corporate_access
         ),
         activate=ActivateStaffUseCase(staff_repository, corporate_access),
-        deactivate=DeactivateStaffUseCase(staff_repository, corporate_access),
+        deactivate=DeactivateStaffUseCase(
+            staff_repository, corporate_access, access_revocation
+        ),
     )
 
 

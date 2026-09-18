@@ -1,5 +1,7 @@
 """本人と個人アカウントの保存契約を持つテスト用Repository。"""
 
+from collections.abc import Collection
+
 from app.domain.corporate.primitives import CorporateId
 from app.domain.identity.account_person import AccountPerson
 from app.domain.identity.exceptions import IdentityConflictError
@@ -73,6 +75,12 @@ class InMemoryUserAccountRepository(UserAccountRepository):
             (item for item in self.items.values() if item.external_subject == subject),
             None,
         )
+
+    async def list_by_ids(
+        self, account_ids: Collection[UserAccountId]
+    ) -> list[UserAccount]:
+        wanted = set(account_ids)
+        return [item for item in self.items.values() if item.id in wanted]
 
 
 class InMemoryCorporateMembershipRepository(CorporateMembershipRepository):

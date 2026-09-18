@@ -54,7 +54,9 @@ class ClinicalStoreWriteGuard:
             )
         else:
             return
-        await self._lock.acquire("identity")
+        # 法人をまたぐ不変条件は無いので、法人ごとの直列化で足りる。以前は
+        # "identity" の単一キーも取っており、無関係な法人どうしの調剤が
+        # 互いをブロックしていた。
         await self._lock.acquire(f"corporate:{aggregate.corporate_id.value}")
         self._authorization.require_store(
             permission=permission,

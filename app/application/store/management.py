@@ -4,12 +4,11 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from enum import StrEnum
 from typing import Protocol
-from zoneinfo import ZoneInfo
 
 from app.application.access_control import CorporateAccessBoundary, Permission
 from app.application.access_control.models import ResolvedActorContext
 from app.application.common import UnitOfWork
-from app.application.common.clock import Clock
+from app.application.common.clock import BUSINESS_TIMEZONE, Clock, business_date
 from app.application.common.exceptions import AuthorizationError, NotFoundError
 from app.application.common.organization_lock import OrganizationLock
 from app.application.store.get_store import StoreDto
@@ -108,7 +107,7 @@ class ChangeStoreStatusUseCase:
                 raise ManagerAssignmentConflictError(
                     "未完了の処方箋または調剤がある店舗は閉局できません。"
                 )
-            applied_on = now.astimezone(ZoneInfo("Asia/Tokyo")).date()
+            applied_on = now.astimezone(BUSINESS_TIMEZONE).date()
             for assignment in await self._managers.list_by_store(
                 corporate_id, store_id
             ):
@@ -215,7 +214,7 @@ class ManageStoreManagerUseCase:
                 or existing.store_id != store_id
             ):
                 raise NotFoundError("指定された任命が見つかりません。")
-        today = self._clock.now().astimezone(ZoneInfo("Asia/Tokyo")).date()
+        today = business_date(self._clock)
         if command.action in {ManagerAction.CANCEL, ManagerAction.END}:
             if existing is None:
                 raise DomainValidationError("任命IDを指定してください。")

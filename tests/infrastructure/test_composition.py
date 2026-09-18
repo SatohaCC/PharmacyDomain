@@ -19,6 +19,12 @@ import pytest
 import app.application
 from app.application.access_control import ActorContext, AuthorizationService
 from app.application.access_control.models import ActorRole, ResolvedActorContext
+from app.application.composition.clinical_store_guard import ClinicalStoreWriteGuard
+from app.application.composition.resolved_actor_guard import (
+    CompositeWriteGuard,
+    ResolvedActorWriteGuard,
+)
+from app.application.composition.staff_integrity import StaffAssignmentWriteGuard
 from app.application.identity.resolve_actor import UnavailableIdentityError
 from app.domain.identity.primitives import AccountPersonId, UserAccountId
 from app.infrastructure.di import (
@@ -266,3 +272,33 @@ async def test_本人特定済みの保存は_そのまま行へ到達する() -
     # Assert
     assert session.executed, "保存の文が発行されていない"
     assert session.commits == 1
+
+
+def test_保存前の境界が_宣言した順で全て掛かる() -> None:
+    """境界を配線から落としても、DBなしのテストでは気づけない。
+
+    本人特定・臨床集約の店舗状態・スタッフと任命の整合は、どれも「保存の手前で
+    止める」ことで全経路に掛かる。1つ外すと、その検査だけが静かに無くなる。
+    """
+    # Arrange
+    session = RecordingAsyncSession()
+    work = create_unit_of_work(session)
+
+    # Act
+    PostgresRequestScope(
+        work,
+        authorization=AuthorizationService(_resolved_actor()),
+        clock=FakeClock(),
+    )
+
+    # Assert
+    guard = work.before_save
+    assert guard is not None
+    owner = getattr(guard, "__self__", None)
+    assert isinstance(owner, CompositeWriteGuard)
+    applied = [type(getattr(item, "__self__", None)) for item in owner.guards]
+    assert applied == [
+        ResolvedActorWriteGuard,
+        ClinicalStoreWriteGuard,
+        StaffAssignmentWriteGuard,
+    ]

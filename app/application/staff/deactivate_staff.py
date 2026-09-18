@@ -9,6 +9,7 @@ from app.application.access_control import (
     CorporateAccessBoundary,
     Permission,
 )
+from app.application.staff.access_revocation import StaffAccessRevocationBoundary
 from app.application.staff.support import load_staff_or_raise
 from app.domain.corporate.primitives import CorporateId
 from app.domain.staff import StaffId, StaffRepository
@@ -36,9 +37,11 @@ class DeactivateStaffUseCase:
         self,
         repository: StaffRepository,
         corporate_access: CorporateAccessBoundary,
+        access_revocation: StaffAccessRevocationBoundary,
     ) -> None:
         self._repository = repository
         self._corporate_access = corporate_access
+        self._access_revocation = access_revocation
 
     async def execute(self, command: DeactivateStaffCommand) -> None:
         corporate_id = CorporateId.parse(command.corporate_id)
@@ -56,3 +59,6 @@ class DeactivateStaffUseCase:
 
         updated_staff = staff.deactivate(command.retired_on)
         await self._repository.save(updated_staff)
+        # 退職したのに法人アクセス権が残ると、退職者のアカウントで業務を続けられる。
+        # 保存の境界へ隠さず、退職の手順として明示的に行う。
+        await self._access_revocation.revoke_for(updated_staff)

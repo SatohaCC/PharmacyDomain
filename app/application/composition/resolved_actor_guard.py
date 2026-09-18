@@ -1,9 +1,12 @@
-"""リクエスト内の全保存に本人特定を要求する境界。"""
+"""保存の手前に掛ける境界と、その並べ方。"""
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 
 from app.application.access_control.models import ActorContext, ResolvedActorContext
 from app.application.identity.resolve_actor import UnavailableIdentityError
+
+#: 保存前に呼ばれる境界。集約と「このトランザクションで初めて書くか」を受ける。
+WriteGuard = Callable[[object, bool], Awaitable[None]]
 
 
 class ResolvedActorWriteGuard:
@@ -23,22 +26,37 @@ class ResolvedActorWriteGuard:
     そちらはこの境界を設定しないので、この規則の対象外である。
     """
 
-    def __init__(
-        self,
-        actor: ActorContext,
-        inner: Callable[[object, bool], Awaitable[None]] | None = None,
-    ) -> None:
+    def __init__(self, actor: ActorContext) -> None:
         self._actor = actor
-        self._inner = inner
 
     async def check(self, aggregate: object, is_new: bool) -> None:
-        """保存前に本人特定を確かめ、続けて内側の境界へ委ねる。"""
+        """保存前に本人特定を確かめる。"""
         if not isinstance(self._actor, ResolvedActorContext):
             raise UnavailableIdentityError(
                 "更新には本人に結び付いた個人アカウントが必要です。"
             )
-        if self._inner is not None:
-            await self._inner(aggregate, is_new)
 
 
-__all__ = ["ResolvedActorWriteGuard"]
+class CompositeWriteGuard:
+    """複数の境界を宣言された順に適用する。
+
+    境界を入れ子の引数で繋ぐと、Composition Root の1行に「どれが外側か」という
+    意味が生まれ、増えるたびに読みにくくなる。並びとして書けば、掛かる順序が
+    そのまま一覧になる。
+    """
+
+    def __init__(self, guards: Sequence[WriteGuard]) -> None:
+        self._guards = tuple(guards)
+
+    @property
+    def guards(self) -> tuple[WriteGuard, ...]:
+        """適用する境界を宣言された順で返す。"""
+        return self._guards
+
+    async def check(self, aggregate: object, is_new: bool) -> None:
+        """全ての境界を順に適用する。"""
+        for guard in self._guards:
+            await guard(aggregate, is_new)
+
+
+__all__ = ["CompositeWriteGuard", "ResolvedActorWriteGuard", "WriteGuard"]

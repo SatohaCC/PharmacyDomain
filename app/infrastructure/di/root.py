@@ -11,15 +11,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Self
-from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.application.access_control.models import ActorRole, ResolvedActorContext
 from app.application.access_control.policy import AuthorizationService
-from app.application.common.clock import Clock
+from app.application.common.clock import Clock, business_date
 from app.application.composition.clinical_store_guard import ClinicalStoreWriteGuard
-from app.application.composition.resolved_actor_guard import ResolvedActorWriteGuard
+from app.application.composition.resolved_actor_guard import (
+    CompositeWriteGuard,
+    ResolvedActorWriteGuard,
+)
+from app.application.composition.staff_integrity import StaffAssignmentWriteGuard
 from app.application.composition.store_operation_adapter import StoreOperationAdapter
 from app.application.composition.system_clock import SystemUtcClock
 from app.application.corporate.corporate_access import CorporateAccessService
@@ -79,21 +82,27 @@ class PostgresRequestScope:
             unit_of_work.read_scope = RepositoryReadScope(
                 actor.corporate_id.value,
                 tuple(item.value for item in actor.store_ids),
-                clock.now().astimezone(ZoneInfo("Asia/Tokyo")).date(),
+                business_date(clock),
                 actor.person_id.value,
                 actor.account_id.value,
             )
         repositories = PostgresRepositorySet.create(unit_of_work)
         corporate_access = CorporateAccessService(repositories.corporate, authorization)
-        # 本人特定は保存の時点で確かめる。確定直前まで遅らせると、応答送信後に
-        # 例外が出てクライアントが成功を受け取ったままロールバックされる。
-        unit_of_work.before_save = ResolvedActorWriteGuard(
-            authorization.actor,
-            ClinicalStoreWriteGuard(
-                StoreOperationAdapter(repositories.store, corporate_access),
-                authorization,
-                PostgresOrganizationLock(unit_of_work),
-            ).check,
+        # 保存の手前に掛ける境界。本人特定は確定直前まで遅らせない（応答送信後に
+        # 例外が出て、クライアントが成功を受け取ったままロールバックされる）。
+        lock = PostgresOrganizationLock(unit_of_work)
+        unit_of_work.before_save = CompositeWriteGuard(
+            [
+                ResolvedActorWriteGuard(authorization.actor).check,
+                ClinicalStoreWriteGuard(
+                    StoreOperationAdapter(repositories.store, corporate_access),
+                    authorization,
+                    lock,
+                ).check,
+                StaffAssignmentWriteGuard(
+                    repositories.store, repositories.manager_assignment, clock
+                ).check,
+            ]
         ).check
         self._repositories = repositories
         self._use_cases = PostgresUseCaseRegistry(
