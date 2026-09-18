@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from app.application.access_control import ActorContext
+from app.application.identity.resolve_actor import VerifiedIdentity
 from app.presentational.exceptions import AuthenticationError
 
 
@@ -46,6 +47,21 @@ class UnconfiguredActorContextProvider(ActorContextProvider):
         """資格情報の内容によらず認証失敗として扱う。"""
         del credential
         raise AuthenticationError("認証基盤が接続されていません。")
+
+
+class VerifiedIdentityProvider(Protocol):
+    """内部アカウント未作成の招待先も含む本人確認境界。"""
+
+    async def authenticate(self, credential: str | None) -> VerifiedIdentity:
+        """外部認証で本人を検証し、失敗時はAuthenticationErrorを送出する。"""
+        ...
+
+
+class UnconfiguredVerifiedIdentityProvider(VerifiedIdentityProvider):
+    """未接続の本人確認を決して通さない。"""
+
+    async def authenticate(self, credential: str | None) -> VerifiedIdentity:
+        raise AuthenticationError("本人確認基盤が接続されていません。")
 
 
 __all__ = [

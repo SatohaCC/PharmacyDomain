@@ -10,9 +10,12 @@ from app.domain.corporate import (
     CorporateNameAlreadyExistsError,
     CorporateRepository,
 )
+from app.domain.corporate.search import CorporateSearch, CorporateSearchRepository
 
 
-class InMemoryCorporateRepository(CorporateRepository, CorporateCatalogRepository):
+class InMemoryCorporateRepository(
+    CorporateRepository, CorporateCatalogRepository, CorporateSearchRepository
+):
     def __init__(self) -> None:
         self.items: dict[CorporateId, Corporate] = {}
         #: ``save()`` が呼ばれた回数。変更が無いときに保存を省いているかの検証に使う。
@@ -46,3 +49,13 @@ class InMemoryCorporateRepository(CorporateRepository, CorporateCatalogRepositor
 
     async def list_all(self) -> list[Corporate]:
         return [copy.deepcopy(item) for item in self.items.values()]
+
+    async def search(self, query: CorporateSearch) -> list[Corporate]:
+        items = sorted(self.items.values(), key=lambda item: item.id.value)
+        return [
+            copy.deepcopy(item)
+            for item in items
+            if (query.name is None or query.name in item.name.value)
+            and (query.status is None or query.status == item.status)
+            and (query.after_id is None or item.id.value > query.after_id.value)
+        ][: query.limit]

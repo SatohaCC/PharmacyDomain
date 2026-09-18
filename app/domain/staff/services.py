@@ -17,6 +17,7 @@ from app.domain.staff.primitives import (
 )
 from app.domain.staff.repository import StaffRepository
 from app.domain.staff.staff import Staff
+from app.domain.store.lifecycle import StoreStateConflictError, StoreStatus
 from app.domain.store.store import Store
 
 
@@ -84,6 +85,8 @@ class StaffStoreAssignmentService:
         """主所属店舗の異動を行う。"""
         self._ensure_same_corporate(staff, store)
         self._ensure_staff_is_active(staff)
+        if store.status == StoreStatus.CLOSED:
+            raise StoreStateConflictError("閉局した店舗へ新しい所属を追加できません。")
         new_affiliations = list(staff.affiliations)
 
         # 異動日より未来に既に開始されている主所属予約が存在する場合は衝突エラー
@@ -142,6 +145,8 @@ class StaffStoreAssignmentService:
         """
         self._ensure_same_corporate(staff, store)
         self._ensure_staff_is_active(staff)
+        if store.status == StoreStatus.CLOSED:
+            raise StoreStateConflictError("閉局した店舗へ新しい所属を追加できません。")
 
         new_affiliation = StoreAffiliation(
             store_id=store.id,

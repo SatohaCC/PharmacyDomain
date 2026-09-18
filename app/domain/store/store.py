@@ -1,8 +1,16 @@
 from dataclasses import dataclass, replace
+from datetime import datetime
 from typing import Self
 
 from app.domain.corporate.primitives import CorporateId
 from app.domain.foundation.entity import AggregateRoot
+from app.domain.identity.primitives import AccountPersonId, UserAccountId
+from app.domain.store.lifecycle import (
+    StoreStateConflictError,
+    StoreStatus,
+    StoreStatusChange,
+    StoreStatusReason,
+)
 from app.domain.store.primitives import (
     ContactInfo,
     InsurancePharmacyNumber,
@@ -28,6 +36,34 @@ class Store(AggregateRoot[StoreId]):
     # --- 任意項目（未定・未発行を許容） ---
     code: StoreCode | None = None
     insurance_pharmacy_number: InsurancePharmacyNumber | None = None
+    status: StoreStatus = StoreStatus.ACTIVE
+    status_history: tuple[StoreStatusChange, ...] = ()
+
+    def change_status(
+        self,
+        status: StoreStatus,
+        *,
+        reason: StoreStatusReason,
+        person_id: AccountPersonId,
+        account_id: UserAccountId,
+        recorded_at: datetime,
+    ) -> Self:
+        """履歴を残して店舗の状態を変更する。"""
+        if self.status == status:
+            return self
+        if self.status == StoreStatus.CLOSED:
+            raise StoreStateConflictError("閉局済みの店舗の状態は変更できません。")
+        change = StoreStatusChange(
+            before=self.status,
+            after=status,
+            reason=reason,
+            person_id=person_id,
+            account_id=account_id,
+            recorded_at=recorded_at,
+        )
+        return replace(
+            self, status=status, status_history=(*self.status_history, change)
+        )
 
     @classmethod
     def create(

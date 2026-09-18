@@ -20,6 +20,7 @@ from app.presentational.routers import (
     corporate,
     coverage,
     dispensing,
+    identity,
     medication_history,
     medicine_catalog,
     patient,
@@ -32,6 +33,7 @@ from app.presentational.routers import (
 #: 登録簿の束と、それを公開するルータモジュールの対応。
 _ROUTER_FOR_BUNDLE: Final[Mapping[str, ModuleType]] = {
     "corporate": corporate,
+    "identity": identity,
     "store": store,
     "staff": staff,
     "patient": patient,

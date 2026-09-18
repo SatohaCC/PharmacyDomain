@@ -55,7 +55,13 @@ LIFECYCLE_DIALECTS: dict[str, str] = {
     # 方言は ``status_enum`` 1つに収まる。
     "Prescription": "status_enum",
     "Staff": "active_flag",
-    "Store": "none",
+    "Store": "status_enum",
+    "StoreManagerAssignment": "status_enum",
+    "AccountPerson": "none",
+    "UserAccount": "status_enum",
+    "CorporateMembership": "status_enum",
+    "UserInvitation": "status_enum",
+    "StaffPersonLink": "none",
 }
 
 #: ``active_flag`` 方言の集約について、無効化後に一意キーを再利用できるか。

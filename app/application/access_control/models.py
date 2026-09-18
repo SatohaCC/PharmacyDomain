@@ -6,6 +6,13 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from app.domain.corporate.primitives import CorporateId
+from app.domain.identity.primitives import (
+    AccountPersonId,
+    CorporateMembershipId,
+    UserAccountId,
+)
+from app.domain.staff.primitives import StaffId
+from app.domain.store.primitives import StoreId
 
 
 class ActorRole(StrEnum):
@@ -13,6 +20,8 @@ class ActorRole(StrEnum):
 
     VENDOR_SYSTEM_ADMIN = "vendor_system_admin"
     CORPORATE_ADMIN = "corporate_admin"
+    STORE_OPERATOR = "store_operator"
+    STORE_VIEWER = "store_viewer"
 
 
 class Permission(StrEnum):
@@ -80,3 +89,14 @@ class ActorContext:
             roles=frozenset({ActorRole.CORPORATE_ADMIN}),
             corporate_id=corporate_id,
         )
+
+
+@dataclass(frozen=True, kw_only=True)
+class ResolvedActorContext(ActorContext):
+    """本人と内部アカウントを照合済みの操作主体。"""
+
+    person_id: AccountPersonId
+    account_id: UserAccountId
+    membership_id: CorporateMembershipId | None = None
+    staff_id: StaffId | None = None
+    store_ids: frozenset[StoreId] = frozenset()

@@ -157,7 +157,7 @@ async def list_staffs(
     )
 
 
-@router.get("/{staff_id}", response_model=StaffDto)
+@router.get("/{staff_id}", response_model=StaffDto | StaffSummaryDto)
 async def get_staff(
     corporate_id: str,
     staff_id: str,
@@ -166,7 +166,7 @@ async def get_staff(
         date | None,
         Query(description="所属の判定に使う適用日。省略すると所属は空として扱う。"),
     ] = None,
-) -> StaffDto:
+) -> StaffDto | StaffSummaryDto:
     """スタッフを1件取得する。"""
     return await use_cases.get.execute(
         GetStaffQuery(

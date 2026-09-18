@@ -202,6 +202,8 @@ class PostgresRepositoryBase:
         statement: Select[Any],
     ) -> AggregateT | None:
         """1行を読み、集約へ復元する。該当が無ければ ``None``。"""
+        if self._unit_of_work.read_scope is not None:
+            statement = self._unit_of_work.read_scope.apply(mapping.table, statement)
         result = await self.session.execute(statement)
         row = result.mappings().one_or_none()
         if row is None:
@@ -214,6 +216,8 @@ class PostgresRepositoryBase:
         statement: Select[Any],
     ) -> list[AggregateT]:
         """複数行を読み、集約の一覧へ復元する。"""
+        if self._unit_of_work.read_scope is not None:
+            statement = self._unit_of_work.read_scope.apply(mapping.table, statement)
         result = await self.session.execute(statement)
         return [
             self._restore(mapping, cast(Mapping[str, object], row))
@@ -234,6 +238,14 @@ class PostgresRepositoryBase:
                 制約をどの業務例外へ写像するかは呼び出し側のRepositoryが決める。
         """
         values = mapping.row_values(aggregate)
+        if self._unit_of_work.before_save is not None:
+            is_new = (
+                self._unit_of_work.loaded_version(
+                    mapping.identity(values), namespace=mapping.table.name
+                )
+                is None
+            )
+            await self._unit_of_work.before_save(aggregate, is_new)
         await self._upsert(
             mapping.table,
             aggregate_id=mapping.identity(values),
@@ -353,6 +365,20 @@ class PostgresRepositoryBase:
             aggregate_id,
             next_version,
             namespace=namespace,
+        )
+        corporate_id = values.get("corporate_id")
+        store_id = values.get("store_id")
+        self._unit_of_work.pending_changes.append(
+            (
+                f"{namespace}.{'create' if expected_version is None else 'update'}",
+                aggregate_id,
+                corporate_id
+                if isinstance(corporate_id, uuid.UUID)
+                else (aggregate_id if namespace == "corporates" else None),
+                store_id
+                if isinstance(store_id, uuid.UUID)
+                else (aggregate_id if namespace == "stores" else None),
+            )
         )
 
 

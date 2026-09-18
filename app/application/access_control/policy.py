@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 from app.application.access_control.exceptions import TenantBoundaryNotFoundError
-from app.application.access_control.models import ActorContext, ActorRole, Permission
+from app.application.access_control.models import (
+    ActorContext,
+    ActorRole,
+    Permission,
+    ResolvedActorContext,
+)
 from app.application.common.exceptions import AuthorizationError
 from app.domain.corporate.primitives import CorporateId
+from app.domain.store.primitives import StoreId
 
 _CORPORATE_ADMIN_PERMISSIONS = frozenset(
     {
@@ -72,6 +78,50 @@ class AuthorizationService:
     def __init__(self, actor: ActorContext) -> None:
         self._actor = actor
 
+    def require_store(
+        self,
+        *,
+        permission: Permission,
+        target_corporate_id: CorporateId,
+        target_store_id: StoreId,
+    ) -> None:
+        """本人の法人権限と対象店舗への操作権限を確認する。"""
+        if self._actor.roles & {
+            ActorRole.VENDOR_SYSTEM_ADMIN,
+            ActorRole.CORPORATE_ADMIN,
+        }:
+            self.require(permission=permission, target_corporate_id=target_corporate_id)
+            return
+        actor = self._actor
+        if (
+            not isinstance(actor, ResolvedActorContext)
+            or actor.corporate_id != target_corporate_id
+            or target_store_id not in actor.store_ids
+        ):
+            raise TenantBoundaryNotFoundError()
+        view = {
+            Permission.VIEW_STORE,
+            Permission.VIEW_STAFF,
+            Permission.VIEW_RECEPTION,
+            Permission.VIEW_PRESCRIPTION,
+            Permission.VIEW_DISPENSING,
+            Permission.VIEW_MEDICATION_HISTORY,
+        }
+        write = {
+            Permission.MANAGE_RECEPTION,
+            Permission.MANAGE_PRESCRIPTION,
+            Permission.MANAGE_DISPENSING,
+            Permission.MANAGE_MEDICATION_HISTORY,
+        }
+        if permission in view and actor.roles & {
+            ActorRole.STORE_OPERATOR,
+            ActorRole.STORE_VIEWER,
+        }:
+            return
+        if permission in write and ActorRole.STORE_OPERATOR in actor.roles:
+            return
+        self._deny(permission)
+
     @property
     def actor(self) -> ActorContext:
         """現在の操作主体を返す。"""
@@ -111,6 +161,32 @@ class AuthorizationService:
         ):
             return
 
+        actor = self._actor
+        if (
+            isinstance(actor, ResolvedActorContext)
+            and actor.corporate_id == target_corporate_id
+        ):
+            view = {
+                Permission.VIEW_STORE,
+                Permission.VIEW_STAFF,
+                Permission.VIEW_RECEPTION,
+                Permission.VIEW_PRESCRIPTION,
+                Permission.VIEW_DISPENSING,
+                Permission.VIEW_MEDICATION_HISTORY,
+            }
+            write = {
+                Permission.MANAGE_RECEPTION,
+                Permission.MANAGE_PRESCRIPTION,
+                Permission.MANAGE_DISPENSING,
+                Permission.MANAGE_MEDICATION_HISTORY,
+            }
+            if permission in view and actor.roles & {
+                ActorRole.STORE_OPERATOR,
+                ActorRole.STORE_VIEWER,
+            }:
+                return
+            if permission in write and ActorRole.STORE_OPERATOR in actor.roles:
+                return
         self._deny(permission)
 
     def require_vendor_system_admin(self, *, permission: Permission) -> None:

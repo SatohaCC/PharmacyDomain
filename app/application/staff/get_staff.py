@@ -9,7 +9,9 @@ from app.application.access_control import (
     CorporateAccessBoundary,
     Permission,
 )
+from app.application.access_control.models import ActorRole
 from app.application.common.clock import Clock
+from app.application.staff.list_staffs import StaffSummaryDto
 from app.application.staff.support import load_staff_or_raise
 from app.domain.corporate.primitives import CorporateId
 from app.domain.staff.primitives import StaffId
@@ -86,7 +88,7 @@ class GetStaffUseCase:
         self._corporate_access = corporate_access
         self._clock = clock
 
-    async def execute(self, query: GetStaffQuery) -> StaffDto:
+    async def execute(self, query: GetStaffQuery) -> StaffDto | StaffSummaryDto:
         corporate_id = CorporateId.parse(query.corporate_id)
         await self._corporate_access.require_active(
             corporate_id=corporate_id,
@@ -100,5 +102,10 @@ class GetStaffUseCase:
             staff_id=staff_id,
         )
 
+        if not self._corporate_access.actor.roles & {
+            ActorRole.VENDOR_SYSTEM_ADMIN,
+            ActorRole.CORPORATE_ADMIN,
+        }:
+            return StaffSummaryDto.from_entity(staff)
         target_date = query.target_date or self._clock.now().date()
         return StaffDto.from_entity(staff, target_date=target_date)

@@ -108,6 +108,8 @@ def _build_actor(values: Mapping[str, str], *, principal_id: str) -> ActorContex
                 values.get("DEV_ACTOR_CORPORATE_ID", "").strip()
             ),
         )
+    if role is ActorRole.STORE_OPERATOR or role is ActorRole.STORE_VIEWER:
+        raise NotImplementedError("店舗ロールの開発用Actor設定は未実装です。")
     # ロールが増えたときに、ここで mypy が分岐漏れを指摘する。
     assert_never(role)
 

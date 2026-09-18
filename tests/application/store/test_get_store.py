@@ -37,6 +37,8 @@ async def test_get_store_returns_dto() -> None:
 
     # Assert
     assert actual == StoreDto(
+        status="active",
+        status_history=(),
         id=str(store.id.value),
         corporate_id=str(corporate_id.value),
         name="サンプル薬局",

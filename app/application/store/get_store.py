@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from app.application.access_control import (
     CorporateAccessBoundary,
@@ -13,6 +14,18 @@ from app.domain.corporate.primitives import CorporateId
 from app.domain.store.primitives import StoreId
 from app.domain.store.repository import StoreRepository
 from app.domain.store.store import Store
+
+
+@dataclass(frozen=True, kw_only=True)
+class StoreStatusChangeDto:
+    """状態履歴の公開値。"""
+
+    before: str
+    after: str
+    reason: str
+    person_id: str
+    account_id: str
+    recorded_at: datetime
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -39,11 +52,25 @@ class StoreDto:
     email: str | None
     code: str | None
     insurance_pharmacy_number: str | None
+    status: str
+    status_history: tuple[StoreStatusChangeDto, ...]
 
     @classmethod
     def from_entity(cls, store: Store) -> StoreDto:
         """Store エンティティから DTO を生成するファクトリメソッド"""
         return cls(
+            status=store.status.value,
+            status_history=tuple(
+                StoreStatusChangeDto(
+                    before=item.before.value,
+                    after=item.after.value,
+                    reason=item.reason.value,
+                    person_id=str(item.person_id.value),
+                    account_id=str(item.account_id.value),
+                    recorded_at=item.recorded_at,
+                )
+                for item in store.status_history
+            ),
             id=str(store.id.value),
             corporate_id=str(store.corporate_id.value),
             name=store.names.name.value,

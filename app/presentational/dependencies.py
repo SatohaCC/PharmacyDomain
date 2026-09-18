@@ -15,6 +15,7 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.application.access_control import ActorContext, AuthorizationService
+from app.application.identity.resolve_actor import VerifiedIdentity
 from app.infrastructure.di import (
     CorporateUseCases,
     CoverageUseCases,
@@ -29,7 +30,12 @@ from app.infrastructure.di import (
     StaffUseCases,
     StoreUseCases,
 )
-from app.presentational.authentication import ActorContextProvider
+from app.infrastructure.di.bundles.identity import IdentityUseCases
+from app.presentational.authentication import (
+    ActorContextProvider,
+    UnconfiguredVerifiedIdentityProvider,
+    VerifiedIdentityProvider,
+)
 
 #: アプリケーション状態を置く ``app.state`` の属性名。
 STATE_ATTRIBUTE: Final = "pharmacy_state"
@@ -56,6 +62,7 @@ class PresentationState:
 
     actor_provider: ActorContextProvider
     composition_root: PostgresCompositionRoot | None = None
+    identity_provider: VerifiedIdentityProvider | None = None
 
 
 def get_state(request: Request) -> PresentationState:
@@ -82,6 +89,7 @@ def get_composition_root(
 
 
 async def get_actor_context(
+    request: Request,
     state: Annotated[PresentationState, Depends(get_state)],
     credentials: Annotated[
         HTTPAuthorizationCredentials | None, Depends(bearer_scheme)
@@ -93,9 +101,17 @@ async def get_actor_context(
     決めるのは認証基盤の実装である。``Depends`` に ``HTTPBearer`` を置いているので、
     この依存を使うルートには OpenAPI の ``security`` が自動で付く。
     """
-    return await state.actor_provider.authenticate(
-        credentials.credentials if credentials is not None else None
-    )
+    credential = credentials.credentials if credentials is not None else None
+    actor: ActorContext
+    if state.identity_provider is not None:
+        identity = await state.identity_provider.authenticate(credential)
+        if state.composition_root is None:
+            raise RuntimeError("本人解決の保存境界が初期化されていません。")
+        actor = await state.composition_root.resolve_identity(identity)
+    else:
+        actor = await state.actor_provider.authenticate(credential)
+    request.state.verified_actor = actor
+    return actor
 
 
 async def get_request_scope(
@@ -113,6 +129,32 @@ async def get_request_scope(
 
 #: 開いたスコープ。コンテキストごとの束はここから取り出す。
 _Scope = Annotated[PostgresRequestScope, Depends(get_request_scope)]
+
+
+def get_identity_use_cases(scope: _Scope) -> IdentityUseCases:
+    """通常の認可済みリクエストでIdentity管理を提供する。"""
+    return scope.use_cases.identity
+
+
+async def get_verified_identity(
+    state: Annotated[PresentationState, Depends(get_state)],
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None, Depends(bearer_scheme)
+    ] = None,
+) -> VerifiedIdentity:
+    """HTTP本文から本人を組み立てず、本人確認基盤へ問い合わせる。"""
+    provider = (
+        state.identity_provider
+        if state.identity_provider is not None
+        else UnconfiguredVerifiedIdentityProvider()
+    )
+    return await provider.authenticate(
+        credentials.credentials if credentials is not None else None
+    )
+
+
+IdentityUseCasesDep = Annotated[IdentityUseCases, Depends(get_identity_use_cases)]
+VerifiedIdentityDep = Annotated[VerifiedIdentity, Depends(get_verified_identity)]
 
 
 def get_corporate_use_cases(scope: _Scope) -> CorporateUseCases:

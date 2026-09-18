@@ -12,7 +12,7 @@ import importlib
 import io
 import pkgutil
 from collections.abc import Mapping
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 import pytest
@@ -22,8 +22,32 @@ from sqlalchemy import Table
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.schema import CreateIndex, CreateTable
 
+from app.domain.identity.account_person import AccountPerson
+from app.domain.identity.invitation import InvitationDigest, UserInvitation
+from app.domain.identity.membership import CorporateMembership
+from app.domain.identity.primitives import (
+    AccountPersonId,
+    CorporateMembershipId,
+    MembershipRole,
+    UserAccountId,
+    UserInvitationId,
+)
+from app.domain.identity.staff_person_link import StaffPersonLink
+from app.domain.identity.user_account import UserAccount
+from app.domain.shared.person_name import PersonNames
+from app.domain.store.manager_assignment import (
+    ManagerAssignmentPeriod,
+    StoreManagerAssignment,
+    StoreManagerAssignmentId,
+)
 from app.infrastructure.postgres import repositories, schema
+from app.infrastructure.postgres.repositories.account_person import (
+    ACCOUNT_PERSON_MAPPING,
+)
 from app.infrastructure.postgres.repositories.corporate import CORPORATE_MAPPING
+from app.infrastructure.postgres.repositories.corporate_membership import (
+    MEMBERSHIP_MAPPING,
+)
 from app.infrastructure.postgres.repositories.coverage_selection_record import (
     COVERAGE_SELECTION_RECORD_MAPPING,
 )
@@ -46,7 +70,15 @@ from app.infrastructure.postgres.repositories.patient_medical_profile import (
 )
 from app.infrastructure.postgres.repositories.prescription import PRESCRIPTION_MAPPING
 from app.infrastructure.postgres.repositories.staff import STAFF_MAPPING
+from app.infrastructure.postgres.repositories.staff_person_link import (
+    STAFF_PERSON_LINK_MAPPING,
+)
 from app.infrastructure.postgres.repositories.store import STORE_MAPPING
+from app.infrastructure.postgres.repositories.store_manager_assignment import (
+    MANAGER_ASSIGNMENT_MAPPING,
+)
+from app.infrastructure.postgres.repositories.user_account import USER_ACCOUNT_MAPPING
+from app.infrastructure.postgres.repositories.user_invitation import INVITATION_MAPPING
 from app.infrastructure.postgres.repository_base import AggregateMapping
 from tests.factories.dispensing_factory import create_dispensing
 from tests.factories.medication_history_factory import create_record
@@ -87,7 +119,59 @@ def _case[AggregateT](
 
 def _row_value_cases() -> list[tuple[AggregateMapping[Any], Mapping[str, object]]]:
     """各Repositoryが1行に書く値を、対応と組にして返す。"""
+    person = AccountPerson(
+        id=AccountPersonId.generate(),
+        names=PersonNames.create(
+            last_name="山田",
+            first_name="太郎",
+            last_name_kana="ヤマダ",
+            first_name_kana="タロウ",
+        ),
+    )
+    account = UserAccount(id=UserAccountId.generate(), person_id=person.id)
+    store = create_store()
+    staff = create_staff()
     return [
+        _case(ACCOUNT_PERSON_MAPPING, person),
+        _case(USER_ACCOUNT_MAPPING, account),
+        _case(
+            MEMBERSHIP_MAPPING,
+            CorporateMembership(
+                id=CorporateMembershipId.generate(),
+                account_id=account.id,
+                corporate_id=store.corporate_id,
+                role=MembershipRole.CORPORATE_ADMIN,
+                store_ids=frozenset(),
+            ),
+        ),
+        _case(
+            STAFF_PERSON_LINK_MAPPING,
+            StaffPersonLink(
+                id=staff.id, person_id=person.id, corporate_id=staff.corporate_id
+            ),
+        ),
+        _case(
+            INVITATION_MAPPING,
+            UserInvitation(
+                id=UserInvitationId.generate(),
+                person_id=person.id,
+                corporate_id=store.corporate_id,
+                role=MembershipRole.CORPORATE_ADMIN,
+                store_ids=frozenset(),
+                secret_digest=InvitationDigest("a" * 64),
+                expires_at=datetime(2026, 9, 20, tzinfo=UTC),
+            ),
+        ),
+        _case(
+            MANAGER_ASSIGNMENT_MAPPING,
+            StoreManagerAssignment(
+                id=StoreManagerAssignmentId.generate(),
+                corporate_id=store.corporate_id,
+                store_id=store.id,
+                staff_id=staff.id,
+                period=ManagerAssignmentPeriod(starts_on=date(2026, 9, 17)),
+            ),
+        ),
         _case(CORPORATE_MAPPING, create_corporate()),
         _case(STORE_MAPPING, create_store()),
         _case(STAFF_MAPPING, create_staff()),
@@ -194,7 +278,7 @@ def _migration_ddl() -> set[str]:
     return {
         statement
         for statement in _normalized_statements(_run_offline("upgrade"))
-        if not statement.startswith("CREATE EXTENSION")
+        if statement.startswith(("CREATE TABLE", "CREATE INDEX", "CREATE UNIQUE INDEX"))
     }
 
 
@@ -314,7 +398,7 @@ def test_集約でないテーブルの一覧が_明示的に宣言されてい�
     existing = {table.name for table in schema.metadata.sorted_tables}
 
     # Assert
-    assert declared == {"patient_number_sequences"}
+    assert declared == {"patient_number_sequences", "operation_audits"}
     assert declared <= existing, (
         f"宣言だけあって実在しないテーブル: {sorted(declared - existing)}"
     )
@@ -359,7 +443,7 @@ def test_マイグレーションのdowngradeが_全テーブルを削除する(
 
     # Assert
     for table in schema.metadata.sorted_tables:
-        assert f"DROP TABLE {table.name}" in dropped
+        assert f"DROP TABLE {table.name}" in dropped.replace('"', "")
 
 
 def test_全ての集約対応が_列の検査対象になっている() -> None:

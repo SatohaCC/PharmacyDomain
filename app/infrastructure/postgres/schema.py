@@ -8,6 +8,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     MetaData,
@@ -28,9 +29,146 @@ metadata = MetaData(
     }
 )
 
+
+account_people = Table(
+    "account_people",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, nullable=False),
+    Column("payload", JSONB, nullable=False),
+    Column("version", Integer, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+)
+
+user_accounts = Table(
+    "user_accounts",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, nullable=False),
+    Column(
+        "person_id", UUID(as_uuid=True), ForeignKey("account_people.id"), nullable=False
+    ),
+    Column("status", String(32), nullable=False),
+    Column("external_subject", String(1000), nullable=True),
+    Column("payload", JSONB, nullable=False),
+    Column("version", Integer, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("person_id", name="uq_user_accounts_person_id"),
+    UniqueConstraint("external_subject", name="uq_user_accounts_external_subject"),
+    UniqueConstraint("id", "person_id", name="uq_user_accounts_id_person"),
+)
+
+staff_person_links = Table(
+    "staff_person_links",
+    metadata,
+    Column(
+        "id",
+        UUID(as_uuid=True),
+        ForeignKey("staff_members.id"),
+        primary_key=True,
+        nullable=False,
+    ),
+    Column(
+        "corporate_id", UUID(as_uuid=True), ForeignKey("corporates.id"), nullable=False
+    ),
+    Column(
+        "person_id", UUID(as_uuid=True), ForeignKey("account_people.id"), nullable=False
+    ),
+    Column("payload", JSONB, nullable=False),
+    Column("version", Integer, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+)
+
+corporate_memberships = Table(
+    "corporate_memberships",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, nullable=False),
+    Column(
+        "corporate_id", UUID(as_uuid=True), ForeignKey("corporates.id"), nullable=False
+    ),
+    Column(
+        "account_id", UUID(as_uuid=True), ForeignKey("user_accounts.id"), nullable=False
+    ),
+    Column(
+        "staff_id",
+        UUID(as_uuid=True),
+        ForeignKey("staff_person_links.id"),
+        nullable=True,
+    ),
+    Column("role", String(32), nullable=False),
+    Column("status", String(32), nullable=False),
+    Column("payload", JSONB, nullable=False),
+    Column("version", Integer, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint(
+        "account_id", "corporate_id", name="uq_membership_account_corporate"
+    ),
+)
+Index(
+    "uq_membership_active_account",
+    corporate_memberships.c.account_id,
+    unique=True,
+    postgresql_where=corporate_memberships.c.status == "active",
+)
+
+user_invitations = Table(
+    "user_invitations",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, nullable=False),
+    Column(
+        "person_id", UUID(as_uuid=True), ForeignKey("account_people.id"), nullable=False
+    ),
+    Column(
+        "corporate_id", UUID(as_uuid=True), ForeignKey("corporates.id"), nullable=False
+    ),
+    Column("secret_digest", String(64), nullable=False),
+    Column("status", String(32), nullable=False),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column("payload", JSONB, nullable=False),
+    Column("version", Integer, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("secret_digest", name="uq_user_invitations_digest"),
+)
+
+store_manager_assignments = Table(
+    "store_manager_assignments",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, nullable=False),
+    Column(
+        "corporate_id", UUID(as_uuid=True), ForeignKey("corporates.id"), nullable=False
+    ),
+    Column("store_id", UUID(as_uuid=True), ForeignKey("stores.id"), nullable=False),
+    Column(
+        "staff_id", UUID(as_uuid=True), ForeignKey("staff_members.id"), nullable=False
+    ),
+    Column("period", DATERANGE, nullable=False),
+    Column("status", String(32), nullable=False),
+    Column("payload", JSONB, nullable=False),
+    Column("version", Integer, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    ExcludeConstraint(
+        ("store_id", "="),
+        ("period", "&&"),
+        where=text("status = 'confirmed'"),
+        name="ex_manager_store_period",
+        using="gist",
+    ),
+    ExcludeConstraint(
+        ("staff_id", "="),
+        ("period", "&&"),
+        where=text("status = 'confirmed'"),
+        name="ex_manager_staff_period",
+        using="gist",
+    ),
+)
+
 #: 集約ではないテーブル。payload と version を持たない。
 #: 増やすときは tests/infrastructure/postgres の表と揃える。
-NON_AGGREGATE_TABLES = frozenset({"patient_number_sequences"})
+NON_AGGREGATE_TABLES = frozenset({"patient_number_sequences", "operation_audits"})
 
 # 集約は payload（JSONB）を正とし、検索・一意性制約に要る値だけを列へ複製する。
 # version は楽観ロック用で、集約ではなく行の世代を表す。
@@ -377,4 +515,23 @@ medicines = Table(
         using="gist",
     ),
     Index("ix_medicines_identifier_listed_on", "identifier_key", "listed_on"),
+)
+
+
+operation_audits = Table(
+    "operation_audits",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, nullable=False),
+    Column("person_id", UUID(as_uuid=True), nullable=False),
+    Column("account_id", UUID(as_uuid=True), nullable=False),
+    Column("operation", String(150), nullable=False),
+    Column("resource_id", UUID(as_uuid=True), nullable=False),
+    Column("corporate_id", UUID(as_uuid=True), nullable=True),
+    Column("store_id", UUID(as_uuid=True), nullable=True),
+    Column("recorded_at", DateTime(timezone=True), nullable=False),
+    ForeignKeyConstraint(
+        ["account_id", "person_id"],
+        ["user_accounts.id", "user_accounts.person_id"],
+        name="fk_audit_account_person",
+    ),
 )

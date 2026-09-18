@@ -22,6 +22,12 @@ from typing import (
 )
 
 from app.domain.foundation.primitives.base import DomainPrimitive
+from app.domain.staff.primitives import (
+    BaseQualificationProfile,
+    DietitianProfile,
+    PharmacistProfile,
+    RegisteredSellerProfile,
+)
 
 
 class PersistenceMappingError(ValueError):
@@ -156,6 +162,12 @@ def _decode(value: object, annotation: object, *, context: str) -> object:
         return _decode_date(value, context=context)
     if annotation in (str, int, float, bool):
         return _decode_scalar(value, annotation, context=context)
+    if annotation is BaseQualificationProfile:
+        return _decode_union(
+            value,
+            (PharmacistProfile, DietitianProfile, RegisteredSellerProfile),
+            context=context,
+        )
     if is_dataclass(annotation):
         return _decode_dataclass(value, annotation, context=context)
     return value
