@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from app.application.access_control.models import ResolvedActorContext
+from app.application.common.optional_conversion import optional_id
 from app.domain.corporate.primitives import CorporateId
 from app.domain.identity.account_person import AccountPerson
 from app.domain.identity.invitation import InvitationStatus, UserInvitation
@@ -16,7 +17,6 @@ from app.domain.identity.primitives import (
     CorporateMembershipId,
     MembershipRole,
     UserAccountId,
-    UserInvitationId,
 )
 from app.domain.identity.staff_person_link import StaffPersonLink
 from app.domain.identity.user_account import UserAccount
@@ -101,15 +101,15 @@ class MembershipViewDto:
     呼び出し側が区別できない。外部主体識別子と招待の秘密は含めない。
     """
 
-    id: CorporateMembershipId
-    account_id: UserAccountId
-    person_id: AccountPersonId
-    corporate_id: CorporateId
+    id: str
+    account_id: str
+    person_id: str
+    corporate_id: str
     status: AccountStatus
     account_status: AccountStatus
     role: MembershipRole
-    store_ids: tuple[StoreId, ...]
-    staff_id: StaffId | None
+    store_ids: tuple[str, ...]
+    staff_id: str | None
 
     @classmethod
     def from_entities(
@@ -117,15 +117,18 @@ class MembershipViewDto:
     ) -> MembershipViewDto:
         """権限とアカウントの状態を1つの公開値へまとめる。"""
         return cls(
-            membership.id,
-            account.id,
-            account.person_id,
-            membership.corporate_id,
+            str(membership.id.value),
+            str(account.id.value),
+            str(account.person_id.value),
+            str(membership.corporate_id.value),
             membership.status,
             account.status,
             membership.role,
-            tuple(sorted(membership.store_ids, key=lambda item: item.value)),
-            membership.staff_id,
+            tuple(
+                str(item.value)
+                for item in sorted(membership.store_ids, key=lambda item: item.value)
+            ),
+            optional_id(membership.staff_id),
         )
 
 
@@ -133,9 +136,9 @@ class MembershipViewDto:
 class InvitationViewDto:
     """招待の状態。ダイジェストも秘密も含めない。"""
 
-    id: UserInvitationId
-    person_id: AccountPersonId
-    corporate_id: CorporateId
+    id: str
+    person_id: str
+    corporate_id: str
     status: InvitationStatus
     role: MembershipRole
     expires_at: datetime
@@ -144,9 +147,9 @@ class InvitationViewDto:
     def from_entity(cls, invitation: UserInvitation) -> InvitationViewDto:
         """受諾に使える値を漏らさずに状態だけを写す。"""
         return cls(
-            invitation.id,
-            invitation.person_id,
-            invitation.corporate_id,
+            str(invitation.id.value),
+            str(invitation.person_id.value),
+            str(invitation.corporate_id.value),
             invitation.status,
             invitation.role,
             invitation.expires_at,
@@ -157,23 +160,26 @@ class InvitationViewDto:
 class CurrentActorDto:
     """いま操作している本人・アカウント・権限の範囲。"""
 
-    person_id: AccountPersonId
-    account_id: UserAccountId
-    membership_id: CorporateMembershipId | None
-    corporate_id: CorporateId | None
+    person_id: str
+    account_id: str
+    membership_id: str | None
+    corporate_id: str | None
     roles: tuple[str, ...]
-    staff_id: StaffId | None
-    store_ids: tuple[StoreId, ...]
+    staff_id: str | None
+    store_ids: tuple[str, ...]
 
     @classmethod
     def from_actor(cls, actor: ResolvedActorContext) -> CurrentActorDto:
         """解決済みActorを公開値へ写す。主体の識別子そのものは返さない。"""
         return cls(
-            actor.person_id,
-            actor.account_id,
-            actor.membership_id,
-            actor.corporate_id,
+            str(actor.person_id.value),
+            str(actor.account_id.value),
+            optional_id(actor.membership_id),
+            optional_id(actor.corporate_id),
             tuple(sorted(role.value for role in actor.roles)),
-            actor.staff_id,
-            tuple(sorted(actor.store_ids, key=lambda item: item.value)),
+            optional_id(actor.staff_id),
+            tuple(
+                str(item.value)
+                for item in sorted(actor.store_ids, key=lambda item: item.value)
+            ),
         )
