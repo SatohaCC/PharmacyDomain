@@ -2,8 +2,10 @@
 
 from app.application.access_control import CorporateAccessBoundary, Permission
 from app.application.access_control.store_access import (
+    STORE_OPERATION_KINDS,
     StoreOperation,
     StoreOperationBoundary,
+    StoreOperationKind,
 )
 from app.application.store.exceptions import StoreNotFoundError
 from app.domain.corporate.primitives import CorporateId
@@ -31,20 +33,11 @@ class StoreOperationAdapter(StoreOperationBoundary):
         store = await self._repository.get(store_id)
         if store is None or store.corporate_id != corporate_id:
             raise StoreNotFoundError()
-        new_work = {
-            StoreOperation.RECORD_RECEPTION,
-            StoreOperation.REGISTER_PRESCRIPTION,
-            StoreOperation.START_DISPENSING,
-        }
-        continuing = {
-            StoreOperation.RECORD_DISPENSING,
-            StoreOperation.VERIFY_DISPENSING,
-            StoreOperation.COMPLETE_DISPENSING,
-            StoreOperation.ASSIGN_STAFF,
-            StoreOperation.ASSIGN_MANAGER,
-        }
-        if (operation in new_work and store.status != StoreStatus.ACTIVE) or (
-            operation in continuing and store.status == StoreStatus.CLOSED
+        kind = STORE_OPERATION_KINDS[operation]
+        if (
+            kind is StoreOperationKind.NEW_WORK and store.status != StoreStatus.ACTIVE
+        ) or (
+            kind is StoreOperationKind.CONTINUING and store.status == StoreStatus.CLOSED
         ):
             raise StoreStateConflictError(
                 "現在の店舗状態ではこの操作を実行できません。"
