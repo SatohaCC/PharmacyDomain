@@ -302,3 +302,34 @@ def test_保存前の境界が_宣言した順で全て掛かる() -> None:
         ClinicalStoreWriteGuard,
         StaffAssignmentWriteGuard,
     ]
+
+
+async def test_保存は_監査に残す対象を積む() -> None:
+    """監査に何が残るかを、DBなしで固定する。
+
+    Application層に監査の契約を置いていた時期があったが、どこからも呼ばれて
+    おらず、実際の監査は保存経路が集めた対象から作られていた。契約を消した以上、
+    唯一動いているこの経路を実DB無しでも押さえておく。
+
+    ``operation`` はテーブル名と新規・更新の別で決まる。業務の名前（退職か
+    氏名変更か）は含まれないので、監査から業務を特定したくなったら、ここを
+    変えるしかないと分かる形にしておく。
+    """
+    # Arrange
+    session = RecordingAsyncSession()
+    scope = PostgresRequestScope(
+        create_unit_of_work(session),
+        authorization=AuthorizationService(_resolved_actor()),
+        clock=FakeClock(),
+    )
+    corporate = create_corporate()
+
+    # Act
+    async with scope:
+        await scope.repositories.corporate.save(corporate)
+        pending = list(scope.repositories.corporate._unit_of_work.pending_changes)
+
+    # Assert
+    assert pending == [
+        ("corporates.create", corporate.id.value, corporate.id.value, None)
+    ]
