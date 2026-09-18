@@ -80,6 +80,8 @@ class PostgresRequestScope:
                 actor.corporate_id.value,
                 tuple(item.value for item in actor.store_ids),
                 clock.now().astimezone(ZoneInfo("Asia/Tokyo")).date(),
+                actor.person_id.value,
+                actor.account_id.value,
             )
         repositories = PostgresRepositorySet.create(unit_of_work)
         corporate_access = CorporateAccessService(repositories.corporate, authorization)
