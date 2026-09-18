@@ -14,7 +14,7 @@ from app.application.identity.dto import (
     InvitationViewDto,
     MembershipViewDto,
 )
-from app.application.identity.management import InviteUserCommand, IssuedInvitation
+from app.application.identity.invite_user import InviteUserCommand, IssuedInvitation
 from app.application.identity.resolve_actor import VerifiedIdentity
 from app.domain.identity.primitives import AccountStatus, MembershipRole
 from app.domain.shared.person_name import PersonNames
@@ -78,7 +78,7 @@ async def invite_user(
     corporate_id: str, body: InviteUserRequest, use_cases: IdentityUseCasesDep
 ) -> IssuedInvitation:
     """本人指定の招待を発行し、秘密を一度だけ返す。"""
-    return await use_cases.management.invite(
+    return await use_cases.invite.execute(
         InviteUserCommand(corporate_id=corporate_id, **body.model_dump())
     )
 
@@ -110,7 +110,7 @@ async def change_membership(
     use_cases: IdentityUseCasesDep,
 ) -> RegisteredIdResponse:
     """法人アクセス権を変更する。個人アカウントの所有者は変えない。"""
-    membership = await use_cases.management.change_membership(
+    membership = await use_cases.change_membership.execute(
         corporate_id,
         membership_id,
         status=body.status,
@@ -129,7 +129,7 @@ async def suspend_account(
     account_id: str, use_cases: IdentityUseCasesDep
 ) -> RegisteredIdResponse:
     """本人に対応する個人アカウント全体をベンダーが停止する。"""
-    account = await use_cases.management.suspend_account(account_id)
+    account = await use_cases.suspend_account.execute(account_id)
     return RegisteredIdResponse(id=str(account.id.value))
 
 
@@ -175,9 +175,7 @@ async def list_users(
     limit: int = Query(default=50, ge=1, le=100),
 ) -> Page[MembershipViewDto]:
     """自法人のユーザー権限を一覧する。"""
-    return await use_cases.management.list_users(
-        corporate_id, after=cursor, limit=limit
-    )
+    return await use_cases.list_users.execute(corporate_id, after=cursor, limit=limit)
 
 
 @router.get(
@@ -188,7 +186,7 @@ async def get_user(
     corporate_id: str, membership_id: str, use_cases: IdentityUseCasesDep
 ) -> MembershipViewDto:
     """自法人のユーザー権限を取得する。"""
-    return await use_cases.management.get_user(corporate_id, membership_id)
+    return await use_cases.get_user.execute(corporate_id, membership_id)
 
 
 @router.post(
@@ -202,7 +200,7 @@ async def suspend_membership(
     use_cases: IdentityUseCasesDep,
 ) -> RegisteredIdResponse:
     """法人のアクセス権だけを停止する。"""
-    membership = await use_cases.management.change_membership(
+    membership = await use_cases.change_membership.execute(
         corporate_id, membership_id, status=AccountStatus.SUSPENDED
     )
     return RegisteredIdResponse(id=str(membership.id.value))
@@ -219,7 +217,7 @@ async def reactivate_membership(
     use_cases: IdentityUseCasesDep,
 ) -> RegisteredIdResponse:
     """本人・スタッフの有効性を再確認して権限を再開する。"""
-    membership = await use_cases.management.change_membership(
+    membership = await use_cases.change_membership.execute(
         corporate_id, membership_id, status=AccountStatus.ACTIVE
     )
     return RegisteredIdResponse(id=str(membership.id.value))
@@ -233,7 +231,7 @@ async def cancel_invitation(
     corporate_id: str, invitation_id: str, use_cases: IdentityUseCasesDep
 ) -> None:
     """未受諾の招待を取り消す。"""
-    await use_cases.management.cancel_invitation(corporate_id, invitation_id)
+    await use_cases.cancel_invitation.execute(corporate_id, invitation_id)
 
 
 @router.get(
@@ -244,7 +242,7 @@ async def get_invitation(
     corporate_id: str, invitation_id: str, use_cases: IdentityUseCasesDep
 ) -> InvitationViewDto:
     """招待の秘密を再取得させず状態を返す。"""
-    return await use_cases.management.get_invitation(corporate_id, invitation_id)
+    return await use_cases.get_invitation.execute(corporate_id, invitation_id)
 
 
 @router.post(
@@ -256,7 +254,7 @@ async def register_person(
     corporate_id: str, body: RegisterPersonRequest, use_cases: IdentityUseCasesDep
 ) -> RegisteredIdResponse:
     """自法人への招待に必要な本人を登録する。"""
-    person = await use_cases.management.register_person(
+    person = await use_cases.register_person.execute(
         corporate_id, PersonNames.create(**body.model_dump())
     )
     return RegisteredIdResponse(id=str(person.id.value))
@@ -273,7 +271,7 @@ async def link_staff_person(
     use_cases: IdentityUseCasesDep,
 ) -> RegisteredIdResponse:
     """スタッフと本人を変更不能な対応として登録する。"""
-    link = await use_cases.management.link_staff(corporate_id, body.person_id, staff_id)
+    link = await use_cases.link_staff.execute(corporate_id, body.person_id, staff_id)
     return RegisteredIdResponse(id=str(link.id.value))
 
 
@@ -284,5 +282,5 @@ async def reactivate_account(
     account_id: str, use_cases: IdentityUseCasesDep
 ) -> RegisteredIdResponse:
     """個人アカウント全体をベンダーが再開する。"""
-    account = await use_cases.management.reactivate_account(account_id)
+    account = await use_cases.reactivate_account.execute(account_id)
     return RegisteredIdResponse(id=str(account.id.value))

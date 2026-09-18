@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.identity.management import InviteUserCommand
+from app.application.identity.invite_user import InviteUserCommand
 from app.application.identity.resolve_actor import VerifiedIdentity
 from app.application.staff.deactivate_staff import DeactivateStaffCommand
 from app.domain.identity.exceptions import IdentityConflictError
@@ -34,11 +34,11 @@ async def test_管理者二人の同時停止でも最後の一人を残す(
         ) as scope:
             await barrier.wait()
             if account_stop:
-                await scope.use_cases.identity.management.suspend_account(
+                await scope.use_cases.identity.suspend_account.execute(
                     str(fixture.accounts[index].id.value)
                 )
             else:
-                await scope.use_cases.identity.management.change_membership(
+                await scope.use_cases.identity.change_membership.execute(
                     str(fixture.corporate.id.value),
                     str(fixture.memberships[index].id.value),
                     status=AccountStatus.SUSPENDED,
@@ -122,7 +122,7 @@ async def test_同じ招待の同時受諾は一人のアカウントと一つ�
     person = _person()
     async with fixture.root.request_scope(authorization=fixture.authorization) as scope:
         await scope.repositories.account_person.save(person)
-        invitation = await scope.use_cases.identity.management.invite(
+        invitation = await scope.use_cases.identity.invite.execute(
             InviteUserCommand(
                 corporate_id=str(fixture.corporate.id.value),
                 person_id=str(person.id.value),

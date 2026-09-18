@@ -1,0 +1,141 @@
+"""検証済み本人が招待を受諾するユースケース。"""
+
+from dataclasses import replace
+from hashlib import sha256
+
+from app.application.common import UnitOfWork
+from app.application.common.clock import Clock
+from app.application.common.organization_lock import OrganizationLock
+from app.application.identity.dto import AccountDto
+from app.application.identity.resolve_actor import VerifiedIdentity
+from app.application.identity.support import (
+    IdentityRepositories,
+    validate_membership_target,
+)
+from app.domain.corporate.repository import CorporateRepository
+from app.domain.identity.exceptions import IdentityConflictError
+from app.domain.identity.invitation import InvitationDigest, UserInvitation
+from app.domain.identity.membership import CorporateMembership
+from app.domain.identity.primitives import (
+    AccountStatus,
+    CorporateMembershipId,
+    ExternalSubjectKey,
+    UserAccountId,
+)
+from app.domain.identity.user_account import UserAccount
+from app.domain.staff.repository import StaffRepository
+from app.domain.store.repository import StoreRepository
+
+
+class AcceptInvitationUseCase:
+    """招待の秘密と本人確認の両方が揃ったときだけアクセス権を与える。
+
+    このユースケースだけは、アカウントがこの操作で初めて生まれるため、実行前に
+    操作主体を解決できない。リクエストのスコープではなく専用の Unit of Work から
+    呼ばれるので、本人特定を要求する保存前の境界は掛からない。
+    """
+
+    def __init__(
+        self,
+        repositories: IdentityRepositories,
+        staff: StaffRepository,
+        stores: StoreRepository,
+        corporates: CorporateRepository,
+        clock: Clock,
+        unit_of_work: UnitOfWork,
+        lock: OrganizationLock,
+    ) -> None:
+        self._repositories = repositories
+        self._staff = staff
+        self._stores = stores
+        self._corporates = corporates
+        self._clock = clock
+        self._unit_of_work = unit_of_work
+        self._lock = lock
+
+    async def execute(self, secret: str, identity: VerifiedIdentity) -> AccountDto:
+        """検証済み本人の招待を一度だけ受諾する。"""
+        self._unit_of_work.ensure_active()
+        await self._lock.acquire("identity")
+        invitation = await self._repositories.invitations.find_by_digest(
+            InvitationDigest(sha256(secret.encode()).hexdigest())
+        )
+        if invitation is None:
+            raise IdentityConflictError("この招待は利用できません。")
+        accepted = invitation.accept(
+            person_id=identity.person_id, now=self._clock.now()
+        )
+        await self._lock.acquire(f"corporate:{invitation.corporate_id.value}")
+        corporate = await self._corporates.get(invitation.corporate_id)
+        if corporate is None or not corporate.is_active:
+            raise IdentityConflictError("招待先の法人は利用できません。")
+        if await self._repositories.people.get(identity.person_id) is None:
+            raise IdentityConflictError("招待された本人を確認できません。")
+        await validate_membership_target(
+            person_id=invitation.person_id,
+            corporate_id=invitation.corporate_id,
+            role=invitation.role,
+            store_ids=invitation.store_ids,
+            staff_id=invitation.staff_id,
+            staff=self._staff,
+            stores=self._stores,
+            links=self._repositories.links,
+        )
+        account = await self._bind_account(identity)
+        membership = await self._grant_membership(account, invitation)
+        await self._repositories.accounts.save(account)
+        await self._repositories.memberships.save(membership)
+        await self._repositories.invitations.save(accepted)
+        return AccountDto.from_entity(account)
+
+    async def _bind_account(self, identity: VerifiedIdentity) -> UserAccount:
+        """確認済みの外部主体を、本人のアカウントへ結び付ける。"""
+        subject = ExternalSubjectKey(identity.principal_id)
+        bound = await self._repositories.accounts.get_by_subject(subject)
+        if bound is not None and bound.person_id != identity.person_id:
+            raise IdentityConflictError("外部主体は別の本人に対応しています。")
+        account = await self._repositories.accounts.get_by_person(identity.person_id)
+        if account is None:
+            return UserAccount(
+                id=UserAccountId.generate(),
+                person_id=identity.person_id,
+                external_subject=subject,
+            )
+        if account.status != AccountStatus.ACTIVE or (
+            account.external_subject is not None and account.external_subject != subject
+        ):
+            raise IdentityConflictError(
+                "この個人アカウントは招待の受諾に利用できません。"
+            )
+        return replace(account, external_subject=subject)
+
+    async def _grant_membership(
+        self, account: UserAccount, invitation: UserInvitation
+    ) -> CorporateMembership:
+        """同じ法人に停止済みの権限があれば、その行を作り直さず再利用する。"""
+        if (
+            await self._repositories.memberships.find_active_for_account(account.id)
+            is not None
+        ):
+            raise IdentityConflictError("既に有効な法人アクセス権があります。")
+        previous = next(
+            (
+                item
+                for item in await self._repositories.memberships.list_by_corporate(
+                    invitation.corporate_id
+                )
+                if item.account_id == account.id
+            ),
+            None,
+        )
+        return CorporateMembership(
+            id=previous.id if previous else CorporateMembershipId.generate(),
+            account_id=account.id,
+            corporate_id=invitation.corporate_id,
+            role=invitation.role,
+            store_ids=invitation.store_ids,
+            staff_id=invitation.staff_id,
+        )
+
+
+__all__ = ["AcceptInvitationUseCase"]

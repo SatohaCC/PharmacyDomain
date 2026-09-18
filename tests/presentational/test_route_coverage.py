@@ -55,6 +55,17 @@ def test_登録簿の全コンテキストに_ルータがある() -> None:
     assert bundles == set(_ROUTER_FOR_BUNDLE)
 
 
+#: ``use_cases.<項目>`` を経由せずHTTPへ繋がっているユースケースと、その呼び出し。
+#:
+#: 招待の受諾はアカウントがその操作で初めて生まれるため、リクエストのスコープを
+#: 作る前に実行する必要がある（スコープは本人特定済みのActorを要求する）。
+#: 単なる除外欄にすると、ルートごと消えても気づけない。呼び出しの式を書かせて、
+#: そちらもルータの中に在り続けることを確かめる。
+_REACHED_THROUGH_COMPOSITION_ROOT: dict[str, str] = {
+    "identity.accept": "root.accept_invitation(",
+}
+
+
 def test_全ユースケースが_HTTPルートから到達できる() -> None:
     """束へ足したユースケースにルートが無いと、配線だけされて実行できない。"""
     # Arrange
@@ -62,14 +73,29 @@ def test_全ユースケースが_HTTPルートから到達できる() -> None:
 
     # Act
     unreachable = [
-        f"{bundle_name}.{use_case_field}"
+        name
         for bundle_name, module in _ROUTER_FOR_BUNDLE.items()
         for use_case_field in get_type_hints(bundle_types[bundle_name])
-        if f"use_cases.{use_case_field}." not in inspect.getsource(module)
+        if (name := f"{bundle_name}.{use_case_field}")
+        not in _REACHED_THROUGH_COMPOSITION_ROOT
+        and f"use_cases.{use_case_field}." not in inspect.getsource(module)
     ]
 
     # Assert
     assert not unreachable, f"HTTPから実行できないユースケース: {unreachable}"
+
+
+def test_Composition_Root経由のユースケースにも_ルートがある() -> None:
+    """例外にした分だけ、呼び出しがルータに在ることを個別に確かめる。"""
+    # Act
+    missing = [
+        name
+        for name, call in _REACHED_THROUGH_COMPOSITION_ROOT.items()
+        if call not in inspect.getsource(_ROUTER_FOR_BUNDLE[name.split(".")[0]])
+    ]
+
+    # Assert
+    assert not missing, f"呼び出しがルータに無いユースケース: {missing}"
 
 
 def test_到達性の検査が_一定数以上のユースケースを見ている() -> None:

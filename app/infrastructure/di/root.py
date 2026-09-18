@@ -226,7 +226,7 @@ class PostgresCompositionRoot:
             use_cases = build_identity_use_cases(
                 repositories, InvitationOnlyAccess(), self.clock, work
             )
-            account = await use_cases.management.accept(secret, identity)
+            account = await use_cases.accept.execute(secret, identity)
             actor = await use_cases.resolve_actor.execute(identity)
             await append_pending_audits(work, actor, self.clock)
             await work.commit()

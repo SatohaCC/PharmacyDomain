@@ -55,17 +55,17 @@ async def test_同じ資格情報でも権限変更は次のHTTP要求へ反映�
         async with fixture.root.request_scope(
             authorization=fixture.authorization
         ) as scope:
-            service = scope.use_cases.identity.management
+            service = scope.use_cases.identity
             if change == "account":
-                await service.suspend_account(str(fixture.accounts[0].id.value))
+                await service.suspend_account.execute(str(fixture.accounts[0].id.value))
             elif change == "membership":
-                await service.change_membership(
+                await service.change_membership.execute(
                     str(fixture.corporate.id.value),
                     str(fixture.memberships[0].id.value),
                     status=AccountStatus.SUSPENDED,
                 )
             else:
-                await service.change_membership(
+                await service.change_membership.execute(
                     str(fixture.corporate.id.value),
                     str(fixture.memberships[0].id.value),
                     role=MembershipRole.STORE_VIEWER,
@@ -108,7 +108,7 @@ async def test_店舗ロールはスタッフ最小情報だけ取得でき法�
 ) -> None:
     fixture = await setup_organization(engine, session_factory)
     async with fixture.root.request_scope(authorization=fixture.authorization) as scope:
-        await scope.use_cases.identity.management.change_membership(
+        await scope.use_cases.identity.change_membership.execute(
             str(fixture.corporate.id.value),
             str(fixture.memberships[0].id.value),
             role=role,

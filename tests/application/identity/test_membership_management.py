@@ -53,9 +53,9 @@ async def test_実効的な最後の管理者を停止すると保存されな�
 
     async def change() -> None:
         if whole_account:
-            await fixture.service.suspend_account(str(account.id.value))
+            await fixture.service.suspend_account.execute(str(account.id.value))
         else:
-            await fixture.service.change_membership(
+            await fixture.service.change_membership.execute(
                 str(corporate_id.value),
                 str(membership.id.value),
                 status=AccountStatus.SUSPENDED,

@@ -1,16 +1,13 @@
 """本人・期限・単回利用を含む招待発行と受諾。"""
 
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 import pytest
 
-from app.application.identity.management import (
-    IdentityManagementUseCase,
-    IdentityRepositories,
-    InviteUserCommand,
-)
+from app.application.identity.invite_user import InviteUserCommand
 from app.application.identity.resolve_actor import VerifiedIdentity
+from app.application.identity.support import IdentityRepositories
 from app.domain.corporate.primitives import CorporateId
 from app.domain.foundation.exceptions import DomainError
 from app.domain.identity.account_person import AccountPerson
@@ -22,29 +19,18 @@ from app.domain.identity.primitives import (
 )
 from app.domain.identity.user_account import UserAccount
 from app.domain.shared.person_name import PersonNames
-from tests.application.access_helpers import (
-    AutoProvisioningCorporateRepository,
-    create_vendor_corporate_access,
+from tests.application.identity.helpers import (
+    IdentityUseCaseSet,
+    create_identity_use_cases,
 )
 from tests.fakes.fake_clock import FakeClock
-from tests.fakes.fake_organization_management import FakeOrganizationLock
-from tests.fakes.in_memory_identity_repositories import (
-    InMemoryAccountPersonRepository,
-    InMemoryCorporateMembershipRepository,
-    InMemoryStaffPersonLinkRepository,
-    InMemoryUserAccountRepository,
-    InMemoryUserInvitationRepository,
-)
-from tests.fakes.in_memory_staff_repository import InMemoryStaffRepository
-from tests.fakes.in_memory_store_repository import InMemoryStoreRepository
-from tests.fakes.null_unit_of_work import NullUnitOfWork
 
 
 @dataclass
 class Fixture:
     """招待の実UseCaseと保存結果を観測する。"""
 
-    service: IdentityManagementUseCase
+    service: IdentityUseCaseSet
     repositories: IdentityRepositories
     clock: FakeClock
     person: AccountPerson
@@ -52,13 +38,7 @@ class Fixture:
 
 
 async def _setup() -> Fixture:
-    repositories = IdentityRepositories(
-        InMemoryAccountPersonRepository(),
-        InMemoryUserAccountRepository(),
-        InMemoryCorporateMembershipRepository(),
-        InMemoryStaffPersonLinkRepository(),
-        InMemoryUserInvitationRepository(),
-    )
+    service = create_identity_use_cases()
     person = AccountPerson(
         id=AccountPersonId.generate(),
         names=PersonNames.create(
@@ -68,26 +48,15 @@ async def _setup() -> Fixture:
             first_name_kana="タロウ",
         ),
     )
-    await repositories.people.save(person)
-    clock = FakeClock(datetime(2026, 9, 17, tzinfo=UTC))
-    service = IdentityManagementUseCase(
-        repositories,
-        InMemoryStaffRepository(),
-        InMemoryStoreRepository(),
-        create_vendor_corporate_access(),
-        clock,
-        NullUnitOfWork(),
-        FakeOrganizationLock(),
-        AutoProvisioningCorporateRepository(),
-    )
+    await service.repositories.people.save(person)
     command = InviteUserCommand(
         corporate_id=str(CorporateId.generate().value),
         person_id=str(person.id.value),
         addressee="person@example.test",
         role=MembershipRole.CORPORATE_ADMIN,
-        expires_at=clock.now() + timedelta(days=1),
+        expires_at=service.clock.now() + timedelta(days=1),
     )
-    return Fixture(service, repositories, clock, person, command)
+    return Fixture(service, service.repositories, service.clock, person, command)
 
 
 @pytest.mark.asyncio
@@ -99,7 +68,7 @@ async def test_招待は本人の既存アカウントを再利用して一度�
     original = UserAccount(id=UserAccountId.generate(), person_id=fixture.person.id)
     if existing_account:
         await fixture.repositories.accounts.save(original)
-    issued = await fixture.service.invite(fixture.command)
+    issued = await fixture.service.invite.execute(fixture.command)
     from app.domain.identity.primitives import UserInvitationId
 
     stored = await fixture.repositories.invitations.get(
@@ -109,7 +78,7 @@ async def test_招待は本人の既存アカウントを再利用して一度�
     identity = VerifiedIdentity(
         person_id=fixture.person.id, principal_id="issuer/verified-subject"
     )
-    account = await fixture.service.accept(issued.secret, identity)
+    account = await fixture.service.accept.execute(issued.secret, identity)
     assert account.person_id == fixture.person.id
     if existing_account:
         assert account.id == original.id
@@ -124,7 +93,7 @@ async def test_招待は本人の既存アカウントを再利用して一度�
     accepted = await fixture.repositories.invitations.get(stored.id)
     assert accepted is not None and accepted.status == InvitationStatus.ACCEPTED
     with pytest.raises(DomainError):
-        await fixture.service.accept(issued.secret, identity)
+        await fixture.service.accept.execute(issued.secret, identity)
 
 
 @pytest.mark.asyncio
@@ -133,7 +102,7 @@ async def test_招待は本人の既存アカウントを再利用して一度�
 )
 async def test_無効な招待受諾ではアカウントを作らない(violation: str) -> None:
     fixture = await _setup()
-    issued = await fixture.service.invite(fixture.command)
+    issued = await fixture.service.invite.execute(fixture.command)
     person_id = AccountPersonId.generate() if violation == "別人" else fixture.person.id
     if violation.startswith("期限"):
         fixture.clock.advance(
@@ -151,7 +120,7 @@ async def test_無効な招待受諾ではアカウントを作らない(violati
         )
     secret = "不正秘密" if violation == "秘密不一致" else issued.secret
     with pytest.raises(DomainError):
-        await fixture.service.accept(
+        await fixture.service.accept.execute(
             secret,
             VerifiedIdentity(
                 person_id=person_id, principal_id="issuer/verified-subject"
@@ -163,10 +132,12 @@ async def test_無効な招待受諾ではアカウントを作らない(violati
 @pytest.mark.asyncio
 async def test_招待を管理者が取り消すと本人も受諾できない() -> None:
     fixture = await _setup()
-    issued = await fixture.service.invite(fixture.command)
-    await fixture.service.cancel_invitation(fixture.command.corporate_id, issued.id)
+    issued = await fixture.service.invite.execute(fixture.command)
+    await fixture.service.cancel_invitation.execute(
+        fixture.command.corporate_id, issued.id
+    )
     with pytest.raises(DomainError):
-        await fixture.service.accept(
+        await fixture.service.accept.execute(
             issued.secret,
             VerifiedIdentity(
                 person_id=fixture.person.id, principal_id="issuer/subject"
