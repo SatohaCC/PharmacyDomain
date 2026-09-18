@@ -11,6 +11,7 @@ from app.domain.corporate.corporate import Corporate
 from app.domain.identity.membership import CorporateMembership
 from app.domain.identity.primitives import (
     CorporateMembershipId,
+    ExternalSubjectKey,
     MembershipRole,
     UserAccountId,
 )
@@ -35,6 +36,16 @@ from tests.infrastructure.postgres.helpers import create_corporate
 from tests.integration.test_identity_persistence import _person
 
 
+def external_subject_of(index: int) -> str:
+    """本人確認基盤が返す主体識別子。
+
+    ``ResolveActorUseCase`` は ``external_subject`` が未固定のアカウントを解決
+    しない。HTTP経由のテストが渡す ``principal_id`` はこれと一致する必要があるので、
+    両方をこの1関数から作り、片方だけ書き換えても気づけない状態にしない。
+    """
+    return f"issuer/person-{index}"
+
+
 @dataclass
 class Organization:
     """実在するベンダー本人と二名の法人管理者。"""
@@ -57,7 +68,10 @@ async def setup_organization(
     people = [_person() for _ in range(3)]
     accounts = [
         UserAccount(
-            id=UserAccountId.generate(), person_id=person.id, is_vendor_admin=index == 2
+            id=UserAccountId.generate(),
+            person_id=person.id,
+            external_subject=ExternalSubjectKey(external_subject_of(index)),
+            is_vendor_admin=index == 2,
         )
         for index, person in enumerate(people)
     ]

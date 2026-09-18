@@ -11,7 +11,11 @@ from app.presentational.app_factory import create_app
 from app.presentational.authentication import UnconfiguredActorContextProvider
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
 from tests.fakes.verified_identity_provider import StubVerifiedIdentityProvider
-from tests.integration.organization_helpers import Organization, setup_organization
+from tests.integration.organization_helpers import (
+    Organization,
+    external_subject_of,
+    setup_organization,
+)
 
 
 def identity_app(fixture: Organization) -> FastAPI:
@@ -19,7 +23,8 @@ def identity_app(fixture: Organization) -> FastAPI:
     provider = StubVerifiedIdentityProvider(
         {
             "person": VerifiedIdentity(
-                person_id=fixture.accounts[0].person_id, principal_id="issuer/person"
+                person_id=fixture.accounts[0].person_id,
+                principal_id=external_subject_of(0),
             )
         }
     )
