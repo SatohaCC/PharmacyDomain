@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 from http import HTTPStatus
 from pathlib import Path
 
@@ -287,3 +288,44 @@ def test_開発用の起動点は_compose_からだけ呼ばれる() -> None:
 
     # Assert
     assert referring == ["compose.yaml"]
+
+
+def _読む環境変数() -> set[str]:
+    """開発用の起動点が実際に読む ``DEV_ACTOR_*`` を、実装から集める。
+
+    一覧を手で持つと、変数を足したときに一覧だけが古くなる。読む側の本文から
+    引くので、``values.get`` を書いた時点で検査の対象に入る。
+    """
+    source = (_ROOT / "app" / "presentational" / "dev_main.py").read_text(
+        encoding="utf-8"
+    )
+    return set(re.findall(r'values\.get\(\s*"(DEV_ACTOR_[A-Z_]+)"', source))
+
+
+def test_開発用の起動点が読む変数は_composeが全て渡している() -> None:
+    """渡し漏れた変数は、起動してみるまで分からない。
+
+    ``dev_main`` が必須にした変数を compose が渡さないと、``docker compose up``
+    が起動時の設定エラーで落ちる。実際、本人IDとアカウントIDを必須にした際に
+    compose 側を更新しておらず、開発用の起動点が起動しなくなっていた。
+    """
+    # Arrange
+    compose = (_ROOT / "compose.yaml").read_text(encoding="utf-8")
+
+    # Act
+    missing = sorted(name for name in _読む環境変数() if f"{name}:" not in compose)
+
+    # Assert
+    assert missing == [], f"compose.yaml が渡していない変数: {missing}"
+
+
+def test_開発用の起動点が読む変数は_env_exampleに載っている() -> None:
+    """設定する側が、何を埋めればよいか一覧から分かる状態を保つ。"""
+    # Arrange
+    example = (_ROOT / ".env.example").read_text(encoding="utf-8")
+
+    # Act
+    missing = sorted(name for name in _読む環境変数() if f"{name}=" not in example)
+
+    # Assert
+    assert missing == [], f".env.example に無い変数: {missing}"
