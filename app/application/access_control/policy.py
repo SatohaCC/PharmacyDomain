@@ -36,6 +36,28 @@ _CORPORATE_ADMIN_PERMISSIONS = frozenset(
     }
 )
 
+#: 店舗ロールが読める対象。店舗の範囲に限ってのみ有効。
+_STORE_VIEW_PERMISSIONS = frozenset(
+    {
+        Permission.VIEW_STORE,
+        Permission.VIEW_STAFF,
+        Permission.VIEW_RECEPTION,
+        Permission.VIEW_PRESCRIPTION,
+        Permission.VIEW_DISPENSING,
+        Permission.VIEW_MEDICATION_HISTORY,
+    }
+)
+
+#: 店舗オペレータだけが行える更新。店舗ビューアには与えない。
+_STORE_WRITE_PERMISSIONS = frozenset(
+    {
+        Permission.MANAGE_RECEPTION,
+        Permission.MANAGE_PRESCRIPTION,
+        Permission.MANAGE_DISPENSING,
+        Permission.MANAGE_MEDICATION_HISTORY,
+    }
+)
+
 _VENDOR_ONLY_PERMISSIONS = frozenset(
     {
         Permission.REGISTER_CORPORATE,
@@ -99,26 +121,7 @@ class AuthorizationService:
             or target_store_id not in actor.store_ids
         ):
             raise TenantBoundaryNotFoundError()
-        view = {
-            Permission.VIEW_STORE,
-            Permission.VIEW_STAFF,
-            Permission.VIEW_RECEPTION,
-            Permission.VIEW_PRESCRIPTION,
-            Permission.VIEW_DISPENSING,
-            Permission.VIEW_MEDICATION_HISTORY,
-        }
-        write = {
-            Permission.MANAGE_RECEPTION,
-            Permission.MANAGE_PRESCRIPTION,
-            Permission.MANAGE_DISPENSING,
-            Permission.MANAGE_MEDICATION_HISTORY,
-        }
-        if permission in view and actor.roles & {
-            ActorRole.STORE_OPERATOR,
-            ActorRole.STORE_VIEWER,
-        }:
-            return
-        if permission in write and ActorRole.STORE_OPERATOR in actor.roles:
+        if _store_role_allows(actor, permission):
             return
         self._deny(permission)
 
@@ -165,28 +168,9 @@ class AuthorizationService:
         if (
             isinstance(actor, ResolvedActorContext)
             and actor.corporate_id == target_corporate_id
+            and _store_role_allows(actor, permission)
         ):
-            view = {
-                Permission.VIEW_STORE,
-                Permission.VIEW_STAFF,
-                Permission.VIEW_RECEPTION,
-                Permission.VIEW_PRESCRIPTION,
-                Permission.VIEW_DISPENSING,
-                Permission.VIEW_MEDICATION_HISTORY,
-            }
-            write = {
-                Permission.MANAGE_RECEPTION,
-                Permission.MANAGE_PRESCRIPTION,
-                Permission.MANAGE_DISPENSING,
-                Permission.MANAGE_MEDICATION_HISTORY,
-            }
-            if permission in view and actor.roles & {
-                ActorRole.STORE_OPERATOR,
-                ActorRole.STORE_VIEWER,
-            }:
-                return
-            if permission in write and ActorRole.STORE_OPERATOR in actor.roles:
-                return
+            return
         self._deny(permission)
 
     def require_vendor_system_admin(self, *, permission: Permission) -> None:
@@ -197,3 +181,17 @@ class AuthorizationService:
             )
         if ActorRole.VENDOR_SYSTEM_ADMIN not in self._actor.roles:
             self._deny(permission)
+
+
+def _store_role_allows(actor: ResolvedActorContext, permission: Permission) -> bool:
+    """店舗ロールがその操作を行えるか。
+
+    ``require`` と ``require_store`` の両方が同じ判定を必要とする。以前は同一の
+    集合リテラルが2箇所に置かれており、片方へ権限を足すと、同じ操作が入口に
+    よって通ったり通らなかったりする状態になりえた。
+    """
+    if permission in _STORE_VIEW_PERMISSIONS:
+        return bool(actor.roles & {ActorRole.STORE_OPERATOR, ActorRole.STORE_VIEWER})
+    if permission in _STORE_WRITE_PERMISSIONS:
+        return ActorRole.STORE_OPERATOR in actor.roles
+    return False

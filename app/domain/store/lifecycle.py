@@ -7,7 +7,7 @@ from enum import StrEnum
 from app.domain.foundation.exceptions import DomainError, DomainValidationError
 from app.domain.foundation.primitives.primitives import BaseNormalizedString
 from app.domain.foundation.value_object import ValueObject
-from app.domain.identity.primitives import AccountPersonId, UserAccountId
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 
 
 class StoreStatus(StrEnum):

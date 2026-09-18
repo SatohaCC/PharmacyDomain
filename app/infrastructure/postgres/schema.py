@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Final
+
 from sqlalchemy import (
     Boolean,
     Column,
@@ -534,4 +536,59 @@ operation_audits = Table(
         ["user_accounts.id", "user_accounts.person_id"],
         name="fk_audit_account_person",
     ),
+)
+
+
+#: テーブル定義では表せない、関数とトリガによる保護。
+#:
+#: 「アカウントの本人参照は変えられない」「アクセス権のスタッフは本人と一致する」
+#: といった規則は、列の制約でも一意索引でも表せない。マイグレーションだけが
+#: 知っている状態にすると、スキーマ定義との突き合わせから外れ、名前を変えても
+#: Repository側の制約名との対応が切れたことに誰も気づけない。
+#: マイグレーションが出すDDLと**同じ文字列**をここに置き、
+#: ``tests/infrastructure/postgres/test_schema_migration_consistency.py`` が
+#: 両者の一致を検査する。
+SCHEMA_ROUTINES: Final[tuple[str, ...]] = (
+    """CREATE OR REPLACE FUNCTION prevent_account_person_change() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+        IF NEW.person_id IS DISTINCT FROM OLD.person_id THEN
+            RAISE EXCEPTION 'アカウントの本人参照は変更できません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_user_accounts_person_immutable';
+        END IF;
+        RETURN NEW;
+    END;
+    $$""",
+    "CREATE TRIGGER user_accounts_person_immutable BEFORE UPDATE ON user_accounts FOR EACH ROW EXECUTE FUNCTION prevent_account_person_change()",
+    """CREATE OR REPLACE FUNCTION check_staff_person_link() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+        IF TG_OP = 'UPDATE' AND (NEW.person_id IS DISTINCT FROM OLD.person_id OR NEW.corporate_id IS DISTINCT FROM OLD.corporate_id) THEN
+            RAISE EXCEPTION '本人対応は変更できません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_staff_person_immutable';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM staff_members WHERE id = NEW.id AND corporate_id = NEW.corporate_id) THEN
+            RAISE EXCEPTION 'スタッフの法人が一致しません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_staff_person_corporate';
+        END IF;
+        RETURN NEW;
+    END;
+    $$""",
+    "CREATE TRIGGER staff_person_link_guard BEFORE INSERT OR UPDATE ON staff_person_links FOR EACH ROW EXECUTE FUNCTION check_staff_person_link()",
+    """CREATE OR REPLACE FUNCTION check_membership_person() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+        IF TG_OP = 'UPDATE' AND (NEW.account_id IS DISTINCT FROM OLD.account_id OR NEW.corporate_id IS DISTINCT FROM OLD.corporate_id) THEN
+            RAISE EXCEPTION 'アクセス権の本人と法人は変更できません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_membership_identity_immutable';
+        END IF;
+        IF NEW.staff_id IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM staff_person_links s JOIN user_accounts a ON a.person_id = s.person_id
+            WHERE s.id = NEW.staff_id AND s.corporate_id = NEW.corporate_id AND a.id = NEW.account_id
+        ) THEN
+            RAISE EXCEPTION 'スタッフと本人の対応が一致しません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_membership_person';
+        END IF;
+        RETURN NEW;
+    END;
+    $$""",
+    "CREATE TRIGGER membership_person_guard BEFORE INSERT OR UPDATE ON corporate_memberships FOR EACH ROW EXECUTE FUNCTION check_membership_person()",
+    """CREATE OR REPLACE FUNCTION prevent_audit_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+        RAISE EXCEPTION '操作監査は追記専用です。' USING ERRCODE = '23514', CONSTRAINT = 'ck_operation_audit_immutable';
+    END;
+    $$""",
+    "CREATE TRIGGER operation_audit_immutable BEFORE UPDATE OR DELETE ON operation_audits FOR EACH ROW EXECUTE FUNCTION prevent_audit_mutation()",
 )

@@ -4,7 +4,7 @@ from typing import Self
 
 from app.domain.corporate.primitives import CorporateId
 from app.domain.foundation.entity import AggregateRoot
-from app.domain.identity.primitives import AccountPersonId, UserAccountId
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.store.lifecycle import (
     StoreStateConflictError,
     StoreStatus,

@@ -323,6 +323,34 @@ paths = ["app"]
     "app.application.medicine_catalog",
     "app.application.identity",
 ]
+# Identityは店舗・スタッフ・法人の識別子だけを参照し、集約とRepositoryへは依存しない。
+# 逆向き（Store → Identity）は禁止する。操作者の識別子は Shared Kernel にあるので、
+# 店舗の状態変更履歴が Identity を知る必要はない。双方向にすると、どちらの
+# コンテキストも単独では取り出せなくなる。
+"app.domain.identity" = [
+    "app.domain.corporate.corporate",
+    "app.domain.corporate.repository",
+    "app.domain.store.store",
+    "app.domain.store.repository",
+    "app.domain.store.lifecycle",
+    "app.domain.store.manager_assignment",
+    "app.domain.store.manager_repository",
+    "app.domain.store.manager_service",
+    "app.domain.staff.staff",
+    "app.domain.staff.repository",
+    "app.domain.staff.services",
+    "app.domain.patient",
+    "app.domain.coverage",
+    "app.domain.reception",
+    "app.domain.claim",
+    "app.domain.prescription",
+    "app.domain.dispensing",
+    "app.domain.medication_history",
+    "app.domain.medicine_catalog",
+]
+"app.domain.store" = ["app.domain.identity"]
+"app.domain.staff" = ["app.domain.identity"]
+"app.domain.corporate" = ["app.domain.identity"]
 # 医薬品マスタのApplicationは、どのコンテキストのApplication実装にも依存しない。
 "app.application.medicine_catalog" = [
     "app.application.corporate",

@@ -270,15 +270,58 @@ def _run_offline(operation_name: str) -> str:
     return buffer.getvalue()
 
 
-def _migration_ddl() -> set[str]:
-    """全マイグレーションを適用した結果のDDLを集める。
+#: 表の形を決めないので突き合わせから外す文。
+#:
+#: 拡張の有効化は環境の準備であり、``UPDATE`` 等はデータの移行である。
+#: 「対象外」をこの2種類に限ることで、新しい**DDL**の形（``ALTER TABLE ... ADD
+#: CONSTRAINT`` や関数・トリガ）が黙って検査の外へ出ることがなくなる。
+_IGNORED_MIGRATION_PREFIXES = ("CREATE EXTENSION", "UPDATE ", "INSERT ", "DELETE ")
 
-    拡張の作成は表の形を決めないので比較対象から外す。
+#: 突き合わせの対象にするDDLの形。
+_COMPARED_DDL_PREFIXES = ("CREATE TABLE", "CREATE INDEX", "CREATE UNIQUE INDEX")
+
+
+def _split_statements(sql: str) -> list[str]:
+    """``$$`` で囲まれた本体の中の ``;`` で切らずに文へ分ける。
+
+    plpgsql の本体には ``;`` が含まれる。素朴に分割すると関数定義が断片になり、
+    比較しても意味を持たない。
     """
+    statements: list[str] = []
+    current: list[str] = []
+    in_body = False
+    index = 0
+    while index < len(sql):
+        if sql.startswith("$$", index):
+            in_body = not in_body
+            current.append("$$")
+            index += 2
+            continue
+        character = sql[index]
+        if character == ";" and not in_body:
+            statements.append("".join(current))
+            current = []
+        else:
+            current.append(character)
+        index += 1
+    statements.append("".join(current))
+    return [item for item in statements if item.strip()]
+
+
+def _upgrade_statements() -> list[str]:
+    """マイグレーションが出す文を、正規化して順に返す。"""
+    return [
+        _normalized_statement(item)
+        for item in _split_statements(_run_offline("upgrade"))
+    ]
+
+
+def _migration_ddl() -> set[str]:
+    """マイグレーションが作る表と索引のDDLを集める。"""
     return {
         statement
-        for statement in _normalized_statements(_run_offline("upgrade"))
-        if statement.startswith(("CREATE TABLE", "CREATE INDEX", "CREATE UNIQUE INDEX"))
+        for statement in _upgrade_statements()
+        if statement.startswith(_COMPARED_DDL_PREFIXES)
     }
 
 
@@ -290,6 +333,54 @@ def _schema_ddl() -> set[str]:
         for index in table.indexes:
             statements.add(_normalized_statement(compiled_sql(CreateIndex(index))))
     return statements
+
+
+def _declared_routines() -> set[str]:
+    """スキーマ定義が宣言する関数・トリガを正規化して返す。"""
+    return {_normalized_statement(item) for item in schema.SCHEMA_ROUTINES}
+
+
+def test_マイグレーションの全DDLが_検査の対象になっている() -> None:
+    """検査の網から外れるDDLの形を作らせない。
+
+    以前は突き合わせの対象を CREATE TABLE / INDEX だけに絞っていたため、関数と
+    トリガ（Repositoryが制約名で業務例外へ写像している保護）が一切検査されず、
+    名前を変えても対応が切れたことに気づけなかった。分類できない文が現れたら
+    落とし、対象にするか宣言するかを選ばせる。
+    """
+    # Arrange
+    routines = _declared_routines()
+
+    # Act
+    unclassified = [
+        statement
+        for statement in _upgrade_statements()
+        if not statement.startswith(_IGNORED_MIGRATION_PREFIXES)
+        and not statement.startswith(_COMPARED_DDL_PREFIXES)
+        and statement not in routines
+    ]
+
+    # Assert
+    assert not unclassified, f"検査の対象になっていないDDL: {unclassified}"
+
+
+def test_スキーマ定義の関数とトリガが_マイグレーションと一致する() -> None:
+    """片方だけを直すと、制約名と業務例外の対応が静かに切れる。"""
+    # Arrange
+    declared = _declared_routines()
+
+    # Act
+    emitted = {
+        statement
+        for statement in _upgrade_statements()
+        if statement.startswith(("CREATE OR REPLACE FUNCTION", "CREATE TRIGGER"))
+    }
+
+    # Assert
+    assert emitted == declared, (
+        f"スキーマ定義にだけある: {sorted(declared - emitted)} / "
+        f"マイグレーションにだけある: {sorted(emitted - declared)}"
+    )
 
 
 @pytest.mark.parametrize(
