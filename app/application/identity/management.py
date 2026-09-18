@@ -14,9 +14,16 @@ from app.application.common import UnitOfWork
 from app.application.common.clock import Clock
 from app.application.common.exceptions import NotFoundError
 from app.application.common.organization_lock import OrganizationLock
+from app.application.common.pagination import (
+    DEFAULT_PAGE_SIZE,
+    MAX_PAGE_SIZE,
+    Page,
+)
 from app.application.identity.dto import (
     AccountDto,
+    InvitationViewDto,
     MembershipDto,
+    MembershipViewDto,
     PersonDto,
     StaffPersonDto,
 )
@@ -394,15 +401,21 @@ class IdentityManagementUseCase:
         return AccountDto.from_entity(account)
 
     async def list_users(
-        self, corporate_id: str, *, after: str | None = None, limit: int = 50
-    ) -> dict[str, object]:
+        self,
+        corporate_id: str,
+        *,
+        after: str | None = None,
+        limit: int = DEFAULT_PAGE_SIZE,
+    ) -> Page[MembershipViewDto]:
         """自法人のアクセス権をID順で返す。秘密・外部主体は返さない。"""
         corporate = CorporateId.parse(corporate_id)
         await self._access.require_active(
             corporate_id=corporate, permission=Permission.MANAGE_STAFF
         )
-        if not 1 <= limit <= 100:
-            raise DomainValidationError("件数は1から100で指定してください。")
+        if not 1 <= limit <= MAX_PAGE_SIZE:
+            raise DomainValidationError(
+                f"件数は1から{MAX_PAGE_SIZE}で指定してください。"
+            )
         after_id = CorporateMembershipId.parse(after) if after else None
         rows = sorted(
             await self.repositories.memberships.list_by_corporate(corporate),
@@ -411,15 +424,15 @@ class IdentityManagementUseCase:
         rows = [
             item for item in rows if after_id is None or item.id.value > after_id.value
         ]
-        results = [await self._public_membership(item) for item in rows[:limit]]
-        return {
-            "items": results,
-            "next_cursor": str(rows[limit - 1].id.value) if len(rows) > limit else None,
-        }
+        page = rows[:limit]
+        return Page(
+            items=tuple([await self._public_membership(item) for item in page]),
+            next_cursor=str(page[-1].id.value) if len(rows) > limit else None,
+        )
 
     async def get_user(
         self, corporate_id: str, membership_id: str
-    ) -> dict[str, object]:
+    ) -> MembershipViewDto:
         """本人を広域検索せず、対象法人に属するアクセス権から参照する。"""
         corporate = CorporateId.parse(corporate_id)
         await self._access.require_active(
@@ -434,25 +447,15 @@ class IdentityManagementUseCase:
 
     async def _public_membership(
         self, membership: CorporateMembership
-    ) -> dict[str, object]:
+    ) -> MembershipViewDto:
         account = await self.repositories.accounts.get(membership.account_id)
         if account is None:
             raise NotFoundError()
-        return {
-            "id": str(membership.id.value),
-            "account_id": str(account.id.value),
-            "person_id": str(account.person_id.value),
-            "corporate_id": str(membership.corporate_id.value),
-            "status": membership.status.value,
-            "account_status": account.status.value,
-            "role": membership.role.value,
-            "store_ids": sorted(str(item.value) for item in membership.store_ids),
-            "staff_id": str(membership.staff_id.value) if membership.staff_id else None,
-        }
+        return MembershipViewDto.from_entities(membership, account)
 
     async def get_invitation(
         self, corporate_id: str, invitation_id: str
-    ) -> dict[str, object]:
+    ) -> InvitationViewDto:
         """招待の状態だけを返し、ハッシュも秘密も返さない。"""
         corporate = CorporateId.parse(corporate_id)
         await self._access.require_active(
@@ -463,13 +466,7 @@ class IdentityManagementUseCase:
         )
         if invitation is None or invitation.corporate_id != corporate:
             raise NotFoundError()
-        return {
-            "id": str(invitation.id.value),
-            "person_id": str(invitation.person_id.value),
-            "status": invitation.status.value,
-            "expires_at": invitation.expires_at.isoformat(),
-            "role": invitation.role.value,
-        }
+        return InvitationViewDto.from_entity(invitation)
 
     async def reactivate_account(self, account_id: str) -> AccountDto:
         """本人への参照を維持したまま個人アカウントをベンダーが再開する。"""
@@ -512,7 +509,3 @@ class IdentityManagementUseCase:
                 or not staff.is_active
             ):
                 raise IdentityConflictError("有効な本人とスタッフの対応が必要です。")
-
-
-# 既存のテスト呼び出しも同じ実装へ接続する。
-IdentityManagement = IdentityManagementUseCase

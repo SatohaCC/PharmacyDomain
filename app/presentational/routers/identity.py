@@ -8,6 +8,12 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import Field
 
 from app.application.access_control.models import ResolvedActorContext
+from app.application.common.pagination import Page
+from app.application.identity.dto import (
+    CurrentActorDto,
+    InvitationViewDto,
+    MembershipViewDto,
+)
 from app.application.identity.management import InviteUserCommand, IssuedInvitation
 from app.application.identity.resolve_actor import VerifiedIdentity
 from app.domain.identity.primitives import AccountStatus, MembershipRole
@@ -128,25 +134,14 @@ async def suspend_account(
 
 
 @router.get("/me", dependencies=[Depends(get_actor_context)])
-async def get_me(actor: Actor, use_cases: IdentityUseCasesDep) -> dict[str, object]:
+async def get_me(actor: Actor, use_cases: IdentityUseCasesDep) -> CurrentActorDto:
     """現在有効な本人・アカウント・法人アクセス範囲を返す。"""
     if not isinstance(actor, ResolvedActorContext):
         raise AuthenticationError("本人を特定できません。")
     current = await use_cases.resolve_actor.execute(
         VerifiedIdentity(person_id=actor.person_id, principal_id=actor.principal_id)
     )
-    return {
-        "person_id": str(current.person_id.value),
-        "account_id": str(current.account_id.value),
-        "membership_id": str(current.membership_id.value)
-        if current.membership_id
-        else None,
-        "corporate_id": str(current.corporate_id.value)
-        if current.corporate_id
-        else None,
-        "roles": sorted(role.value for role in current.roles),
-        "store_ids": sorted(str(item.value) for item in current.store_ids),
-    }
+    return CurrentActorDto.from_actor(current)
 
 
 class ChangeAccessStateRequest(RequestModel):
@@ -178,7 +173,7 @@ async def list_users(
     use_cases: IdentityUseCasesDep,
     cursor: str | None = None,
     limit: int = Query(default=50, ge=1, le=100),
-) -> dict[str, object]:
+) -> Page[MembershipViewDto]:
     """自法人のユーザー権限を一覧する。"""
     return await use_cases.management.list_users(
         corporate_id, after=cursor, limit=limit
@@ -191,7 +186,7 @@ async def list_users(
 )
 async def get_user(
     corporate_id: str, membership_id: str, use_cases: IdentityUseCasesDep
-) -> dict[str, object]:
+) -> MembershipViewDto:
     """自法人のユーザー権限を取得する。"""
     return await use_cases.management.get_user(corporate_id, membership_id)
 
@@ -247,7 +242,7 @@ async def cancel_invitation(
 )
 async def get_invitation(
     corporate_id: str, invitation_id: str, use_cases: IdentityUseCasesDep
-) -> dict[str, object]:
+) -> InvitationViewDto:
     """招待の秘密を再取得させず状態を返す。"""
     return await use_cases.management.get_invitation(corporate_id, invitation_id)
 

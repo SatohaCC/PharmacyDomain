@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from app.application.identity.management import (
-    IdentityManagement,
+    IdentityManagementUseCase,
     IdentityRepositories,
     InviteUserCommand,
 )
@@ -44,7 +44,7 @@ from tests.fakes.null_unit_of_work import NullUnitOfWork
 class Fixture:
     """招待の実UseCaseと保存結果を観測する。"""
 
-    service: IdentityManagement
+    service: IdentityManagementUseCase
     repositories: IdentityRepositories
     clock: FakeClock
     person: AccountPerson
@@ -70,7 +70,7 @@ async def _setup() -> Fixture:
     )
     await repositories.people.save(person)
     clock = FakeClock(datetime(2026, 9, 17, tzinfo=UTC))
-    service = IdentityManagement(
+    service = IdentityManagementUseCase(
         repositories,
         InMemoryStaffRepository(),
         InMemoryStoreRepository(),

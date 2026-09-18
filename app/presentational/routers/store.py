@@ -11,6 +11,7 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, Query, Response
 
+from app.application.common.pagination import Page
 from app.application.store import (
     ChangeInsurancePharmacyNumberCommand,
     ChangeStoreAddressCommand,
@@ -408,7 +409,7 @@ async def list_managers(
     as_of: date | None = None,
     cursor: str | None = None,
     limit: int = Query(default=50, ge=1, le=100),
-) -> dict[str, object]:
+) -> Page[ManagerAssignmentDto]:
     """指定日の管理薬剤師または任命履歴を取得する。"""
     return await use_cases.manage_manager.list_assignments(
         corporate_id, store_id, as_of=as_of, after=cursor, limit=limit

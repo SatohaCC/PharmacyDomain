@@ -11,6 +11,11 @@ from app.application.common import UnitOfWork
 from app.application.common.clock import BUSINESS_TIMEZONE, Clock, business_date
 from app.application.common.exceptions import AuthorizationError, NotFoundError
 from app.application.common.organization_lock import OrganizationLock
+from app.application.common.pagination import (
+    DEFAULT_PAGE_SIZE,
+    MAX_PAGE_SIZE,
+    Page,
+)
 from app.application.store.get_store import StoreDto
 from app.application.store.support import load_store_or_raise
 from app.domain.corporate.primitives import CorporateId
@@ -260,8 +265,8 @@ class ManageStoreManagerUseCase:
         *,
         as_of: date | None = None,
         after: str | None = None,
-        limit: int = 50,
-    ) -> dict[str, object]:
+        limit: int = DEFAULT_PAGE_SIZE,
+    ) -> Page[ManagerAssignmentDto]:
         """店舗内の任命履歴、または指定日に有効な任命を返す。"""
         corporate = CorporateId.parse(corporate_id)
         store = StoreId.parse(store_id)
@@ -269,8 +274,10 @@ class ManageStoreManagerUseCase:
             corporate_id=corporate, permission=Permission.VIEW_STORE
         )
         await load_store_or_raise(self._stores, corporate_id=corporate, store_id=store)
-        if not 1 <= limit <= 100:
-            raise DomainValidationError("件数は1から100で指定してください。")
+        if not 1 <= limit <= MAX_PAGE_SIZE:
+            raise DomainValidationError(
+                f"件数は1から{MAX_PAGE_SIZE}で指定してください。"
+            )
         after_id = StoreManagerAssignmentId.parse(after) if after else None
         rows = sorted(
             await self._managers.list_by_store(corporate, store),
@@ -282,7 +289,8 @@ class ManageStoreManagerUseCase:
             if (as_of is None or item.is_effective_on(as_of))
             and (after_id is None or item.id.value > after_id.value)
         ]
-        return {
-            "items": [ManagerAssignmentDto.from_entity(item) for item in rows[:limit]],
-            "next_cursor": str(rows[limit - 1].id.value) if len(rows) > limit else None,
-        }
+        page = rows[:limit]
+        return Page(
+            items=tuple(ManagerAssignmentDto.from_entity(item) for item in page),
+            next_cursor=str(page[-1].id.value) if len(rows) > limit else None,
+        )

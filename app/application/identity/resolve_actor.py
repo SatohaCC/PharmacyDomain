@@ -45,9 +45,12 @@ class ResolveActorUseCase:
         account = await self._accounts.get_by_person(identity.person_id)
         if person is None or account is None or account.status != AccountStatus.ACTIVE:
             raise UnavailableIdentityError()
+        # 外部主体を固定していないアカウントを通すと、この照合が「そのアカウント
+        # だけ効かない」形になる。本人IDさえ一致すれば任意の principal_id で
+        # ベンダー権限まで発行できてしまうので、未固定そのものを拒否する。
         if (
-            account.external_subject is not None
-            and account.external_subject.value != identity.principal_id
+            account.external_subject is None
+            or account.external_subject.value != identity.principal_id
         ):
             raise UnavailableIdentityError()
         if account.is_vendor_admin:

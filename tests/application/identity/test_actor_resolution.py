@@ -31,6 +31,8 @@ from tests.fakes.in_memory_identity_repositories import (
     InMemoryUserAccountRepository,
 )
 
+_PRINCIPAL_ID = "issuer/検証済み本人"
+
 
 async def _setup() -> tuple[
     ResolveActorUseCase,
@@ -52,7 +54,12 @@ async def _setup() -> tuple[
             first_name_kana="タロウ",
         ),
     )
-    account = UserAccount(id=UserAccountId.generate(), person_id=person.id)
+    # 外部主体を固定していないアカウントは解決しない。固定済みを既定にする。
+    account = UserAccount(
+        id=UserAccountId.generate(),
+        person_id=person.id,
+        external_subject=ExternalSubjectKey(_PRINCIPAL_ID),
+    )
     membership = CorporateMembership(
         id=CorporateMembershipId.generate(),
         account_id=account.id,
@@ -66,7 +73,7 @@ async def _setup() -> tuple[
     await memberships.save(membership)
     return (
         ResolveActorUseCase(people, accounts, memberships),
-        VerifiedIdentity(person_id=person.id, principal_id="検証済み本人"),
+        VerifiedIdentity(person_id=person.id, principal_id=_PRINCIPAL_ID),
         accounts,
         memberships,
         account,
@@ -155,5 +162,22 @@ async def test_同じ本人を名乗っても保存済み外部主体と異な�
     await accounts.save(
         replace(account, external_subject=ExternalSubjectKey("issuer/original"))
     )
+    with pytest.raises(UnavailableIdentityError):
+        await resolver.execute(identity)
+
+
+@pytest.mark.asyncio
+async def test_外部主体を固定していないアカウントは解決しない() -> None:
+    """照合が「そのアカウントだけ効かない」形になるのを防ぐ。
+
+    ``external_subject`` が空のとき照合を飛ばすと、本人IDさえ一致すれば任意の
+    principal_id でそのアカウントの権限（ベンダー権限を含む）を発行できる。
+    第二の防衛線が、まさに主体を固定していないアカウントにだけ効かなくなる。
+    """
+    # Arrange
+    resolver, identity, accounts, _, account, _ = await _setup()
+    await accounts.save(replace(account, external_subject=None))
+
+    # Act & Assert
     with pytest.raises(UnavailableIdentityError):
         await resolver.execute(identity)
