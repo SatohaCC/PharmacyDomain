@@ -41,11 +41,14 @@ router = APIRouter(
     tags=["store"],
     dependencies=[Depends(get_actor_context)],
     # 404 もルータ単位に置く。全ルートが親法人をパスに持つので、法人が無い・
-    # 他テナントである場合はどのルートでも404になる。
+    # 他テナントである場合はどのルートでも404になる。409 も同じ理由で置く。
+    # 書き込みは一意制約違反だけでなく楽観ロック衝突でも409になるため、ルートごとに
+    # 書き足す運用にすると、新しく足した1本だけが宣言を欠く。
     responses=error_responses(
         HTTPStatus.UNAUTHORIZED,
         HTTPStatus.FORBIDDEN,
         HTTPStatus.NOT_FOUND,
+        HTTPStatus.CONFLICT,
         HTTPStatus.UNPROCESSABLE_CONTENT,
     ),
 )
@@ -365,7 +368,6 @@ class ManageManagerRequest(RequestModel):
 @router.post(
     "/{store_id}/manager-assignments",
     response_model=ManagerAssignmentDto,
-    responses=error_responses(HTTPStatus.CONFLICT),
 )
 async def manage_manager(
     corporate_id: str,

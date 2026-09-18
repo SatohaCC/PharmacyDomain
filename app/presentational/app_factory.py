@@ -90,6 +90,7 @@ def create_app(
     register_error_handlers(app)
     for router in (
         identity.router,
+        identity.acceptance_router,
         system.router,
         corporate.router,
         store.router,

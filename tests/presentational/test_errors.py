@@ -23,6 +23,7 @@ from app.application.common.exceptions import ApplicationError, AuthorizationErr
 from app.application.store.exceptions import StoreNotFoundError
 from app.domain.foundation.exceptions import DomainError, DomainValidationError
 from app.domain.store.exceptions import StoreNameAlreadyExistsError
+from app.presentational.app_factory import create_app
 from app.presentational.errors import (
     TranslatableError,
     error_responses,
@@ -177,3 +178,26 @@ def test_返しうる全ステータスが_OpenAPIの説明を持つ() -> None:
 
     # Assert
     assert set(documented) == {int(status) for status in statuses}
+
+
+def test_全ての書き込みルートが_409を宣言している() -> None:
+    """一意制約違反だけでなく、楽観ロック衝突でも409になる。
+
+    書かないと生成クライアントは失敗を型として扱えない。ルートごとに
+    ``error_responses`` を書き足す運用にすると、新しく足した1本だけが抜ける。
+    ルータ単位で宣言しておけば、そのルータへ足したルートは自動で載る。
+    """
+    # Arrange
+    schema = create_app().openapi()
+
+    # Act
+    missing = [
+        f"{method.upper()} {path}"
+        for path, operations in schema["paths"].items()
+        for method, operation in operations.items()
+        if method in {"post", "patch", "put"}
+        and str(int(HTTPStatus.CONFLICT)) not in operation.get("responses", {})
+    ]
+
+    # Assert
+    assert not missing, f"409を宣言していない書き込みルート: {missing}"

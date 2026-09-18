@@ -100,3 +100,17 @@ class ResolvedActorContext(ActorContext):
     membership_id: CorporateMembershipId | None = None
     staff_id: StaffId | None = None
     store_ids: frozenset[StoreId] = frozenset()
+
+    def __post_init__(self) -> None:
+        """店舗ロールが法人スコープを持つことを、構築の時点で確かめる。
+
+        この検査を配線（読取範囲の組み立て）へ置くと、法人の無い店舗ロールが
+        生成できてしまい、読取範囲を作らない経路では素通りする。不変条件は
+        持ち主の側に置く。
+        """
+        super().__post_init__()
+        if (
+            self.roles & {ActorRole.STORE_OPERATOR, ActorRole.STORE_VIEWER}
+            and self.corporate_id is None
+        ):
+            raise ValueError("店舗ロールには所属法人が必要です。")

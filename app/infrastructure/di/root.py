@@ -77,8 +77,8 @@ class PostgresRequestScope:
             ActorRole.VENDOR_SYSTEM_ADMIN,
             ActorRole.CORPORATE_ADMIN,
         }:
-            if actor.corporate_id is None:
-                raise ValueError("店舗ロールには法人が必要です。")
+            # 法人の有無は ResolvedActorContext が構築時に保証する。
+            assert actor.corporate_id is not None
             unit_of_work.read_scope = RepositoryReadScope(
                 actor.corporate_id.value,
                 tuple(item.value for item in actor.store_ids),

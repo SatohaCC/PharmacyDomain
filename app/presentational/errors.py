@@ -103,6 +103,9 @@ from app.domain.store.exceptions import (
     StoreNameAlreadyExistsError,
 )
 from app.domain.store.lifecycle import StoreStateConflictError
+from app.domain.store.manager_assignment import (
+    ManagerAssignmentStateConflictError,
+)
 from app.domain.store.manager_repository import ManagerAssignmentConflictError
 from app.presentational.exceptions import AuthenticationError, PresentationError
 
@@ -159,6 +162,7 @@ _STATUS_BY_EXCEPTION: Final[Mapping[type[BaseException], HTTPStatus]] = {
     UnavailableIdentityError: HTTPStatus.UNAUTHORIZED,
     IdentityConflictError: HTTPStatus.CONFLICT,
     ManagerAssignmentConflictError: HTTPStatus.CONFLICT,
+    ManagerAssignmentStateConflictError: HTTPStatus.CONFLICT,
     StoreStateConflictError: HTTPStatus.CONFLICT,
     # --- 403: 主体は判明したうえでの拒否 ---
     # 別テナントのリソースは TenantBoundaryNotFoundError（404）として隠すので、

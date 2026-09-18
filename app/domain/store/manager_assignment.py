@@ -19,6 +19,16 @@ class StoreManagerAssignmentId(EntityUUID):
     identifier_name = "管理薬剤師任命ID"
 
 
+class ManagerAssignmentStateConflictError(DomainError):
+    """任命の現在状態と要求された操作が競合する。
+
+    基底の ``DomainError`` を直接送出すると、``errors.py`` の対応表で個別に
+    扱えず、クライアントは開始済み任命の取消も期間の延長も同じ符号で受け取る。
+    """
+
+    default_code = "MANAGER_ASSIGNMENT_STATE_CONFLICT"
+
+
 class ManagerAssignmentStatus(StrEnum):
     """任命の取消状態。"""
 
@@ -66,13 +76,19 @@ class StoreManagerAssignment(AggregateRoot[StoreManagerAssignmentId]):
     def cancel(self, *, applied_on: date) -> StoreManagerAssignment:
         """開始前の任命を取消し履歴を保持する。"""
         if applied_on >= self.period.starts_on:
-            raise DomainError("開始済みの任命は取消ではなく期間を終了してください。")
+            raise ManagerAssignmentStateConflictError(
+                "開始済みの任命は取消ではなく期間を終了してください。"
+            )
         return replace(self, status=ManagerAssignmentStatus.CANCELLED)
 
     def end(self, *, ends_on: date) -> StoreManagerAssignment:
         """任命の期間を終了する。"""
         if self.status != ManagerAssignmentStatus.CONFIRMED:
-            raise DomainError("取消済みの任命は終了できません。")
+            raise ManagerAssignmentStateConflictError(
+                "取消済みの任命は終了できません。"
+            )
         if self.period.ends_on is not None and ends_on > self.period.ends_on:
-            raise DomainError("任命終了では期間を延長できません。")
+            raise ManagerAssignmentStateConflictError(
+                "任命終了では期間を延長できません。"
+            )
         return replace(self, period=replace(self.period, ends_on=ends_on))

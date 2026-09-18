@@ -5,7 +5,6 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import Field
 
 from app.application.access_control.models import ResolvedActorContext
 from app.application.common.pagination import Page
@@ -31,12 +30,33 @@ from app.presentational.errors import error_responses
 from app.presentational.exceptions import AuthenticationError
 from app.presentational.schemas import RegisteredIdResponse, RequestModel
 
+#: 通常のIdentity操作。認証はルータ単位で掛ける。
+#:
+#: ルート関数の引数に頼ると、新しいルートを足したときに書き忘れた1本だけが
+#: 無認証で公開される。アカウントと法人アクセス権を扱うルータで、それは最も
+#: 起きてはいけない漏れ方をする。
 router = APIRouter(
     tags=["identity"],
+    dependencies=[Depends(get_actor_context)],
     responses=error_responses(
         HTTPStatus.UNAUTHORIZED,
         HTTPStatus.FORBIDDEN,
         HTTPStatus.NOT_FOUND,
+        HTTPStatus.CONFLICT,
+        HTTPStatus.UNPROCESSABLE_CONTENT,
+    ),
+)
+
+#: 招待の受諾だけは、内部アカウントがまだ無い本人も通す。
+#:
+#: 認証の種類が違うので同じルータには置けない。ルート単位で ``Depends`` を
+#: 書き分けると、本来Actorを要求すべきルートを間違えてこちらの認証で公開して
+#: しまう余地が残るため、ルータごと分ける。
+acceptance_router = APIRouter(
+    tags=["identity"],
+    dependencies=[Depends(get_verified_identity)],
+    responses=error_responses(
+        HTTPStatus.UNAUTHORIZED,
         HTTPStatus.CONFLICT,
         HTTPStatus.UNPROCESSABLE_CONTENT,
     ),
@@ -72,7 +92,6 @@ class ChangeMembershipRequest(RequestModel):
     "/corporates/{corporate_id}/user-invitations",
     response_model=IssuedInvitation,
     status_code=HTTPStatus.CREATED,
-    dependencies=[Depends(get_actor_context)],
 )
 async def invite_user(
     corporate_id: str, body: InviteUserRequest, use_cases: IdentityUseCasesDep
@@ -83,10 +102,9 @@ async def invite_user(
     )
 
 
-@router.post(
+@acceptance_router.post(
     "/user-invitations/acceptance",
     response_model=RegisteredIdResponse,
-    dependencies=[Depends(get_verified_identity)],
 )
 async def accept_invitation(
     body: AcceptInvitationRequest,
@@ -101,7 +119,6 @@ async def accept_invitation(
 @router.patch(
     "/corporates/{corporate_id}/users/{membership_id}",
     response_model=RegisteredIdResponse,
-    dependencies=[Depends(get_actor_context)],
 )
 async def change_membership(
     corporate_id: str,
@@ -123,7 +140,6 @@ async def change_membership(
 @router.post(
     "/accounts/{account_id}/suspension",
     response_model=RegisteredIdResponse,
-    dependencies=[Depends(get_actor_context)],
 )
 async def suspend_account(
     account_id: str, use_cases: IdentityUseCasesDep
@@ -133,7 +149,7 @@ async def suspend_account(
     return RegisteredIdResponse(id=str(account.id.value))
 
 
-@router.get("/me", dependencies=[Depends(get_actor_context)])
+@router.get("/me")
 async def get_me(actor: Actor, use_cases: IdentityUseCasesDep) -> CurrentActorDto:
     """現在有効な本人・アカウント・法人アクセス範囲を返す。"""
     if not isinstance(actor, ResolvedActorContext):
@@ -144,10 +160,10 @@ async def get_me(actor: Actor, use_cases: IdentityUseCasesDep) -> CurrentActorDt
     return CurrentActorDto.from_actor(current)
 
 
-class ChangeAccessStateRequest(RequestModel):
-    """権限変更理由。"""
-
-    reason: str = Field(min_length=1)
+# 停止・再開の理由は受け取らない。必須で受けて捨てていた時期があったが、
+# 保存先が無いので「必須項目を埋めたのにどこにも残らない」応答になっていた。
+# 理由を残すなら、StoreStatusChange と同じ形の履歴を CorporateMembership へ
+# 持たせる必要がある（操作者と記録時刻も要る）。本文を取らない操作として扱う。
 
 
 class RegisterPersonRequest(RequestModel):
@@ -165,9 +181,7 @@ class LinkPersonRequest(RequestModel):
     person_id: str
 
 
-@router.get(
-    "/corporates/{corporate_id}/users", dependencies=[Depends(get_actor_context)]
-)
+@router.get("/corporates/{corporate_id}/users")
 async def list_users(
     corporate_id: str,
     use_cases: IdentityUseCasesDep,
@@ -180,7 +194,6 @@ async def list_users(
 
 @router.get(
     "/corporates/{corporate_id}/users/{membership_id}",
-    dependencies=[Depends(get_actor_context)],
 )
 async def get_user(
     corporate_id: str, membership_id: str, use_cases: IdentityUseCasesDep
@@ -191,12 +204,10 @@ async def get_user(
 
 @router.post(
     "/corporates/{corporate_id}/users/{membership_id}/suspension",
-    dependencies=[Depends(get_actor_context)],
 )
 async def suspend_membership(
     corporate_id: str,
     membership_id: str,
-    body: ChangeAccessStateRequest,
     use_cases: IdentityUseCasesDep,
 ) -> RegisteredIdResponse:
     """法人のアクセス権だけを停止する。"""
@@ -208,12 +219,10 @@ async def suspend_membership(
 
 @router.post(
     "/corporates/{corporate_id}/users/{membership_id}/reactivation",
-    dependencies=[Depends(get_actor_context)],
 )
 async def reactivate_membership(
     corporate_id: str,
     membership_id: str,
-    body: ChangeAccessStateRequest,
     use_cases: IdentityUseCasesDep,
 ) -> RegisteredIdResponse:
     """本人・スタッフの有効性を再確認して権限を再開する。"""
@@ -225,7 +234,6 @@ async def reactivate_membership(
 
 @router.post(
     "/corporates/{corporate_id}/user-invitations/{invitation_id}/cancellation",
-    dependencies=[Depends(get_actor_context)],
 )
 async def cancel_invitation(
     corporate_id: str, invitation_id: str, use_cases: IdentityUseCasesDep
@@ -236,7 +244,6 @@ async def cancel_invitation(
 
 @router.get(
     "/corporates/{corporate_id}/user-invitations/{invitation_id}",
-    dependencies=[Depends(get_actor_context)],
 )
 async def get_invitation(
     corporate_id: str, invitation_id: str, use_cases: IdentityUseCasesDep
@@ -248,7 +255,6 @@ async def get_invitation(
 @router.post(
     "/corporates/{corporate_id}/people",
     status_code=HTTPStatus.CREATED,
-    dependencies=[Depends(get_actor_context)],
 )
 async def register_person(
     corporate_id: str, body: RegisterPersonRequest, use_cases: IdentityUseCasesDep
@@ -262,7 +268,6 @@ async def register_person(
 
 @router.post(
     "/corporates/{corporate_id}/staffs/{staff_id}/person-link",
-    dependencies=[Depends(get_actor_context)],
 )
 async def link_staff_person(
     corporate_id: str,
@@ -275,9 +280,7 @@ async def link_staff_person(
     return RegisteredIdResponse(id=str(link.id.value))
 
 
-@router.post(
-    "/accounts/{account_id}/reactivation", dependencies=[Depends(get_actor_context)]
-)
+@router.post("/accounts/{account_id}/reactivation")
 async def reactivate_account(
     account_id: str, use_cases: IdentityUseCasesDep
 ) -> RegisteredIdResponse:

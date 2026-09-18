@@ -22,17 +22,18 @@ from app.domain.corporate.primitives import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.staff.primitives import StaffId
 from app.domain.staff.repository import StaffRepository
-from app.domain.store.lifecycle import StoreStatus, StoreStatusReason
+from app.domain.store.lifecycle import (
+    StoreStateConflictError,
+    StoreStatus,
+    StoreStatusReason,
+)
 from app.domain.store.manager_assignment import (
     ManagerAssignmentPeriod,
     ManagerAssignmentStatus,
     StoreManagerAssignment,
     StoreManagerAssignmentId,
 )
-from app.domain.store.manager_repository import (
-    ManagerAssignmentConflictError,
-    StoreManagerAssignmentRepository,
-)
+from app.domain.store.manager_repository import StoreManagerAssignmentRepository
 from app.domain.store.manager_service import StoreManagerAssignmentService
 from app.domain.store.primitives import StoreId
 from app.domain.store.repository import StoreRepository
@@ -109,7 +110,7 @@ class ChangeStoreStatusUseCase:
         )
         if command.status == StoreStatus.CLOSED:
             if await self._work.has_unfinished(corporate_id, store_id):
-                raise ManagerAssignmentConflictError(
+                raise StoreStateConflictError(
                     "未完了の処方箋または調剤がある店舗は閉局できません。"
                 )
             applied_on = now.astimezone(BUSINESS_TIMEZONE).date()
