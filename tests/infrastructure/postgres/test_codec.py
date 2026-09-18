@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import dataclasses
 import importlib
+import inspect
 import pkgutil
 import uuid
 from datetime import UTC, date, datetime
@@ -32,8 +34,21 @@ from app.domain.prescription import (
     PrescriptionStatus,
 )
 from app.domain.prescription.prescription import Prescription
-from app.domain.staff.primitives import StaffId
+from app.domain.staff.primitives import (
+    BaseQualificationProfile,
+    DietitianProfile,
+    DietitianRegistrationNumber,
+    PharmacistLicenseNumber,
+    PharmacistProfile,
+    RegisteredSellerProfile,
+    SellerRegistrationNumber,
+    StaffId,
+    StaffQualifications,
+)
+from app.domain.staff.staff import Staff
 from app.infrastructure.postgres.codec import (
+    QUALIFICATION_PROFILE_TAGS,
+    QUALIFICATION_TAG_KEY,
     PersistenceMappingError,
     _primitive_value_type,
     decode_aggregate,
@@ -45,6 +60,7 @@ from tests.factories.prescription_factory import (
     create_response,
     start_inquiry,
 )
+from tests.factories.staff_factory import create_staff
 from tests.infrastructure.postgres.helpers import create_corporate
 
 # codec が復元できる Primitive の値型。ここに無い型の Primitive を足すと
@@ -247,3 +263,90 @@ def test_完了と取消の履歴は_JSONで保持される(history: str) -> Non
         process = process.cancel(DispensingCancellationReason("患者都合で中止した。"))
     payload = encode_aggregate(process)
     assert encode_aggregate(decode_aggregate(payload, DispensingProcess)) == payload
+
+
+# --------------------------------------------------------------------------
+# 資格プロファイルの判別子
+# --------------------------------------------------------------------------
+
+
+def _all_qualification_profiles() -> list[type[BaseQualificationProfile]]:
+    """app.domain 配下で定義された資格プロファイルの具象型を集める。"""
+    for module in pkgutil.walk_packages(app.domain.__path__, "app.domain."):
+        importlib.import_module(module.name)
+
+    found: set[type[BaseQualificationProfile]] = set()
+
+    def walk(cls: type[Any]) -> None:
+        for subclass in cls.__subclasses__():
+            if not inspect.isabstract(subclass):
+                found.add(subclass)
+            walk(subclass)
+
+    walk(BaseQualificationProfile)
+    return sorted(found, key=lambda cls: cls.__qualname__)
+
+
+#: 往復検査に使う各資格の代表値。新しい資格クラスを足したらここにも足す。
+_PROFILE_SAMPLES: dict[type[BaseQualificationProfile], BaseQualificationProfile] = {
+    PharmacistProfile: PharmacistProfile(
+        license_number=PharmacistLicenseNumber("123456")
+    ),
+    # 管理栄養士と登録販売者は必須フィールドが ``registration_number`` だけで
+    # 同形になる。同じ値を入れて、判別子なしでは区別できない状況を再現する。
+    DietitianProfile: DietitianProfile(
+        registration_number=DietitianRegistrationNumber("12345678")
+    ),
+    RegisteredSellerProfile: RegisteredSellerProfile(
+        registration_number=SellerRegistrationNumber("12345678")
+    ),
+}
+
+
+def test_全ての資格プロファイルに判別子が登録されている() -> None:
+    # 登録を忘れると、保存はできるのに復元だけが失敗する行ができる。
+    assert set(_all_qualification_profiles()) == set(
+        QUALIFICATION_PROFILE_TAGS.values()
+    )
+
+
+def test_判別子キーは_資格プロファイルのフィールド名と衝突しない() -> None:
+    # 衝突すると、判別子を取り除いた残りが本来のフィールドを欠く。
+    for profile_type in _all_qualification_profiles():
+        names = {field.name for field in dataclasses.fields(profile_type)}
+        assert QUALIFICATION_TAG_KEY not in names
+
+
+def test_全ての資格プロファイルに代表値がある() -> None:
+    # 代表値が無い資格は、次の往復検査を素通りしてしまう。
+    assert set(_all_qualification_profiles()) == set(_PROFILE_SAMPLES)
+
+
+@pytest.mark.parametrize("profile_type", list(_PROFILE_SAMPLES))
+def test_資格プロファイルは_同じクラスへ復元される(
+    profile_type: type[BaseQualificationProfile],
+) -> None:
+    profile = _PROFILE_SAMPLES[profile_type]
+    staff = create_staff(qualifications=StaffQualifications.from_profiles(profile))
+
+    payload = encode_aggregate(staff)
+    restored = decode_aggregate(payload, Staff)
+
+    (restored_profile,) = restored.qualifications.profiles
+    assert type(restored_profile) is profile_type
+    assert restored_profile == profile
+
+
+def test_判別子のない資格プロファイルは_別の資格として復元しない() -> None:
+    # 判別子を書く前に保存された行には、どの資格だったかを決める根拠が無い。
+    staff = create_staff(
+        qualifications=StaffQualifications.from_profiles(
+            _PROFILE_SAMPLES[RegisteredSellerProfile]
+        )
+    )
+    payload = encode_aggregate(staff)
+    for item in payload["qualifications"]["_items"]:  # type: ignore[index]
+        del item[QUALIFICATION_TAG_KEY]
+
+    with pytest.raises(PersistenceMappingError):
+        decode_aggregate(payload, Staff)
