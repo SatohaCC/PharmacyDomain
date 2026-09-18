@@ -48,15 +48,24 @@ class StaffAssignmentWriteGuard:
         stores: StoreRepository,
         managers: StoreManagerAssignmentRepository,
         clock: Clock,
+        lock: OrganizationLock,
     ) -> None:
         self._stores = stores
         self._managers = managers
         self._clock = clock
+        self._lock = lock
 
     async def check(self, aggregate: object, is_new: bool) -> None:
-        """スタッフの保存だけを対象に、在任中の任命を検証する。"""
+        """スタッフの保存だけを対象に、在任中の任命を検証する。
+
+        読み出しの前に法人の管理ロックを取る。任命を書く側（``ManageStoreManager``）
+        は同じキーを実行の冒頭で取るので、これが無いと両者が相手の確定前の状態を
+        読んで**どちらも成功する**。資格を失ったスタッフが管理薬剤師のまま残り、
+        例外は出ない。ロックはスタッフを書く経路だけで取り、参照では取らない。
+        """
         if not isinstance(aggregate, Staff):
             return
+        await self._lock.acquire(f"corporate:{aggregate.corporate_id.value}")
         applied_on = business_date(self._clock)
         service = StoreManagerAssignmentService()
         for assignment in await self._managers.list_by_staff(

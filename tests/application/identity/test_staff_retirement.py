@@ -12,6 +12,7 @@ from app.application.staff.deactivate_staff import (
     DeactivateStaffCommand,
     DeactivateStaffUseCase,
 )
+from app.domain.corporate.primitives import CorporateId
 from app.domain.identity.membership import CorporateMembership
 from app.domain.identity.primitives import (
     AccountPersonId,
@@ -25,6 +26,7 @@ from app.domain.staff.primitives import (
     AffiliationPeriod,
     PharmacistLicenseNumber,
     PharmacistProfile,
+    StaffId,
     StaffQualifications,
     StoreAffiliation,
 )
@@ -40,6 +42,7 @@ from tests.application.staff.access_revocation_helpers import create_access_revo
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store
 from tests.fakes.fake_clock import FakeClock
+from tests.fakes.fake_organization_management import FakeOrganizationLock
 from tests.fakes.in_memory_identity_repositories import (
     InMemoryCorporateMembershipRepository,
     InMemoryUserAccountRepository,
@@ -160,7 +163,9 @@ async def _guard_with(
             ),
         )
     )
-    guard = StaffAssignmentWriteGuard(stores, managers, FakeClock(_NOW))
+    guard = StaffAssignmentWriteGuard(
+        stores, managers, FakeClock(_NOW), FakeOrganizationLock()
+    )
     return guard, staff
 
 
@@ -198,3 +203,83 @@ async def test_明日まで続く任命が残るスタッフは_退職できな�
     # Act & Assert
     with pytest.raises(ManagerAssignmentConflictError):
         await guard.check(staff.deactivate(_TODAY), False)
+
+
+class _事象記録:
+    """ロック取得と任命の読み出しの順序を1本の列に残す。"""
+
+    def __init__(self) -> None:
+        self.events: list[str] = []
+
+
+class _記録ロック(FakeOrganizationLock):
+    """取得したキーを共有の記録へ流す。"""
+
+    def __init__(self, log: _事象記録) -> None:
+        super().__init__()
+        self._log = log
+
+    async def acquire(self, key: str) -> None:
+        await super().acquire(key)
+        self._log.events.append(f"lock:{key}")
+
+
+class _記録任命保存(InMemoryStoreManagerAssignmentRepository):
+    """スタッフ単位の読み出しを共有の記録へ流す。"""
+
+    def __init__(self, log: _事象記録) -> None:
+        super().__init__()
+        self._log = log
+
+    async def list_by_staff(
+        self, corporate_id: CorporateId, staff_id: StaffId
+    ) -> list[StoreManagerAssignment]:
+        self._log.events.append("read:assignments")
+        return await super().list_by_staff(corporate_id, staff_id)
+
+
+@pytest.mark.asyncio
+async def test_スタッフ保存前の検証は_法人ロックを取ってから任命を読む() -> None:
+    """読み出しがロックの外に出ると、任命との競合が両方成功する。
+
+    任命を書く側は実行の冒頭で同じキーを取る。ここで取らないと、資格を外す保存と
+    任命の登録が互いの確定前を読み、例外なしで「管理薬剤師でないスタッフの
+    在任中の任命」が残る。実DBを使わずに、読み出しがロックの内側にあることだけを
+    固定する。
+    """
+    # Arrange
+    log = _事象記録()
+    store = create_store()
+    stores = InMemoryStoreRepository()
+    await stores.save(store)
+    staff = create_staff(corporate_id=store.corporate_id)
+    guard = StaffAssignmentWriteGuard(
+        stores, _記録任命保存(log), FakeClock(_NOW), _記録ロック(log)
+    )
+
+    # Act
+    await guard.check(staff, False)
+
+    # Assert
+    assert log.events == [
+        f"lock:corporate:{store.corporate_id.value}",
+        "read:assignments",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_スタッフ以外の保存では_法人ロックを取らない() -> None:
+    """ロックの対象をスタッフの保存に限る。集約を問わず取ると、全ての書き込みが
+    法人単位で直列化する（以前 ``get()`` でロックを取っていたときと同じ害）。
+    """
+    # Arrange
+    log = _事象記録()
+    guard = StaffAssignmentWriteGuard(
+        InMemoryStoreRepository(), _記録任命保存(log), FakeClock(_NOW), _記録ロック(log)
+    )
+
+    # Act
+    await guard.check(create_store(), True)
+
+    # Assert
+    assert log.events == []

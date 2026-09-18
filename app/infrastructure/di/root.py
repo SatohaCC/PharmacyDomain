@@ -100,7 +100,7 @@ class PostgresRequestScope:
                     lock,
                 ).check,
                 StaffAssignmentWriteGuard(
-                    repositories.store, repositories.manager_assignment, clock
+                    repositories.store, repositories.manager_assignment, clock, lock
                 ).check,
             ]
         ).check
