@@ -18,6 +18,9 @@ async def append_pending_audits(
     if not work.pending_changes:
         return
     if not isinstance(actor, ResolvedActorContext):
+        # リクエスト経路では ResolvedActorWriteGuard が保存の時点で弾くので、
+        # ここへ来るのは専用のUnit of Workを使う経路だけである。確定直前の
+        # 送出は応答後になるため、こちらを唯一の防衛線にしてはならない。
         raise UnavailableIdentityError(
             "更新には本人に結び付いた個人アカウントが必要です。"
         )

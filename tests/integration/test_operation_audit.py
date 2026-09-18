@@ -6,9 +6,14 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.access_control.models import ActorRole, ResolvedActorContext
+from app.application.access_control.models import (
+    ActorContext,
+    ActorRole,
+    ResolvedActorContext,
+)
 from app.application.access_control.policy import AuthorizationService
 from app.application.corporate.register_corporate import RegisterCorporateCommand
+from app.application.identity.resolve_actor import UnavailableIdentityError
 from app.domain.identity.primitives import UserAccountId
 from app.domain.identity.user_account import UserAccount
 from app.infrastructure.di.root import PostgresCompositionRoot
@@ -124,3 +129,42 @@ async def test_監査と監査が参照する本人を削除できない(
         assert (
             await connection.execute(text("SELECT count(*) FROM operation_audits"))
         ).scalar_one() == 1
+
+
+@pytest.mark.asyncio
+async def test_本人未特定の更新は_行を書く前に拒否される(
+    engine: AsyncEngine,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """素の ActorContext で書き込めた時期は、応答後にロールバックされていた。
+
+    監査の追記が本人を要求する以上、追記できない更新は成立しない。判定を
+    確定直前へ置くと、FastAPI の yield 依存が応答後に走るためクライアントは
+    成功を受け取る。保存の時点で止め、通常の失敗として扱う。
+    """
+    actor = ActorContext.vendor_system_admin(principal_id="unresolved")
+    root = PostgresCompositionRoot(
+        engine, session_factory, FakeClock(datetime(2026, 9, 17, tzinfo=UTC))
+    )
+
+    with pytest.raises(UnavailableIdentityError):
+        async with root.request_scope(
+            authorization=AuthorizationService(actor)
+        ) as scope:
+            await scope.use_cases.corporate.register.execute(
+                RegisterCorporateCommand(
+                    name="本人未特定法人",
+                    representative_last_name="山田",
+                    representative_first_name="太郎",
+                )
+            )
+
+    async with engine.connect() as connection:
+        corporates = (
+            await connection.execute(text("SELECT count(*) FROM corporates"))
+        ).scalar_one()
+        audits = (
+            await connection.execute(text("SELECT count(*) FROM operation_audits"))
+        ).scalar_one()
+    assert corporates == 0
+    assert audits == 0

@@ -19,6 +19,7 @@ from app.application.access_control.models import ActorRole, ResolvedActorContex
 from app.application.access_control.policy import AuthorizationService
 from app.application.common.clock import Clock
 from app.application.composition.clinical_store_guard import ClinicalStoreWriteGuard
+from app.application.composition.resolved_actor_guard import ResolvedActorWriteGuard
 from app.application.composition.store_operation_adapter import StoreOperationAdapter
 from app.application.composition.system_clock import SystemUtcClock
 from app.application.corporate.corporate_access import CorporateAccessService
@@ -82,10 +83,15 @@ class PostgresRequestScope:
             )
         repositories = PostgresRepositorySet.create(unit_of_work)
         corporate_access = CorporateAccessService(repositories.corporate, authorization)
-        unit_of_work.before_save = ClinicalStoreWriteGuard(
-            StoreOperationAdapter(repositories.store, corporate_access),
-            authorization,
-            PostgresOrganizationLock(unit_of_work),
+        # 本人特定は保存の時点で確かめる。確定直前まで遅らせると、応答送信後に
+        # 例外が出てクライアントが成功を受け取ったままロールバックされる。
+        unit_of_work.before_save = ResolvedActorWriteGuard(
+            authorization.actor,
+            ClinicalStoreWriteGuard(
+                StoreOperationAdapter(repositories.store, corporate_access),
+                authorization,
+                PostgresOrganizationLock(unit_of_work),
+            ).check,
         ).check
         self._repositories = repositories
         self._use_cases = PostgresUseCaseRegistry(

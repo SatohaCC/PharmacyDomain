@@ -13,8 +13,14 @@
 環境変数（すべて `create_dev_app()` を呼んだ時点で読む）:
 
 - ``DEV_ACTOR_TOKEN``: 通す唯一のトークン。**必須**。既定値は用意しない。
-- ``DEV_ACTOR_ROLE``: ``vendor_system_admin``（既定）または ``corporate_admin``。
-- ``DEV_ACTOR_CORPORATE_ID``: ``corporate_admin`` のときの所属法人ID。
+- ``DEV_ACTOR_PERSON_ID`` / ``DEV_ACTOR_ACCOUNT_ID``: 操作主体の本人IDと
+  アカウントID。**必須**。更新は監査を伴い、監査行は ``user_accounts`` への
+  複合外部キーを持つので、実在する行を指していないと保存が失敗する。
+  開発用DBへ ``account_people`` と ``user_accounts`` を1件ずつ入れてから指定する。
+- ``DEV_ACTOR_ROLE``: ``vendor_system_admin``（既定） / ``corporate_admin`` /
+  ``store_operator`` / ``store_viewer``。
+- ``DEV_ACTOR_CORPORATE_ID``: ``vendor_system_admin`` 以外のときの所属法人ID。
+- ``DEV_ACTOR_STORE_IDS``: 店舗ロールのときの許可店舗ID（カンマ区切り）。
 - ``DEV_ACTOR_PRINCIPAL_ID``: 監査に残る主体の識別子。既定は ``dev-actor``。
 """
 
@@ -27,8 +33,11 @@ from typing import assert_never
 from fastapi import FastAPI
 
 from app.application.access_control import ActorContext, ActorRole
+from app.application.access_control.models import ResolvedActorContext
 from app.domain.corporate.primitives import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.identity.primitives import AccountPersonId, UserAccountId
+from app.domain.store.primitives import StoreId
 from app.presentational.app_factory import create_app
 from app.presentational.authentication import ActorContextProvider
 from app.presentational.exceptions import AuthenticationError
@@ -98,20 +107,90 @@ def build_actor_provider(
 
 
 def _build_actor(values: Mapping[str, str], *, principal_id: str) -> ActorContext:
+    """本人とアカウントを特定済みの操作主体を組み立てる。
+
+    素の :class:`ActorContext` を返してはならない。更新は監査の追記を伴い、
+    追記は本人とアカウントを要求するので、本人未特定の主体では保存が拒否される。
+    開発用の起動点だけ通す抜け道を作ると、本番で守っている規則が開発中に一度も
+    実行されないまま残る。
+    """
     role = _parse_role(values.get("DEV_ACTOR_ROLE", "").strip())
+    person_id = _parse_person_id(values.get("DEV_ACTOR_PERSON_ID", "").strip())
+    account_id = _parse_account_id(values.get("DEV_ACTOR_ACCOUNT_ID", "").strip())
     if role is ActorRole.VENDOR_SYSTEM_ADMIN:
-        return ActorContext.vendor_system_admin(principal_id=principal_id)
-    if role is ActorRole.CORPORATE_ADMIN:
-        return ActorContext.corporate_admin(
+        return ResolvedActorContext(
             principal_id=principal_id,
-            corporate_id=_parse_corporate_id(
-                values.get("DEV_ACTOR_CORPORATE_ID", "").strip()
-            ),
+            person_id=person_id,
+            account_id=account_id,
+            roles=frozenset({role}),
+        )
+    corporate_id = _parse_corporate_id(values.get("DEV_ACTOR_CORPORATE_ID", "").strip())
+    if role is ActorRole.CORPORATE_ADMIN:
+        return ResolvedActorContext(
+            principal_id=principal_id,
+            person_id=person_id,
+            account_id=account_id,
+            roles=frozenset({role}),
+            corporate_id=corporate_id,
         )
     if role is ActorRole.STORE_OPERATOR or role is ActorRole.STORE_VIEWER:
-        raise NotImplementedError("店舗ロールの開発用Actor設定は未実装です。")
+        return ResolvedActorContext(
+            principal_id=principal_id,
+            person_id=person_id,
+            account_id=account_id,
+            roles=frozenset({role}),
+            corporate_id=corporate_id,
+            store_ids=_parse_store_ids(values.get("DEV_ACTOR_STORE_IDS", "").strip()),
+        )
     # ロールが増えたときに、ここで mypy が分岐漏れを指摘する。
     assert_never(role)
+
+
+def _parse_person_id(raw_person_id: str) -> AccountPersonId:
+    if not raw_person_id:
+        raise DevActorConfigurationError(
+            "DEV_ACTOR_PERSON_ID が設定されていません。更新は監査を伴い、"
+            "監査行は user_accounts への外部キーを持つので、実在する本人IDが必要です。"
+        )
+    try:
+        return AccountPersonId.parse(raw_person_id)
+    except DomainValidationError as error:
+        raise DevActorConfigurationError(
+            f"DEV_ACTOR_PERSON_ID を本人IDとして読めません: {error}"
+        ) from error
+
+
+def _parse_account_id(raw_account_id: str) -> UserAccountId:
+    if not raw_account_id:
+        raise DevActorConfigurationError(
+            "DEV_ACTOR_ACCOUNT_ID が設定されていません。更新は監査を伴い、"
+            "監査行は user_accounts への外部キーを持つので、"
+            "実在するアカウントIDが必要です。"
+        )
+    try:
+        return UserAccountId.parse(raw_account_id)
+    except DomainValidationError as error:
+        raise DevActorConfigurationError(
+            f"DEV_ACTOR_ACCOUNT_ID をアカウントIDとして読めません: {error}"
+        ) from error
+
+
+def _parse_store_ids(raw_store_ids: str) -> frozenset[StoreId]:
+    if not raw_store_ids:
+        raise DevActorConfigurationError(
+            "DEV_ACTOR_ROLE に店舗ロールを指定した場合は "
+            "DEV_ACTOR_STORE_IDS が必要です。"
+        )
+    try:
+        return frozenset(
+            StoreId.parse(item.strip())
+            for item in raw_store_ids.split(",")
+            if item.strip()
+        )
+    except DomainValidationError as error:
+        raise DevActorConfigurationError(
+            f"DEV_ACTOR_STORE_IDS を店舗IDの一覧として読めません: {error}"
+        ) from error
 
 
 def _parse_role(raw_role: str) -> ActorRole:
@@ -130,7 +209,7 @@ def _parse_role(raw_role: str) -> ActorRole:
 def _parse_corporate_id(raw_corporate_id: str) -> CorporateId:
     if not raw_corporate_id:
         raise DevActorConfigurationError(
-            "DEV_ACTOR_ROLE に corporate_admin を指定した場合は "
+            "DEV_ACTOR_ROLE に vendor_system_admin 以外を指定した場合は "
             "DEV_ACTOR_CORPORATE_ID が必要です。"
         )
     try:

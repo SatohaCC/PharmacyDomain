@@ -18,13 +18,16 @@ import pytest
 
 import app.application
 from app.application.access_control import ActorContext, AuthorizationService
+from app.application.access_control.models import ActorRole, ResolvedActorContext
+from app.application.identity.resolve_actor import UnavailableIdentityError
+from app.domain.identity.primitives import AccountPersonId, UserAccountId
 from app.infrastructure.di import (
     PostgresRequestScope,
     PostgresUseCaseRegistry,
 )
 from tests.fakes.fake_clock import FakeClock
 from tests.fakes.recording_async_session import RecordingAsyncSession
-from tests.infrastructure.postgres.helpers import create_unit_of_work
+from tests.infrastructure.postgres.helpers import create_corporate, create_unit_of_work
 
 _APPLICATION_PACKAGE = "app.application."
 
@@ -207,3 +210,59 @@ def test_ユースケース束の一覧が_登録簿の項目と一致する() -
 
     # Assert
     assert exported == registry_bundles
+
+
+# --------------------------------------------------------------------------
+# 本人未特定の更新
+# --------------------------------------------------------------------------
+
+
+def _resolved_actor() -> ResolvedActorContext:
+    """本人とアカウントを特定済みのベンダー管理者。"""
+    return ResolvedActorContext(
+        principal_id="composition-test",
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+        roles=frozenset({ActorRole.VENDOR_SYSTEM_ADMIN}),
+    )
+
+
+async def test_本人未特定の保存は_確定前に拒否される() -> None:
+    """判定を確定直前へ置くと、応答送信後の例外になりロールバックが見えない。
+
+    FastAPI の yield 依存は ``yield`` 以降を応答後に実行するので、確定直前で
+    弾く設計では、クライアントが 201 と採番されたIDを受け取ったあとに黙って
+    取り消される。保存そのものを止めれば、例外はハンドラ実行中に出る。
+    """
+    # Arrange
+    session = RecordingAsyncSession()
+    scope = _build_scope(session)
+
+    # Act & Assert
+    with pytest.raises(UnavailableIdentityError):
+        async with scope:
+            await scope.repositories.corporate.save(create_corporate())
+
+    # 行を書く文まで到達していない。確定もされない。
+    assert session.executed == []
+    assert session.commits == 0
+    assert session.rollbacks == 1
+
+
+async def test_本人特定済みの保存は_そのまま行へ到達する() -> None:
+    """拒否が本人特定の有無だけに依存していることを確かめる。"""
+    # Arrange
+    session = RecordingAsyncSession()
+    scope = PostgresRequestScope(
+        create_unit_of_work(session),
+        authorization=AuthorizationService(_resolved_actor()),
+        clock=FakeClock(),
+    )
+
+    # Act
+    async with scope:
+        await scope.repositories.corporate.save(create_corporate())
+
+    # Assert
+    assert session.executed, "保存の文が発行されていない"
+    assert session.commits == 1
