@@ -14,17 +14,17 @@ from app.application.identity.dto import (
     MembershipViewDto,
 )
 from app.application.identity.invite_user import InviteUserCommand, IssuedInvitation
-from app.application.identity.resolve_actor import VerifiedIdentity
+from app.application.identity.resolve_actor import VerifiedSubject
 from app.domain.identity.primitives import AccountStatus, MembershipRole
 from app.domain.shared.person_name import PersonNames
 from app.infrastructure.di import PostgresCompositionRoot
 from app.presentational.dependencies import (
     Actor,
     IdentityUseCasesDep,
-    VerifiedIdentityDep,
+    VerifiedSubjectDep,
     get_actor_context,
     get_composition_root,
-    get_verified_identity,
+    get_verified_subject,
 )
 from app.presentational.errors import error_responses
 from app.presentational.exceptions import AuthenticationError
@@ -54,7 +54,7 @@ router = APIRouter(
 #: しまう余地が残るため、ルータごと分ける。
 acceptance_router = APIRouter(
     tags=["identity"],
-    dependencies=[Depends(get_verified_identity)],
+    dependencies=[Depends(get_verified_subject)],
     responses=error_responses(
         HTTPStatus.UNAUTHORIZED,
         HTTPStatus.CONFLICT,
@@ -108,11 +108,11 @@ async def invite_user(
 )
 async def accept_invitation(
     body: AcceptInvitationRequest,
-    identity: VerifiedIdentityDep,
+    subject: VerifiedSubjectDep,
     root: Annotated[PostgresCompositionRoot, Depends(get_composition_root)],
 ) -> RegisteredIdResponse:
-    """内部アカウント未作成でも検証済み本人の招待だけ受諾できる。"""
-    account = await root.accept_invitation(identity, body.secret)
+    """内部アカウント未作成でも検証済みの外部主体で招待を受諾できる。"""
+    account = await root.accept_invitation(subject, body.secret)
     return RegisteredIdResponse(id=str(account.id.value))
 
 
@@ -155,7 +155,7 @@ async def get_me(actor: Actor, use_cases: IdentityUseCasesDep) -> CurrentActorDt
     if not isinstance(actor, ResolvedActorContext):
         raise AuthenticationError("本人を特定できません。")
     current = await use_cases.resolve_actor.execute(
-        VerifiedIdentity(person_id=actor.person_id, principal_id=actor.principal_id)
+        VerifiedSubject(principal_id=actor.principal_id)
     )
     return CurrentActorDto.from_actor(current)
 

@@ -1,4 +1,4 @@
-"""認証基盤から信頼済み ``ActorContext`` を受け取る窓口。
+"""認証基盤から信頼済みの操作主体を受け取る窓口。
 
 ``ActorContext`` をHTTP入力から組み立ててはならない。クライアントが名乗った
 法人IDやロールをそのまま信じると、テナント境界がリクエストボディ1つで破れる。
@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from app.application.access_control import ActorContext
-from app.application.identity.resolve_actor import VerifiedIdentity
+from app.application.identity.resolve_actor import VerifiedSubject
 from app.presentational.exceptions import AuthenticationError
 
 
@@ -49,22 +49,31 @@ class UnconfiguredActorContextProvider(ActorContextProvider):
         raise AuthenticationError("認証基盤が接続されていません。")
 
 
-class VerifiedIdentityProvider(Protocol):
-    """内部アカウント未作成の招待先も含む本人確認境界。"""
+class VerifiedSubjectProvider(Protocol):
+    """内部アカウント未作成の招待先も含む、外部主体の確認境界。
 
-    async def authenticate(self, credential: str | None) -> VerifiedIdentity:
-        """外部認証で本人を検証し、失敗時はAuthenticationErrorを送出する。"""
+    返すのは**外部主体だけ**である。内部の本人IDは外部の認証基盤が知らないので、
+    それを返せる形にすると、本物の実装には埋められない項目ができる。本人は
+    保存側（``ResolveActorUseCase`` / 招待）で引く。
+    """
+
+    async def authenticate(self, credential: str | None) -> VerifiedSubject:
+        """外部認証で主体を検証し、失敗時はAuthenticationErrorを送出する。"""
         ...
 
 
-class UnconfiguredVerifiedIdentityProvider(VerifiedIdentityProvider):
+class UnconfiguredVerifiedSubjectProvider(VerifiedSubjectProvider):
     """未接続の本人確認を決して通さない。"""
 
-    async def authenticate(self, credential: str | None) -> VerifiedIdentity:
+    async def authenticate(self, credential: str | None) -> VerifiedSubject:
+        """資格情報の内容によらず認証失敗として扱う。"""
+        del credential
         raise AuthenticationError("本人確認基盤が接続されていません。")
 
 
 __all__ = [
     "ActorContextProvider",
     "UnconfiguredActorContextProvider",
+    "UnconfiguredVerifiedSubjectProvider",
+    "VerifiedSubjectProvider",
 ]

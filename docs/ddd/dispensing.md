@@ -84,9 +84,8 @@ Dispensingの集約自体はPrescription集約を保持しません。
 
 - リフィル処方箋と分割調剤の併用可否を原典で確認できていない。「保険調剤の理解のために」は
   両者を並列に挙げるだけで、同一処方箋での併用については述べていない
-- 調剤セッション保存とPrescriptionの調剤済遷移は、PostgreSQLの同一 UnitOfWork で原子的に確定する。HTTPルートと認証基盤は未実装
+- 調剤セッション保存とPrescriptionの調剤済遷移は、PostgreSQLの同一 UnitOfWork で原子的に確定する。HTTPルート経由でも同じ要求で両方が確定し、処方箋の更新が失敗すれば調剤の保存ごと巻き戻ることを実DBで確認済み
 - 他薬局で実施した回を把握するモデルがない
-- PostgreSQL の本番Repositoryは全コンテキストで実装済み。残りは業務HTTPルートと
-  認証基盤である
+- PostgreSQL の本番Repository、業務HTTPルート、外部IdPのJWT検証はいずれも実装済み
 
 関連する判断履歴は [設計判断](../decisions.md) のADR-5〜7、11、13を参照します。

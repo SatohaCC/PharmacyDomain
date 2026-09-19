@@ -15,7 +15,7 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.application.access_control import ActorContext, AuthorizationService
-from app.application.identity.resolve_actor import VerifiedIdentity
+from app.application.identity.resolve_actor import VerifiedSubject
 from app.infrastructure.di import (
     CorporateUseCases,
     CoverageUseCases,
@@ -33,8 +33,8 @@ from app.infrastructure.di import (
 from app.infrastructure.di.bundles.identity import IdentityUseCases
 from app.presentational.authentication import (
     ActorContextProvider,
-    UnconfiguredVerifiedIdentityProvider,
-    VerifiedIdentityProvider,
+    UnconfiguredVerifiedSubjectProvider,
+    VerifiedSubjectProvider,
 )
 
 #: アプリケーション状態を置く ``app.state`` の属性名。
@@ -62,7 +62,7 @@ class PresentationState:
 
     actor_provider: ActorContextProvider
     composition_root: PostgresCompositionRoot | None = None
-    identity_provider: VerifiedIdentityProvider | None = None
+    identity_provider: VerifiedSubjectProvider | None = None
 
 
 def get_state(request: Request) -> PresentationState:
@@ -104,10 +104,10 @@ async def get_actor_context(
     credential = credentials.credentials if credentials is not None else None
     actor: ActorContext
     if state.identity_provider is not None:
-        identity = await state.identity_provider.authenticate(credential)
+        subject = await state.identity_provider.authenticate(credential)
         if state.composition_root is None:
             raise RuntimeError("本人解決の保存境界が初期化されていません。")
-        actor = await state.composition_root.resolve_identity(identity)
+        actor = await state.composition_root.resolve_identity(subject)
     else:
         actor = await state.actor_provider.authenticate(credential)
     request.state.verified_actor = actor
@@ -136,17 +136,17 @@ def get_identity_use_cases(scope: _Scope) -> IdentityUseCases:
     return scope.use_cases.identity
 
 
-async def get_verified_identity(
+async def get_verified_subject(
     state: Annotated[PresentationState, Depends(get_state)],
     credentials: Annotated[
         HTTPAuthorizationCredentials | None, Depends(bearer_scheme)
     ] = None,
-) -> VerifiedIdentity:
-    """HTTP本文から本人を組み立てず、本人確認基盤へ問い合わせる。"""
+) -> VerifiedSubject:
+    """HTTP本文から主体を組み立てず、本人確認基盤へ問い合わせる。"""
     provider = (
         state.identity_provider
         if state.identity_provider is not None
-        else UnconfiguredVerifiedIdentityProvider()
+        else UnconfiguredVerifiedSubjectProvider()
     )
     return await provider.authenticate(
         credentials.credentials if credentials is not None else None
@@ -154,7 +154,7 @@ async def get_verified_identity(
 
 
 IdentityUseCasesDep = Annotated[IdentityUseCases, Depends(get_identity_use_cases)]
-VerifiedIdentityDep = Annotated[VerifiedIdentity, Depends(get_verified_identity)]
+VerifiedSubjectDep = Annotated[VerifiedSubject, Depends(get_verified_subject)]
 
 
 def get_corporate_use_cases(scope: _Scope) -> CorporateUseCases:
@@ -256,4 +256,5 @@ __all__ = [
     "get_staff_use_cases",
     "get_state",
     "get_store_use_cases",
+    "get_verified_subject",
 ]

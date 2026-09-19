@@ -5,12 +5,12 @@ import pytest
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.identity.resolve_actor import VerifiedIdentity
+from app.application.identity.resolve_actor import VerifiedSubject
 from app.domain.identity.primitives import AccountStatus, MembershipRole
 from app.presentational.app_factory import create_app
 from app.presentational.authentication import UnconfiguredActorContextProvider
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
-from tests.fakes.verified_identity_provider import StubVerifiedIdentityProvider
+from tests.fakes.verified_subject_provider import StubVerifiedSubjectProvider
 from tests.integration.organization_helpers import (
     Organization,
     external_subject_of,
@@ -20,13 +20,8 @@ from tests.integration.organization_helpers import (
 
 def identity_app(fixture: Organization) -> FastAPI:
     """本番配線を使い、本人確認基盤の結果だけを固定する。"""
-    provider = StubVerifiedIdentityProvider(
-        {
-            "person": VerifiedIdentity(
-                person_id=fixture.accounts[0].person_id,
-                principal_id=external_subject_of(0),
-            )
-        }
+    provider = StubVerifiedSubjectProvider(
+        {"person": VerifiedSubject(principal_id=external_subject_of(0))}
     )
     app = create_app(identity_provider=provider)
     setattr(

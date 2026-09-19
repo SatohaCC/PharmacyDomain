@@ -37,10 +37,10 @@ flowchart LR
     T --> D
 ```
 
-2026-09-19時点では、Identityを含む12コンテキストのDomainモデルと全コンテキストのPostgreSQL
+2026-09-20時点では、Identityを含む12コンテキストのDomainモデルと全コンテキストのPostgreSQL
 Repositoryを実装済みです。ClaimはDomain層のみです。HTTP境界は全コンテキストの
-ユースケースを公開済みで、認証基盤と薬価基準・HOTコード等の実データ取り込みは
-未実装です。
+ユースケースを公開済みで、外部IdPのJWTを検証する認証基盤も接続済みです。薬価基準・
+HOTコード等の実データ取り込みは未実装です。
 
 ## コンテキスト
 
@@ -94,10 +94,10 @@ Repositoryを実装済みです。ClaimはDomain層のみです。HTTP境界は�
 
 - 全コンテキストの本番Repository、DB制約、楽観ロック、テナント境界は実装済み。実PostgreSQL結合テストで確認済み
 - Claimは到達可能なUseCaseが無いため、HTTPルートも持たない（Domain層のみ）
-- 資格情報から `ActorContext` を作る認証基盤が無い。既定実装は常に401を返す
+- 外部IdPのJWTから `ActorContext` を作る認証基盤は実装済み。`OIDC_*` 未設定なら既定実装が常に401を返す。ログイン画面・リフレッシュ・失効（ログアウト）と、実IdP製品への接続確認は残る
 - 薬価基準・HOTコード等からMedicineCatalogへ取り込むInfrastructureがない
 - Prescriptionの公費枠とCoverage台帳を接続するComposition Adapterは実装済み
-- Dispensing完了とPrescription更新、MedicationHistory確定と頭書き保存は PostgreSQL の同一 Unit of Work で一体化した。HTTPルートへの接続は未実装
+- Dispensing完了とPrescription更新、MedicationHistory確定と頭書き保存は PostgreSQL の同一 Unit of Work で一体化した。HTTPルートへも接続済みで、HTTP経由でも1トランザクションであること（失敗時に両集約が巻き戻ること）を実PostgreSQLの結合テストで確認済み
 - リフィル処方箋と分割調剤の併用可否には原典確認が残る
 - MedicationHistoryを法定調剤録の代替にするための項目充足検証と、3年保存の運用がない
 

@@ -95,5 +95,5 @@ Repository契約は `tests/contracts/`、FakeのProtocol適合は `tools/check_f
 ## 未解決事項
 
 - 全コンテキストの本番Repository、DB制約、楽観ロックは実装済み。実PostgreSQL結合テストで競合・境界を確認済み
-- 複数集約保存は PostgreSQL の Unit of Work で一括ロールバックする。HTTPルートと認証基盤は未実装
+- 複数集約保存は PostgreSQL の Unit of Work で一括ロールバックする。HTTPルートからも同じ境界を通ることを実DBで確認済み
 - 保持期間、監査、移行、マスタ取り込みの運用設計が残る

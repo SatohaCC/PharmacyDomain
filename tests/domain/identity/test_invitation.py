@@ -33,11 +33,9 @@ def _invitation() -> UserInvitation:
     )
 
 
-def test_期限直前に本人が受諾できる() -> None:
+def test_期限直前に受諾できる() -> None:
     invitation = _invitation()
-    accepted = invitation.accept(
-        person_id=invitation.person_id, now=_EXPIRY - timedelta(microseconds=1)
-    )
+    accepted = invitation.accept(now=_EXPIRY - timedelta(microseconds=1))
     assert accepted.status == InvitationStatus.ACCEPTED
     assert accepted.person_id == invitation.person_id
     assert invitation.status == InvitationStatus.PENDING
@@ -47,15 +45,7 @@ def test_期限直前に本人が受諾できる() -> None:
 def test_期限時刻以降は受諾できない(delta: timedelta) -> None:
     invitation = _invitation()
     with pytest.raises(DomainError):
-        invitation.accept(person_id=invitation.person_id, now=_EXPIRY + delta)
-
-
-def test_別の人は期限内でも受諾できない() -> None:
-    invitation = _invitation()
-    with pytest.raises(DomainError):
-        invitation.accept(
-            person_id=AccountPersonId.generate(), now=_EXPIRY - timedelta(hours=1)
-        )
+        invitation.accept(now=_EXPIRY + delta)
 
 
 @pytest.mark.parametrize(
@@ -64,9 +54,7 @@ def test_別の人は期限内でも受諾できない() -> None:
 def test_使用済みや取消済みの招待は再利用できない(status: InvitationStatus) -> None:
     invitation = replace(_invitation(), status=status)
     with pytest.raises(DomainError):
-        invitation.accept(
-            person_id=invitation.person_id, now=_EXPIRY - timedelta(hours=1)
-        )
+        invitation.accept(now=_EXPIRY - timedelta(hours=1))
 
 
 def test_招待を取り消しても本人と予定権限を保持する() -> None:

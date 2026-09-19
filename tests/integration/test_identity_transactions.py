@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.application.identity.invite_user import InviteUserCommand
-from app.application.identity.resolve_actor import VerifiedIdentity
+from app.application.identity.resolve_actor import VerifiedSubject
 from app.application.staff.deactivate_staff import DeactivateStaffCommand
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.primitives import AccountStatus, MembershipRole
@@ -136,7 +136,7 @@ async def test_同じ招待の同時受諾は一人のアカウントと一つ�
     async def accept() -> object:
         await barrier.wait()
         return await fixture.root.accept_invitation(
-            VerifiedIdentity(person_id=person.id, principal_id="issuer/subject"),
+            VerifiedSubject(principal_id="issuer/subject"),
             invitation.secret,
         )
 

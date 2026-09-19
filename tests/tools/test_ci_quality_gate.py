@@ -23,7 +23,9 @@ _AGENTS_MD = _ROOT / "AGENTS.md"
 REQUIRED_GATES: tuple[str, ...] = (
     "uv sync --locked",
     "uv run pytest -q",
-    "uv run mypy app tests",
+    # tools/ にも実装（シード等）を置くので型検査の対象に含める。
+    # 型検査の無い場所へ実装を置くと、壊れていても実行するまで分からない。
+    "uv run mypy app tests tools",
     "uv run ruff check .",
     "uv run ruff format --check .",
     "uv run pytest -m integration -q",
