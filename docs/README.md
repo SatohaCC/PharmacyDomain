@@ -37,7 +37,7 @@ flowchart LR
     T --> D
 ```
 
-2026-08-30時点では、11コンテキストのDomainモデルと全コンテキストのPostgreSQL
+2026-09-19時点では、Identityを含む12コンテキストのDomainモデルと全コンテキストのPostgreSQL
 Repositoryを実装済みです。ClaimはDomain層のみです。HTTP境界は全コンテキストの
 ユースケースを公開済みで、認証基盤と薬価基準・HOTコード等の実データ取り込みは
 未実装です。
@@ -49,6 +49,7 @@ Repositoryを実装済みです。ClaimはDomain層のみです。HTTP境界は�
 | Corporate | 法人の同一性、名称、状態 |
 | Store | 法人配下の店舗と保険薬局情報 |
 | Staff | スタッフ、資格、店舗所属履歴 |
+| Identity | 本人、個人アカウント、法人アクセス権、招待 |
 | Patient | 患者と外部患者ID |
 | Coverage | 患者資格の台帳と有効期間 |
 | Reception | 受付時に選択した資格の履歴 |
@@ -82,6 +83,7 @@ Repositoryを実装済みです。ClaimはDomain層のみです。HTTP境界は�
 | :--- | :--- |
 | [Domain層](ddd/domain.md) | コンテキスト境界とDomain設計の原則 |
 | [Application層](ddd/application.md) | ユースケース、認可、Boundary、保存順序 |
+| [Corporate](ddd/corporate.md) | 法人の同一性、ライフサイクル、テナント認可境界 |
 | [Prescription](ddd/prescription.md) | 処方箋原本・疑義照会・外部規格 |
 | [Dispensing](ddd/dispensing.md) | 調剤セッション・変更調剤・鑑査 |
 | [MedicationHistory](ddd/medication_history.md) | 薬歴・頭書き投影・法的根拠 |

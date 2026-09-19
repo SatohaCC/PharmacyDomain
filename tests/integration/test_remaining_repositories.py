@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, time
 
 import pytest
 from sqlalchemy import text
@@ -31,6 +31,15 @@ from app.domain.patient.primitives import (
 )
 from app.domain.staff.exceptions import StaffCodeAlreadyExistsError
 from app.domain.staff.primitives import StaffCode
+from app.domain.store.business_hours import (
+    BusinessDayException,
+    BusinessHours,
+    BusinessHourSlot,
+    BusinessHoursNote,
+    BusinessWeekday,
+    StoreOpeningState,
+    WeekdayBusinessHours,
+)
 from app.domain.store.exceptions import (
     InsurancePharmacyNumberAlreadyExistsError,
     StoreCodeAlreadyExistsError,
@@ -770,3 +779,54 @@ async def test_適用日で引くと_その時点の版が返る(
     assert new_version is not None
     assert new_version.name.value == "新版"
     assert missing is None
+
+
+async def test_開局時間が_実DBのJSONBを経由して往復する(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """時刻はJSONに素の型が無く、ドライバの変換もここでしか確かめられない。"""
+    # Arrange
+    corporate_id = await _committed_corporate(session_factory)
+    weekly = tuple(
+        WeekdayBusinessHours(
+            weekday=day,
+            slots=()
+            if day == BusinessWeekday.SUNDAY
+            else (
+                BusinessHourSlot(opens_at=time(9, 0), closes_at=time(13, 0)),
+                BusinessHourSlot(opens_at=time(14, 0), closes_at=time(19, 0)),
+            ),
+        )
+        for day in BusinessWeekday
+    )
+    store = create_store(corporate_id=corporate_id, name="開局時間つき店舗")
+    store = store.change_business_hours(
+        BusinessHours(
+            weekly=weekly,
+            exceptions=(
+                BusinessDayException(
+                    on=date(2026, 12, 31), note=BusinessHoursNote("年末年始")
+                ),
+            ),
+        )
+    )
+    unit_of_work = PostgresUnitOfWork(session_factory)
+    async with unit_of_work:
+        await PostgresStoreRepository(unit_of_work).save(store)
+        await unit_of_work.commit()
+
+    # Act
+    reader = PostgresUnitOfWork(session_factory)
+    async with reader:
+        restored = await PostgresStoreRepository(reader).get(store.id)
+
+    # Assert
+    assert restored is not None
+    assert restored.business_hours == store.business_hours
+    # 2026-09-17 は木曜、2026-12-31 は特例で臨時休業。
+    assert restored.opening_state_at(on=date(2026, 9, 17), at=time(12, 0)) == (
+        StoreOpeningState.OPEN
+    )
+    assert restored.opening_state_at(on=date(2026, 12, 31), at=time(12, 0)) == (
+        StoreOpeningState.CLOSED
+    )

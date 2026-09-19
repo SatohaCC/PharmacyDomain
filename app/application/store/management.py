@@ -7,6 +7,7 @@ from typing import Protocol
 
 from app.application.access_control import CorporateAccessBoundary, Permission
 from app.application.access_control.models import ResolvedActorContext
+from app.application.access_control.policy import AuthorizationService
 from app.application.common import UnitOfWork
 from app.application.common.clock import BUSINESS_TIMEZONE, Clock, business_date
 from app.application.common.exceptions import AuthorizationError, NotFoundError
@@ -20,6 +21,7 @@ from app.application.store.get_store import StoreDto
 from app.application.store.support import load_store_or_raise
 from app.domain.corporate.primitives import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.shared.actor import AccountPersonId
 from app.domain.staff.primitives import StaffId
 from app.domain.staff.repository import StaffRepository
 from app.domain.store.lifecycle import (
@@ -30,6 +32,7 @@ from app.domain.store.lifecycle import (
 from app.domain.store.manager_assignment import (
     ManagerAssignmentPeriod,
     ManagerAssignmentStatus,
+    ManagerPersonUnresolvedError,
     StoreManagerAssignment,
     StoreManagerAssignmentId,
 )
@@ -37,6 +40,21 @@ from app.domain.store.manager_repository import StoreManagerAssignmentRepository
 from app.domain.store.manager_service import StoreManagerAssignmentService
 from app.domain.store.primitives import StoreId
 from app.domain.store.repository import StoreRepository
+
+
+class StaffPersonBoundary(Protocol):
+    """スタッフに対応する自然人を引く境界。
+
+    Identity のユースケースへは依存させない。管理薬剤師の専任義務が要るのは
+    「そのスタッフが誰か」という1点だけなので、本人・アカウント・法人アクセス権の
+    語彙をまとめて持ち込むと、店舗の配線が Identity の変更に引きずられる。
+    """
+
+    async def person_of(
+        self, corporate_id: CorporateId, staff_id: StaffId
+    ) -> AccountPersonId | None:
+        """固定済みの本人を返す。未固定・他法人・未存在は ``None`` で隠す。"""
+        ...
 
 
 class StoreWorkBoundary(Protocol):
@@ -127,6 +145,63 @@ class ChangeStoreStatusUseCase:
         return StoreDto.from_entity(updated)
 
 
+@dataclass(frozen=True, kw_only=True)
+class RevokeStoreClosureCommand:
+    """閉局の取消。理由は必須で、記録者と記録時刻は入力として受けない。"""
+
+    corporate_id: str
+    store_id: str
+    reason: str
+
+
+class RevokeStoreClosureUseCase:
+    """ベンダーシステム管理者だけが、誤って登録された閉局を取り消す。
+
+    権限判定をルータへ持ち込まない。ここで要求すれば、経路が増えても判定は
+    1箇所のままである。
+    """
+
+    def __init__(
+        self,
+        stores: StoreRepository,
+        access: CorporateAccessBoundary,
+        clock: Clock,
+        unit_of_work: UnitOfWork,
+        lock: OrganizationLock,
+    ) -> None:
+        self._stores = stores
+        self._access = access
+        self._clock = clock
+        self._unit_of_work = unit_of_work
+        self._lock = lock
+
+    async def execute(self, command: RevokeStoreClosureCommand) -> StoreDto:
+        """閉局を取り消して休止へ戻す。任命は復元しない。"""
+        self._unit_of_work.ensure_active()
+        corporate_id = CorporateId.parse(command.corporate_id)
+        await self._lock.acquire("identity")
+        await self._lock.acquire(f"corporate:{corporate_id.value}")
+        AuthorizationService(self._access.actor).require_vendor_system_admin(
+            permission=Permission.REVOKE_STORE_CLOSURE
+        )
+        store = await load_store_or_raise(
+            self._stores,
+            corporate_id=corporate_id,
+            store_id=StoreId.parse(command.store_id),
+        )
+        actor = self._access.actor
+        if not isinstance(actor, ResolvedActorContext):
+            raise AuthorizationError("閉局の取消には本人とアカウントの特定が必要です。")
+        updated = store.revoke_closure(
+            reason=StoreStatusReason(command.reason),
+            person_id=actor.person_id,
+            account_id=actor.account_id,
+            recorded_at=self._clock.now(),
+        )
+        await self._stores.save(updated)
+        return StoreDto.from_entity(updated)
+
+
 class ManagerAction(StrEnum):
     """任命履歴への更新分類。"""
 
@@ -183,6 +258,7 @@ class ManageStoreManagerUseCase:
         stores: StoreRepository,
         staff: StaffRepository,
         managers: StoreManagerAssignmentRepository,
+        people: StaffPersonBoundary,
         access: CorporateAccessBoundary,
         clock: Clock,
         unit_of_work: UnitOfWork,
@@ -191,6 +267,7 @@ class ManageStoreManagerUseCase:
         self._stores = stores
         self._staff = staff
         self._managers = managers
+        self._people = people
         self._access = access
         self._clock = clock
         self._unit_of_work = unit_of_work
@@ -238,11 +315,21 @@ class ManageStoreManagerUseCase:
             )
             if staff is None or staff.corporate_id != corporate_id:
                 raise NotFoundError("指定されたスタッフが見つかりません。")
+            # 専任義務は自然人にかかるので、本人の分からないスタッフは任命でき
+            # ない。判定を「分からないなら通す」に倒すと、その1件だけが兼務の
+            # 検査をすり抜ける。永続化側の複合外部キーも同じことを拒否するが、
+            # ここで止めれば理由の分かるメッセージを返せる。
+            person_id = await self._people.person_of(corporate_id, staff.id)
+            if person_id is None:
+                raise ManagerPersonUnresolvedError(
+                    "管理薬剤師に任命するには、スタッフと本人の対応が必要です。"
+                )
             updated = StoreManagerAssignment(
                 id=StoreManagerAssignmentId.generate(),
                 corporate_id=corporate_id,
                 store_id=store_id,
                 staff_id=staff.id,
+                person_id=person_id,
                 period=ManagerAssignmentPeriod(
                     starts_on=command.starts_on, ends_on=command.ends_on
                 ),

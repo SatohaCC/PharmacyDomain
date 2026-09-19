@@ -32,6 +32,7 @@ class Permission(StrEnum):
     MANAGE_CORPORATE = "manage_corporate"
     MANAGE_CORPORATE_STATUS = "manage_corporate_status"
     MANAGE_MEDICINE_CATALOG = "manage_medicine_catalog"
+    REVOKE_STORE_CLOSURE = "revoke_store_closure"
     VIEW_STORE = "view_store"
     MANAGE_STORE = "manage_store"
     VIEW_STAFF = "view_staff"

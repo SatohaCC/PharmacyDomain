@@ -1,5 +1,7 @@
 """管理薬剤師の期間競合を検証するインメモリ保存。"""
 
+from datetime import date
+
 from app.domain.corporate.primitives import CorporateId
 from app.domain.staff.primitives import StaffId
 from app.domain.store.manager_assignment import (
@@ -9,6 +11,7 @@ from app.domain.store.manager_assignment import (
 )
 from app.domain.store.manager_repository import (
     ManagerAssignmentConflictError,
+    ManagerExclusiveDutyConflictError,
     StoreManagerAssignmentRepository,
 )
 from app.domain.store.primitives import StoreId
@@ -43,7 +46,27 @@ class InMemoryStoreManagerAssignmentRepository(StoreManagerAssignmentRepository)
             if item.corporate_id == corporate_id and item.staff_id == staff_id
         ]
 
+    async def find_effective(
+        self, corporate_id: CorporateId, store_id: StoreId, as_of: date
+    ) -> StoreManagerAssignment | None:
+        """適用日に有効な確定任命を1件返す。"""
+        for item in self.items.values():
+            if (
+                item.corporate_id == corporate_id
+                and item.store_id == store_id
+                and item.is_effective_on(as_of)
+            ):
+                return item
+        return None
+
     async def save(self, assignment: StoreManagerAssignment) -> None:
+        """店舗の重複と、人単位の兼務を別の例外として拒否する。
+
+        同じ店舗かつ同じ人物で期間が重なる場合は、実物ではどちらの排他制約が
+        報告されるかがサーバ任せになる。ここでは店舗側を先に見る。どちらも409
+        なので応答の形は変わらないが、この一点だけは実物と型が揃わないことが
+        ありうる。
+        """
         if assignment.status == ManagerAssignmentStatus.CONFIRMED:
             for existing in self.items.values():
                 if (
@@ -51,17 +74,19 @@ class InMemoryStoreManagerAssignmentRepository(StoreManagerAssignmentRepository)
                     or existing.status == ManagerAssignmentStatus.CANCELLED
                 ):
                     continue
-                same_target = (
-                    existing.store_id == assignment.store_id
-                    or existing.staff_id == assignment.staff_id
-                )
                 left = existing.period
                 right = assignment.period
                 overlap = (
                     left.ends_on is None or right.starts_on <= left.ends_on
                 ) and (right.ends_on is None or left.starts_on <= right.ends_on)
-                if same_target and overlap:
+                if not overlap:
+                    continue
+                if existing.store_id == assignment.store_id:
                     raise ManagerAssignmentConflictError(
-                        "店舗またはスタッフの任命期間が重複しています。"
+                        "その店舗には、同じ期間に別の管理薬剤師の任命があります。"
+                    )
+                if existing.person_id == assignment.person_id:
+                    raise ManagerExclusiveDutyConflictError(
+                        "同じ人物が、同じ期間に複数の薬局の管理薬剤師を兼ねることはできません。"
                     )
         self.items[assignment.id] = assignment

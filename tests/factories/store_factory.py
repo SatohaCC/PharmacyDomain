@@ -7,7 +7,11 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from app.domain.corporate import CorporateId
+from app.domain.shared.actor import AccountPersonId
+from app.domain.staff.primitives import StaffId
 from app.domain.store import (
     ContactInfo,
     InsurancePharmacyNumber,
@@ -17,12 +21,18 @@ from app.domain.store import (
     StoreCode,
     StoreEmailAddress,
     StoreFaxNumber,
+    StoreId,
     StoreName,
     StoreNameKana,
     StoreNameRomaji,
     StoreNames,
     StorePhoneNumber,
     StorePostalCode,
+)
+from app.domain.store.manager_assignment import (
+    ManagerAssignmentPeriod,
+    StoreManagerAssignment,
+    StoreManagerAssignmentId,
 )
 
 #: 有効な保険薬局指定番号（都道府県コード13・調剤区分4）。
@@ -60,6 +70,30 @@ def create_contact_info(
         phone_number=StorePhoneNumber(phone_number),
         fax_number=StoreFaxNumber(fax_number) if fax_number else None,
         email=StoreEmailAddress(email) if email else None,
+    )
+
+
+def create_manager_assignment(
+    *,
+    corporate_id: CorporateId,
+    store_id: StoreId,
+    staff_id: StaffId | None = None,
+    person_id: AccountPersonId | None = None,
+    starts_on: date = date(2026, 1, 1),
+    ends_on: date | None = None,
+) -> StoreManagerAssignment:
+    """店舗に在任する管理薬剤師の任命を組み立てる（永続化はしない）。
+
+    本人を省いたときは新しく採番する。専任義務の競合を確かめるテストは、
+    同じ人物であることが要点なので必ず明示的に渡すこと。
+    """
+    return StoreManagerAssignment(
+        id=StoreManagerAssignmentId.generate(),
+        corporate_id=corporate_id,
+        store_id=store_id,
+        staff_id=staff_id if staff_id is not None else StaffId.generate(),
+        person_id=person_id if person_id is not None else AccountPersonId.generate(),
+        period=ManagerAssignmentPeriod(starts_on=starts_on, ends_on=ends_on),
     )
 
 

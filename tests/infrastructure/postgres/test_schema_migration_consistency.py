@@ -169,6 +169,7 @@ def _row_value_cases() -> list[tuple[AggregateMapping[Any], Mapping[str, object]
                 corporate_id=store.corporate_id,
                 store_id=store.id,
                 staff_id=staff.id,
+                person_id=AccountPersonId.generate(),
                 period=ManagerAssignmentPeriod(starts_on=date(2026, 9, 17)),
             ),
         ),

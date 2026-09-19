@@ -25,12 +25,13 @@ from app.domain.staff.primitives import (
     StoreAffiliation,
 )
 from app.domain.staff.staff import Staff
+from app.domain.store.manager_assignment import StoreManagerAssignment
 from app.domain.store.store import Store
 from app.infrastructure.di.root import PostgresCompositionRoot
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.repositories import PostgresRepositorySet
 from tests.factories.staff_factory import create_staff
-from tests.factories.store_factory import create_store
+from tests.factories.store_factory import create_manager_assignment, create_store
 from tests.fakes.fake_clock import FakeClock
 from tests.infrastructure.postgres.helpers import create_corporate
 from tests.integration.test_identity_persistence import _person
@@ -57,6 +58,37 @@ class Organization:
     staff: list[Staff]
     accounts: list[UserAccount]
     memberships: list[CorporateMembership]
+
+
+async def appoint_manager(
+    factory: async_sessionmaker[AsyncSession],
+    organization: Organization,
+    *,
+    ends_on: date | None = None,
+) -> StoreManagerAssignment:
+    """店舗が新規業務を開始できる状態になるまで、管理薬剤師を任命する。
+
+    薬機法第7条の配置義務により、管理薬剤師の在任しない店舗では受付も調剤も
+    薬歴の作成も始められない。この装具を呼ばずに新規保存の競合を確かめると、
+    保存する側が**常に**拒否されるため、競合していなくても期待どおりの件数に
+    なり、テストが確かめているつもりのものを確かめないまま緑になる。
+
+    任命は保存前の境界を通さず直接書く。ここで確かめたいのは任命そのものでは
+    なく、任命のある店舗で起きることだからである。
+    """
+    # 本人は必ず対応（``StaffPersonLink``）と揃える。実DBでは複合外部キーが
+    # 組で参照するので、取り違えた本人は保存の時点で弾かれる。
+    assignment = create_manager_assignment(
+        corporate_id=organization.corporate.id,
+        store_id=organization.store.id,
+        staff_id=organization.staff[0].id,
+        person_id=organization.accounts[0].person_id,
+        ends_on=ends_on,
+    )
+    async with PostgresUnitOfWork(factory) as work:
+        await PostgresRepositorySet.create(work).manager_assignment.save(assignment)
+        await work.commit()
+    return assignment
 
 
 async def setup_organization(

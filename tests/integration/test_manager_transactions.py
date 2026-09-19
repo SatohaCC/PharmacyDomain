@@ -10,14 +10,22 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.application.staff.update_qualifications import UpdateStaffQualificationsCommand
 from app.application.store.management import ManagerAction, ManageStoreManagerCommand
 from app.domain.foundation.exceptions import DomainError
+from app.domain.identity.staff_person_link import StaffPersonLink
 from app.domain.store.manager_assignment import (
     ManagerAssignmentPeriod,
+    ManagerPersonUnresolvedError,
     StoreManagerAssignment,
     StoreManagerAssignmentId,
 )
-from app.domain.store.manager_repository import ManagerAssignmentConflictError
+from app.domain.store.manager_repository import (
+    ManagerAssignmentConflictError,
+    ManagerExclusiveDutyConflictError,
+)
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from tests.factories.staff_factory import create_staff
+from tests.factories.store_factory import create_store
+from tests.infrastructure.postgres.helpers import create_corporate
 from tests.integration.organization_helpers import setup_organization
 
 
@@ -100,6 +108,7 @@ async def test_同じ店舗への同時任命はDB排他制約で一件だけ確
             corporate_id=fixture.corporate.id,
             store_id=fixture.store.id,
             staff_id=fixture.staff[index].id,
+            person_id=fixture.accounts[index].person_id,
             period=ManagerAssignmentPeriod(starts_on=date(2026, 9, 1)),
         )
         async with PostgresUnitOfWork(session_factory) as work:
@@ -165,3 +174,91 @@ async def test_薬剤師資格削除と任命が競合しても矛盾した任�
         )
     assert staff is not None
     assert staff.is_pharmacist == bool(assignments)
+
+
+@pytest.mark.asyncio
+async def test_同じ人物は別法人の店舗の管理薬剤師を兼ねられない(
+    engine: AsyncEngine, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    """専任義務は自然人にかかるので、法人が違っても止める。
+
+    排他制約の鍵を法人内のスタッフIDにしていた頃は、グループ内の別法人で
+    同じ人物がそれぞれ管理薬剤師になれた。スタッフIDが違うので制約が当たらず、
+    例外も出なかった。法人IDを鍵に含めてはならないことを実物で固定する。
+    """
+    # Arrange
+    fixture = await setup_organization(engine, session_factory)
+    person_id = fixture.accounts[0].person_id
+    other_corporate = create_corporate("グループ内の別法人")
+    other_store = create_store(corporate_id=other_corporate.id)
+    other_staff = create_staff(corporate_id=other_corporate.id)
+    async with PostgresUnitOfWork(session_factory) as work:
+        repos = PostgresRepositorySet.create(work)
+        await repos.corporate.save(other_corporate)
+        await repos.store.save(other_store)
+        await repos.staff.save(other_staff)
+        await repos.staff_person_link.save(
+            StaffPersonLink(
+                id=other_staff.id,
+                corporate_id=other_corporate.id,
+                person_id=person_id,
+            )
+        )
+        await repos.manager_assignment.save(
+            StoreManagerAssignment(
+                id=StoreManagerAssignmentId.generate(),
+                corporate_id=fixture.corporate.id,
+                store_id=fixture.store.id,
+                staff_id=fixture.staff[0].id,
+                person_id=person_id,
+                period=ManagerAssignmentPeriod(starts_on=date(2026, 9, 1)),
+            )
+        )
+        await work.commit()
+
+    # Act & Assert
+    with pytest.raises(ManagerExclusiveDutyConflictError):
+        async with PostgresUnitOfWork(session_factory) as work:
+            await PostgresRepositorySet.create(work).manager_assignment.save(
+                StoreManagerAssignment(
+                    id=StoreManagerAssignmentId.generate(),
+                    corporate_id=other_corporate.id,
+                    store_id=other_store.id,
+                    staff_id=other_staff.id,
+                    person_id=person_id,
+                    period=ManagerAssignmentPeriod(starts_on=date(2026, 9, 10)),
+                )
+            )
+            await work.commit()
+
+
+@pytest.mark.asyncio
+async def test_本人の対応が無いスタッフは任命として保存できない(
+    engine: AsyncEngine, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    """ユースケースを通さない経路でも、複合外部キーが最後に止める。
+
+    任命の ``person_id`` は対応の写しなので、対応と組で参照させる。こうすると
+    「対応の無いスタッフ」も「対応とずれた本人」も同じ制約で弾ける。
+    """
+    # Arrange
+    fixture = await setup_organization(engine, session_factory)
+    unlinked = create_staff(corporate_id=fixture.corporate.id)
+    async with PostgresUnitOfWork(session_factory) as work:
+        await PostgresRepositorySet.create(work).staff.save(unlinked)
+        await work.commit()
+
+    # Act & Assert
+    with pytest.raises(ManagerPersonUnresolvedError):
+        async with PostgresUnitOfWork(session_factory) as work:
+            await PostgresRepositorySet.create(work).manager_assignment.save(
+                StoreManagerAssignment(
+                    id=StoreManagerAssignmentId.generate(),
+                    corporate_id=fixture.corporate.id,
+                    store_id=fixture.store.id,
+                    staff_id=unlinked.id,
+                    person_id=fixture.accounts[0].person_id,
+                    period=ManagerAssignmentPeriod(starts_on=date(2026, 9, 1)),
+                )
+            )
+            await work.commit()

@@ -21,8 +21,6 @@ class StoreOperation(StrEnum):
     START_HISTORY = "start_history"
     FINALIZE_HISTORY = "finalize_history"
     AMEND_HISTORY = "amend_history"
-    ASSIGN_STAFF = "assign_staff"
-    ASSIGN_MANAGER = "assign_manager"
 
 
 class StoreOperationKind(StrEnum):
@@ -56,10 +54,35 @@ STORE_OPERATION_KINDS: Final[Mapping[StoreOperation, StoreOperationKind]] = {
     # 閉局で書けなくなると、記載漏れのある薬歴を直せないまま凍結してしまう。
     StoreOperation.FINALIZE_HISTORY: StoreOperationKind.CONTINUING,
     StoreOperation.AMEND_HISTORY: StoreOperationKind.CONTINUING,
-    StoreOperation.ASSIGN_STAFF: StoreOperationKind.CONTINUING,
-    StoreOperation.ASSIGN_MANAGER: StoreOperationKind.CONTINUING,
     StoreOperation.READ_HISTORY: StoreOperationKind.READ_ONLY,
 }
+
+#: 区分ごとに、管理薬剤師の在任を要するか。
+#:
+#: 薬機法第7条は薬局ごとに管理薬剤師を置くことを義務づける。店舗が有効である
+#: ことと管理薬剤師が在任することは**別の事実**なので、店舗状態の区分へ畳まず
+#: 軸を分ける。
+#:
+#: ただし宣言は業務ごとではなく**区分ごと**に置く。業務ごとに書くと、いまは
+#: 上の表と同じ値が12行並ぶだけの複製になり、片方だけ直した事故をどちらの表も
+#: 検出できない。区分を増やしたときには必ず1行書かせる。
+#:
+#: 在任を業務の「継続」まで要求しない。不在を理由に継続まで止めると、調剤済みの
+#: 記録や書きかけの薬歴が不在の期間だけ凍結し、閉局で全てを止めないのと同じ
+#: 理由で害のほうが大きい。新しい業務を始めさせないことが抑止になる。
+MANAGER_REQUIRED_BY_KIND: Final[Mapping[StoreOperationKind, bool]] = {
+    StoreOperationKind.NEW_WORK: True,
+    StoreOperationKind.CONTINUING: False,
+    StoreOperationKind.READ_ONLY: False,
+}
+
+# スタッフの配属と管理薬剤師の任命は、この境界の対象に**しない**。どちらも
+# 本物の集約を受け取る Domain Service（``StaffStoreAssignmentService`` と
+# ``StoreManagerAssignmentService``）が閉局店舗を拒否しており、ここに同じ規則を
+# 置くと判定が2箇所になる。実際、かつて列挙にだけ存在した ``assign_staff`` /
+# ``assign_manager`` は ``require_allowed`` を呼ぶ経路を持たず、表の上でだけ
+# 守られているように見えていた。さらに、任命を在任の要る業務として扱うと
+# 最初の1人を任命できなくなる。
 
 
 class StoreOperationBoundary(Protocol):

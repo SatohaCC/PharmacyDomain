@@ -92,3 +92,59 @@ def test_タイムゾーンの無い記録日時は拒否される() -> None:
             account_id=_ACCOUNT,
             recorded_at=naive_now,
         )
+
+
+def _revoke(store: Store) -> Store:
+    return store.revoke_closure(
+        reason=StoreStatusReason("閉局の操作誤り"),
+        person_id=_PERSON,
+        account_id=_ACCOUNT,
+        recorded_at=_NOW,
+    )
+
+
+def test_閉局の取消は有効ではなく休止へ戻す() -> None:
+    """取消は訂正であって営業の再開ではない。
+
+    有効へ戻すと、閉局で任命が終わっている店舗が、その場で受付を通す状態に
+    なる。再開は通常の状態変更として別に行わせる。
+    """
+    # Arrange
+    closed = _change(create_store(), StoreStatus.CLOSED)
+
+    # Act
+    revoked = _revoke(closed)
+
+    # Assert
+    assert revoked.status == StoreStatus.SUSPENDED
+    assert revoked.status_history[-1].before == StoreStatus.CLOSED
+    assert revoked.status_history[-1].after == StoreStatus.SUSPENDED
+    assert revoked.status_history[-1].reason == StoreStatusReason("閉局の操作誤り")
+
+
+def test_取り消したあとの店舗は通常の状態変更で再開できる() -> None:
+    """取消が終端を作らないことを、実際に再開して確かめる。"""
+    # Arrange
+    revoked = _revoke(_change(create_store(), StoreStatus.CLOSED))
+
+    # Act
+    resumed = _change(revoked, StoreStatus.ACTIVE)
+
+    # Assert
+    assert resumed.status == StoreStatus.ACTIVE
+    assert len(resumed.status_history) == 3
+
+
+@pytest.mark.parametrize("status", [StoreStatus.ACTIVE, StoreStatus.SUSPENDED])
+def test_閉局していない店舗の閉局は取り消せない(status: StoreStatus) -> None:
+    """取消を「休止にする」の別名にしない。"""
+    # Arrange
+    store = (
+        create_store()
+        if status == StoreStatus.ACTIVE
+        else _change(create_store(), status)
+    )
+
+    # Act & Assert
+    with pytest.raises(DomainError, match="閉局していない店舗"):
+        _revoke(store)

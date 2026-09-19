@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from app.application.access_control import AuthorizationService
 from app.application.common.clock import Clock
+from app.application.composition import StaffPersonAdapter
 from app.application.composition.staff_integrity import (
     StaffAccessRevocationService,
 )
@@ -36,6 +37,10 @@ from app.application.staff.remove_concurrent_store import (
 )
 from app.application.staff.transfer_home_store import TransferStaffHomeStoreUseCase
 from app.application.staff.update_qualifications import UpdateStaffQualificationsUseCase
+from app.application.store.business_hours import (
+    ChangeStoreBusinessHoursUseCase,
+    GetStoreOpeningStatusUseCase,
+)
 from app.application.store.change_insurance_pharmacy_number import (
     ChangeInsurancePharmacyNumberUseCase,
 )
@@ -50,6 +55,7 @@ from app.application.store.list_stores import ListStoresUseCase
 from app.application.store.management import (
     ChangeStoreStatusUseCase,
     ManageStoreManagerUseCase,
+    RevokeStoreClosureUseCase,
 )
 from app.application.store.register_store import RegisterStoreUseCase
 from app.domain.corporate.services import CorporateNameUniquenessService
@@ -118,6 +124,7 @@ class StoreUseCases:
 
     register: RegisterStoreUseCase
     change_status: ChangeStoreStatusUseCase
+    revoke_closure: RevokeStoreClosureUseCase
     manage_manager: ManageStoreManagerUseCase
     get: GetStoreUseCase
     list_by_corporate: ListStoresUseCase
@@ -126,6 +133,8 @@ class StoreUseCases:
     change_address: ChangeStoreAddressUseCase
     change_contact_info: ChangeStoreContactInfoUseCase
     change_insurance_pharmacy_number: ChangeInsurancePharmacyNumberUseCase
+    change_business_hours: ChangeStoreBusinessHoursUseCase
+    opening_status: GetStoreOpeningStatusUseCase
 
 
 def build_store_use_cases(
@@ -149,10 +158,18 @@ def build_store_use_cases(
             unit_of_work,
             PostgresOrganizationLock(unit_of_work),
         ),
+        revoke_closure=RevokeStoreClosureUseCase(
+            repository,
+            corporate_access,
+            clock,
+            unit_of_work,
+            PostgresOrganizationLock(unit_of_work),
+        ),
         manage_manager=ManageStoreManagerUseCase(
             repository,
             repositories.staff,
             repositories.manager_assignment,
+            StaffPersonAdapter(repositories.staff_person_link),
             corporate_access,
             clock,
             unit_of_work,
@@ -177,6 +194,12 @@ def build_store_use_cases(
         change_contact_info=ChangeStoreContactInfoUseCase(repository, corporate_access),
         change_insurance_pharmacy_number=ChangeInsurancePharmacyNumberUseCase(
             repository, number_uniqueness, corporate_access
+        ),
+        change_business_hours=ChangeStoreBusinessHoursUseCase(
+            repository, corporate_access
+        ),
+        opening_status=GetStoreOpeningStatusUseCase(
+            repository, corporate_access, clock
         ),
     )
 
