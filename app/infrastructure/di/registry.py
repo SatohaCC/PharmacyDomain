@@ -29,6 +29,10 @@ from app.infrastructure.di.bundles import (
     build_staff_use_cases,
     build_store_use_cases,
 )
+from app.infrastructure.di.bundles.identity import (
+    IdentityUseCases,
+    build_identity_use_cases,
+)
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.repositories import PostgresRepositorySet
 
@@ -66,10 +70,24 @@ class PostgresUseCaseRegistry:
         return cast(CorporateUseCases, self._cache["corporate"])
 
     @property
+    def identity(self) -> IdentityUseCases:
+        if "identity" not in self._cache:
+            self._cache["identity"] = build_identity_use_cases(
+                self._repositories,
+                self._corporate_access,
+                self._clock,
+                self._unit_of_work,
+            )
+        return cast(IdentityUseCases, self._cache["identity"])
+
+    @property
     def store(self) -> StoreUseCases:
         if "store" not in self._cache:
             self._cache["store"] = build_store_use_cases(
-                self._repositories, self._corporate_access
+                self._repositories,
+                self._corporate_access,
+                self._clock,
+                self._unit_of_work,
             )
         return cast(StoreUseCases, self._cache["store"])
 
@@ -77,7 +95,10 @@ class PostgresUseCaseRegistry:
     def staff(self) -> StaffUseCases:
         if "staff" not in self._cache:
             self._cache["staff"] = build_staff_use_cases(
-                self._repositories, self._corporate_access, self._clock
+                self._repositories,
+                self._corporate_access,
+                self._clock,
+                self._unit_of_work,
             )
         return cast(StaffUseCases, self._cache["staff"])
 
@@ -146,6 +167,7 @@ class PostgresUseCaseRegistry:
 
 # リフレクション検査（test_composition / test_route_coverage）のために型ヒントを明示登録する。
 PostgresUseCaseRegistry.__annotations__ = {
+    "identity": IdentityUseCases,
     "corporate": CorporateUseCases,
     "store": StoreUseCases,
     "staff": StaffUseCases,

@@ -16,8 +16,14 @@ from dataclasses import dataclass
 from typing import Self
 
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
+from app.infrastructure.postgres.repositories.account_person import (
+    PostgresAccountPersonRepository,
+)
 from app.infrastructure.postgres.repositories.corporate import (
     PostgresCorporateRepository,
+)
+from app.infrastructure.postgres.repositories.corporate_membership import (
+    PostgresCorporateMembershipRepository,
 )
 from app.infrastructure.postgres.repositories.coverage_selection_record import (
     PostgresCoverageSelectionRecordRepository,
@@ -45,7 +51,19 @@ from app.infrastructure.postgres.repositories.prescription import (
     PostgresPrescriptionRepository,
 )
 from app.infrastructure.postgres.repositories.staff import PostgresStaffRepository
+from app.infrastructure.postgres.repositories.staff_person_link import (
+    PostgresStaffPersonLinkRepository,
+)
 from app.infrastructure.postgres.repositories.store import PostgresStoreRepository
+from app.infrastructure.postgres.repositories.store_manager_assignment import (
+    PostgresStoreManagerAssignmentRepository,
+)
+from app.infrastructure.postgres.repositories.user_account import (
+    PostgresUserAccountRepository,
+)
+from app.infrastructure.postgres.repositories.user_invitation import (
+    PostgresUserInvitationRepository,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +76,12 @@ class PostgresRepositorySet:
     """
 
     corporate: PostgresCorporateRepository
+    manager_assignment: PostgresStoreManagerAssignmentRepository
+    account_person: PostgresAccountPersonRepository
+    user_account: PostgresUserAccountRepository
+    membership: PostgresCorporateMembershipRepository
+    staff_person_link: PostgresStaffPersonLinkRepository
+    invitation: PostgresUserInvitationRepository
     store: PostgresStoreRepository
     staff: PostgresStaffRepository
     patient: PostgresPatientRepository
@@ -74,6 +98,12 @@ class PostgresRepositorySet:
     def create(cls, unit_of_work: PostgresUnitOfWork) -> Self:
         """1つの Unit of Work から全Repositoryを組み立てる。"""
         return cls(
+            manager_assignment=PostgresStoreManagerAssignmentRepository(unit_of_work),
+            account_person=PostgresAccountPersonRepository(unit_of_work),
+            user_account=PostgresUserAccountRepository(unit_of_work),
+            membership=PostgresCorporateMembershipRepository(unit_of_work),
+            staff_person_link=PostgresStaffPersonLinkRepository(unit_of_work),
+            invitation=PostgresUserInvitationRepository(unit_of_work),
             corporate=PostgresCorporateRepository(unit_of_work),
             store=PostgresStoreRepository(unit_of_work),
             staff=PostgresStaffRepository(unit_of_work),

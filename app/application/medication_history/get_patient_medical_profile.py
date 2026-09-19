@@ -280,7 +280,7 @@ class GetPatientMedicalProfileUseCase:
         corporate_id = CorporateId.parse(query.corporate_id)
         await self._corporate_access.require_active(
             corporate_id=corporate_id,
-            permission=Permission.VIEW_MEDICATION_HISTORY,
+            permission=Permission.VIEW_PATIENT,
         )
         profile = await self._repository.get_by_patient(
             corporate_id=corporate_id,
@@ -328,7 +328,7 @@ class RebuildPatientMedicalProfileUseCase:
         corporate_id = CorporateId.parse(command.corporate_id)
         await self._corporate_access.require_active(
             corporate_id=corporate_id,
-            permission=Permission.MANAGE_MEDICATION_HISTORY,
+            permission=Permission.MANAGE_PATIENT,
         )
         patient_id = PatientId.parse(command.patient_id)
         records = await self._record_repository.list_by_patient(

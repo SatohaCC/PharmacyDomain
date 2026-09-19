@@ -42,6 +42,7 @@ from app.application.dispensing.exceptions import (
     DispensingStaffNotFoundError,
     DispensingStoreNotFoundError,
 )
+from app.application.identity.resolve_actor import UnavailableIdentityError
 from app.application.medication_history.exceptions import (
     MedicationHistoryDispensingNotFoundError,
     MedicationHistoryNotFoundError,
@@ -76,6 +77,7 @@ from app.domain.coverage.exceptions import (
 )
 from app.domain.dispensing.exceptions import DispensingAlreadyExistsError
 from app.domain.foundation.exceptions import ConcurrentModificationError, DomainError
+from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.medication_history.exceptions import (
     ConcurrentMedicationNotFoundError,
     MedicationHistoryAlreadyExistsError,
@@ -100,6 +102,11 @@ from app.domain.store.exceptions import (
     StoreCodeAlreadyExistsError,
     StoreNameAlreadyExistsError,
 )
+from app.domain.store.lifecycle import StoreStateConflictError
+from app.domain.store.manager_assignment import (
+    ManagerAssignmentStateConflictError,
+)
+from app.domain.store.manager_repository import ManagerAssignmentConflictError
 from app.presentational.exceptions import AuthenticationError, PresentationError
 
 #: 応答本文へ翻訳できる例外。これ以外は隠さず500として扱う。
@@ -152,6 +159,11 @@ _STATUS_BY_EXCEPTION: Final[Mapping[type[BaseException], HTTPStatus]] = {
     PresentationError: HTTPStatus.BAD_REQUEST,
     # --- 401: 主体がまだ決まっていない ---
     AuthenticationError: HTTPStatus.UNAUTHORIZED,
+    UnavailableIdentityError: HTTPStatus.UNAUTHORIZED,
+    IdentityConflictError: HTTPStatus.CONFLICT,
+    ManagerAssignmentConflictError: HTTPStatus.CONFLICT,
+    ManagerAssignmentStateConflictError: HTTPStatus.CONFLICT,
+    StoreStateConflictError: HTTPStatus.CONFLICT,
     # --- 403: 主体は判明したうえでの拒否 ---
     # 別テナントのリソースは TenantBoundaryNotFoundError（404）として隠すので、
     # ここへ来るのは自テナント内の権限不足だけである。

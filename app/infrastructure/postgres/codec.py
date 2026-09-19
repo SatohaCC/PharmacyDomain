@@ -12,6 +12,7 @@ from enum import Enum
 from typing import (
     Annotated,
     Any,
+    Final,
     Literal,
     TypeVar,
     Union,
@@ -22,10 +23,40 @@ from typing import (
 )
 
 from app.domain.foundation.primitives.base import DomainPrimitive
+from app.domain.staff.primitives import (
+    BaseQualificationProfile,
+    DietitianProfile,
+    PharmacistProfile,
+    RegisteredSellerProfile,
+)
 
 
 class PersistenceMappingError(ValueError):
     """DB の payload を集約へ復元できない場合の例外。"""
+
+
+#: 資格プロファイルを1行のJSONBへ書くときの判別子キー。
+#: 具象クラスのフィールド名と衝突してはならない（``tests`` が検査する）。
+QUALIFICATION_TAG_KEY: Final = "profile_type"
+
+#: 保存された判別子と具象クラスの対応。
+#:
+#: ``qualification_type`` は ``DietitianProfile`` が ``is_registered_dietitian``
+#: によって2つの区分を返すためクラスと1対1にならず、判別子には使えない。
+#: クラス名を直接書くと改名で保存済みの行が読めなくなるので、改名から独立した
+#: 文字列をここで固定する。候補型を順に試して最初に通ったものを採る方式は、
+#: ``DietitianProfile`` と ``RegisteredSellerProfile`` が同形（必須フィールドが
+#: ``registration_number`` 1つ）であるため、登録販売者を管理栄養士として
+#: 復元してしまう。
+QUALIFICATION_PROFILE_TAGS: Final[Mapping[str, type[BaseQualificationProfile]]] = {
+    "pharmacist": PharmacistProfile,
+    "dietitian": DietitianProfile,
+    "registered_seller": RegisteredSellerProfile,
+}
+
+_QUALIFICATION_TAG_BY_TYPE: Final[Mapping[type[BaseQualificationProfile], str]] = {
+    profile_type: tag for tag, profile_type in QUALIFICATION_PROFILE_TAGS.items()
+}
 
 
 _PrimitiveType = type[DomainPrimitive[object]]
@@ -79,6 +110,16 @@ def _encode(value: object) -> object:
         return str(value)
     if isinstance(value, Decimal):
         return str(value)
+    if isinstance(value, BaseQualificationProfile):
+        tag = _QUALIFICATION_TAG_BY_TYPE.get(type(value))
+        if tag is None:
+            raise PersistenceMappingError(
+                f"判別子が未登録の資格プロファイルです: {type(value).__qualname__}。"
+            )
+        encoded_profile: dict[str, object] = {QUALIFICATION_TAG_KEY: tag}
+        for field in fields(value):
+            encoded_profile[field.name] = _encode(getattr(value, field.name))
+        return encoded_profile
     if is_dataclass(value):
         return {
             field.name: _encode(getattr(value, field.name)) for field in fields(value)
@@ -156,9 +197,34 @@ def _decode(value: object, annotation: object, *, context: str) -> object:
         return _decode_date(value, context=context)
     if annotation in (str, int, float, bool):
         return _decode_scalar(value, annotation, context=context)
+    if annotation is BaseQualificationProfile:
+        return _decode_qualification_profile(value, context=context)
     if is_dataclass(annotation):
         return _decode_dataclass(value, annotation, context=context)
     return value
+
+
+def _decode_qualification_profile(value: object, *, context: str) -> object:
+    """判別子だけを根拠に資格プロファイルを復元する。
+
+    構造の推測で分岐すると、必須フィールドが同形のクラスどうしが入れ替わる。
+    判別子が無い行は、どの資格だったかを復元する根拠が payload に無いので、
+    黙って別の資格として通さずに拒否する。
+    """
+    if not isinstance(value, dict):
+        raise PersistenceMappingError(
+            f"{context} は JSON オブジェクトである必要があります。"
+        )
+    tag = value.get(QUALIFICATION_TAG_KEY)
+    if not isinstance(tag, str):
+        raise PersistenceMappingError(f"{context} に資格の判別子がありません。")
+    profile_type = QUALIFICATION_PROFILE_TAGS.get(tag)
+    if profile_type is None:
+        raise PersistenceMappingError(f"{context} の資格の判別子が不正です: {tag!r}。")
+    remainder = {
+        key: item for key, item in value.items() if key != QUALIFICATION_TAG_KEY
+    }
+    return _decode_dataclass(remainder, profile_type, context=context)
 
 
 def _decode_union(

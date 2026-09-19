@@ -7,7 +7,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.application.access_control import AuthorizationService
 from app.application.common.clock import Clock
+from app.application.composition.staff_integrity import (
+    StaffAccessRevocationService,
+)
 from app.application.corporate.change_corporate_name import ChangeCorporateNameUseCase
 from app.application.corporate.change_corporate_status import (
     ChangeCorporateStatusUseCase,
@@ -15,6 +19,7 @@ from app.application.corporate.change_corporate_status import (
 from app.application.corporate.change_representative import ChangeRepresentativeUseCase
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.application.corporate.get_corporate import GetCorporateUseCase
+from app.application.corporate.list_corporates import ListCorporatesUseCase
 from app.application.corporate.register_corporate import RegisterCorporateUseCase
 from app.application.staff.activate_staff import ActivateStaffUseCase
 from app.application.staff.assign_concurrent_store import (
@@ -42,6 +47,10 @@ from app.application.store.change_store_contact_info import (
 from app.application.store.change_store_name import ChangeStoreNamesUseCase
 from app.application.store.get_store import GetStoreUseCase
 from app.application.store.list_stores import ListStoresUseCase
+from app.application.store.management import (
+    ChangeStoreStatusUseCase,
+    ManageStoreManagerUseCase,
+)
 from app.application.store.register_store import RegisterStoreUseCase
 from app.domain.corporate.services import CorporateNameUniquenessService
 from app.domain.staff.services import (
@@ -52,6 +61,11 @@ from app.domain.store.services import (
     InsurancePharmacyNumberUniquenessService,
     StoreCodeUniquenessService,
     StoreNameUniquenessService,
+)
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
+from app.infrastructure.postgres.organization import (
+    PostgresOrganizationLock,
+    PostgresStoreWorkBoundary,
 )
 from app.infrastructure.postgres.repositories import PostgresRepositorySet
 
@@ -65,6 +79,7 @@ class CorporateUseCases:
     """法人コンテキストのユースケース。"""
 
     register: RegisterCorporateUseCase
+    list: ListCorporatesUseCase
     get: GetCorporateUseCase
     change_name: ChangeCorporateNameUseCase
     change_representative: ChangeRepresentativeUseCase
@@ -79,6 +94,9 @@ def build_corporate_use_cases(
     repository = repositories.corporate
     uniqueness = CorporateNameUniquenessService(repository)
     return CorporateUseCases(
+        list=ListCorporatesUseCase(
+            repository, AuthorizationService(corporate_access.actor)
+        ),
         register=RegisterCorporateUseCase(repository, uniqueness, corporate_access),
         get=GetCorporateUseCase(corporate_access),
         change_name=ChangeCorporateNameUseCase(
@@ -99,6 +117,8 @@ class StoreUseCases:
     """店舗コンテキストのユースケース。"""
 
     register: RegisterStoreUseCase
+    change_status: ChangeStoreStatusUseCase
+    manage_manager: ManageStoreManagerUseCase
     get: GetStoreUseCase
     list_by_corporate: ListStoresUseCase
     change_names: ChangeStoreNamesUseCase
@@ -111,6 +131,8 @@ class StoreUseCases:
 def build_store_use_cases(
     repositories: PostgresRepositorySet,
     corporate_access: CorporateAccessService,
+    clock: Clock,
+    unit_of_work: PostgresUnitOfWork,
 ) -> StoreUseCases:
     """店舗ユースケースを組み立てる。"""
     repository = repositories.store
@@ -118,6 +140,24 @@ def build_store_use_cases(
     code_uniqueness = StoreCodeUniquenessService(repository)
     number_uniqueness = InsurancePharmacyNumberUniquenessService(repository)
     return StoreUseCases(
+        change_status=ChangeStoreStatusUseCase(
+            repository,
+            repositories.manager_assignment,
+            PostgresStoreWorkBoundary(unit_of_work),
+            corporate_access,
+            clock,
+            unit_of_work,
+            PostgresOrganizationLock(unit_of_work),
+        ),
+        manage_manager=ManageStoreManagerUseCase(
+            repository,
+            repositories.staff,
+            repositories.manager_assignment,
+            corporate_access,
+            clock,
+            unit_of_work,
+            PostgresOrganizationLock(unit_of_work),
+        ),
         register=RegisterStoreUseCase(
             repository,
             name_uniqueness,
@@ -167,10 +207,19 @@ def build_staff_use_cases(
     repositories: PostgresRepositorySet,
     corporate_access: CorporateAccessService,
     clock: Clock,
+    unit_of_work: PostgresUnitOfWork,
 ) -> StaffUseCases:
     """スタッフユースケースを組み立てる。"""
+    # 任命の再検証は保存前の境界（StaffAssignmentWriteGuard）が全経路へ掛ける
+    # ので、ここでRepositoryを包まない。包むと ``get()`` まで管理操作のロックを
+    # 取り、参照が全書き込みと直列化する。
     staff_repository = repositories.staff
     store_repository = repositories.store
+    access_revocation = StaffAccessRevocationService(
+        repositories.membership,
+        repositories.user_account,
+        PostgresOrganizationLock(unit_of_work),
+    )
     code_uniqueness = StaffCodeUniquenessService(staff_repository)
     assignment = StaffStoreAssignmentService()
     return StaffUseCases(
@@ -182,7 +231,7 @@ def build_staff_use_cases(
             corporate_access,
         ),
         get=GetStaffUseCase(staff_repository, corporate_access, clock),
-        list_by_corporate=ListStaffsUseCase(staff_repository, corporate_access),
+        list_by_corporate=ListStaffsUseCase(repositories.staff, corporate_access),
         change_names=ChangeStaffNamesUseCase(staff_repository, corporate_access),
         change_job_title=ChangeStaffJobTitleUseCase(staff_repository, corporate_access),
         update_qualifications=UpdateStaffQualificationsUseCase(
@@ -198,7 +247,9 @@ def build_staff_use_cases(
             staff_repository, store_repository, assignment, corporate_access
         ),
         activate=ActivateStaffUseCase(staff_repository, corporate_access),
-        deactivate=DeactivateStaffUseCase(staff_repository, corporate_access),
+        deactivate=DeactivateStaffUseCase(
+            staff_repository, corporate_access, access_revocation
+        ),
     )
 
 

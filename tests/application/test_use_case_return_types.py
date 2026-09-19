@@ -106,3 +106,30 @@ async def test_スタッフ登録は_採番されたIDだけを返す() -> None:
     # 集約を返していた頃の呼び出し側は、適用日なしの導出を直接呼べていた。
     assert annotation is StaffId
     assert inspect.iscoroutinefunction(RegisterStaffUseCase.execute)
+
+
+def test_execute以外の公開操作も集約を返さない() -> None:
+    leaked: list[str] = []
+    for module_info in pkgutil.walk_packages(
+        app.application.__path__, "app.application."
+    ):
+        module = importlib.import_module(module_info.name)
+        for value in vars(module).values():
+            if (
+                not isinstance(value, type)
+                or not value.__name__.endswith("UseCase")
+                or value.__module__ != module_info.name
+            ):
+                continue
+            for name, operation in inspect.getmembers(
+                value, inspect.iscoroutinefunction
+            ):
+                if name.startswith("_"):
+                    continue
+                annotation = typing.get_type_hints(operation).get("return")
+                if any(
+                    issubclass(referenced, Entity)
+                    for referenced in _referenced_types(annotation)
+                ):
+                    leaked.append(f"{value.__qualname__}.{name}")
+    assert not leaked, f"集約を返している公開操作: {leaked}"

@@ -6,6 +6,13 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from app.domain.corporate.primitives import CorporateId
+from app.domain.identity.primitives import (
+    AccountPersonId,
+    CorporateMembershipId,
+    UserAccountId,
+)
+from app.domain.staff.primitives import StaffId
+from app.domain.store.primitives import StoreId
 
 
 class ActorRole(StrEnum):
@@ -13,6 +20,8 @@ class ActorRole(StrEnum):
 
     VENDOR_SYSTEM_ADMIN = "vendor_system_admin"
     CORPORATE_ADMIN = "corporate_admin"
+    STORE_OPERATOR = "store_operator"
+    STORE_VIEWER = "store_viewer"
 
 
 class Permission(StrEnum):
@@ -80,3 +89,28 @@ class ActorContext:
             roles=frozenset({ActorRole.CORPORATE_ADMIN}),
             corporate_id=corporate_id,
         )
+
+
+@dataclass(frozen=True, kw_only=True)
+class ResolvedActorContext(ActorContext):
+    """本人と内部アカウントを照合済みの操作主体。"""
+
+    person_id: AccountPersonId
+    account_id: UserAccountId
+    membership_id: CorporateMembershipId | None = None
+    staff_id: StaffId | None = None
+    store_ids: frozenset[StoreId] = frozenset()
+
+    def __post_init__(self) -> None:
+        """店舗ロールが法人スコープを持つことを、構築の時点で確かめる。
+
+        この検査を配線（読取範囲の組み立て）へ置くと、法人の無い店舗ロールが
+        生成できてしまい、読取範囲を作らない経路では素通りする。不変条件は
+        持ち主の側に置く。
+        """
+        super().__post_init__()
+        if (
+            self.roles & {ActorRole.STORE_OPERATOR, ActorRole.STORE_VIEWER}
+            and self.corporate_id is None
+        ):
+            raise ValueError("店舗ロールには所属法人が必要です。")

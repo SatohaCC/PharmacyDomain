@@ -6,10 +6,12 @@
 
 from __future__ import annotations
 
+from datetime import date
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Query, Response
 
+from app.application.common.pagination import Page
 from app.application.store import (
     ChangeInsurancePharmacyNumberCommand,
     ChangeStoreAddressCommand,
@@ -22,6 +24,14 @@ from app.application.store import (
     StoreDto,
     StoreSummaryDto,
 )
+from app.application.store.get_store import StoreStatusChangeDto
+from app.application.store.management import (
+    ChangeStoreStatusCommand,
+    ManagerAction,
+    ManagerAssignmentDto,
+    ManageStoreManagerCommand,
+)
+from app.domain.store.lifecycle import StoreStatus
 from app.presentational.dependencies import StoreUseCasesDep, get_actor_context
 from app.presentational.errors import error_responses
 from app.presentational.schemas import RegisteredIdResponse, RequestModel
@@ -31,11 +41,14 @@ router = APIRouter(
     tags=["store"],
     dependencies=[Depends(get_actor_context)],
     # 404 もルータ単位に置く。全ルートが親法人をパスに持つので、法人が無い・
-    # 他テナントである場合はどのルートでも404になる。
+    # 他テナントである場合はどのルートでも404になる。409 も同じ理由で置く。
+    # 書き込みは一意制約違反だけでなく楽観ロック衝突でも409になるため、ルートごとに
+    # 書き足す運用にすると、新しく足した1本だけが宣言を欠く。
     responses=error_responses(
         HTTPStatus.UNAUTHORIZED,
         HTTPStatus.FORBIDDEN,
         HTTPStatus.NOT_FOUND,
+        HTTPStatus.CONFLICT,
         HTTPStatus.UNPROCESSABLE_CONTENT,
     ),
 )
@@ -255,6 +268,213 @@ async def change_insurance_pharmacy_number(
             corporate_id=corporate_id,
             store_id=store_id,
             new_number=body.insurance_pharmacy_number,
+        )
+    )
+
+
+class ChangeStoreStatusRequest(RequestModel):
+    """状態変更理由。操作者・日時は入力しない。"""
+
+    reason: str
+
+
+@router.post(
+    "/{store_id}/suspension",
+    response_model=StoreDto,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def suspend_store(
+    corporate_id: str,
+    store_id: str,
+    body: ChangeStoreStatusRequest,
+    use_cases: StoreUseCasesDep,
+) -> StoreDto:
+    """店舗を休止する。"""
+    return await use_cases.change_status.execute(
+        ChangeStoreStatusCommand(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            status=StoreStatus.SUSPENDED,
+            reason=body.reason,
+        )
+    )
+
+
+@router.post(
+    "/{store_id}/resumption",
+    response_model=StoreDto,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def resume_store(
+    corporate_id: str,
+    store_id: str,
+    body: ChangeStoreStatusRequest,
+    use_cases: StoreUseCasesDep,
+) -> StoreDto:
+    """休止した店舗を再開する。"""
+    return await use_cases.change_status.execute(
+        ChangeStoreStatusCommand(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            status=StoreStatus.ACTIVE,
+            reason=body.reason,
+        )
+    )
+
+
+@router.post(
+    "/{store_id}/closure",
+    response_model=StoreDto,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def close_store(
+    corporate_id: str,
+    store_id: str,
+    body: ChangeStoreStatusRequest,
+    use_cases: StoreUseCasesDep,
+) -> StoreDto:
+    """残業務を確認して店舗を閉局する。"""
+    return await use_cases.change_status.execute(
+        ChangeStoreStatusCommand(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            status=StoreStatus.CLOSED,
+            reason=body.reason,
+        )
+    )
+
+
+@router.get("/{store_id}/status-history", response_model=list[StoreStatusChangeDto])
+async def get_status_history(
+    corporate_id: str, store_id: str, use_cases: StoreUseCasesDep
+) -> list[StoreStatusChangeDto]:
+    """店舗状態の履歴を取得する。"""
+    store = await use_cases.get.execute(
+        GetStoreQuery(corporate_id=corporate_id, store_id=store_id)
+    )
+    return list(store.status_history)
+
+
+class ManageManagerRequest(RequestModel):
+    """管理薬剤師の任命履歴への操作。"""
+
+    action: ManagerAction = ManagerAction.APPOINT
+    assignment_id: str | None = None
+    staff_id: str | None = None
+    starts_on: date | None = None
+    ends_on: date | None = None
+
+
+@router.post(
+    "/{store_id}/manager-assignments",
+    response_model=ManagerAssignmentDto,
+)
+async def manage_manager(
+    corporate_id: str,
+    store_id: str,
+    body: ManageManagerRequest,
+    use_cases: StoreUseCasesDep,
+) -> ManagerAssignmentDto:
+    """管理薬剤師を任命・交代・取消・終了する。"""
+    return await use_cases.manage_manager.execute(
+        ManageStoreManagerCommand(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            action=body.action,
+            assignment_id=body.assignment_id,
+            staff_id=body.staff_id,
+            starts_on=body.starts_on,
+            ends_on=body.ends_on,
+        )
+    )
+
+
+class EndManagerRequest(RequestModel):
+    """任命の終了日。"""
+
+    ends_on: date
+
+
+class ReplaceManagerRequest(RequestModel):
+    """管理薬剤師交代の入力。"""
+
+    current_assignment_id: str
+    new_staff_id: str
+    effective_on: date
+
+
+@router.get("/{store_id}/manager-assignments")
+async def list_managers(
+    corporate_id: str,
+    store_id: str,
+    use_cases: StoreUseCasesDep,
+    as_of: date | None = None,
+    cursor: str | None = None,
+    limit: int = Query(default=50, ge=1, le=100),
+) -> Page[ManagerAssignmentDto]:
+    """指定日の管理薬剤師または任命履歴を取得する。"""
+    return await use_cases.manage_manager.list_assignments(
+        corporate_id, store_id, as_of=as_of, after=cursor, limit=limit
+    )
+
+
+@router.post(
+    "/{store_id}/manager-assignments/{assignment_id}/ending",
+    response_model=ManagerAssignmentDto,
+)
+async def end_manager(
+    corporate_id: str,
+    store_id: str,
+    assignment_id: str,
+    body: EndManagerRequest,
+    use_cases: StoreUseCasesDep,
+) -> ManagerAssignmentDto:
+    """管理薬剤師の任命期間を終了する。"""
+    return await use_cases.manage_manager.execute(
+        ManageStoreManagerCommand(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            assignment_id=assignment_id,
+            action=ManagerAction.END,
+            ends_on=body.ends_on,
+        )
+    )
+
+
+@router.post(
+    "/{store_id}/manager-assignments/{assignment_id}/cancellation",
+    response_model=ManagerAssignmentDto,
+)
+async def cancel_manager(
+    corporate_id: str, store_id: str, assignment_id: str, use_cases: StoreUseCasesDep
+) -> ManagerAssignmentDto:
+    """開始前の任命を取消し履歴を残す。"""
+    return await use_cases.manage_manager.execute(
+        ManageStoreManagerCommand(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            assignment_id=assignment_id,
+            action=ManagerAction.CANCEL,
+        )
+    )
+
+
+@router.post("/{store_id}/manager-replacement", response_model=ManagerAssignmentDto)
+async def replace_manager(
+    corporate_id: str,
+    store_id: str,
+    body: ReplaceManagerRequest,
+    use_cases: StoreUseCasesDep,
+) -> ManagerAssignmentDto:
+    """旧任命の終了と新任命を同時に確定する。"""
+    return await use_cases.manage_manager.execute(
+        ManageStoreManagerCommand(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            assignment_id=body.current_assignment_id,
+            staff_id=body.new_staff_id,
+            action=ManagerAction.REPLACE,
+            starts_on=body.effective_on,
         )
     )
 

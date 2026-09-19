@@ -13,9 +13,11 @@ from fastapi import FastAPI
 
 from app.infrastructure.di import PostgresCompositionRoot
 from app.infrastructure.postgres import PostgresSettings
+from app.presentational.access_logging import log_access
 from app.presentational.authentication import (
     ActorContextProvider,
     UnconfiguredActorContextProvider,
+    VerifiedIdentityProvider,
 )
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
 from app.presentational.errors import register_error_handlers
@@ -23,6 +25,7 @@ from app.presentational.routers import (
     corporate,
     coverage,
     dispensing,
+    identity,
     medication_history,
     medicine_catalog,
     patient,
@@ -37,7 +40,11 @@ _TITLE = "PharmacyDomain API"
 _VERSION = "0.1.0"
 
 
-def create_app(*, actor_provider: ActorContextProvider | None = None) -> FastAPI:
+def create_app(
+    *,
+    actor_provider: ActorContextProvider | None = None,
+    identity_provider: VerifiedIdentityProvider | None = None,
+) -> FastAPI:
     """ルータ・例外翻訳・起動終了処理を結線したアプリケーションを返す。
 
     Args:
@@ -61,7 +68,11 @@ def create_app(*, actor_provider: ActorContextProvider | None = None) -> FastAPI
         setattr(
             app.state,
             STATE_ATTRIBUTE,
-            PresentationState(actor_provider=provider, composition_root=root),
+            PresentationState(
+                actor_provider=provider,
+                composition_root=root,
+                identity_provider=identity_provider,
+            ),
         )
         try:
             yield
@@ -69,10 +80,17 @@ def create_app(*, actor_provider: ActorContextProvider | None = None) -> FastAPI
             await root.dispose()
 
     app = FastAPI(title=_TITLE, version=_VERSION, lifespan=lifespan)
+    app.middleware("http")(log_access)
     # 認証基盤はlifespanを待たずに使えるようにする。DB接続を張る前に401を返す。
-    setattr(app.state, STATE_ATTRIBUTE, PresentationState(actor_provider=provider))
+    setattr(
+        app.state,
+        STATE_ATTRIBUTE,
+        PresentationState(actor_provider=provider, identity_provider=identity_provider),
+    )
     register_error_handlers(app)
     for router in (
+        identity.router,
+        identity.acceptance_router,
         system.router,
         corporate.router,
         store.router,

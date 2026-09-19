@@ -12,13 +12,15 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.access_control import ActorContext, AuthorizationService
+from app.application.access_control import ActorRole, AuthorizationService
+from app.application.access_control.models import ResolvedActorContext
 from app.application.dispensing.complete_dispensing import CompleteDispensingCommand
 from app.application.dispensing.exceptions import (
     DispensingPrescriptionNotFoundError,
@@ -29,6 +31,8 @@ from app.domain.dispensing.primitives import (
     DispensingCompletionType,
     DispensingProcessStatus,
 )
+from app.domain.identity.primitives import UserAccountId
+from app.domain.identity.user_account import UserAccount
 from app.domain.prescription.prescription import Prescription
 from app.domain.prescription.primitives import PrescriptionStatus
 from app.infrastructure.di import PostgresCompositionRoot
@@ -36,16 +40,29 @@ from app.infrastructure.postgres.connection import PostgresSettings, PostgresUni
 from app.infrastructure.postgres.repositories import (
     PostgresDispensingProcessRepository,
     PostgresPrescriptionRepository,
+    PostgresRepositorySet,
 )
 from tests.factories.dispensing_factory import create_dispensing, verify_passed
 from tests.factories.prescription_factory import create_prescription
+from tests.factories.store_factory import create_store
 from tests.infrastructure.postgres.helpers import create_corporate
+from tests.integration.test_identity_persistence import _person
+
+_PERSON = _person()
+_ACCOUNT = UserAccount(
+    id=UserAccountId.generate(), person_id=_PERSON.id, is_vendor_admin=True
+)
 
 
 def _authorization() -> AuthorizationService:
     """全法人を操作できるベンダーシステム管理者。"""
     return AuthorizationService(
-        ActorContext.vendor_system_admin(principal_id="integration-vendor-admin")
+        ResolvedActorContext(
+            principal_id="integration-vendor-admin",
+            roles=frozenset({ActorRole.VENDOR_SYSTEM_ADMIN}),
+            person_id=_PERSON.id,
+            account_id=_ACCOUNT.id,
+        )
     )
 
 
@@ -69,6 +86,9 @@ async def _save_corporate_and_dispensing(
         )
     )
 
+    store = create_store(corporate_id=corporate.id)
+    prescription = replace(prescription, store_id=store.id)
+    process = replace(process, store_id=store.id)
     unit_of_work = PostgresUnitOfWork(session_factory)
     async with unit_of_work:
         from app.infrastructure.postgres.repositories import (
@@ -76,6 +96,10 @@ async def _save_corporate_and_dispensing(
         )
 
         await PostgresCorporateRepository(unit_of_work).save(corporate)
+        repositories = PostgresRepositorySet.create(unit_of_work)
+        await repositories.store.save(store)
+        await repositories.account_person.save(_PERSON)
+        await repositories.user_account.save(_ACCOUNT)
         if with_prescription:
             await PostgresPrescriptionRepository(unit_of_work).save(prescription)
         await PostgresDispensingProcessRepository(unit_of_work).save(process)

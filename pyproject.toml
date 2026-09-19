@@ -10,6 +10,7 @@ dependencies = [
     "fastapi>=0.115,<1.0",
     "pydantic>=2.11,<3.0",
     "sqlalchemy[asyncio]>=2.0,<3.0",
+    "tzdata>=2026.4",
     "uvicorn[standard]>=0.30,<1.0",
 ]
 
@@ -104,6 +105,7 @@ paths = ["app"]
 [tool.import_rules.forbidden]
 # Domain基盤はShared Kernel・個別コンテキスト・外側の層に依存しない。
 "app.domain.foundation" = [
+    "app.domain.identity",
     "app.domain.shared",
     "app.domain.corporate",
     "app.domain.store",
@@ -122,6 +124,7 @@ paths = ["app"]
 ]
 # Shared Kernel はDomain基盤にだけ依存し、個別コンテキストへ依存しない。
 "app.domain.shared" = [
+    "app.domain.identity",
     "app.domain.corporate",
     "app.domain.store",
     "app.domain.staff",
@@ -163,6 +166,7 @@ paths = ["app"]
 "app.presentational" = ["sqlalchemy"]
 # Application共通基盤はDomain層や個別Applicationコンテキストに依存しない。
 "app.application.common" = [
+    "app.application.identity",
     "app.domain",
     "app.application.access_control",
     "app.application.corporate",
@@ -192,6 +196,7 @@ paths = ["app"]
     "app.application.dispensing",
     "app.application.medication_history",
     "app.application.medicine_catalog",
+    "app.application.identity",
 ]
 # Corporate は他のApplicationコンテキストに依存しない。
 "app.application.corporate" = [
@@ -205,6 +210,7 @@ paths = ["app"]
     "app.application.dispensing",
     "app.application.medication_history",
     "app.application.medicine_catalog",
+    "app.application.identity",
 ]
 # Store は Staff にも法人コンテキストの実装にも依存しない。
 "app.application.store" = [
@@ -218,6 +224,7 @@ paths = ["app"]
     "app.application.dispensing",
     "app.application.medication_history",
     "app.application.medicine_catalog",
+    "app.application.identity",
 ]
 # Staff は法人コンテキストの実装に依存しない（Store への依存は一方向で許可）。
 "app.application.staff" = [
@@ -230,6 +237,7 @@ paths = ["app"]
     "app.application.dispensing",
     "app.application.medication_history",
     "app.application.medicine_catalog",
+    "app.application.identity",
 ]
 # Patient は他のApplicationコンテキストに依存しない。
 "app.application.patient" = [
@@ -243,6 +251,7 @@ paths = ["app"]
     "app.application.dispensing",
     "app.application.medication_history",
     "app.application.medicine_catalog",
+    "app.application.identity",
 ]
 # Coverage は法人・PatientのApplication実装に依存せず、ID参照と境界Protocolだけを使う。
 "app.application.coverage" = [
@@ -256,6 +265,7 @@ paths = ["app"]
     "app.application.dispensing",
     "app.application.medication_history",
     "app.application.medicine_catalog",
+    "app.application.identity",
 ]
 # Receptionは他コンテキストのApplication実装へ依存せず、参照Boundaryへ依存する。
 "app.application.reception" = [
@@ -269,6 +279,7 @@ paths = ["app"]
     "app.application.dispensing",
     "app.application.medication_history",
     "app.application.medicine_catalog",
+    "app.application.identity",
 ]
 # Prescriptionは他コンテキストのApplication実装へ依存せず、参照Boundaryへ依存する。
 "app.application.prescription" = [
@@ -279,6 +290,10 @@ paths = ["app"]
     "app.application.coverage",
     "app.application.reception",
     "app.application.composition",
+    "app.application.dispensing",
+    "app.application.medication_history",
+    "app.application.medicine_catalog",
+    "app.application.identity",
 ]
 # Dispensingは他コンテキストのApplication実装へ依存せず、参照Boundaryへ依存する。
 "app.application.dispensing" = [
@@ -290,6 +305,9 @@ paths = ["app"]
     "app.application.reception",
     "app.application.prescription",
     "app.application.composition",
+    "app.application.medication_history",
+    "app.application.medicine_catalog",
+    "app.application.identity",
 ]
 # MedicationHistoryは他コンテキストのApplication実装へ依存せず、参照Boundaryへ依存する。
 "app.application.medication_history" = [
@@ -302,7 +320,37 @@ paths = ["app"]
     "app.application.prescription",
     "app.application.dispensing",
     "app.application.composition",
+    "app.application.medicine_catalog",
+    "app.application.identity",
 ]
+# Identityは店舗・スタッフ・法人の識別子だけを参照し、集約とRepositoryへは依存しない。
+# 逆向き（Store → Identity）は禁止する。操作者の識別子は Shared Kernel にあるので、
+# 店舗の状態変更履歴が Identity を知る必要はない。双方向にすると、どちらの
+# コンテキストも単独では取り出せなくなる。
+"app.domain.identity" = [
+    "app.domain.corporate.corporate",
+    "app.domain.corporate.repository",
+    "app.domain.store.store",
+    "app.domain.store.repository",
+    "app.domain.store.lifecycle",
+    "app.domain.store.manager_assignment",
+    "app.domain.store.manager_repository",
+    "app.domain.store.manager_service",
+    "app.domain.staff.staff",
+    "app.domain.staff.repository",
+    "app.domain.staff.services",
+    "app.domain.patient",
+    "app.domain.coverage",
+    "app.domain.reception",
+    "app.domain.claim",
+    "app.domain.prescription",
+    "app.domain.dispensing",
+    "app.domain.medication_history",
+    "app.domain.medicine_catalog",
+]
+"app.domain.store" = ["app.domain.identity"]
+"app.domain.staff" = ["app.domain.identity"]
+"app.domain.corporate" = ["app.domain.identity"]
 # 医薬品マスタのApplicationは、どのコンテキストのApplication実装にも依存しない。
 "app.application.medicine_catalog" = [
     "app.application.corporate",
@@ -314,6 +362,21 @@ paths = ["app"]
     "app.application.prescription",
     "app.application.dispensing",
     "app.application.medication_history",
+    "app.application.composition",
+    "app.application.identity",
+]
+# Identityは他の個別Applicationコンテキストに依存しない。
+"app.application.identity" = [
+    "app.application.corporate",
+    "app.application.store",
+    "app.application.staff",
+    "app.application.patient",
+    "app.application.coverage",
+    "app.application.reception",
+    "app.application.prescription",
+    "app.application.dispensing",
+    "app.application.medication_history",
+    "app.application.medicine_catalog",
     "app.application.composition",
 ]
 # CoverageはPatientのAggregate/Repositoryを直接参照せず、資格自身のIDと境界だけを扱う。

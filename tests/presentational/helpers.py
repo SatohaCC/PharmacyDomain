@@ -8,6 +8,7 @@ Application層のテストが確かめているため、ここでは固定の主
 from __future__ import annotations
 
 from app.application.access_control import ActorContext, AuthorizationService
+from app.application.access_control.models import ActorRole, ResolvedActorContext
 from app.application.common.clock import Clock
 from app.application.composition.coverage_references import (
     CoveragePatientReferenceAdapter,
@@ -27,6 +28,7 @@ from app.application.corporate import (
     GetCorporateUseCase,
     RegisterCorporateUseCase,
 )
+from app.application.corporate.list_corporates import ListCorporatesUseCase
 from app.application.coverage import (
     ChangePatientCoveragePeriodUseCase,
     DeactivatePatientCoverageUseCase,
@@ -75,9 +77,14 @@ from app.application.store import (
     ListStoresUseCase,
     RegisterStoreUseCase,
 )
+from app.application.store.management import (
+    ChangeStoreStatusUseCase,
+    ManageStoreManagerUseCase,
+)
 from app.domain.corporate import CorporateNameUniquenessService
 from app.domain.coverage.combination import CoverageSelectionService
 from app.domain.coverage.services import PatientCoverageConflictService
+from app.domain.identity.primitives import AccountPersonId, UserAccountId
 from app.domain.medicine_catalog.services import MedicineEffectivePeriodConflictService
 from app.domain.staff.services import (
     StaffCodeUniquenessService,
@@ -97,9 +104,20 @@ from app.infrastructure.di import (
     StaffUseCases,
     StoreUseCases,
 )
+from tests.application.staff.access_revocation_helpers import (
+    create_access_revocation,
+)
+from tests.fakes.fake_clock import FakeClock
+from tests.fakes.fake_organization_management import (
+    FakeOrganizationLock,
+    FakeStoreWorkBoundary,
+)
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository
 from tests.fakes.in_memory_coverage_selection_record_repository import (
     InMemoryCoverageSelectionRecordRepository,
+)
+from tests.fakes.in_memory_manager_assignment_repository import (
+    InMemoryStoreManagerAssignmentRepository,
 )
 from tests.fakes.in_memory_medicine_catalog_repository import (
     InMemoryMedicineCatalogRepository,
@@ -113,11 +131,20 @@ from tests.fakes.in_memory_patient_repository import (
 )
 from tests.fakes.in_memory_staff_repository import InMemoryStaffRepository
 from tests.fakes.in_memory_store_repository import InMemoryStoreRepository
+from tests.fakes.null_unit_of_work import NullUnitOfWork
+
+_VENDOR_PERSON_ID = AccountPersonId.generate()
+_VENDOR_ACCOUNT_ID = UserAccountId.generate()
 
 
 def vendor_admin() -> ActorContext:
     """全法人を操作できるベンダーシステム管理者。"""
-    return ActorContext.vendor_system_admin(principal_id="test-actor")
+    return ResolvedActorContext(
+        principal_id="test-actor",
+        roles=frozenset({ActorRole.VENDOR_SYSTEM_ADMIN}),
+        person_id=_VENDOR_PERSON_ID,
+        account_id=_VENDOR_ACCOUNT_ID,
+    )
 
 
 def _access_for(repository: InMemoryCorporateRepository) -> CorporateAccessService:
@@ -131,6 +158,7 @@ def create_corporate_use_cases(
     uniqueness = CorporateNameUniquenessService(repository)
     access = _access_for(repository)
     return CorporateUseCases(
+        list=ListCorporatesUseCase(repository, AuthorizationService(vendor_admin())),
         register=RegisterCorporateUseCase(repository, uniqueness, access),
         get=GetCorporateUseCase(access),
         change_name=ChangeCorporateNameUseCase(repository, uniqueness, access),
@@ -149,6 +177,24 @@ def create_store_use_cases(
     numbers = InsurancePharmacyNumberUniquenessService(repository)
     access = _access_for(corporate_repository)
     return StoreUseCases(
+        change_status=ChangeStoreStatusUseCase(
+            repository,
+            InMemoryStoreManagerAssignmentRepository(),
+            FakeStoreWorkBoundary(),
+            access,
+            FakeClock(),
+            NullUnitOfWork(),
+            FakeOrganizationLock(),
+        ),
+        manage_manager=ManageStoreManagerUseCase(
+            repository,
+            InMemoryStaffRepository(),
+            InMemoryStoreManagerAssignmentRepository(),
+            access,
+            FakeClock(),
+            NullUnitOfWork(),
+            FakeOrganizationLock(),
+        ),
         register=RegisterStoreUseCase(repository, names, codes, numbers, access),
         get=GetStoreUseCase(repository, access),
         list_by_corporate=ListStoresUseCase(repository, access),
@@ -191,7 +237,7 @@ def create_staff_use_cases(
             staffs, stores, assignment, access
         ),
         activate=ActivateStaffUseCase(staffs, access),
-        deactivate=DeactivateStaffUseCase(staffs, access),
+        deactivate=DeactivateStaffUseCase(staffs, access, create_access_revocation()),
     )
 
 

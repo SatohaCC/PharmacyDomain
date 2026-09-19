@@ -28,6 +28,14 @@ services:
       DEV_ACTOR_TOKEN: ${DEV_ACTOR_TOKEN:-dev-actor-token}
       DEV_ACTOR_ROLE: ${DEV_ACTOR_ROLE:-vendor_system_admin}
       DEV_ACTOR_CORPORATE_ID: ${DEV_ACTOR_CORPORATE_ID:-}
+      # 更新は監査の追記を伴い、追記は実在する本人とアカウントの行を要求する
+      # （外部キー）。既定値を置くと、存在しない行を指したまま起動して最初の
+      # 更新で落ちるので、未設定なら起動時に落とす。
+      DEV_ACTOR_PERSON_ID: ${DEV_ACTOR_PERSON_ID:-}
+      DEV_ACTOR_ACCOUNT_ID: ${DEV_ACTOR_ACCOUNT_ID:-}
+      # 店舗ロール（store_operator / store_viewer）のときだけ必要。
+      DEV_ACTOR_STORE_IDS: ${DEV_ACTOR_STORE_IDS:-}
+      DEV_ACTOR_PRINCIPAL_ID: ${DEV_ACTOR_PRINCIPAL_ID:-}
     ports:
       # postgres と同じく開発機のループバックにだけ公開する。既知の開発用トークンで
       # 全法人を操作できるので、0.0.0.0 に開くと同一ネットワークから全部触れる。

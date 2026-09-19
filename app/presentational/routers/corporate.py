@@ -8,8 +8,9 @@
 from __future__ import annotations
 
 from http import HTTPStatus
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Query, Response
 
 from app.application.corporate import (
     ChangeCorporateNameCommand,
@@ -17,6 +18,10 @@ from app.application.corporate import (
     ChangeRepresentativeCommand,
     CorporateResponseDto,
     RegisterCorporateCommand,
+)
+from app.application.corporate.list_corporates import (
+    CorporatePageDto,
+    ListCorporatesQuery,
 )
 from app.presentational.dependencies import CorporateUseCasesDep, get_actor_context
 from app.presentational.errors import error_responses
@@ -84,6 +89,20 @@ async def register_corporate(
         )
     )
     return RegisteredIdResponse(id=str(corporate_id.value))
+
+
+@router.get("", response_model=CorporatePageDto)
+async def list_corporates(
+    use_cases: CorporateUseCasesDep,
+    name: str | None = None,
+    status: str | None = None,
+    cursor: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> CorporatePageDto:
+    """ベンダーが名称・状態で法人を検索する。"""
+    return await use_cases.list.execute(
+        ListCorporatesQuery(name=name, status=status, cursor=cursor, limit=limit)
+    )
 
 
 @router.get(

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 from http import HTTPStatus
 from pathlib import Path
 
@@ -14,6 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.application.access_control import ActorRole
+from app.application.access_control.models import ResolvedActorContext
 from app.presentational import UnconfiguredActorContextProvider, create_app
 from app.presentational.dependencies import (
     STATE_ATTRIBUTE,
@@ -30,8 +32,18 @@ from tests.fakes.in_memory_corporate_repository import InMemoryCorporateReposito
 from tests.presentational.helpers import create_corporate_use_cases
 
 _ROOT = Path(__file__).resolve().parents[2]
-_VENDOR_ENVIRONMENT = {"DEV_ACTOR_TOKEN": "dev-token"}
 _CORPORATE_ID = "01890000-0000-7000-8000-000000000000"
+_STORE_ID = "01890000-0000-7000-8000-000000000001"
+_PERSON_ID = "01890000-0000-7000-8000-0000000000a0"
+_ACCOUNT_ID = "01890000-0000-7000-8000-0000000000a1"
+#: 更新は監査を伴い、監査行は本人とアカウントを要求するので、開発用の主体にも
+#: 実在する行を指すIDが要る。素の ActorContext を返していた頃は、この2つが
+#: 無いまま起動でき、書き込みだけが応答後に静かにロールバックされていた。
+_VENDOR_ENVIRONMENT = {
+    "DEV_ACTOR_TOKEN": "dev-token",
+    "DEV_ACTOR_PERSON_ID": _PERSON_ID,
+    "DEV_ACTOR_ACCOUNT_ID": _ACCOUNT_ID,
+}
 
 
 async def test_固定トークンと一致したときだけ_主体を返す() -> None:
@@ -44,6 +56,10 @@ async def test_固定トークンと一致したときだけ_主体を返す() -
     # Assert
     assert actor.roles == frozenset({ActorRole.VENDOR_SYSTEM_ADMIN})
     assert actor.principal_id == "dev-actor"
+    # 本人未特定の主体では、保存が ResolvedActorWriteGuard に拒否される。
+    assert isinstance(actor, ResolvedActorContext)
+    assert str(actor.person_id.value) == _PERSON_ID
+    assert str(actor.account_id.value) == _ACCOUNT_ID
 
 
 @pytest.mark.parametrize("credential", [None, "", "another-token"])
@@ -124,6 +140,65 @@ def test_法人IDの形式が不正なら_設定エラーになる() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("missing", "remaining"),
+    [
+        ("DEV_ACTOR_PERSON_ID", "DEV_ACTOR_ACCOUNT_ID"),
+        ("DEV_ACTOR_ACCOUNT_ID", "DEV_ACTOR_PERSON_ID"),
+    ],
+)
+def test_本人かアカウントが未設定なら_設定エラーになる(
+    missing: str, remaining: str
+) -> None:
+    """本人未特定のまま起動すると、更新だけが後から拒否される起動点になる。"""
+    # Act & Assert
+    with pytest.raises(DevActorConfigurationError, match=missing):
+        build_actor_provider(
+            {key: value for key, value in _VENDOR_ENVIRONMENT.items() if key != missing}
+        )
+    assert remaining in _VENDOR_ENVIRONMENT
+
+
+@pytest.mark.parametrize("variable", ["DEV_ACTOR_PERSON_ID", "DEV_ACTOR_ACCOUNT_ID"])
+def test_本人かアカウントのIDが不正なら_設定エラーになる(variable: str) -> None:
+    # Act & Assert
+    with pytest.raises(DevActorConfigurationError, match=variable):
+        build_actor_provider({**_VENDOR_ENVIRONMENT, variable: "not-a-uuid"})
+
+
+async def test_店舗ロールは_許可店舗を持つ主体になる() -> None:
+    """店舗ロールを塞いだままにすると、読取範囲の絞り込みを一度も実行できない。"""
+    # Arrange
+    provider = build_actor_provider(
+        {
+            **_VENDOR_ENVIRONMENT,
+            "DEV_ACTOR_ROLE": "store_operator",
+            "DEV_ACTOR_CORPORATE_ID": _CORPORATE_ID,
+            "DEV_ACTOR_STORE_IDS": _STORE_ID,
+        }
+    )
+
+    # Act
+    actor = await provider.authenticate("dev-token")
+
+    # Assert
+    assert actor.roles == frozenset({ActorRole.STORE_OPERATOR})
+    assert isinstance(actor, ResolvedActorContext)
+    assert {str(item.value) for item in actor.store_ids} == {_STORE_ID}
+
+
+def test_店舗ロールに許可店舗が無いと_設定エラーになる() -> None:
+    # Act & Assert
+    with pytest.raises(DevActorConfigurationError, match="DEV_ACTOR_STORE_IDS"):
+        build_actor_provider(
+            {
+                **_VENDOR_ENVIRONMENT,
+                "DEV_ACTOR_ROLE": "store_viewer",
+                "DEV_ACTOR_CORPORATE_ID": _CORPORATE_ID,
+            }
+        )
+
+
 def test_未知のロールは_設定エラーになる() -> None:
     # Act & Assert
     with pytest.raises(DevActorConfigurationError, match="DEV_ACTOR_ROLE"):
@@ -136,6 +211,8 @@ def test_開発用アプリは_固定トークンで業務ルートを通す(
     """`/docs` から実際に実行できる状態になっていることを確かめる。"""
     # Arrange
     monkeypatch.setenv("DEV_ACTOR_TOKEN", "dev-token")
+    monkeypatch.setenv("DEV_ACTOR_PERSON_ID", _PERSON_ID)
+    monkeypatch.setenv("DEV_ACTOR_ACCOUNT_ID", _ACCOUNT_ID)
     app = create_dev_app()
     app.dependency_overrides[get_corporate_use_cases] = lambda: (
         create_corporate_use_cases(InMemoryCorporateRepository())
@@ -161,6 +238,8 @@ def test_開発用アプリは_タイトルで見分けられる(
     """開いている `/docs` がどちらの起動点かを画面で判断できるようにする。"""
     # Arrange
     monkeypatch.setenv("DEV_ACTOR_TOKEN", "dev-token")
+    monkeypatch.setenv("DEV_ACTOR_PERSON_ID", _PERSON_ID)
+    monkeypatch.setenv("DEV_ACTOR_ACCOUNT_ID", _ACCOUNT_ID)
 
     # Act
     dev_title = create_dev_app().title
@@ -209,3 +288,44 @@ def test_開発用の起動点は_compose_からだけ呼ばれる() -> None:
 
     # Assert
     assert referring == ["compose.yaml"]
+
+
+def _読む環境変数() -> set[str]:
+    """開発用の起動点が実際に読む ``DEV_ACTOR_*`` を、実装から集める。
+
+    一覧を手で持つと、変数を足したときに一覧だけが古くなる。読む側の本文から
+    引くので、``values.get`` を書いた時点で検査の対象に入る。
+    """
+    source = (_ROOT / "app" / "presentational" / "dev_main.py").read_text(
+        encoding="utf-8"
+    )
+    return set(re.findall(r'values\.get\(\s*"(DEV_ACTOR_[A-Z_]+)"', source))
+
+
+def test_開発用の起動点が読む変数は_composeが全て渡している() -> None:
+    """渡し漏れた変数は、起動してみるまで分からない。
+
+    ``dev_main`` が必須にした変数を compose が渡さないと、``docker compose up``
+    が起動時の設定エラーで落ちる。実際、本人IDとアカウントIDを必須にした際に
+    compose 側を更新しておらず、開発用の起動点が起動しなくなっていた。
+    """
+    # Arrange
+    compose = (_ROOT / "compose.yaml").read_text(encoding="utf-8")
+
+    # Act
+    missing = sorted(name for name in _読む環境変数() if f"{name}:" not in compose)
+
+    # Assert
+    assert missing == [], f"compose.yaml が渡していない変数: {missing}"
+
+
+def test_開発用の起動点が読む変数は_env_exampleに載っている() -> None:
+    """設定する側が、何を埋めればよいか一覧から分かる状態を保つ。"""
+    # Arrange
+    example = (_ROOT / ".env.example").read_text(encoding="utf-8")
+
+    # Act
+    missing = sorted(name for name in _読む環境変数() if f"{name}=" not in example)
+
+    # Assert
+    assert missing == [], f".env.example に無い変数: {missing}"

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Protocol
+from uuid import UUID
 
 from app.application.common.input_normalization import to_optional_text
 
@@ -55,3 +56,20 @@ def build_optional[R](raw: str | None, factory: Callable[[str], R]) -> R | None:
     """
     text = to_optional_text(raw)
     return factory(text) if text is not None else None
+
+
+def optional_id(primitive: HasValue[UUID] | None) -> str | None:
+    """任意のID参照を、応答に載せる文字列へ落とす。未設定なら ``None``。
+
+    ``unwrap`` だけでは ``UUID`` が残る。DTOの型を ``UUID`` のままにすると、
+    OpenAPIには文字列として載るのに項目の型注釈はドメイン寄りのまま残り、
+    項目ごとに ``str()`` を書き足す/書き忘れるという差が生まれる。
+
+    Args:
+        primitive: 取り出す対象のID（未設定は ``None``）
+
+    Returns:
+        str | None: IDの文字列表現。未設定の場合は ``None``
+    """
+    value = unwrap(primitive)
+    return None if value is None else str(value)

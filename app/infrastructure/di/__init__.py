@@ -12,6 +12,7 @@ from app.infrastructure.di.bundles import (
     StaffUseCases,
     StoreUseCases,
 )
+from app.infrastructure.di.bundles.identity import IdentityUseCases
 from app.infrastructure.di.registry import PostgresUseCaseRegistry
 from app.infrastructure.di.root import PostgresCompositionRoot, PostgresRequestScope
 
@@ -19,6 +20,7 @@ __all__ = [
     "CorporateUseCases",
     "CoverageUseCases",
     "DispensingUseCases",
+    "IdentityUseCases",
     "MedicationHistoryUseCases",
     "MedicineCatalogUseCases",
     "PatientUseCases",

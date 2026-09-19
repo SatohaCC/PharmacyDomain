@@ -12,7 +12,7 @@ import importlib
 import io
 import pkgutil
 from collections.abc import Mapping
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 import pytest
@@ -22,8 +22,32 @@ from sqlalchemy import Table
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.schema import CreateIndex, CreateTable
 
+from app.domain.identity.account_person import AccountPerson
+from app.domain.identity.invitation import InvitationDigest, UserInvitation
+from app.domain.identity.membership import CorporateMembership
+from app.domain.identity.primitives import (
+    AccountPersonId,
+    CorporateMembershipId,
+    MembershipRole,
+    UserAccountId,
+    UserInvitationId,
+)
+from app.domain.identity.staff_person_link import StaffPersonLink
+from app.domain.identity.user_account import UserAccount
+from app.domain.shared.person_name import PersonNames
+from app.domain.store.manager_assignment import (
+    ManagerAssignmentPeriod,
+    StoreManagerAssignment,
+    StoreManagerAssignmentId,
+)
 from app.infrastructure.postgres import repositories, schema
+from app.infrastructure.postgres.repositories.account_person import (
+    ACCOUNT_PERSON_MAPPING,
+)
 from app.infrastructure.postgres.repositories.corporate import CORPORATE_MAPPING
+from app.infrastructure.postgres.repositories.corporate_membership import (
+    MEMBERSHIP_MAPPING,
+)
 from app.infrastructure.postgres.repositories.coverage_selection_record import (
     COVERAGE_SELECTION_RECORD_MAPPING,
 )
@@ -46,7 +70,15 @@ from app.infrastructure.postgres.repositories.patient_medical_profile import (
 )
 from app.infrastructure.postgres.repositories.prescription import PRESCRIPTION_MAPPING
 from app.infrastructure.postgres.repositories.staff import STAFF_MAPPING
+from app.infrastructure.postgres.repositories.staff_person_link import (
+    STAFF_PERSON_LINK_MAPPING,
+)
 from app.infrastructure.postgres.repositories.store import STORE_MAPPING
+from app.infrastructure.postgres.repositories.store_manager_assignment import (
+    MANAGER_ASSIGNMENT_MAPPING,
+)
+from app.infrastructure.postgres.repositories.user_account import USER_ACCOUNT_MAPPING
+from app.infrastructure.postgres.repositories.user_invitation import INVITATION_MAPPING
 from app.infrastructure.postgres.repository_base import AggregateMapping
 from tests.factories.dispensing_factory import create_dispensing
 from tests.factories.medication_history_factory import create_record
@@ -87,7 +119,59 @@ def _case[AggregateT](
 
 def _row_value_cases() -> list[tuple[AggregateMapping[Any], Mapping[str, object]]]:
     """各Repositoryが1行に書く値を、対応と組にして返す。"""
+    person = AccountPerson(
+        id=AccountPersonId.generate(),
+        names=PersonNames.create(
+            last_name="山田",
+            first_name="太郎",
+            last_name_kana="ヤマダ",
+            first_name_kana="タロウ",
+        ),
+    )
+    account = UserAccount(id=UserAccountId.generate(), person_id=person.id)
+    store = create_store()
+    staff = create_staff()
     return [
+        _case(ACCOUNT_PERSON_MAPPING, person),
+        _case(USER_ACCOUNT_MAPPING, account),
+        _case(
+            MEMBERSHIP_MAPPING,
+            CorporateMembership(
+                id=CorporateMembershipId.generate(),
+                account_id=account.id,
+                corporate_id=store.corporate_id,
+                role=MembershipRole.CORPORATE_ADMIN,
+                store_ids=frozenset(),
+            ),
+        ),
+        _case(
+            STAFF_PERSON_LINK_MAPPING,
+            StaffPersonLink(
+                id=staff.id, person_id=person.id, corporate_id=staff.corporate_id
+            ),
+        ),
+        _case(
+            INVITATION_MAPPING,
+            UserInvitation(
+                id=UserInvitationId.generate(),
+                person_id=person.id,
+                corporate_id=store.corporate_id,
+                role=MembershipRole.CORPORATE_ADMIN,
+                store_ids=frozenset(),
+                secret_digest=InvitationDigest("a" * 64),
+                expires_at=datetime(2026, 9, 20, tzinfo=UTC),
+            ),
+        ),
+        _case(
+            MANAGER_ASSIGNMENT_MAPPING,
+            StoreManagerAssignment(
+                id=StoreManagerAssignmentId.generate(),
+                corporate_id=store.corporate_id,
+                store_id=store.id,
+                staff_id=staff.id,
+                period=ManagerAssignmentPeriod(starts_on=date(2026, 9, 17)),
+            ),
+        ),
         _case(CORPORATE_MAPPING, create_corporate()),
         _case(STORE_MAPPING, create_store()),
         _case(STAFF_MAPPING, create_staff()),
@@ -186,15 +270,58 @@ def _run_offline(operation_name: str) -> str:
     return buffer.getvalue()
 
 
-def _migration_ddl() -> set[str]:
-    """全マイグレーションを適用した結果のDDLを集める。
+#: 表の形を決めないので突き合わせから外す文。
+#:
+#: 拡張の有効化は環境の準備であり、``UPDATE`` 等はデータの移行である。
+#: 「対象外」をこの2種類に限ることで、新しい**DDL**の形（``ALTER TABLE ... ADD
+#: CONSTRAINT`` や関数・トリガ）が黙って検査の外へ出ることがなくなる。
+_IGNORED_MIGRATION_PREFIXES = ("CREATE EXTENSION", "UPDATE ", "INSERT ", "DELETE ")
 
-    拡張の作成は表の形を決めないので比較対象から外す。
+#: 突き合わせの対象にするDDLの形。
+_COMPARED_DDL_PREFIXES = ("CREATE TABLE", "CREATE INDEX", "CREATE UNIQUE INDEX")
+
+
+def _split_statements(sql: str) -> list[str]:
+    """``$$`` で囲まれた本体の中の ``;`` で切らずに文へ分ける。
+
+    plpgsql の本体には ``;`` が含まれる。素朴に分割すると関数定義が断片になり、
+    比較しても意味を持たない。
     """
+    statements: list[str] = []
+    current: list[str] = []
+    in_body = False
+    index = 0
+    while index < len(sql):
+        if sql.startswith("$$", index):
+            in_body = not in_body
+            current.append("$$")
+            index += 2
+            continue
+        character = sql[index]
+        if character == ";" and not in_body:
+            statements.append("".join(current))
+            current = []
+        else:
+            current.append(character)
+        index += 1
+    statements.append("".join(current))
+    return [item for item in statements if item.strip()]
+
+
+def _upgrade_statements() -> list[str]:
+    """マイグレーションが出す文を、正規化して順に返す。"""
+    return [
+        _normalized_statement(item)
+        for item in _split_statements(_run_offline("upgrade"))
+    ]
+
+
+def _migration_ddl() -> set[str]:
+    """マイグレーションが作る表と索引のDDLを集める。"""
     return {
         statement
-        for statement in _normalized_statements(_run_offline("upgrade"))
-        if not statement.startswith("CREATE EXTENSION")
+        for statement in _upgrade_statements()
+        if statement.startswith(_COMPARED_DDL_PREFIXES)
     }
 
 
@@ -206,6 +333,54 @@ def _schema_ddl() -> set[str]:
         for index in table.indexes:
             statements.add(_normalized_statement(compiled_sql(CreateIndex(index))))
     return statements
+
+
+def _declared_routines() -> set[str]:
+    """スキーマ定義が宣言する関数・トリガを正規化して返す。"""
+    return {_normalized_statement(item) for item in schema.SCHEMA_ROUTINES}
+
+
+def test_マイグレーションの全DDLが_検査の対象になっている() -> None:
+    """検査の網から外れるDDLの形を作らせない。
+
+    以前は突き合わせの対象を CREATE TABLE / INDEX だけに絞っていたため、関数と
+    トリガ（Repositoryが制約名で業務例外へ写像している保護）が一切検査されず、
+    名前を変えても対応が切れたことに気づけなかった。分類できない文が現れたら
+    落とし、対象にするか宣言するかを選ばせる。
+    """
+    # Arrange
+    routines = _declared_routines()
+
+    # Act
+    unclassified = [
+        statement
+        for statement in _upgrade_statements()
+        if not statement.startswith(_IGNORED_MIGRATION_PREFIXES)
+        and not statement.startswith(_COMPARED_DDL_PREFIXES)
+        and statement not in routines
+    ]
+
+    # Assert
+    assert not unclassified, f"検査の対象になっていないDDL: {unclassified}"
+
+
+def test_スキーマ定義の関数とトリガが_マイグレーションと一致する() -> None:
+    """片方だけを直すと、制約名と業務例外の対応が静かに切れる。"""
+    # Arrange
+    declared = _declared_routines()
+
+    # Act
+    emitted = {
+        statement
+        for statement in _upgrade_statements()
+        if statement.startswith(("CREATE OR REPLACE FUNCTION", "CREATE TRIGGER"))
+    }
+
+    # Assert
+    assert emitted == declared, (
+        f"スキーマ定義にだけある: {sorted(declared - emitted)} / "
+        f"マイグレーションにだけある: {sorted(emitted - declared)}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -314,7 +489,7 @@ def test_集約でないテーブルの一覧が_明示的に宣言されてい�
     existing = {table.name for table in schema.metadata.sorted_tables}
 
     # Assert
-    assert declared == {"patient_number_sequences"}
+    assert declared == {"patient_number_sequences", "operation_audits"}
     assert declared <= existing, (
         f"宣言だけあって実在しないテーブル: {sorted(declared - existing)}"
     )
@@ -359,7 +534,7 @@ def test_マイグレーションのdowngradeが_全テーブルを削除する(
 
     # Assert
     for table in schema.metadata.sorted_tables:
-        assert f"DROP TABLE {table.name}" in dropped
+        assert f"DROP TABLE {table.name}" in dropped.replace('"', "")
 
 
 def test_全ての集約対応が_列の検査対象になっている() -> None:

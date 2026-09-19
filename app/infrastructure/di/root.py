@@ -14,10 +14,22 @@ from typing import Self
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.application.access_control.models import ActorRole, ResolvedActorContext
 from app.application.access_control.policy import AuthorizationService
-from app.application.common.clock import Clock
+from app.application.common.clock import Clock, business_date
+from app.application.composition.clinical_store_guard import ClinicalStoreWriteGuard
+from app.application.composition.resolved_actor_guard import (
+    CompositeWriteGuard,
+    ResolvedActorWriteGuard,
+)
+from app.application.composition.staff_integrity import StaffAssignmentWriteGuard
+from app.application.composition.store_operation_adapter import StoreOperationAdapter
 from app.application.composition.system_clock import SystemUtcClock
 from app.application.corporate.corporate_access import CorporateAccessService
+from app.application.identity.dto import AccountDto
+from app.application.identity.invitation_access import InvitationOnlyAccess
+from app.application.identity.resolve_actor import VerifiedIdentity
+from app.infrastructure.di.bundles.identity import build_identity_use_cases
 from app.infrastructure.di.registry import PostgresUseCaseRegistry
 from app.infrastructure.postgres.connection import (
     PostgresSettings,
@@ -25,6 +37,9 @@ from app.infrastructure.postgres.connection import (
     create_async_engine_from_settings,
     create_session_factory,
 )
+from app.infrastructure.postgres.operation_audit import append_pending_audits
+from app.infrastructure.postgres.organization import PostgresOrganizationLock
+from app.infrastructure.postgres.read_scope import RepositoryReadScope
 from app.infrastructure.postgres.repositories import PostgresRepositorySet
 
 # --------------------------------------------------------------------------
@@ -55,8 +70,40 @@ class PostgresRequestScope:
         clock: Clock,
     ) -> None:
         self._unit_of_work = unit_of_work
+        self._actor = authorization.actor
+        self._clock = clock
+        actor = authorization.actor
+        if isinstance(actor, ResolvedActorContext) and not actor.roles & {
+            ActorRole.VENDOR_SYSTEM_ADMIN,
+            ActorRole.CORPORATE_ADMIN,
+        }:
+            # 法人の有無は ResolvedActorContext が構築時に保証する。
+            assert actor.corporate_id is not None
+            unit_of_work.read_scope = RepositoryReadScope(
+                actor.corporate_id.value,
+                tuple(item.value for item in actor.store_ids),
+                business_date(clock),
+                actor.person_id.value,
+                actor.account_id.value,
+            )
         repositories = PostgresRepositorySet.create(unit_of_work)
         corporate_access = CorporateAccessService(repositories.corporate, authorization)
+        # 保存の手前に掛ける境界。本人特定は確定直前まで遅らせない（応答送信後に
+        # 例外が出て、クライアントが成功を受け取ったままロールバックされる）。
+        lock = PostgresOrganizationLock(unit_of_work)
+        unit_of_work.before_save = CompositeWriteGuard(
+            [
+                ResolvedActorWriteGuard(authorization.actor).check,
+                ClinicalStoreWriteGuard(
+                    StoreOperationAdapter(repositories.store, corporate_access),
+                    authorization,
+                    lock,
+                ).check,
+                StaffAssignmentWriteGuard(
+                    repositories.store, repositories.manager_assignment, clock, lock
+                ).check,
+            ]
+        ).check
         self._repositories = repositories
         self._use_cases = PostgresUseCaseRegistry(
             repositories,
@@ -95,6 +142,9 @@ class PostgresRequestScope:
         """
         try:
             if exc_type is None:
+                await append_pending_audits(
+                    self._unit_of_work, self._actor, self._clock
+                )
                 await self._unit_of_work.commit()
         finally:
             await self._unit_of_work.__aexit__(exc_type, exc_value, traceback)
@@ -155,6 +205,32 @@ class PostgresCompositionRoot:
     async def dispose(self) -> None:
         """プロセスの終了時にコネクションプールを破棄する。"""
         await self.engine.dispose()
+
+    async def resolve_identity(
+        self, identity: VerifiedIdentity
+    ) -> ResolvedActorContext:
+        """確認済み本人を毎リクエスト現在のアカウントと権限へ接続する。"""
+        async with PostgresUnitOfWork(self.session_factory) as work:
+            repositories = PostgresRepositorySet.create(work)
+            use_cases = build_identity_use_cases(
+                repositories, InvitationOnlyAccess(), self.clock, work
+            )
+            return await use_cases.resolve_actor.execute(identity)
+
+    async def accept_invitation(
+        self, identity: VerifiedIdentity, secret: str
+    ) -> AccountDto:
+        """通常業務Actorを作る前に本人指定の招待を受諾する。"""
+        async with PostgresUnitOfWork(self.session_factory) as work:
+            repositories = PostgresRepositorySet.create(work)
+            use_cases = build_identity_use_cases(
+                repositories, InvitationOnlyAccess(), self.clock, work
+            )
+            account = await use_cases.accept.execute(secret, identity)
+            actor = await use_cases.resolve_actor.execute(identity)
+            await append_pending_audits(work, actor, self.clock)
+            await work.commit()
+            return account
 
     async def close(self) -> None:
         """プロセスの終了時にコネクションプールを破棄する。"""

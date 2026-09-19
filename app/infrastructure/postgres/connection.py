@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Self
@@ -21,6 +21,8 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+
+from app.infrastructure.postgres.read_scope import RepositoryReadScope
 
 # --------------------------------------------------------------------------
 # 接続設定
@@ -166,8 +168,13 @@ class PostgresUnitOfWork:
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
+        self.read_scope: RepositoryReadScope | None = None
+        self.before_save: Callable[[object, bool], Awaitable[None]] | None = None
         self._session: AsyncSession | None = None
         self._loaded_versions: dict[tuple[str, uuid.UUID], int] = {}
+        self.pending_changes: list[
+            tuple[str, uuid.UUID, uuid.UUID | None, uuid.UUID | None]
+        ] = []
 
     @staticmethod
     def _version_key(namespace: str, aggregate_id: uuid.UUID) -> tuple[str, uuid.UUID]:
@@ -232,6 +239,7 @@ class PostgresUnitOfWork:
             raise RuntimeError("PostgresUnitOfWork は二重に開始できません。")
         self._session = self._session_factory()
         self._loaded_versions.clear()
+        self.pending_changes.clear()
         return self
 
     async def __aexit__(
@@ -255,6 +263,7 @@ class PostgresUnitOfWork:
             await session.close()
             self._session = None
             self._loaded_versions.clear()
+            self.pending_changes.clear()
 
     async def commit(self) -> None:
         """現在のトランザクションを確定する。"""
@@ -264,6 +273,7 @@ class PostgresUnitOfWork:
         """現在のトランザクションを取り消す。"""
         await self.session.rollback()
         self._loaded_versions.clear()
+        self.pending_changes.clear()
 
 
 __all__ = [
