@@ -7,7 +7,7 @@ import importlib
 import inspect
 import pkgutil
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from typing import Any
 
@@ -46,6 +46,16 @@ from app.domain.staff.primitives import (
     StaffQualifications,
 )
 from app.domain.staff.staff import Staff
+from app.domain.store.business_hours import (
+    BusinessDayException,
+    BusinessHours,
+    BusinessHourSlot,
+    BusinessHoursNote,
+    BusinessWeekday,
+    StoreOpeningState,
+    WeekdayBusinessHours,
+)
+from app.domain.store.store import Store
 from app.infrastructure.postgres.codec import (
     QUALIFICATION_PROFILE_TAGS,
     QUALIFICATION_TAG_KEY,
@@ -61,6 +71,7 @@ from tests.factories.prescription_factory import (
     start_inquiry,
 )
 from tests.factories.staff_factory import create_staff
+from tests.factories.store_factory import create_store
 from tests.infrastructure.postgres.helpers import create_corporate
 
 # codec が復元できる Primitive の値型。ここに無い型の Primitive を足すと
@@ -350,3 +361,60 @@ def test_判別子のない資格プロファイルは_別の資格として復�
 
     with pytest.raises(PersistenceMappingError):
         decode_aggregate(payload, Staff)
+
+
+def _store_with_hours() -> Store:
+    """昼休みと特例日を持つ開局時間を設定した店舗を作る。"""
+    weekly = tuple(
+        WeekdayBusinessHours(
+            weekday=day,
+            slots=()
+            if day == BusinessWeekday.SUNDAY
+            else (
+                BusinessHourSlot(opens_at=time(9, 0), closes_at=time(13, 0)),
+                BusinessHourSlot(opens_at=time(14, 0), closes_at=time(19, 0)),
+            ),
+        )
+        for day in BusinessWeekday
+    )
+    hours = BusinessHours(
+        weekly=weekly,
+        exceptions=(
+            BusinessDayException(
+                on=date(2026, 12, 31), note=BusinessHoursNote("年末年始")
+            ),
+        ),
+    )
+    return create_store().change_business_hours(hours)
+
+
+def test_開局時間が_JSONBを経由して往復できる() -> None:
+    """時刻はJSONに素の型が無いので、文字列との変換を固定する。"""
+    # Arrange
+    store = _store_with_hours()
+
+    # Act
+    restored = decode_aggregate(encode_aggregate(store), Store)
+
+    # Assert
+    assert restored.business_hours == store.business_hours
+    assert restored.opening_state_at(on=date(2026, 12, 31), at=time(10, 0)) == (
+        StoreOpeningState.CLOSED
+    )
+
+
+def test_開局時間の無い古い行も_店舗として復元できる() -> None:
+    """既存行のpayloadには開局時間が無い。
+
+    省略できる項目としてdataclassの既定値へ落ちるので、この集約に限っては
+    payloadを書き換えるマイグレーションが要らない。その前提をここで固定する。
+    """
+    # Arrange
+    payload = encode_aggregate(create_store())
+    del payload["business_hours"]
+
+    # Act
+    restored = decode_aggregate(payload, Store)
+
+    # Assert
+    assert restored.business_hours is None

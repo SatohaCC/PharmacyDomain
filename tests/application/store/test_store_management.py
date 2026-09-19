@@ -50,6 +50,7 @@ async def test_閉局時の残業務確認と任命整理を日本の業務日�
         corporate_id=store.corporate_id,
         store_id=store.id,
         staff_id=StaffId.generate(),
+        person_id=AccountPersonId.generate(),
         period=ManagerAssignmentPeriod(
             starts_on=date(2026, 9, 1), ends_on=date(2026, 9, 30)
         ),

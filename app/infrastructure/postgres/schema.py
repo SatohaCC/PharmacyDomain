@@ -80,6 +80,9 @@ staff_person_links = Table(
     Column("version", Integer, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
+    # 管理薬剤師の任命が「そのスタッフの本人」を写していることを、複合外部キーで
+    # 参照できるようにする。参照される側には一意制約が要る。
+    UniqueConstraint("id", "person_id", name="uq_staff_person_links_id_person"),
 )
 
 corporate_memberships = Table(
@@ -143,15 +146,22 @@ store_manager_assignments = Table(
         "corporate_id", UUID(as_uuid=True), ForeignKey("corporates.id"), nullable=False
     ),
     Column("store_id", UUID(as_uuid=True), ForeignKey("stores.id"), nullable=False),
-    Column(
-        "staff_id", UUID(as_uuid=True), ForeignKey("staff_members.id"), nullable=False
-    ),
+    Column("staff_id", UUID(as_uuid=True), nullable=False),
+    Column("person_id", UUID(as_uuid=True), nullable=False),
     Column("period", DATERANGE, nullable=False),
     Column("status", String(32), nullable=False),
     Column("payload", JSONB, nullable=False),
     Column("version", Integer, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
+    # スタッフではなく「スタッフと本人の対応」を参照する。こうすると、対応の
+    # 無いスタッフを任命できず、写した本人が対応とずれることもない。スタッフの
+    # 実在は staff_person_links.id 側の外部キーが引き続き保証する。
+    ForeignKeyConstraint(
+        ["staff_id", "person_id"],
+        ["staff_person_links.id", "staff_person_links.person_id"],
+        name="fk_store_manager_assignments_staff_person",
+    ),
     ExcludeConstraint(
         ("store_id", "="),
         ("period", "&&"),
@@ -159,11 +169,17 @@ store_manager_assignments = Table(
         name="ex_manager_store_period",
         using="gist",
     ),
+    # スタッフ単位の排他制約は置かない。複合外部キーによりスタッフIDから本人は
+    # 一意に決まるので、同一スタッフの重複は人単位の制約が必ず捕らえる。両方を
+    # 置くと、同一スタッフの重複でどちらの制約が報告されるかがサーバ任せになり、
+    # 業務例外の型が揺れる。
+    # 専任義務は自然人にかかる。法人IDを鍵に含めてはならない（含めると、
+    # グループ内の別法人どうしで同じ人物が兼務できてしまう）。
     ExcludeConstraint(
-        ("staff_id", "="),
+        ("person_id", "="),
         ("period", "&&"),
         where=text("status = 'confirmed'"),
-        name="ex_manager_staff_period",
+        name="ex_manager_person_period",
         using="gist",
     ),
 )

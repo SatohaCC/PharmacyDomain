@@ -6,7 +6,7 @@ import types
 import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import MISSING, fields, is_dataclass
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from enum import Enum
 from typing import (
@@ -106,6 +106,8 @@ def _encode(value: object) -> object:
         return value.isoformat()
     if isinstance(value, date):
         return value.isoformat()
+    if isinstance(value, time):
+        return value.isoformat()
     if isinstance(value, uuid.UUID):
         return str(value)
     if isinstance(value, Decimal):
@@ -195,6 +197,8 @@ def _decode(value: object, annotation: object, *, context: str) -> object:
         return _decode_datetime(value, context=context)
     if annotation is date:
         return _decode_date(value, context=context)
+    if annotation is time:
+        return _decode_time(value, context=context)
     if annotation in (str, int, float, bool):
         return _decode_scalar(value, annotation, context=context)
     if annotation is BaseQualificationProfile:
@@ -406,6 +410,8 @@ def _decode_primitive(
         raw = _decode_datetime(value, context=context)
     elif value_type is date:
         raw = _decode_date(value, context=context)
+    elif value_type is time:
+        raw = _decode_time(value, context=context)
     elif value_type is Decimal:
         raw = _decode_decimal(value, context=context)
     elif value_type in (str, int, bool):
@@ -457,6 +463,15 @@ def _decode_datetime(value: object, *, context: str) -> datetime:
         return datetime.fromisoformat(value)
     except ValueError as error:
         raise PersistenceMappingError(f"{context} の日時が不正です。") from error
+
+
+def _decode_time(value: object, *, context: str) -> time:
+    if not isinstance(value, str):
+        raise PersistenceMappingError(f"{context} は時刻文字列である必要があります。")
+    try:
+        return time.fromisoformat(value)
+    except ValueError as error:
+        raise PersistenceMappingError(f"{context} の時刻が不正です。") from error
 
 
 def _decode_date(value: object, *, context: str) -> date:

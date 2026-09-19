@@ -95,7 +95,12 @@ class PostgresRequestScope:
             [
                 ResolvedActorWriteGuard(authorization.actor).check,
                 ClinicalStoreWriteGuard(
-                    StoreOperationAdapter(repositories.store, corporate_access),
+                    StoreOperationAdapter(
+                        repositories.store,
+                        corporate_access,
+                        repositories.manager_assignment,
+                        clock,
+                    ),
                     authorization,
                     lock,
                 ).check,

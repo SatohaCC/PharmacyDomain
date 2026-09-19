@@ -9,6 +9,7 @@ from app.application.access_control import (
     CorporateAccessBoundary,
     Permission,
 )
+from app.application.store.business_hours import BusinessHoursDto
 from app.application.store.support import load_store_or_raise
 from app.domain.corporate.primitives import CorporateId
 from app.domain.store.primitives import StoreId
@@ -54,11 +55,18 @@ class StoreDto:
     insurance_pharmacy_number: str | None
     status: str
     status_history: tuple[StoreStatusChangeDto, ...]
+    #: 未登録は ``None``。空の予定と区別する。
+    business_hours: BusinessHoursDto | None
 
     @classmethod
     def from_entity(cls, store: Store) -> StoreDto:
         """Store エンティティから DTO を生成するファクトリメソッド"""
         return cls(
+            business_hours=(
+                BusinessHoursDto.from_value(store.business_hours)
+                if store.business_hours is not None
+                else None
+            ),
             status=store.status.value,
             status_history=tuple(
                 StoreStatusChangeDto(

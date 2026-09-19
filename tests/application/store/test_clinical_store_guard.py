@@ -26,8 +26,12 @@ from tests.application.access_helpers import create_vendor_corporate_access
 from tests.factories.dispensing_factory import create_dispensing
 from tests.factories.medication_history_factory import create_record
 from tests.factories.prescription_factory import create_prescription
-from tests.factories.store_factory import create_store
+from tests.factories.store_factory import create_manager_assignment, create_store
+from tests.fakes.fake_clock import FakeClock
 from tests.fakes.fake_organization_management import FakeOrganizationLock
+from tests.fakes.in_memory_manager_assignment_repository import (
+    InMemoryStoreManagerAssignmentRepository,
+)
 from tests.fakes.in_memory_store_repository import InMemoryStoreRepository
 
 
@@ -106,8 +110,16 @@ async def test_保存対象店舗の状態で業務の開始と継続を区別�
     store = replace(create_store(), status=state)
     stores = InMemoryStoreRepository()
     await stores.save(store)
+    # 管理薬剤師の在任は別の軸なので、ここでは在任させたうえで店舗状態だけを
+    # 動かす。不在のときの拒否は ``test_store_operation_policy`` が固定する。
+    managers = InMemoryStoreManagerAssignmentRepository()
+    await managers.save(
+        create_manager_assignment(corporate_id=store.corporate_id, store_id=store.id)
+    )
     guard = ClinicalStoreWriteGuard(
-        StoreOperationAdapter(stores, create_vendor_corporate_access()),
+        StoreOperationAdapter(
+            stores, create_vendor_corporate_access(), managers, FakeClock()
+        ),
         _authorization(),
         FakeOrganizationLock(),
     )

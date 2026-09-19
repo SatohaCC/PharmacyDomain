@@ -104,9 +104,13 @@ from app.domain.store.exceptions import (
 )
 from app.domain.store.lifecycle import StoreStateConflictError
 from app.domain.store.manager_assignment import (
+    ManagerAbsenceConflictError,
     ManagerAssignmentStateConflictError,
 )
-from app.domain.store.manager_repository import ManagerAssignmentConflictError
+from app.domain.store.manager_repository import (
+    ManagerAssignmentConflictError,
+    ManagerExclusiveDutyConflictError,
+)
 from app.presentational.exceptions import AuthenticationError, PresentationError
 
 #: 応答本文へ翻訳できる例外。これ以外は隠さず500として扱う。
@@ -161,7 +165,9 @@ _STATUS_BY_EXCEPTION: Final[Mapping[type[BaseException], HTTPStatus]] = {
     AuthenticationError: HTTPStatus.UNAUTHORIZED,
     UnavailableIdentityError: HTTPStatus.UNAUTHORIZED,
     IdentityConflictError: HTTPStatus.CONFLICT,
+    ManagerAbsenceConflictError: HTTPStatus.CONFLICT,
     ManagerAssignmentConflictError: HTTPStatus.CONFLICT,
+    ManagerExclusiveDutyConflictError: HTTPStatus.CONFLICT,
     ManagerAssignmentStateConflictError: HTTPStatus.CONFLICT,
     StoreStateConflictError: HTTPStatus.CONFLICT,
     # --- 403: 主体は判明したうえでの拒否 ---

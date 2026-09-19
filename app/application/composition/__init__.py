@@ -29,6 +29,7 @@ from app.application.composition.reception_references import (
     ReceptionPatientReferenceAdapter,
     ReceptionStoreReferenceAdapter,
 )
+from app.application.composition.staff_person_adapter import StaffPersonAdapter
 from app.application.composition.system_clock import SystemUtcClock
 
 __all__ = [
@@ -47,5 +48,6 @@ __all__ = [
     "PrescriptionStoreReferenceAdapter",
     "ReceptionPatientReferenceAdapter",
     "ReceptionStoreReferenceAdapter",
+    "StaffPersonAdapter",
     "SystemUtcClock",
 ]

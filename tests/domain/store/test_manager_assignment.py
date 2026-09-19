@@ -6,6 +6,7 @@ import pytest
 
 from app.domain.corporate.primitives import CorporateId
 from app.domain.foundation.exceptions import DomainError, DomainValidationError
+from app.domain.shared.actor import AccountPersonId
 from app.domain.staff.primitives import StaffId
 from app.domain.store.manager_assignment import (
     ManagerAssignmentPeriod,
@@ -22,6 +23,7 @@ def _assignment() -> StoreManagerAssignment:
         corporate_id=CorporateId.generate(),
         store_id=StoreId.generate(),
         staff_id=StaffId.generate(),
+        person_id=AccountPersonId.generate(),
         period=ManagerAssignmentPeriod(
             starts_on=date(2026, 10, 1), ends_on=date(2026, 10, 31)
         ),

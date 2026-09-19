@@ -9,6 +9,7 @@ from app.domain.foundation.entity import AggregateRoot
 from app.domain.foundation.exceptions import DomainError, DomainValidationError
 from app.domain.foundation.primitives.primitives import EntityUUID
 from app.domain.foundation.value_object import ValueObject
+from app.domain.shared.actor import AccountPersonId
 from app.domain.staff.primitives import StaffId
 from app.domain.store.primitives import StoreId
 
@@ -27,6 +28,27 @@ class ManagerAssignmentStateConflictError(DomainError):
     """
 
     default_code = "MANAGER_ASSIGNMENT_STATE_CONFLICT"
+
+
+class ManagerAbsenceConflictError(DomainError):
+    """管理薬剤師が在任していない店舗で、新しい業務を始めようとした。
+
+    店舗状態の競合（``StoreStateConflictError``）とは別の符号にする。休止中の
+    店舗と管理薬剤師のいない店舗では、利用者が次に取る手段が違う（前者は店舗を
+    再開する、後者は任命する）ので、同じ符号へ畳むと分岐を書けない。
+    """
+
+    default_code = "MANAGER_ABSENCE_CONFLICT"
+
+
+class ManagerPersonUnresolvedError(DomainError):
+    """任命しようとしたスタッフに、本人が固定されていない。
+
+    専任義務は自然人にかかるので、本人の分からないスタッフを任命すると、その
+    1件だけが兼務の検査をすり抜ける。「分からないなら通す」に倒さない。
+    """
+
+    default_code = "MANAGER_PERSON_UNRESOLVED"
 
 
 class ManagerAssignmentStatus(StrEnum):
@@ -63,6 +85,11 @@ class StoreManagerAssignment(AggregateRoot[StoreManagerAssignmentId]):
     corporate_id: CorporateId
     store_id: StoreId
     staff_id: StaffId
+    #: そのスタッフに対応する自然人。専任義務（薬機法第7条第3項）は法人内の
+    #: スタッフではなく人にかかるため、法人をまたいで競合を判定できる鍵が要る。
+    #: スタッフと本人の対応は付け替えを封じてあるので、ここへ写しても後から
+    #: 食い違わない。写しであることは複合外部キーがDB側でも保証する。
+    person_id: AccountPersonId
     period: ManagerAssignmentPeriod
     status: ManagerAssignmentStatus = ManagerAssignmentStatus.CONFIRMED
 

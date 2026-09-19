@@ -6,6 +6,7 @@ from datetime import date
 import pytest
 
 from app.domain.foundation.exceptions import DomainError
+from app.domain.shared.actor import AccountPersonId
 from app.domain.staff.primitives import (
     AffiliationPeriod,
     PharmacistLicenseNumber,
@@ -50,6 +51,7 @@ def test_任命期間を含む所属の薬剤師を任命できる(
         corporate_id=store.corporate_id,
         store_id=store.id,
         staff_id=staff.id,
+        person_id=AccountPersonId.generate(),
         period=ManagerAssignmentPeriod(
             starts_on=date(2026, 10, 1), ends_on=date(2026, 10, 31)
         ),
@@ -110,6 +112,7 @@ def test_資格や所属期間を満たさない任命を拒否する(violation:
         corporate_id=store.corporate_id,
         store_id=store.id,
         staff_id=staff.id,
+        person_id=AccountPersonId.generate(),
         period=ManagerAssignmentPeriod(
             starts_on=start, ends_on=None if violation == "無期限" else end
         ),

@@ -10,6 +10,7 @@ from __future__ import annotations
 from app.application.access_control import ActorContext, AuthorizationService
 from app.application.access_control.models import ActorRole, ResolvedActorContext
 from app.application.common.clock import Clock
+from app.application.composition import StaffPersonAdapter
 from app.application.composition.coverage_references import (
     CoveragePatientReferenceAdapter,
 )
@@ -77,9 +78,14 @@ from app.application.store import (
     ListStoresUseCase,
     RegisterStoreUseCase,
 )
+from app.application.store.business_hours import (
+    ChangeStoreBusinessHoursUseCase,
+    GetStoreOpeningStatusUseCase,
+)
 from app.application.store.management import (
     ChangeStoreStatusUseCase,
     ManageStoreManagerUseCase,
+    RevokeStoreClosureUseCase,
 )
 from app.domain.corporate import CorporateNameUniquenessService
 from app.domain.coverage.combination import CoverageSelectionService
@@ -115,6 +121,9 @@ from tests.fakes.fake_organization_management import (
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository
 from tests.fakes.in_memory_coverage_selection_record_repository import (
     InMemoryCoverageSelectionRecordRepository,
+)
+from tests.fakes.in_memory_identity_repositories import (
+    InMemoryStaffPersonLinkRepository,
 )
 from tests.fakes.in_memory_manager_assignment_repository import (
     InMemoryStoreManagerAssignmentRepository,
@@ -186,10 +195,18 @@ def create_store_use_cases(
             NullUnitOfWork(),
             FakeOrganizationLock(),
         ),
+        revoke_closure=RevokeStoreClosureUseCase(
+            repository,
+            access,
+            FakeClock(),
+            NullUnitOfWork(),
+            FakeOrganizationLock(),
+        ),
         manage_manager=ManageStoreManagerUseCase(
             repository,
             InMemoryStaffRepository(),
             InMemoryStoreManagerAssignmentRepository(),
+            StaffPersonAdapter(InMemoryStaffPersonLinkRepository()),
             access,
             FakeClock(),
             NullUnitOfWork(),
@@ -202,6 +219,8 @@ def create_store_use_cases(
         change_code=ChangeStoreCodeUseCase(repository, codes, access),
         change_address=ChangeStoreAddressUseCase(repository, access),
         change_contact_info=ChangeStoreContactInfoUseCase(repository, access),
+        change_business_hours=ChangeStoreBusinessHoursUseCase(repository, access),
+        opening_status=GetStoreOpeningStatusUseCase(repository, access, FakeClock()),
         change_insurance_pharmacy_number=ChangeInsurancePharmacyNumberUseCase(
             repository, numbers, access
         ),

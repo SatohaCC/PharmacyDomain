@@ -6,8 +6,9 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from http import HTTPStatus
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response
 
@@ -24,12 +25,21 @@ from app.application.store import (
     StoreDto,
     StoreSummaryDto,
 )
+from app.application.store.business_hours import (
+    BusinessDayExceptionInput,
+    BusinessHoursDto,
+    ChangeStoreBusinessHoursCommand,
+    StoreOpeningStatusDto,
+    StoreOpeningStatusQuery,
+    WeekdayBusinessHoursInput,
+)
 from app.application.store.get_store import StoreStatusChangeDto
 from app.application.store.management import (
     ChangeStoreStatusCommand,
     ManagerAction,
     ManagerAssignmentDto,
     ManageStoreManagerCommand,
+    RevokeStoreClosureCommand,
 )
 from app.domain.store.lifecycle import StoreStatus
 from app.presentational.dependencies import StoreUseCasesDep, get_actor_context
@@ -341,6 +351,87 @@ async def close_store(
             status=StoreStatus.CLOSED,
             reason=body.reason,
         )
+    )
+
+
+@router.post(
+    "/{store_id}/closure-revocation",
+    response_model=StoreDto,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def revoke_store_closure(
+    corporate_id: str,
+    store_id: str,
+    body: ChangeStoreStatusRequest,
+    use_cases: StoreUseCasesDep,
+) -> StoreDto:
+    """誤って登録された閉局を取り消し、休止へ戻す（ベンダー専用）。
+
+    閉局と対称な「再開」にはしない。閉局で管理薬剤師の任命は終了しているので、
+    有効へ戻すと管理薬剤師のいない店舗が業務を受けられる状態になる。
+    """
+    return await use_cases.revoke_closure.execute(
+        RevokeStoreClosureCommand(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            reason=body.reason,
+        )
+    )
+
+
+class ChangeBusinessHoursRequest(RequestModel):
+    """開局時間の一括置き換え。曜日は7つすべてを指定する。
+
+    入れ子はApplication層の入力DTOをそのまま型に置く。ここで写し取ると、
+    項目が増えたときに黙って落ちる項目ができる。
+    """
+
+    weekly: tuple[WeekdayBusinessHoursInput, ...]
+    exceptions: tuple[BusinessDayExceptionInput, ...] = ()
+
+
+@router.put(
+    "/{store_id}/business-hours",
+    response_model=BusinessHoursDto,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def change_business_hours(
+    corporate_id: str,
+    store_id: str,
+    body: ChangeBusinessHoursRequest,
+    use_cases: StoreUseCasesDep,
+) -> BusinessHoursDto:
+    """開局時間をまとめて置き換える。
+
+    部分更新にしない。週次の予定は全曜日が揃って初めて意味を持つので、曜日を
+    1つだけ差し替えられると、残りの曜日がいつ登録されたものか分からなくなる。
+    """
+    return await use_cases.change_business_hours.execute(
+        ChangeStoreBusinessHoursCommand(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            weekly=body.weekly,
+            exceptions=body.exceptions,
+        )
+    )
+
+
+@router.get("/{store_id}/opening-status", response_model=StoreOpeningStatusDto)
+async def get_opening_status(
+    corporate_id: str,
+    store_id: str,
+    use_cases: StoreUseCasesDep,
+    at: Annotated[
+        datetime | None,
+        Query(description="判定する日時。タイムゾーンが必要。省略時は現在。"),
+    ] = None,
+) -> StoreOpeningStatusDto:
+    """指定日時に開局しているかを返す。
+
+    未登録は「開いている」にも「閉じている」にも倒さず ``unknown`` を返す。
+    """
+    return await use_cases.opening_status.execute(
+        StoreOpeningStatusQuery(corporate_id=corporate_id, store_id=store_id, at=at)
     )
 
 

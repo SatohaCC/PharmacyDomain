@@ -20,6 +20,15 @@ class Clock(Protocol):
         ...
 
 
+def business_now(clock: Clock) -> datetime:
+    """注入した時計を業務のタイムゾーンへ変換する。
+
+    業務日だけでなく、開局時間の判定も同じ時間帯で数える必要がある。変換を
+    2箇所に書くと、日付と時刻が別のタイムゾーンで決まる状態を作れてしまう。
+    """
+    return clock.now().astimezone(BUSINESS_TIMEZONE)
+
+
 def business_date(clock: Clock) -> date:
     """注入した時計から業務日を決める。
 
@@ -27,7 +36,7 @@ def business_date(clock: Clock) -> date:
     （``DTZ011`` が lint で落とす）。変換を1箇所に置くことで、業務日の定義を
     後から変えるときに直す場所が1つで済む。
     """
-    return clock.now().astimezone(BUSINESS_TIMEZONE).date()
+    return business_now(clock).date()
 
 
-__all__ = ["BUSINESS_TIMEZONE", "Clock", "business_date"]
+__all__ = ["BUSINESS_TIMEZONE", "Clock", "business_date", "business_now"]

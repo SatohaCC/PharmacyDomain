@@ -65,6 +65,10 @@ _VENDOR_ONLY_PERMISSIONS = frozenset(
         # 薬価基準は国が定める参照データであり、法人ごとに内容が違わない。
         # 取り込みは全法人に影響するのでベンダーシステム管理者専用にする。
         Permission.MANAGE_MEDICINE_CATALOG,
+        # 閉局は廃止届を伴う不可逆な手続きで、その取消は「届出が誤りだった」と
+        # いう訂正である。法人管理者に開けると、閉局が実質的に取り消せる状態
+        # 遷移になってしまう。
+        Permission.REVOKE_STORE_CLOSURE,
     }
 )
 
