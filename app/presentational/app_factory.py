@@ -17,7 +17,7 @@ from app.presentational.access_logging import log_access
 from app.presentational.authentication import (
     ActorContextProvider,
     UnconfiguredActorContextProvider,
-    VerifiedIdentityProvider,
+    VerifiedSubjectProvider,
 )
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
 from app.presentational.errors import register_error_handlers
@@ -43,7 +43,7 @@ _VERSION = "0.1.0"
 def create_app(
     *,
     actor_provider: ActorContextProvider | None = None,
-    identity_provider: VerifiedIdentityProvider | None = None,
+    identity_provider: VerifiedSubjectProvider | None = None,
 ) -> FastAPI:
     """ルータ・例外翻訳・起動終了処理を結線したアプリケーションを返す。
 

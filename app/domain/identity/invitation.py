@@ -57,12 +57,14 @@ class UserInvitation(AggregateRoot[UserInvitationId]):
         if self.expires_at.utcoffset() is None:
             raise DomainValidationError("招待期限にはタイムゾーンが必要です。")
 
-    def accept(self, *, person_id: AccountPersonId, now: datetime) -> UserInvitation:
-        """検証済みの本人からの受諾を記録する。"""
-        if person_id != self.person_id:
-            raise IdentityConflictError(
-                "招待された本人と確認済みの本人が一致しません。"
-            )
+    def accept(self, *, now: datetime) -> UserInvitation:
+        """受諾を記録する。受諾できる本人は ``person_id`` として招待自身が持つ。
+
+        受諾者が名乗る本人を引数で受け取らない。外部の本人確認基盤が知っているのは
+        自分が発行した主体までで、このシステムの本人IDは知らないため、呼び出し側は
+        この招待の ``person_id`` しか渡せない。渡せない値との照合を残すと、恒真な
+        判定が「守られているように見えて守られていない」表になる。
+        """
         if self.status != InvitationStatus.PENDING or now >= self.expires_at:
             raise IdentityConflictError(
                 "招待は使用済み、取消済み、または期限切れです。"

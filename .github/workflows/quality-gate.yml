@@ -45,7 +45,7 @@ jobs:
 
       - name: 型チェックする
         if: ${{ !cancelled() }}
-        run: uv run mypy app tests
+        run: uv run mypy app tests tools
 
       - name: Lint する
         if: ${{ !cancelled() }}

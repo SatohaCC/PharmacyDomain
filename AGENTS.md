@@ -7,7 +7,7 @@
 ```bash
 uv sync --locked                 # 依存同期
 uv run pytest -q                 # 全テスト実行（アーキテクチャ規則の検証を含む）
-uv run mypy app tests            # 型チェック (strict = true)
+uv run mypy app tests tools      # 型チェック (strict = true)
 uv run ruff check . && uv run ruff format --check .  # Lint & Format チェック
 
 # 実PostgreSQLに対する結合テスト（TEST_DATABASE_URL が無ければ自動スキップ）
@@ -35,7 +35,7 @@ uv run python -m tools.check_fake_conformance --verbose --fail-on-violation  # �
 - **共通コードの配置**: Domainモデリング基盤は `app/domain/foundation/`、所有者のいない語彙と複数コンテキストで共有する規則は `app/domain/shared/`、Application層の共通処理は `app/application/common/` に置く。DDDのShared KernelはDomain語彙だけを指し、Application共通処理をShared Kernelと呼ばない。`foundation` は標準ライブラリだけ、`shared` は `foundation` だけ、`application/common` は標準ライブラリだけに依存させる。新しいコンテキストを追加するときは `[tool.import_rules.forbidden]` の3パッケージの禁止先と対応する設定テストも更新する。
 - **テナント境界**: コンテキストは `corporate` / `store` / `staff` / `patient` / `coverage` / `reception` / `claim` / `prescription` / `dispensing` / `medication_history` / `medicine_catalog` / `identity` の12。集約間は **ID 参照のみ**（他集約のエンティティを直接保持しない）。他テナントデータへのアクセスは 403 ではなく 404（`XxxNotFoundError` または `TenantBoundaryNotFoundError`）として隠蔽する。
 - **認証・認可境界**: 認証基盤が生成した信頼済み `ActorContext` をApplication層へ渡し、Command / Queryの対象 `corporate_id` と分離する。ベンダーシステム管理者は全法人、法人管理者は `ActorContext.corporate_id` と一致する自法人だけを操作できる。HTTP入力から `ActorContext` を組み立てない。
-- **本人・アカウント・法人アクセス権の分離**: `AccountPerson`（法人所属が変わっても維持される人）/ `UserAccount`（本人に帰属し、外部の本人確認基盤の主体と1対1）/ `CorporateMembership`（ある法人での権限と店舗範囲）の3集約に分ける。スタッフとの対応は `StaffPersonLink` を独立集約とし、別人への付け替えはDBのトリガと複合外部キーで封じる（アプリ側の分岐で守ると、通らない経路が1つできた時点で壊れる）。`UserAccount.external_subject` は必ず固定し、未固定のアカウントは `ResolveActorUseCase` が解決しない（未固定だけ主体の照合が効かない状態を作らない）。
+- **本人・アカウント・法人アクセス権の分離**: `AccountPerson`（法人所属が変わっても維持される人）/ `UserAccount`（本人に帰属し、外部の本人確認基盤の主体と1対1）/ `CorporateMembership`（ある法人での権限と店舗範囲）の3集約に分ける。スタッフとの対応は `StaffPersonLink` を独立集約とし、別人への付け替えはDBのトリガと複合外部キーで封じる（アプリ側の分岐で守ると、通らない経路が1つできた時点で壊れる）。`UserAccount.external_subject` は必ず固定する。本人確認境界が返すのは外部主体（`VerifiedSubject`）だけで、内部の本人は `ResolveActorUseCase` が `get_by_subject()` から引く。外部の認証基盤は自分が発行した主体しか知らないので、本人IDを受け取れる形にすると、テストのダブルだけが埋められる経路が型の上に残る。この順序なら未固定のアカウントは検索の時点で到達できない（`=` はNULLに当たらない）ので、「未固定だけ照合が効かない」状態を分岐で防がなくてよい。
 - **店舗ロールの二重防御**: `STORE_OPERATOR` / `STORE_VIEWER` は権限表（`AuthorizationService`）とSQLの取得条件（`RepositoryReadScope`）の両方で絞る。取得後に絞ると、件数や存在の有無から他店の情報が漏れる。読取範囲はテーブルごとに `READ_SCOPE_KINDS` で宣言し、**宣言の無いテーブルは読めない**（既定を「制限しない」に倒すと、テーブルを足した当日から漏れる）。判定を `require` と `require_store` の2箇所へ書き写さない。
 - **本人未特定の更新を保存の時点で拒否する**: 監査の追記は本人とアカウントを要求するので、追記できない更新は成立しない。判定をトランザクションの確定直前へ置いてはならない。FastAPIのyield依存は `yield` 以降を**応答送信後**に実行するため、クライアントが201を受け取ったあとに黙ってロールバックされ、例外は共通の翻訳表にも届かない。保存前の境界（`ResolvedActorWriteGuard`）で止める。招待の受諾だけはアカウントがその操作で生まれるので、リクエストのスコープではなく専用のUnit of Workから呼ぶ。
 - **保存前の境界は並べて宣言する**: 本人特定・臨床集約の店舗状態・スタッフと任命の整合は `CompositeWriteGuard` に順番で並べ、Composition Root から `UnitOfWork.before_save` へ繋ぐ。複数のユースケースが必要とする検証をRepositoryの実装で包むと、保存の契約を名乗るクラスが別集約を書き、`get()` まで管理操作のロックを取って参照が全書き込みと直列化する。**検証は保存前の境界へ、別集約への書き込みはユースケースの明示的な手順へ**分ける。`tests/infrastructure/test_composition.py` が並びを固定する。

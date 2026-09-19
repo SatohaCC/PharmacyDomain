@@ -136,3 +136,24 @@ async def test_同じ外部主体を別の人に割り当てられない() -> No
         await repository.get_by_subject(ExternalSubjectKey("issuer/subject"))
         == original
     )
+
+
+@pytest.mark.asyncio
+async def test_外部主体を固定していないアカウントは主体では引けない() -> None:
+    """未固定のアカウントは、どの主体からも到達できない。
+
+    ``ResolveActorUseCase`` は外部主体からアカウントを引く。ここで未固定の行が
+    返る実装があると、照合が「そのアカウントだけ効かない」形に戻る。分岐では
+    なく検索の契約として全実装へ課す。
+    """
+    # Arrange
+    repository = InMemoryUserAccountRepository()
+    await repository.save(
+        UserAccount(
+            id=UserAccountId.generate(),
+            person_id=AccountPersonId.generate(),
+        )
+    )
+
+    # Act & Assert
+    assert await repository.get_by_subject(ExternalSubjectKey("issuer/subject")) is None

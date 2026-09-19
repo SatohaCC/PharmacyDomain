@@ -28,7 +28,7 @@ from app.application.composition.system_clock import SystemUtcClock
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.application.identity.dto import AccountDto
 from app.application.identity.invitation_access import InvitationOnlyAccess
-from app.application.identity.resolve_actor import VerifiedIdentity
+from app.application.identity.resolve_actor import VerifiedSubject
 from app.infrastructure.di.bundles.identity import build_identity_use_cases
 from app.infrastructure.di.registry import PostgresUseCaseRegistry
 from app.infrastructure.postgres.connection import (
@@ -211,19 +211,17 @@ class PostgresCompositionRoot:
         """プロセスの終了時にコネクションプールを破棄する。"""
         await self.engine.dispose()
 
-    async def resolve_identity(
-        self, identity: VerifiedIdentity
-    ) -> ResolvedActorContext:
-        """確認済み本人を毎リクエスト現在のアカウントと権限へ接続する。"""
+    async def resolve_identity(self, subject: VerifiedSubject) -> ResolvedActorContext:
+        """確認済みの外部主体を毎リクエスト現在のアカウントと権限へ接続する。"""
         async with PostgresUnitOfWork(self.session_factory) as work:
             repositories = PostgresRepositorySet.create(work)
             use_cases = build_identity_use_cases(
                 repositories, InvitationOnlyAccess(), self.clock, work
             )
-            return await use_cases.resolve_actor.execute(identity)
+            return await use_cases.resolve_actor.execute(subject)
 
     async def accept_invitation(
-        self, identity: VerifiedIdentity, secret: str
+        self, subject: VerifiedSubject, secret: str
     ) -> AccountDto:
         """通常業務Actorを作る前に本人指定の招待を受諾する。"""
         async with PostgresUnitOfWork(self.session_factory) as work:
@@ -231,8 +229,8 @@ class PostgresCompositionRoot:
             use_cases = build_identity_use_cases(
                 repositories, InvitationOnlyAccess(), self.clock, work
             )
-            account = await use_cases.accept.execute(secret, identity)
-            actor = await use_cases.resolve_actor.execute(identity)
+            account = await use_cases.accept.execute(secret, subject)
+            actor = await use_cases.resolve_actor.execute(subject)
             await append_pending_audits(work, actor, self.clock)
             await work.commit()
             return account

@@ -79,9 +79,11 @@ Repositoryの `save()` が一意性や期間競合の最終防衛です。
 
 ## 現在の外側
 
-全コンテキストの具体的 Repository と Composition Root は実装済みですが、業務ユースケースを
-接続するHTTPルートと認証基盤は未実装です。したがって、Domain/Applicationテストが通ることと、
-本番で認証・DB競合が安全であることは分けて評価します。
+全コンテキストの具体的 Repository と Composition Root は実装済みで、業務ユースケースを
+接続するHTTPルートも公開済みで、外部IdPのJWTを検証する認証基盤も接続済みです。**`OIDC_*` を
+設定しない場合は既定実装がすべての業務操作を401で拒否します。** 本人確認境界が返すのは外部主体
+だけで、内部の本人は `ResolveActorUseCase` が `external_subject` から引きます。したがって、
+Domain/Applicationテストが通ることと、本番で認証が安全であることは引き続き分けて評価します。
 
 現在のクラスとDTOは `app/application/`、振る舞いの保証は `tests/application/`、
 依存規則は `tools/check_imports.py` を確認してください。
