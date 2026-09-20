@@ -17,6 +17,7 @@ from app.application.composition.medication_history_references import (
     CounselorQualificationAdapter,
     DispensingSourceAdapter,
     MedicationHistoryStoreReferenceAdapter,
+    StatutoryRecordSourceAdapter,
 )
 from app.application.composition.medicine_restriction_adapter import (
     MedicineCatalogRestrictionAdapter,
@@ -59,6 +60,9 @@ from app.application.medication_history.start_medication_history import (
 from app.application.medication_history.update_medication_history_draft import (
     UpdateMedicationHistoryDraftUseCase,
 )
+from app.application.medication_history.verify_statutory_record import (
+    VerifyStatutoryRecordUseCase,
+)
 from app.application.prescription.cancel_prescription import CancelPrescriptionUseCase
 from app.application.prescription.get_prescription import GetPrescriptionUseCase
 from app.application.prescription.ready_for_dispensing import ReadyForDispensingUseCase
@@ -72,7 +76,10 @@ from app.domain.dispensing.services import (
     DispensingIterationUniquenessService,
     DispensingPharmacistService,
 )
-from app.domain.medication_history.services import CounselorQualificationService
+from app.domain.medication_history.services import (
+    CounselorQualificationService,
+    StatutoryDispensingRecordService,
+)
 from app.domain.prescription.services import (
     InquiryPharmacistService,
     NarcoticPrescriptionService,
@@ -222,6 +229,7 @@ class MedicationHistoryUseCases:
     list_by_patient: ListMedicationHistoriesByPatientUseCase
     get_medical_profile: GetPatientMedicalProfileUseCase
     rebuild_medical_profile: RebuildPatientMedicalProfileUseCase
+    verify_statutory_record: VerifyStatutoryRecordUseCase
 
 
 def build_medication_history_use_cases(
@@ -239,12 +247,13 @@ def build_medication_history_use_cases(
     profile_repository = repositories.patient_medical_profile
     counselor_qualification = CounselorQualificationAdapter(repositories.staff)
     counselor = CounselorQualificationService()
+    dispensing_source = DispensingSourceAdapter(repositories.dispensing)
     return MedicationHistoryUseCases(
         start=StartMedicationHistoryUseCase(
             record_repository,
             corporate_access,
             MedicationHistoryStoreReferenceAdapter(repositories.store),
-            DispensingSourceAdapter(repositories.dispensing),
+            dispensing_source,
             counselor_qualification,
             counselor,
             clock,
@@ -274,6 +283,17 @@ def build_medication_history_use_cases(
         ),
         rebuild_medical_profile=RebuildPatientMedicalProfileUseCase(
             record_repository, profile_repository, corporate_access
+        ),
+        verify_statutory_record=VerifyStatutoryRecordUseCase(
+            record_repository,
+            corporate_access,
+            dispensing_source,
+            StatutoryRecordSourceAdapter(
+                repositories.patient,
+                repositories.prescription,
+                repositories.staff,
+            ),
+            StatutoryDispensingRecordService(),
         ),
     )
 

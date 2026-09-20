@@ -29,7 +29,9 @@ from app.application.medication_history import (
     ResidualDrugInput,
     SoapInput,
     StartMedicationHistoryCommand,
+    StatutoryRecordSufficiencyDto,
     UpdateMedicationHistoryDraftCommand,
+    VerifyStatutoryRecordQuery,
 )
 from app.presentational.dependencies import (
     MedicationHistoryUseCasesDep,
@@ -188,6 +190,24 @@ async def amend_medication_history(
             reason=body.reason,
             amended_soap=body.amended_soap,
         )
+    )
+
+
+@router.get(
+    "/medication-histories/{record_id}/statutory-record-sufficiency",
+    response_model=StatutoryRecordSufficiencyDto,
+)
+async def verify_statutory_record(
+    corporate_id: str,
+    record_id: str,
+    use_cases: MedicationHistoryUseCasesDep,
+) -> StatutoryRecordSufficiencyDto:
+    """薬歴が調剤録の記載事項を満たすかを確認する。
+
+    足りないものを報告するだけで、確定や交付は止めない。
+    """
+    return await use_cases.verify_statutory_record.execute(
+        VerifyStatutoryRecordQuery(corporate_id=corporate_id, record_id=record_id)
     )
 
 

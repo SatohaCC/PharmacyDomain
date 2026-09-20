@@ -286,3 +286,108 @@ class AmendmentReason(BaseFreeText):
 
 class RetractionReason(BaseFreeText):
     """頭書き要素（アレルギー・副作用・疾患）を取り消す理由。"""
+
+
+# --------------------------------------------------------------------------
+# 調剤録の記載事項（薬剤師法第28条・施行規則第16条第1項）
+# --------------------------------------------------------------------------
+
+
+class StatutoryDispensingRecordItem(StrEnum):
+    """薬剤師法施行規則第16条第1項が定める調剤録の記載事項。"""
+
+    PATIENT_NAME_AND_AGE = "patient_name_and_age"
+    MEDICINE_NAME_AND_AMOUNT = "medicine_name_and_amount"
+    DISPENSED_AND_COUNSELED_DATE = "dispensed_and_counseled_date"
+    DISPENSED_QUANTITY = "dispensed_quantity"
+    PHARMACIST_NAMES = "pharmacist_names"
+    COUNSELING_SUMMARY = "counseling_summary"
+    PRESCRIPTION_ISSUED_DATE = "prescription_issued_date"
+    PRESCRIBER_NAME = "prescriber_name"
+    MEDICAL_INSTITUTION_LOCATION = "medical_institution_location"
+    CHANGE_AND_INQUIRY_DETAIL = "change_and_inquiry_detail"
+
+    @property
+    def label(self) -> str:
+        """画面表示・帳票出力用の日本語名称。"""
+        labels = {
+            self.PATIENT_NAME_AND_AGE: "患者の氏名及び年齢",
+            self.MEDICINE_NAME_AND_AMOUNT: "薬名及び分量",
+            self.DISPENSED_AND_COUNSELED_DATE: (
+                "調剤並びに情報の提供及び指導を行った年月日"
+            ),
+            self.DISPENSED_QUANTITY: "調剤量",
+            self.PHARMACIST_NAMES: ("調剤並びに情報の提供及び指導を行った薬剤師の氏名"),
+            self.COUNSELING_SUMMARY: "情報の提供及び指導の内容の要点",
+            self.PRESCRIPTION_ISSUED_DATE: "処方箋の発行年月日",
+            self.PRESCRIBER_NAME: "処方箋を交付した医師等の氏名",
+            self.MEDICAL_INSTITUTION_LOCATION: (
+                "処方箋を交付した者の住所又は勤務する病院・診療所の名称及び所在地"
+            ),
+            self.CHANGE_AND_INQUIRY_DETAIL: "変更調剤の内容及び疑義照会の回答内容",
+        }
+        return labels[self]
+
+    @property
+    def article_clause(self) -> str:
+        """記載事項の根拠となる条文の位置。
+
+        個別指導では「その記載はどの号か」を示すことになるので、号まで持つ。
+        応答本文に単独で現れても法令が特定できるよう、法令名から書く。
+        """
+        clauses = {
+            self.PATIENT_NAME_AND_AGE: "第16条第1項第一号",
+            self.MEDICINE_NAME_AND_AMOUNT: "第16条第1項第二号",
+            self.DISPENSED_AND_COUNSELED_DATE: "第16条第1項第三号",
+            self.DISPENSED_QUANTITY: "第16条第1項第四号",
+            self.PHARMACIST_NAMES: "第16条第1項第五号",
+            self.COUNSELING_SUMMARY: "第16条第1項第六号",
+            self.PRESCRIPTION_ISSUED_DATE: "第16条第1項第七号",
+            self.PRESCRIBER_NAME: "第16条第1項第八号",
+            self.MEDICAL_INSTITUTION_LOCATION: "第16条第1項第九号",
+            self.CHANGE_AND_INQUIRY_DETAIL: "第16条第1項第十号（第15条第一号・第二号）",
+        }
+        return f"薬剤師法施行規則{clauses[self]}"
+
+
+class StatutoryItemState(StrEnum):
+    """記載事項1つの充足状態。
+
+    ``NOT_REQUIRED`` を返してよいのは、源データが「その事由が発生していない」ことを
+    **積極的に示している**ときだけ。判定できないことを「該当しない」に倒すと、
+    記載の漏れが充足として報告される。
+    """
+
+    RECORDED = "recorded"
+    MISSING = "missing"
+    NOT_REQUIRED = "not_required"
+
+    @property
+    def label(self) -> str:
+        """画面表示・帳票出力用の日本語名称。"""
+        labels = {
+            self.RECORDED: "記載済",
+            self.MISSING: "未記載",
+            self.NOT_REQUIRED: "該当なし",
+        }
+        return labels[self]
+
+
+class StatutoryRecordBlocker(StrEnum):
+    """記載事項とは別軸で、調剤録の代替を妨げる要因。
+
+    記載事項の表へ混ぜない。混ぜると号と項目の対応が崩れ、「第何号が足りないのか」
+    という問いに答えられなくなる。
+    """
+
+    MEDICATION_HISTORY_NOT_FINALIZED = "medication_history_not_finalized"
+    DISPENSING_NOT_COMPLETED = "dispensing_not_completed"
+
+    @property
+    def label(self) -> str:
+        """画面表示・帳票出力用の日本語名称。"""
+        labels = {
+            self.MEDICATION_HISTORY_NOT_FINALIZED: "薬歴が未確定",
+            self.DISPENSING_NOT_COMPLETED: "調剤が未完了",
+        }
+        return labels[self]

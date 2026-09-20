@@ -19,10 +19,14 @@ from app.application.medication_history import (
     StartMedicationHistoryCommand,
     StartMedicationHistoryUseCase,
     UpdateMedicationHistoryDraftUseCase,
+    VerifyStatutoryRecordUseCase,
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
-from app.domain.medication_history import CounselorQualificationService
+from app.domain.medication_history import (
+    CounselorQualificationService,
+    StatutoryDispensingRecordService,
+)
 from app.domain.patient.primitives import PatientId
 from app.domain.staff.primitives import (
     PharmacistLicenseNumber,
@@ -35,7 +39,8 @@ from tests.application.access_helpers import (
     AutoProvisioningCorporateRepository,
     create_vendor_corporate_access_for,
 )
-from tests.factories.dispensing_factory import create_dispensing
+from tests.factories.dispensing_factory import complete_dispensing, create_dispensing
+from tests.factories.medication_history_factory import create_statutory_source
 from tests.fakes.fake_clock import FakeClock
 from tests.fakes.in_memory_medication_history_repository import (
     InMemoryMedicationHistoryRepository,
@@ -47,6 +52,7 @@ from tests.fakes.medication_history_reference_boundaries import (
     FakeCounselorQualificationSource,
     FakeDispensingSource,
     FakeMedicationHistoryStoreReference,
+    FakeStatutoryRecordSource,
 )
 from tests.fakes.null_unit_of_work import NullUnitOfWork
 
@@ -88,12 +94,14 @@ class MedicationHistoryFixture:
     list_by_patient: ListMedicationHistoriesByPatientUseCase
     get_profile: GetPatientMedicalProfileUseCase
     rebuild_profile: RebuildPatientMedicalProfileUseCase
+    verify_statutory_record: VerifyStatutoryRecordUseCase
     record_repository: InMemoryMedicationHistoryRepository
     profile_repository: InMemoryPatientMedicalProfileRepository
     corporate_repository: AutoProvisioningCorporateRepository
     store_reference: FakeMedicationHistoryStoreReference
     dispensing_source: FakeDispensingSource
     staff_qualification: FakeCounselorQualificationSource
+    statutory_source: FakeStatutoryRecordSource
     clock: FakeClock
     corporate_id: CorporateId
     store_id: StoreId
@@ -108,8 +116,10 @@ def create_fixture() -> MedicationHistoryFixture:
     store_id = StoreId.generate()
     patient_id = PatientId.generate()
     counselor_id = StaffId.generate()
-    dispensing = create_dispensing(
-        corporate_id=corporate_id, store_id=store_id, patient_id=patient_id
+    dispensing = complete_dispensing(
+        create_dispensing(
+            corporate_id=corporate_id, store_id=store_id, patient_id=patient_id
+        )
     )
 
     record_repository = InMemoryMedicationHistoryRepository()
@@ -123,6 +133,15 @@ def create_fixture() -> MedicationHistoryFixture:
         corporate_id=corporate_id,
         staff_id=counselor_id,
         qualifications=create_pharmacist_qualifications(),
+    )
+    statutory_source = FakeStatutoryRecordSource()
+    statutory_source.register(
+        corporate_id=corporate_id,
+        source=create_statutory_source(
+            patient_id=patient_id,
+            prescription_id=dispensing.prescription_id,
+            pharmacist_ids=(dispensing.dispenser_id, counselor_id),
+        ),
     )
     clock = FakeClock()
     corporate_repository = AutoProvisioningCorporateRepository()
@@ -161,12 +180,20 @@ def create_fixture() -> MedicationHistoryFixture:
         rebuild_profile=RebuildPatientMedicalProfileUseCase(
             record_repository, profile_repository, corporate_access
         ),
+        verify_statutory_record=VerifyStatutoryRecordUseCase(
+            record_repository,
+            corporate_access,
+            dispensing_source,
+            statutory_source,
+            StatutoryDispensingRecordService(),
+        ),
         record_repository=record_repository,
         profile_repository=profile_repository,
         corporate_repository=corporate_repository,
         store_reference=store_reference,
         dispensing_source=dispensing_source,
         staff_qualification=staff_qualification,
+        statutory_source=statutory_source,
         clock=clock,
         corporate_id=corporate_id,
         store_id=store_id,

@@ -18,6 +18,7 @@ from app.domain.medication_history.exceptions import (
     ResidualDrugDetailNotAllowedError,
     ResidualDrugDetailRequiredError,
     SoapSectionEmptyError,
+    StatutoryRecordSourceMismatchError,
     UnfinalizedRecordProjectionError,
 )
 from app.domain.medication_history.medication_history_record import (
@@ -50,6 +51,9 @@ from app.domain.medication_history.primitives import (
     ResidualDrugReason,
     RetractionReason,
     StatutoryCategory,
+    StatutoryDispensingRecordItem,
+    StatutoryItemState,
+    StatutoryRecordBlocker,
 )
 from app.domain.medication_history.repository import (
     MedicationHistoryRepository,
@@ -59,6 +63,7 @@ from app.domain.medication_history.services import (
     CounselorQualificationService,
     MedicationHistoryUniquenessService,
     PatientMedicalProfileUniquenessService,
+    StatutoryDispensingRecordService,
 )
 from app.domain.medication_history.value_objects import (
     AdverseReactionRecord,
@@ -85,6 +90,11 @@ from app.domain.medication_history.value_objects import (
     RetractAllergyIntent,
     RetractConditionIntent,
     SoapRecord,
+    StatutoryInquiryRecord,
+    StatutoryItemAssessment,
+    StatutoryPharmacistName,
+    StatutoryRecordSource,
+    StatutoryRecordSufficiency,
     StopConcurrentMedicationIntent,
     UpdateConditionStatusIntent,
 )
@@ -161,6 +171,16 @@ __all__ = [
     "SoapRecord",
     "SoapSectionEmptyError",
     "StatutoryCategory",
+    "StatutoryDispensingRecordItem",
+    "StatutoryDispensingRecordService",
+    "StatutoryInquiryRecord",
+    "StatutoryItemAssessment",
+    "StatutoryItemState",
+    "StatutoryPharmacistName",
+    "StatutoryRecordBlocker",
+    "StatutoryRecordSource",
+    "StatutoryRecordSourceMismatchError",
+    "StatutoryRecordSufficiency",
     "StopConcurrentMedicationIntent",
     "UnfinalizedRecordProjectionError",
     "UpdateConditionStatusIntent",

@@ -12,6 +12,9 @@ from typing import Protocol
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.primitives import DispensingId
+from app.domain.medication_history.value_objects import StatutoryRecordSource
+from app.domain.patient.primitives import PatientId
+from app.domain.prescription.primitives import PrescriptionId
 from app.domain.staff.primitives import StaffId, StaffQualifications
 from app.domain.store.primitives import StoreId
 
@@ -77,5 +80,35 @@ class StaffQualificationBoundary(Protocol):
             MedicationHistoryStaffNotFoundError: 未存在または別法人のスタッフで
                 ある場合。資格を持たないだけのスタッフはここでは例外にせず、
                 空の ``StaffQualifications`` を返す（存在はしているため）。
+        """
+        ...
+
+
+class StatutoryRecordSourceBoundary(Protocol):
+    """調剤録の記載事項のうち、薬歴コンテキストが読めない事実を運ぶ境界。
+
+    患者集約・処方箋集約そのものは渡さない（``[tool.import_rules.forbidden]`` が
+    薬歴ドメインからの import を禁じている）。運ぶのは不変スナップショットだけで、
+    充足の判定は ``StatutoryDispensingRecordService`` が行う。
+    """
+
+    async def build(
+        self,
+        *,
+        corporate_id: CorporateId,
+        patient_id: PatientId,
+        prescription_id: PrescriptionId,
+        staff_ids: frozenset[StaffId],
+    ) -> StatutoryRecordSource:
+        """記載事項のスナップショットを組み立てる。
+
+        氏名を引けなかったスタッフは**例外にせず**結果から落とす。記録に残った
+        スタッフIDの氏名を引けないこと自体が「氏名を記載できない」という判定材料
+        であり、取得の失敗ではない。
+
+        Raises:
+            MedicationHistoryPatientNotFoundError: 未存在または別法人の患者である場合。
+            MedicationHistoryPrescriptionNotFoundError: 未存在または別法人の
+                処方箋である場合。
         """
         ...

@@ -23,6 +23,8 @@ from app.domain.medication_history.exceptions import (
     HandbookReasonNotAllowedError,
     ResidualDrugDetailNotAllowedError,
     ResidualDrugDetailRequiredError,
+    StatutoryItemAssessedTwiceError,
+    StatutoryItemNotAssessedError,
 )
 from app.domain.medication_history.primitives import (
     AdverseReactionSymptom,
@@ -44,9 +46,20 @@ from app.domain.medication_history.primitives import (
     ResidualDrugReason,
     RetractionReason,
     StatutoryCategory,
+    StatutoryDispensingRecordItem,
+    StatutoryItemState,
+    StatutoryRecordBlocker,
 )
-from app.domain.prescription.primitives import MedicalInstitutionName
+from app.domain.patient.primitives import PatientBirthDate, PatientId
+from app.domain.prescription.primitives import (
+    InquiryNumber,
+    MedicalInstitutionAddressLine,
+    MedicalInstitutionName,
+    PrescriptionId,
+    PrescriptionIssuedDate,
+)
 from app.domain.shared.medicine import MedicineName
+from app.domain.shared.person_name import PersonNames
 from app.domain.staff.primitives import StaffId
 
 
@@ -600,3 +613,155 @@ class MedicationHistoryAmendment(ValueObject):
         "amended_by": "追記者",
         "amended_at": "追記日時",
     }
+
+
+# --------------------------------------------------------------------------
+# 調剤録の記載事項（薬剤師法施行規則第16条第1項）
+# --------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, kw_only=True)
+class StatutoryPharmacistName(ValueObject):
+    """調剤録へ記載する薬剤師1名の氏名。"""
+
+    staff_id: StaffId
+    names: PersonNames
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "staff_id": "スタッフ",
+        "names": "氏名",
+    }
+
+
+@dataclass(frozen=True, kw_only=True)
+class StatutoryInquiryRecord(ValueObject):
+    """疑義照会1件のうち、調剤録の記載に必要な部分だけの写し。"""
+
+    inquiry_number: InquiryNumber
+    has_response: bool
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "inquiry_number": "照会連番",
+        "has_response": "回答の有無",
+    }
+
+
+@dataclass(frozen=True, kw_only=True)
+class StatutoryRecordSource(ValueObject):
+    """薬歴コンテキストが自力で読めない記載事項の不変スナップショット。
+
+    患者の同一性（``patient_id``）と患者の記載事項（氏名・生年月日）を**分離不能に**
+    束ねる。分けると、そのスナップショットが本当にその患者のものかが呼び出し側の
+    規約になり、別人の氏名を根拠に第一号が充足したと報告できてしまう。
+    """
+
+    patient_id: PatientId
+    patient_names: PersonNames
+    patient_birth_date: PatientBirthDate | None
+    pharmacist_names: tuple[StatutoryPharmacistName, ...]
+    prescription_id: PrescriptionId
+    prescription_issued_date: PrescriptionIssuedDate
+    prescriber_names: PersonNames
+    medical_institution_name: MedicalInstitutionName
+    medical_institution_address: MedicalInstitutionAddressLine | None
+    inquiries: tuple[StatutoryInquiryRecord, ...]
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "patient_id": "患者ID",
+        "patient_names": "患者氏名",
+        "patient_birth_date": "患者生年月日",
+        "pharmacist_names": "薬剤師の氏名",
+        "prescription_id": "処方箋ID",
+        "prescription_issued_date": "処方箋交付年月日",
+        "prescriber_names": "処方医氏名",
+        "medical_institution_name": "医療機関名称",
+        "medical_institution_address": "医療機関所在地",
+        "inquiries": "疑義照会",
+    }
+
+    def find_pharmacist(self, staff_id: StaffId) -> StatutoryPharmacistName | None:
+        """指定スタッフの氏名を返す。引けなければ ``None``。
+
+        引けないことは取得の失敗ではなく、「氏名を記載できない」という判定材料。
+        """
+        for entry in self.pharmacist_names:
+            if entry.staff_id == staff_id:
+                return entry
+        return None
+
+
+@dataclass(frozen=True, kw_only=True)
+class StatutoryItemAssessment(ValueObject):
+    """記載事項1つの判定結果。"""
+
+    item: StatutoryDispensingRecordItem
+    state: StatutoryItemState
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "item": "記載事項",
+        "state": "充足状態",
+    }
+
+
+@dataclass(frozen=True, kw_only=True)
+class StatutoryRecordSufficiency(ValueObject):
+    """薬歴が調剤録の代替になるかの判定結果。"""
+
+    assessments: tuple[StatutoryItemAssessment, ...]
+    blockers: tuple[StatutoryRecordBlocker, ...]
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "assessments": "記載事項の判定",
+        "blockers": "代替を妨げる要因",
+    }
+
+    def validate(self) -> None:
+        """全ての記載事項がちょうど1件ずつ判定されていることを検証する。
+
+        判定表の網羅性はモジュール読み込み時に検査しているが、それは「判定関数が
+        在るか」しか見ない。結果を組み立てる側で号を落とせば、充足していない薬歴が
+        充足として返る。ここで構築を拒否すると、欠けた結果は存在しえなくなる。
+        """
+        self._ensure_each_item_assessed_once()
+
+    def _ensure_each_item_assessed_once(self) -> None:
+        """記載事項の重複と欠落を拒否する。"""
+        assessed = [assessment.item for assessment in self.assessments]
+        if len(assessed) != len(set(assessed)):
+            raise StatutoryItemAssessedTwiceError()
+        missing = [
+            item for item in StatutoryDispensingRecordItem if item not in set(assessed)
+        ]
+        if missing:
+            raise StatutoryItemNotAssessedError(
+                item_labels=tuple(item.label for item in missing)
+            )
+
+    def state_of(self, item: StatutoryDispensingRecordItem) -> StatutoryItemState:
+        """指定した記載事項の充足状態を返す。
+
+        全ての記載事項がちょうど1件ずつ在ることは :meth:`validate` が保証するので、
+        ここでは欠落を扱わない。
+        """
+        return next(
+            assessment.state
+            for assessment in self.assessments
+            if assessment.item is item
+        )
+
+    @property
+    def missing_items(self) -> tuple[StatutoryDispensingRecordItem, ...]:
+        """記載が足りない事項。"""
+        return tuple(
+            assessment.item
+            for assessment in self.assessments
+            if assessment.state is StatutoryItemState.MISSING
+        )
+
+    @property
+    def substitutes_dispensing_record(self) -> bool:
+        """この薬歴が調剤録の代替になるか。
+
+        記載事項がそろっていても、妨げる要因が1つでも残っていれば代替にならない。
+        """
+        return not self.blockers and not self.missing_items

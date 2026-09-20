@@ -100,7 +100,7 @@ HOTコード等の実データ取り込みは未実装です。
 - Prescriptionの公費枠とCoverage台帳を接続するComposition Adapterは実装済み
 - Dispensing完了とPrescription更新、MedicationHistory確定と頭書き保存は PostgreSQL の同一 Unit of Work で一体化した。HTTPルートへも接続済みで、HTTP経由でも1トランザクションであること（失敗時に両集約が巻き戻ること）を実PostgreSQLの結合テストで確認済み
 - リフィル処方箋と分割調剤の併用可否には原典確認が残る（受付NSIPS単位で完結させるため、複数回またぎ追跡は一旦保留）
-- MedicationHistoryを法定調剤録の代替にするための項目充足検証と、3年保存の運用がない
+- 調剤録の記載事項充足検証は実装済み（保険調剤録の保険項目は対象外）。法定3年保存の運用がない
 
 各項目の文脈は対応するコンテキスト文書に記載します。
 
