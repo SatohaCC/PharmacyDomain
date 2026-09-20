@@ -33,6 +33,7 @@ from app.domain.dispensing import (
     SubstitutionReason,
 )
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.prescription.primitives import InquiryNumber
 from app.domain.shared.dosage import (
     DailyFrequency,
     DosageCode,
@@ -101,6 +102,11 @@ def _build_substitution(source: SubstitutionInput) -> SubstitutionDetail:
             required_text(source.original_name, "変更前の薬品名称")
         ),
         reason=build_optional(source.reason, SubstitutionReason),
+        inquiry_number=(
+            InquiryNumber(source.inquiry_number)
+            if source.inquiry_number is not None
+            else None
+        ),
     )
 
 
@@ -109,6 +115,11 @@ def _build_quantity_adjustment(source: QuantityAdjustmentInput) -> QuantityAdjus
     return QuantityAdjustment(
         prescribed_quantity=DispensingQuantity(source.prescribed_quantity),
         reason=parse_enum(QuantityAdjustmentReason, source.reason, "数量調整の理由"),
+        inquiry_number=(
+            InquiryNumber(source.inquiry_number)
+            if source.inquiry_number is not None
+            else None
+        ),
     )
 
 

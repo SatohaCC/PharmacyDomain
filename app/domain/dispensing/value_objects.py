@@ -10,7 +10,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import ClassVar
 
-from app.domain.dispensing.exceptions import QuantityAdjustmentInvalidError
+from app.domain.dispensing.exceptions import (
+    InquiryReferenceRequiredError,
+    QuantityAdjustmentInvalidError,
+)
 from app.domain.dispensing.primitives import (
     AuditNotes,
     AuditTimestamp,
@@ -22,6 +25,7 @@ from app.domain.dispensing.primitives import (
     VerificationTimestamp,
 )
 from app.domain.foundation.value_object import ValueObject
+from app.domain.prescription.primitives import InquiryNumber
 from app.domain.shared.medicine import (
     DispensingQuantity,
     MedicineIdentifier,
@@ -42,13 +46,23 @@ class SubstitutionDetail(ValueObject):
     original_identifier: MedicineIdentifier
     original_name: MedicineName
     reason: SubstitutionReason | None = None
+    inquiry_number: InquiryNumber | None = None
 
     _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
         "category": "代替調剤種別",
         "original_identifier": "変更前の薬品コード",
         "original_name": "変更前の薬品名称",
         "reason": "変更理由",
+        "inquiry_number": "疑義照会連番",
     }
+
+    def validate(self) -> None:
+        """疑義照会に基づく処方変更調剤の場合、照会連番が必須であることを検証する。"""
+        if (
+            self.category is SubstitutionCategory.INQUIRY_MODIFIED
+            and self.inquiry_number is None
+        ):
+            raise InquiryReferenceRequiredError()
 
     def describes_change_from(
         self, identifier: MedicineIdentifier, name: MedicineName
@@ -77,11 +91,21 @@ class QuantityAdjustment(ValueObject):
 
     prescribed_quantity: DispensingQuantity
     reason: QuantityAdjustmentReason
+    inquiry_number: InquiryNumber | None = None
 
     _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
         "prescribed_quantity": "処方時の調剤数量",
         "reason": "数量調整の理由",
+        "inquiry_number": "疑義照会連番",
     }
+
+    def validate(self) -> None:
+        """疑義照会合意による数量調整の場合、照会連番が必須であることを検証する。"""
+        if (
+            self.reason is QuantityAdjustmentReason.INQUIRY_AGREED
+            and self.inquiry_number is None
+        ):
+            raise InquiryReferenceRequiredError()
 
     def ensure_reduces(self, dispensed_quantity: DispensingQuantity) -> None:
         """実際の調剤数量が処方時より少ないことを検証する。

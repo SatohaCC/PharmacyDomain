@@ -26,7 +26,7 @@ from app.domain.dispensing import (
     DispensingIterationUniquenessService,
     DispensingPharmacistService,
 )
-from app.domain.prescription import Prescription
+from app.domain.prescription import Prescription, PrescriptionStatus
 from app.domain.shared.medicine import MedicineCodeType
 from app.domain.staff.primitives import (
     PharmacistLicenseNumber,
@@ -103,12 +103,34 @@ def create_generic_substitution() -> SubstitutionInput:
     )
 
 
+def create_inquiry_substitution(*, inquiry_number: int = 1) -> SubstitutionInput:
+    """疑義照会に基づく処方変更調剤の入力を組み立てる。"""
+    return SubstitutionInput(
+        category="inquiry_modified",
+        original_code_type=MedicineCodeType.YJ.value,
+        original_code=MEDICINE_CODE,
+        original_name=MEDICINE_NAME,
+        inquiry_number=inquiry_number,
+    )
+
+
 def create_substituted_medicine_input() -> DispensedMedicineInput:
     """後発品へ変更した薬品明細の入力を組み立てる。"""
     return create_medicine_input(
         code=GENERIC_CODE,
         name=GENERIC_NAME,
         substitution=create_generic_substitution(),
+    )
+
+
+def create_inquiry_substituted_medicine_input(
+    *, inquiry_number: int = 1
+) -> DispensedMedicineInput:
+    """疑義照会処方変更した薬品明細の入力を組み立てる。"""
+    return create_medicine_input(
+        code=GENERIC_CODE,
+        name=GENERIC_NAME,
+        substitution=create_inquiry_substitution(inquiry_number=inquiry_number),
     )
 
 
@@ -170,7 +192,8 @@ def create_fixture(*, prescription: Prescription | None = None) -> DispensingFix
     # Fixture の法人に属さず、境界の参照が理由なく404になる。
     corporate_id = prescription.corporate_id
     store_id = prescription.store_id
-    prescription = prescription.ready_for_dispensing()
+    if prescription.status is not PrescriptionStatus.READY_FOR_DISPENSING:
+        prescription = prescription.ready_for_dispensing()
 
     repository = InMemoryDispensingProcessRepository()
     store_reference = FakeDispensingStoreReference()

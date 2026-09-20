@@ -34,6 +34,7 @@ class SubstitutionDto:
     original_code: str | None
     original_name: str
     reason: str | None
+    inquiry_number: int | None = None
 
     @classmethod
     def from_value(cls, value: SubstitutionDetail) -> SubstitutionDto:
@@ -44,6 +45,7 @@ class SubstitutionDto:
             original_code=unwrap(value.original_identifier.code),
             original_name=value.original_name.value,
             reason=unwrap(value.reason),
+            inquiry_number=unwrap(value.inquiry_number),
         )
 
 
@@ -53,6 +55,7 @@ class QuantityAdjustmentDto:
 
     prescribed_quantity: int
     reason: str
+    inquiry_number: int | None = None
 
     @classmethod
     def from_value(cls, value: QuantityAdjustment) -> QuantityAdjustmentDto:
@@ -60,6 +63,7 @@ class QuantityAdjustmentDto:
         return cls(
             prescribed_quantity=value.prescribed_quantity.value,
             reason=value.reason.value,
+            inquiry_number=unwrap(value.inquiry_number),
         )
 
 

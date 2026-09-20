@@ -181,6 +181,7 @@ class SubstitutionCategory(StrEnum):
     GENERIC_SUBSTITUTION = "generic_substitution"
     STRENGTH_CHANGE = "strength_change"
     DOSAGE_FORM_CHANGE = "dosage_form_change"
+    INQUIRY_MODIFIED = "inquiry_modified"
 
     @property
     def label(self) -> str:
@@ -189,6 +190,7 @@ class SubstitutionCategory(StrEnum):
             self.GENERIC_SUBSTITUTION: "後発医薬品への変更調剤",
             self.STRENGTH_CHANGE: "規格変更調剤",
             self.DOSAGE_FORM_CHANGE: "剤形変更調剤",
+            self.INQUIRY_MODIFIED: "疑義照会に基づく処方変更調剤",
         }
         return labels[self]
 

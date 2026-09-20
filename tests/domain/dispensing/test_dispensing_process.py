@@ -28,10 +28,13 @@ from app.domain.dispensing import (
     DuplicatedDispensedLineNumberError,
     DuplicatedDispensedRpNumberError,
     DuplicatedPreparationMethodError,
+    InquiryReferenceRequiredError,
     NextDispensingDate,
     NextDispensingDateMismatchError,
     PreparationMethod,
+    QuantityAdjustment,
     QuantityAdjustmentInvalidError,
+    QuantityAdjustmentReason,
     SubstitutionCategory,
     SubstitutionDetail,
     SubstitutionWithoutChangeError,
@@ -41,6 +44,7 @@ from app.domain.dispensing import (
     VerificationTimestamp,
 )
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.prescription.primitives import InquiryNumber
 from app.domain.shared.medicine import (
     DispensingQuantity,
     MedicineCode,
@@ -310,6 +314,44 @@ class Test変更調剤:
         assert rp.has_substitution
         assert rp.medicines[0].preparations == (PreparationMethod.UNIT_DOSE_PACKAGED,)
 
+    def test_疑義照会に基づく処方変更調剤は_照会連番を保持する(self) -> None:
+        """TC-VO-01: SubstitutionDetail に inquiry_number が指定されていれば保持する。"""
+        # Arrange / Act
+        actual = SubstitutionDetail(
+            category=SubstitutionCategory.INQUIRY_MODIFIED,
+            original_identifier=create_identifier(),
+            original_name=MedicineName("変更前薬品"),
+            inquiry_number=InquiryNumber(1),
+        )
+
+        # Assert
+        assert actual.category is SubstitutionCategory.INQUIRY_MODIFIED
+        assert actual.inquiry_number == InquiryNumber(1)
+
+    def test_疑義照会に基づく処方変更調剤で_照会連番が無いと拒否される(self) -> None:
+        """TC-VO-02: INQUIRY_MODIFIED で inquiry_number が None の場合はエラー。"""
+        # Arrange / Act / Assert
+        with pytest.raises(InquiryReferenceRequiredError):
+            SubstitutionDetail(
+                category=SubstitutionCategory.INQUIRY_MODIFIED,
+                original_identifier=create_identifier(),
+                original_name=MedicineName("変更前薬品"),
+                inquiry_number=None,
+            )
+
+    def test_後発医薬品変更調剤でも_照会連番を任意で保持できる(self) -> None:
+        """TC-VO-03: GENERIC_SUBSTITUTION でも inquiry_number を指定可能。"""
+        # Arrange / Act
+        actual = SubstitutionDetail(
+            category=SubstitutionCategory.GENERIC_SUBSTITUTION,
+            original_identifier=create_identifier(),
+            original_name=MedicineName("変更前薬品"),
+            inquiry_number=InquiryNumber(1),
+        )
+
+        # Assert
+        assert actual.inquiry_number == InquiryNumber(1)
+
 
 class Test減数調剤:
     """用法・用量は変えず数量だけを減らす。"""
@@ -347,6 +389,29 @@ class Test減数調剤:
         assert actual.quantity_adjustment is not None
         assert actual.quantity_adjustment.prescribed_quantity == DispensingQuantity(28)
         assert actual.quantity == DispensingQuantity(14)
+
+    def test_疑義照会合意による数量調整は_照会連番を保持する(self) -> None:
+        """TC-VO-05: QuantityAdjustment で INQUIRY_AGREED かつ inquiry_number を指定。"""
+        # Arrange / Act
+        actual = QuantityAdjustment(
+            prescribed_quantity=DispensingQuantity(28),
+            reason=QuantityAdjustmentReason.INQUIRY_AGREED,
+            inquiry_number=InquiryNumber(1),
+        )
+
+        # Assert
+        assert actual.reason is QuantityAdjustmentReason.INQUIRY_AGREED
+        assert actual.inquiry_number == InquiryNumber(1)
+
+    def test_疑義照会合意による数量調整で_照会連番が無いと拒否される(self) -> None:
+        """TC-VO-06: QuantityAdjustment で INQUIRY_AGREED かつ inquiry_number が None。"""
+        # Arrange / Act / Assert
+        with pytest.raises(InquiryReferenceRequiredError):
+            QuantityAdjustment(
+                prescribed_quantity=DispensingQuantity(28),
+                reason=QuantityAdjustmentReason.INQUIRY_AGREED,
+                inquiry_number=None,
+            )
 
 
 class Test鑑査:
