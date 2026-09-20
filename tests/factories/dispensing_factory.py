@@ -31,7 +31,7 @@ from app.domain.dispensing import (
     VerificationTimestamp,
 )
 from app.domain.patient.primitives import PatientId
-from app.domain.prescription.primitives import PrescriptionId
+from app.domain.prescription.primitives import InquiryNumber, PrescriptionId
 from app.domain.shared.dosage import DosageCodeType, DosageInstruction, DosageName
 from app.domain.shared.medicine import (
     DispensingQuantity,
@@ -67,17 +67,23 @@ def create_substitution(
     original_code: str = MEDICINE_CODE,
     original_name: str = MEDICINE_NAME,
     reason: str | None = None,
+    inquiry_number: int | None = None,
 ) -> SubstitutionDetail:
     """代替調剤の記録を組み立てる。
 
     変更理由は任意項目なので、既定では**記録しない**。調剤録の記載事項として
     理由が要るかを問うテストは、理由を明示して組み立てる。
     """
+    if category is SubstitutionCategory.INQUIRY_MODIFIED and inquiry_number is None:
+        inquiry_number = 1
     return SubstitutionDetail(
         category=category,
         original_identifier=create_identifier(original_code),
         original_name=MedicineName(original_name),
         reason=SubstitutionReason(reason) if reason is not None else None,
+        inquiry_number=InquiryNumber(inquiry_number)
+        if inquiry_number is not None
+        else None,
     )
 
 
@@ -133,11 +139,15 @@ def create_quantity_adjustment(
     *,
     prescribed_quantity: int = 28,
     reason: QuantityAdjustmentReason = QuantityAdjustmentReason.RESIDUAL_DRUG,
+    inquiry_number: int | None = None,
 ) -> QuantityAdjustment:
     """減数調剤の記録を組み立てる。"""
     return QuantityAdjustment(
         prescribed_quantity=DispensingQuantity(prescribed_quantity),
         reason=reason,
+        inquiry_number=InquiryNumber(inquiry_number)
+        if inquiry_number is not None
+        else None,
     )
 
 

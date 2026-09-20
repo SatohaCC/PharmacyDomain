@@ -50,6 +50,8 @@ from app.domain.dispensing import (
     DispensingPharmacistQualificationError,
     DispensingPharmacistService,
     DispensingProcessStatus,
+    InquiryNotAgreedError,
+    InquiryReferenceNotInPrescriptionError,
     IterationExceedsInstructionError,
     PreviousDispensingUnknownError,
     SubstitutionNotAllowedError,
@@ -70,6 +72,7 @@ from tests.application.dispensing.helpers import (
     DispensingFixture,
     create_actor_access,
     create_fixture,
+    create_inquiry_substituted_medicine_input,
     create_medicine_input,
     create_rp_input,
     create_start_command,
@@ -844,3 +847,153 @@ async def test_照会回答と再確定後は_調剤を開始できる() -> None
     assert len(saved) == 1
     assert str(saved[0].id.value) == actual.id
     assert saved[0].status is DispensingProcessStatus.IN_PROGRESS
+
+
+class Test疑義照会処方変更とトレーサビリティ:
+    """疑義照会処方変更の調剤開始・記録・検証の統合フロー。"""
+
+    async def test_疑義照会による処方変更調剤を開始できる(self) -> None:
+        """TC-APP-01: inquiry_number を伴う INQUIRY_MODIFIED で調剤開始し、DTOに反映される。"""
+        # Arrange
+        prescription = (
+            start_inquiry(
+                create_prescription(rps=(create_rp(medicines=(create_medicine(),)),))
+            )
+            .resolve_inquiry(
+                inquiry_number=InquiryNumber(1),
+                response=create_response(result_type=InquiryResultType.MODIFIED),
+            )
+            .ready_for_dispensing()
+        )
+        fixture = create_fixture(prescription=prescription)
+        command = create_start_command(
+            fixture,
+            dispensed_rps=(
+                create_rp_input(
+                    medicines=(
+                        create_inquiry_substituted_medicine_input(inquiry_number=1),
+                    )
+                ),
+            ),
+        )
+
+        # Act
+        actual = await fixture.start.execute(command)
+
+        # Assert
+        sub = actual.dispensed_rps[0].medicines[0].substitution
+        assert sub is not None
+        assert sub.category == "inquiry_modified"
+        assert sub.inquiry_number == 1
+
+    async def test_調剤内容の更新で疑義照会処方変更を記録できる(self) -> None:
+        """TC-APP-02: 既存セッションの調剤内容を inquiry_number 付きの INQUIRY_MODIFIED に更新。"""
+        # Arrange
+        prescription = (
+            start_inquiry(
+                create_prescription(rps=(create_rp(medicines=(create_medicine(),)),))
+            )
+            .resolve_inquiry(
+                inquiry_number=InquiryNumber(1),
+                response=create_response(result_type=InquiryResultType.MODIFIED),
+            )
+            .ready_for_dispensing()
+        )
+        fixture = create_fixture(prescription=prescription)
+        started = await fixture.start.execute(create_start_command(fixture))
+
+        record_command = RecordDispensedContentCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            dispensing_id=started.id,
+            dispensed_rps=(
+                create_rp_input(
+                    medicines=(
+                        create_inquiry_substituted_medicine_input(inquiry_number=1),
+                    )
+                ),
+            ),
+        )
+
+        # Act
+        actual = await fixture.record_content.execute(record_command)
+
+        # Assert
+        sub = actual.dispensed_rps[0].medicines[0].substitution
+        assert sub is not None
+        assert sub.category == "inquiry_modified"
+        assert sub.inquiry_number == 1
+
+    async def test_実在しない疑義照会連番を指定した調剤開始は_拒否される(self) -> None:
+        """TC-APP-03: 実在しない照会連番を指定して調剤開始を実行すると InquiryReferenceNotInPrescriptionError。"""
+        # Arrange
+        fixture = create_fixture()
+        command = create_start_command(
+            fixture,
+            dispensed_rps=(
+                create_rp_input(
+                    medicines=(
+                        create_inquiry_substituted_medicine_input(inquiry_number=999),
+                    )
+                ),
+            ),
+        )
+
+        # Act / Assert
+        with pytest.raises(InquiryReferenceNotInPrescriptionError):
+            await fixture.start.execute(command)
+
+    async def test_変更なし回答の疑義照会を指定した処方変更調剤開始は_拒否される(
+        self,
+    ) -> None:
+        """TC-APP-04: UNCHANGEDの照会連番を指定して変更調剤を開始すると InquiryNotAgreedError。"""
+        # Arrange
+        prescription = (
+            start_inquiry(
+                create_prescription(rps=(create_rp(medicines=(create_medicine(),)),))
+            )
+            .resolve_inquiry(
+                inquiry_number=InquiryNumber(1),
+                response=create_response(result_type=InquiryResultType.UNCHANGED),
+            )
+            .ready_for_dispensing()
+        )
+        fixture = create_fixture(prescription=prescription)
+        command = create_start_command(
+            fixture,
+            dispensed_rps=(
+                create_rp_input(
+                    medicines=(
+                        create_inquiry_substituted_medicine_input(inquiry_number=1),
+                    )
+                ),
+            ),
+        )
+
+        # Act / Assert
+        with pytest.raises(InquiryNotAgreedError):
+            await fixture.start.execute(command)
+
+    async def test_処方変更を伴わない疑義照会があっても_原本通りの調剤を開始完了できる(
+        self,
+    ) -> None:
+        """TC-APP-05: 処方箋にUNCHANGEDの照会が存在する状態で、原本通りの通常調剤を開始完了できる。"""
+        # Arrange
+        prescription = (
+            start_inquiry(
+                create_prescription(rps=(create_rp(medicines=(create_medicine(),)),))
+            )
+            .resolve_inquiry(
+                inquiry_number=InquiryNumber(1),
+                response=create_response(result_type=InquiryResultType.UNCHANGED),
+            )
+            .ready_for_dispensing()
+        )
+        fixture = create_fixture(prescription=prescription)
+        command = create_start_command(fixture)
+
+        # Act
+        actual = await fixture.start.execute(command)
+
+        # Assert
+        assert actual.status == "in_progress"
+        assert actual.dispensed_rps[0].medicines[0].substitution is None

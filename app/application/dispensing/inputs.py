@@ -21,6 +21,7 @@ class SubstitutionInput:
     original_name: str
     original_code: str | None = None
     reason: str | None = None
+    inquiry_number: int | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -29,6 +30,7 @@ class QuantityAdjustmentInput:
 
     prescribed_quantity: int
     reason: str
+    inquiry_number: int | None = None
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -18,6 +18,7 @@ from pydantic import TypeAdapter
 
 from app.application.medication_history import SoapInput
 from app.domain.medication_history import StatutoryDispensingRecordItem
+from app.domain.prescription import InquiryNumber, InquiryResultType
 from app.infrastructure.di import (
     DispensingUseCases,
     MedicationHistoryUseCases,
@@ -37,6 +38,7 @@ from app.presentational.routers.prescription import RegisterPrescriptionRequest
 from tests.application.dispensing import helpers as dispensing_helpers
 from tests.application.medication_history import helpers as history_helpers
 from tests.application.prescription import helpers as prescription_helpers
+from tests.factories.prescription_factory import create_response, start_inquiry
 from tests.fakes.stub_actor_context_provider import (
     VALID_TOKEN,
     StubActorContextProvider,
@@ -316,6 +318,90 @@ def test_鑑査を通していない調剤は_完了できない(
     # Assert
     assert completed.status_code == HTTPStatus.UNPROCESSABLE_CONTENT
     assert completed.json()["code"]
+
+
+def test_疑義照会処方変更を含む調剤をHTTP経由で開始できる(
+    dispensing_client: TestClient,
+    dispensing_fixture: dispensing_helpers.DispensingFixture,
+) -> None:
+    """TC-HTTP-01: POST .../dispensings で inquiry_modified と inquiry_number を送信すると 201 CREATED。"""
+    # Arrange
+    corporate_id = str(dispensing_fixture.corporate_id.value)
+    modified_prescription = (
+        start_inquiry(dispensing_fixture.prescription)
+        .resolve_inquiry(
+            inquiry_number=InquiryNumber(1),
+            response=create_response(result_type=InquiryResultType.MODIFIED),
+        )
+        .ready_for_dispensing()
+    )
+    dispensing_fixture.prescription_source.register(modified_prescription)
+
+    body = StartDispensingRequest(
+        store_id=str(dispensing_fixture.store_id.value),
+        prescription_id=str(modified_prescription.id.value),
+        dispenser_id=str(dispensing_fixture.dispenser_id.value),
+        iteration=1,
+        dispensed_date=modified_prescription.period.issued_date.value,
+        dispensed_rps=[
+            dispensing_helpers.create_rp_input(
+                medicines=(
+                    dispensing_helpers.create_inquiry_substituted_medicine_input(
+                        inquiry_number=1
+                    ),
+                )
+            )
+        ],
+    ).model_dump(mode="json")
+
+    # Act
+    started = dispensing_client.post(
+        f"/corporates/{corporate_id}/dispensings",
+        json=body,
+        headers=_HEADERS,
+    )
+
+    # Assert
+    assert started.status_code == HTTPStatus.CREATED, started.text
+    sub = started.json()["dispensed_rps"][0]["medicines"][0]["substitution"]
+    assert sub is not None
+    assert sub["category"] == "inquiry_modified"
+    assert sub["inquiry_number"] == 1
+
+
+def test_実在しない疑義照会連番を指定すると422が返る(
+    dispensing_client: TestClient,
+    dispensing_fixture: dispensing_helpers.DispensingFixture,
+) -> None:
+    """TC-HTTP-02: inquiry_number が実在しない照会連番の場合 422 UNPROCESSABLE_CONTENT。"""
+    # Arrange
+    corporate_id = str(dispensing_fixture.corporate_id.value)
+    body = StartDispensingRequest(
+        store_id=str(dispensing_fixture.store_id.value),
+        prescription_id=str(dispensing_fixture.prescription.id.value),
+        dispenser_id=str(dispensing_fixture.dispenser_id.value),
+        iteration=1,
+        dispensed_date=dispensing_fixture.prescription.period.issued_date.value,
+        dispensed_rps=[
+            dispensing_helpers.create_rp_input(
+                medicines=(
+                    dispensing_helpers.create_inquiry_substituted_medicine_input(
+                        inquiry_number=999
+                    ),
+                )
+            )
+        ],
+    ).model_dump(mode="json")
+
+    # Act
+    started = dispensing_client.post(
+        f"/corporates/{corporate_id}/dispensings",
+        json=body,
+        headers=_HEADERS,
+    )
+
+    # Assert
+    assert started.status_code == HTTPStatus.UNPROCESSABLE_CONTENT, started.text
 
 
 # --- 薬歴 -------------------------------------------------------------------

@@ -143,7 +143,7 @@ class Test変更調剤の3軸:
 
         # Assert
         assert "original_as_prescribed" not in values
-        assert len(values) == 3
+        assert len(values) == 4
 
     def test_3軸の値集合が_互いに重ならない(self) -> None:
         """単一 enum へ戻す変更は、この重なりで検出される。"""
@@ -190,3 +190,16 @@ class Test監査時刻:
 
         # Assert
         assert actual.value.tzinfo is UTC
+
+
+class Test代替調剤種別:
+    """疑義照会処方変更を含む代替調剤種別の定義。"""
+
+    def test_疑義照会に基づく処方変更調剤の定義(self) -> None:
+        """TC-CAT-01: SubstitutionCategory.INQUIRY_MODIFIED の値と日本語名称。"""
+        # Arrange / Act / Assert
+        assert SubstitutionCategory.INQUIRY_MODIFIED.value == "inquiry_modified"
+        assert (
+            SubstitutionCategory.INQUIRY_MODIFIED.label
+            == "疑義照会に基づく処方変更調剤"
+        )

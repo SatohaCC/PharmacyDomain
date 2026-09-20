@@ -21,10 +21,13 @@ from app.domain.dispensing import (
     DispensingOutsidePrescriptionPeriodError,
     DispensingScheduleOutOfRangeError,
     DispensingSplitReason,
+    InquiryNotAgreedError,
+    InquiryReferenceNotInPrescriptionError,
     IterationExceedsInstructionError,
     NextDispensingDate,
     PreviousDispensingCompletedError,
     PreviousDispensingUnknownError,
+    QuantityAdjustmentReason,
     SplitInstructionMissingError,
     SubstitutionCategory,
     SubstitutionNotAllowedError,
@@ -37,6 +40,8 @@ from app.domain.dispensing.services import (
 )
 from app.domain.prescription import (
     GenericSubstitutionRestrictionType,
+    InquiryNumber,
+    InquiryResultType,
     Prescription,
     PrescriptionManagementInfo,
     RefillCount,
@@ -52,13 +57,16 @@ from tests.factories.dispensing_factory import (
     create_dispensed_medicine,
     create_dispensed_rp,
     create_dispensing,
+    create_quantity_adjustment,
     create_substitution,
     verify_passed,
 )
 from tests.factories.prescription_factory import (
     create_medicine,
     create_prescription,
+    create_response,
     create_rp,
+    start_inquiry,
 )
 
 _SERVICE = DispensingConsistencyService()
@@ -223,8 +231,21 @@ class Test変更制限:
         # Act / Assert: 例外を送出しないこと自体が表明
         _SERVICE.ensure_substitutions_are_allowed(process, prescription)
 
+    def test_疑義照会による処方変更調剤は_変更不可の指示があっても許される(
+        self,
+    ) -> None:
+        """TC-CAT-04: 疑義照会を経て処方医と合意した変更は、処方箋の変更制限に拘束されない。"""
+        # Arrange
+        process = _substituted_dispensing(SubstitutionCategory.INQUIRY_MODIFIED)
+        prescription = _prescription(
+            restriction=GenericSubstitutionRestrictionType.NO_GENERIC
+        )
+
+        # Act / Assert: 例外を送出しないこと自体が表明
+        _SERVICE.ensure_substitutions_are_allowed(process, prescription)
+
     def test_全ての変更制限が_対応表に定義されている(self) -> None:
-        """読み込み時チェックが空振りしていないことを、利用側からも確かめる。"""
+        """TC-CAT-02: 読み込み時チェックが空振りしていないことを、利用側からも確かめる。"""
         # Arrange / Act / Assert: 例外を送出しないこと自体が表明
         verify_substitution_restriction_table(
             restriction_types=set(GenericSubstitutionRestrictionType),
@@ -245,6 +266,18 @@ class Test変更制限:
             verify_substitution_restriction_table(
                 restriction_types={*GenericSubstitutionRestrictionType, unknown},
                 categories=set(SubstitutionCategory),
+            )
+
+    def test_対応表に無い代替調剤種別があると_読み込み時に落ちる(self) -> None:
+        """TC-CAT-03: 代替調剤種別を足して対応表の分類を更新し忘れる事故を防ぐ。"""
+        # Arrange
+        unknown = cast(SubstitutionCategory, "unknown_category")
+
+        # Act / Assert
+        with pytest.raises(RuntimeError, match="未分類"):
+            verify_substitution_restriction_table(
+                restriction_types=set(GenericSubstitutionRestrictionType),
+                categories={*SubstitutionCategory, unknown},
             )
 
 
@@ -502,6 +535,223 @@ class Test入口からの一括検証:
         _SERVICE.ensure_consistent(
             process, prescription, previous=_continuing_previous()
         )
+
+
+class Test疑義照会と調剤の整合性:
+    """処方箋集約の疑義照会と調剤セッションの整合性を検証する。"""
+
+    def test_疑義照会で処方変更が合意されている調剤は_検証を通る(self) -> None:
+        """TC-SRV-01: 処方箋にMODIFIEDの照会が存在し、調剤側がその連番を参照してINQUIRY_MODIFIED。"""
+        # Arrange
+        prescription = start_inquiry(_prescription()).resolve_inquiry(
+            inquiry_number=InquiryNumber(1),
+            response=create_response(result_type=InquiryResultType.MODIFIED),
+        )
+        process = create_dispensing(
+            dispensed_rps=(
+                create_dispensed_rp(
+                    medicines=(
+                        create_dispensed_medicine(
+                            code=GENERIC_CODE,
+                            name=GENERIC_NAME,
+                            substitution=create_substitution(
+                                category=SubstitutionCategory.INQUIRY_MODIFIED,
+                                inquiry_number=1,
+                            ),
+                        ),
+                    )
+                ),
+            )
+        )
+
+        # Act / Assert: 例外を送出しないこと自体が表明
+        _SERVICE.ensure_consistent(process, prescription)
+
+    def test_処方変更を伴わない疑義照会があっても_通常調剤は検証を通る(self) -> None:
+        """TC-SRV-02: 処方箋にUNCHANGEDの照会が存在し、調剤側は代替調剤なし（原本通り）。"""
+        # Arrange
+        prescription = start_inquiry(_prescription()).resolve_inquiry(
+            inquiry_number=InquiryNumber(1),
+            response=create_response(result_type=InquiryResultType.UNCHANGED),
+        )
+        process = create_dispensing()
+
+        # Act / Assert: 例外を送出しないこと自体が表明
+        _SERVICE.ensure_consistent(process, prescription)
+
+    def test_変更なし回答の疑義照会を根拠にした処方変更調剤は_拒否される(self) -> None:
+        """TC-SRV-03: UNCHANGED回答の照会連番を根拠にINQUIRY_MODIFIEDを行うとInquiryNotAgreedError。"""
+        # Arrange
+        prescription = start_inquiry(_prescription()).resolve_inquiry(
+            inquiry_number=InquiryNumber(1),
+            response=create_response(result_type=InquiryResultType.UNCHANGED),
+        )
+        process = create_dispensing(
+            dispensed_rps=(
+                create_dispensed_rp(
+                    medicines=(
+                        create_dispensed_medicine(
+                            code=GENERIC_CODE,
+                            name=GENERIC_NAME,
+                            substitution=create_substitution(
+                                category=SubstitutionCategory.INQUIRY_MODIFIED,
+                                inquiry_number=1,
+                            ),
+                        ),
+                    )
+                ),
+            )
+        )
+
+        # Act / Assert
+        with pytest.raises(InquiryNotAgreedError):
+            _SERVICE.ensure_consistent(process, prescription)
+
+    def test_処方削除回答の疑義照会を根拠にした処方変更調剤は_拒否される(self) -> None:
+        """TC-SRV-04: DELETED回答の照会連番を根拠にINQUIRY_MODIFIEDを行うとInquiryNotAgreedError。"""
+        # Arrange
+        prescription = start_inquiry(_prescription()).resolve_inquiry(
+            inquiry_number=InquiryNumber(1),
+            response=create_response(result_type=InquiryResultType.DELETED),
+        )
+        process = create_dispensing(
+            dispensed_rps=(
+                create_dispensed_rp(
+                    medicines=(
+                        create_dispensed_medicine(
+                            code=GENERIC_CODE,
+                            name=GENERIC_NAME,
+                            substitution=create_substitution(
+                                category=SubstitutionCategory.INQUIRY_MODIFIED,
+                                inquiry_number=1,
+                            ),
+                        ),
+                    )
+                ),
+            )
+        )
+
+        # Act / Assert
+        with pytest.raises(InquiryNotAgreedError):
+            _SERVICE.ensure_consistent(process, prescription)
+
+    def test_未回答の疑義照会を根拠にした処方変更調剤は_拒否される(self) -> None:
+        """TC-SRV-05: response is Noneの照会連番を根拠にINQUIRY_MODIFIEDを行うとInquiryNotAgreedError。"""
+        # Arrange
+        prescription = start_inquiry(_prescription())
+        process = create_dispensing(
+            dispensed_rps=(
+                create_dispensed_rp(
+                    medicines=(
+                        create_dispensed_medicine(
+                            code=GENERIC_CODE,
+                            name=GENERIC_NAME,
+                            substitution=create_substitution(
+                                category=SubstitutionCategory.INQUIRY_MODIFIED,
+                                inquiry_number=1,
+                            ),
+                        ),
+                    )
+                ),
+            )
+        )
+
+        # Act / Assert
+        with pytest.raises(InquiryNotAgreedError):
+            _SERVICE.ensure_consistent(process, prescription)
+
+    def test_存在しない疑義照会連番を参照する代替調剤は_拒否される(self) -> None:
+        """TC-SRV-06: 処方箋に存在しないinquiry_number(999)を参照するとInquiryReferenceNotInPrescriptionError。"""
+        # Arrange
+        prescription = _prescription()
+        process = create_dispensing(
+            dispensed_rps=(
+                create_dispensed_rp(
+                    medicines=(
+                        create_dispensed_medicine(
+                            code=GENERIC_CODE,
+                            name=GENERIC_NAME,
+                            substitution=create_substitution(
+                                category=SubstitutionCategory.INQUIRY_MODIFIED,
+                                inquiry_number=999,
+                            ),
+                        ),
+                    )
+                ),
+            )
+        )
+
+        # Act / Assert
+        with pytest.raises(InquiryReferenceNotInPrescriptionError):
+            _SERVICE.ensure_consistent(process, prescription)
+
+    def test_疑義照会で処方変更が合意されている減数調剤は_検証を通る(self) -> None:
+        """TC-SRV-07: 処方箋にMODIFIEDの照会が存在し、調剤側がINQUIRY_AGREEDで当該連番を参照。"""
+        # Arrange
+        prescription = start_inquiry(_prescription()).resolve_inquiry(
+            inquiry_number=InquiryNumber(1),
+            response=create_response(result_type=InquiryResultType.MODIFIED),
+        )
+        process = create_dispensing(
+            dispensed_rps=(
+                create_dispensed_rp(
+                    quantity=14,
+                    quantity_adjustment=create_quantity_adjustment(
+                        prescribed_quantity=28,
+                        reason=QuantityAdjustmentReason.INQUIRY_AGREED,
+                        inquiry_number=1,
+                    ),
+                ),
+            )
+        )
+
+        # Act / Assert: 例外を送出しないこと自体が表明
+        _SERVICE.ensure_consistent(process, prescription)
+
+    def test_存在しない疑義照会連番を参照する減数調剤は_拒否される(self) -> None:
+        """TC-SRV-08: 減数調剤INQUIRY_AGREEDで存在しない照会連番を参照するとInquiryReferenceNotInPrescriptionError。"""
+        # Arrange
+        prescription = _prescription()
+        process = create_dispensing(
+            dispensed_rps=(
+                create_dispensed_rp(
+                    quantity=14,
+                    quantity_adjustment=create_quantity_adjustment(
+                        prescribed_quantity=28,
+                        reason=QuantityAdjustmentReason.INQUIRY_AGREED,
+                        inquiry_number=999,
+                    ),
+                ),
+            )
+        )
+
+        # Act / Assert
+        with pytest.raises(InquiryReferenceNotInPrescriptionError):
+            _SERVICE.ensure_consistent(process, prescription)
+
+    def test_変更なし回答の疑義照会を根拠にした減数調剤は_拒否される(self) -> None:
+        """TC-SRV-09: UNCHANGED回答の照会連番を根拠にINQUIRY_AGREEDを行うとInquiryNotAgreedError。"""
+        # Arrange
+        prescription = start_inquiry(_prescription()).resolve_inquiry(
+            inquiry_number=InquiryNumber(1),
+            response=create_response(result_type=InquiryResultType.UNCHANGED),
+        )
+        process = create_dispensing(
+            dispensed_rps=(
+                create_dispensed_rp(
+                    quantity=14,
+                    quantity_adjustment=create_quantity_adjustment(
+                        prescribed_quantity=28,
+                        reason=QuantityAdjustmentReason.INQUIRY_AGREED,
+                        inquiry_number=1,
+                    ),
+                ),
+            )
+        )
+
+        # Act / Assert
+        with pytest.raises(InquiryNotAgreedError):
+            _SERVICE.ensure_consistent(process, prescription)
 
 
 def test_調剤日の既定値が_処方箋の使用期間内である() -> None:

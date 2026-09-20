@@ -395,3 +395,44 @@ class DispensingPharmacistQualificationError(DispensingDomainError):
         if role_label is not None:
             message = f"{message}対象: {role_label}。"
         super().__init__(message)
+
+
+class InquiryReferenceRequiredError(DispensingDomainError):
+    """疑義照会に基づく処方変更調剤・数量調整で照会連番が指定されていない場合の例外。"""
+
+    default_message = "疑義照会に基づく処方変更調剤および数量調整では、根拠となった疑義照会連番の指定が必要です。"
+    default_code = "DISPENSING_INQUIRY_REFERENCE_REQUIRED"
+
+
+class InquiryReferenceNotInPrescriptionError(DispensingDomainError):
+    """調剤側で指定された疑義照会連番が処方箋に存在しない場合の例外。"""
+
+    default_message = "指定された疑義照会連番が処方箋に存在しません。"
+    default_code = "DISPENSING_INQUIRY_REFERENCE_NOT_IN_PRESCRIPTION"
+
+    def __init__(self, *, inquiry_number: int | None = None) -> None:
+        """存在しない照会連番を添えて例外を生成する。"""
+        message = self.default_message
+        if inquiry_number is not None:
+            message = f"{message}照会連番: {inquiry_number}。"
+        super().__init__(message)
+
+
+class InquiryNotAgreedError(DispensingDomainError):
+    """参照された疑義照会が未回答、または処方変更が合意されていない場合の例外。"""
+
+    default_message = (
+        "参照された疑義照会が未回答であるか、または処方変更として合意されていません。"
+    )
+    default_code = "DISPENSING_INQUIRY_NOT_AGREED"
+
+    def __init__(
+        self, *, inquiry_number: int | None = None, result_type: str | None = None
+    ) -> None:
+        """照会連番と結果区分を添えて例外を生成する。"""
+        message = self.default_message
+        if inquiry_number is not None:
+            message = f"{message}照会連番: {inquiry_number}。"
+        if result_type is not None:
+            message = f"{message}結果区分: {result_type}。"
+        super().__init__(message)

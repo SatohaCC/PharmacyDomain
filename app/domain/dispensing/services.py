@@ -11,7 +11,7 @@ Prescription の疑義照会実施者と同じく Application 層の資格 Bound
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 from app.domain.dispensing.dispensing_process import (
     DispensedMedicine,
@@ -24,6 +24,8 @@ from app.domain.dispensing.exceptions import (
     DispensingOutsidePrescriptionPeriodError,
     DispensingPharmacistQualificationError,
     DispensingScheduleOutOfRangeError,
+    InquiryNotAgreedError,
+    InquiryReferenceNotInPrescriptionError,
     IterationExceedsInstructionError,
     PreviousDispensingCompletedError,
     PreviousDispensingUnknownError,
@@ -36,10 +38,15 @@ from app.domain.dispensing.primitives import (
 )
 from app.domain.prescription.prescription import (
     Prescription,
+    PrescriptionInquiry,
     PrescriptionMedicine,
     PrescriptionRp,
 )
-from app.domain.prescription.primitives import GenericSubstitutionRestrictionType
+from app.domain.prescription.primitives import (
+    GenericSubstitutionRestrictionType,
+    InquiryNumber,
+    InquiryResultType,
+)
 from app.domain.shared.medicine import MedicineLineNumber, RpNumber
 from app.domain.staff.primitives import PharmacistProfile, StaffQualifications
 
@@ -75,6 +82,14 @@ _FORBIDDEN_SUBSTITUTIONS: dict[
     ),
 }
 
+#: 処方箋の変更制限に拘束されない代替調剤種別。
+#:
+#: 疑義照会に基づく処方変更調剤は処方医との合意に基づくため、
+#: 処方箋記載の変更制限（後発品不可等）には拘束されない。
+_UNRESTRICTED_SUBSTITUTIONS: frozenset[SubstitutionCategory] = frozenset(
+    {SubstitutionCategory.INQUIRY_MODIFIED}
+)
+
 
 def verify_substitution_restriction_table(
     *,
@@ -93,11 +108,19 @@ def verify_substitution_restriction_table(
             "変更制限の対応表に定義漏れがあります: "
             f"{sorted(str(item) for item in missing)}。"
         )
-    unknown_categories = {
+    forbidden_categories = {
         category
         for forbidden in _FORBIDDEN_SUBSTITUTIONS.values()
         for category in forbidden
-    } - categories
+    }
+    classified_categories = forbidden_categories | _UNRESTRICTED_SUBSTITUTIONS
+    unclassified_categories = categories - classified_categories
+    if unclassified_categories:
+        raise RuntimeError(
+            "変更制限の対応表に未分類の代替調剤種別が含まれています: "
+            f"{sorted(str(item) for item in unclassified_categories)}。"
+        )
+    unknown_categories = classified_categories - categories
     if unknown_categories:
         raise RuntimeError(
             "変更制限の対応表に未知の代替調剤種別が含まれています: "
@@ -172,6 +195,7 @@ class DispensingConsistencyService:
         """
         self.ensure_rps_match_prescription(process, prescription)
         self.ensure_substitutions_are_allowed(process, prescription)
+        self.ensure_inquiry_references_exist(process, prescription)
         self.ensure_iteration_is_within_instruction(process, prescription)
         self.ensure_schedule_is_valid(process, prescription, previous=previous)
 
@@ -226,6 +250,43 @@ class DispensingConsistencyService:
                         line_number=medicine.line_number.value,
                     )
                 _ensure_category_is_allowed(medicine, prescribed)
+
+    # ------------------------------------------------------------------
+    # 疑義照会整合性
+    # ------------------------------------------------------------------
+
+    def ensure_inquiry_references_exist(
+        self, process: DispensingProcess, prescription: Prescription
+    ) -> None:
+        """調剤が参照する疑義照会が処方箋に実在し、変更合意済みであることを検証する。
+
+        疑義照会に基づく処方変更調剤（INQUIRY_MODIFIED）や数量調整（INQUIRY_AGREED）は、
+        処方箋集約上の疑義照会が「処方変更（MODIFIED）」として合意されていることを要する。
+        未回答や変更なし（UNCHANGED）、削除（DELETED）の照会を根拠にした変更調剤は拒否する。
+
+        Raises:
+            InquiryReferenceNotInPrescriptionError: 指定された照会連番が処方箋に存在しない場合。
+            InquiryNotAgreedError: 照会が未回答、または結果区分が処方変更でない場合。
+        """
+        inquiries_by_id = {inquiry.id: inquiry for inquiry in prescription.inquiries}
+
+        for rp in process.dispensed_rps:
+            if (
+                rp.quantity_adjustment is not None
+                and rp.quantity_adjustment.inquiry_number is not None
+            ):
+                _ensure_inquiry_agreed(
+                    rp.quantity_adjustment.inquiry_number, inquiries_by_id
+                )
+
+            for medicine in rp.medicines:
+                if (
+                    medicine.substitution is not None
+                    and medicine.substitution.inquiry_number is not None
+                ):
+                    _ensure_inquiry_agreed(
+                        medicine.substitution.inquiry_number, inquiries_by_id
+                    )
 
     # ------------------------------------------------------------------
     # 調剤回数
@@ -366,6 +427,27 @@ def _ensure_category_is_allowed(
         raise SubstitutionNotAllowedError(
             medicine_name=dispensed.name.value,
             restriction_label=restriction.restriction_type.label,
+        )
+
+
+def _ensure_inquiry_agreed(
+    inquiry_number: InquiryNumber,
+    inquiries_by_id: Mapping[InquiryNumber, PrescriptionInquiry],
+) -> None:
+    """指定された照会連番が処方箋に実在し、処方変更として合意されていることを検証する。"""
+    inquiry = inquiries_by_id.get(inquiry_number)
+    if inquiry is None:
+        raise InquiryReferenceNotInPrescriptionError(
+            inquiry_number=inquiry_number.value
+        )
+    if inquiry.response is None:
+        raise InquiryNotAgreedError(
+            inquiry_number=inquiry_number.value, result_type=None
+        )
+    if inquiry.response.result_type is not InquiryResultType.MODIFIED:
+        raise InquiryNotAgreedError(
+            inquiry_number=inquiry_number.value,
+            result_type=inquiry.response.result_type.value,
         )
 
 
