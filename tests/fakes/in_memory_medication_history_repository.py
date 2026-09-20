@@ -6,11 +6,13 @@ import copy
 
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.primitives import DispensingId
-from app.domain.medication_history.medication_history_record import (
+from app.domain.medication_history import (
+    MedicationHistoryCategoryCatalog,
+    MedicationHistoryCategoryCatalogRepository,
     MedicationHistoryRecord,
+    MedicationHistoryRecordId,
+    MedicationHistoryRepository,
 )
-from app.domain.medication_history.primitives import MedicationHistoryRecordId
-from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.services import MedicationHistoryUniquenessService
 from app.domain.patient.primitives import PatientId
 
@@ -76,3 +78,27 @@ class InMemoryMedicationHistoryRepository(MedicationHistoryRepository):
             [item for item in self.items.values() if item.id != record.id],
         )
         self.items[record.id] = copy.deepcopy(record)
+
+
+class InMemoryMedicationHistoryCategoryCatalogRepository(
+    MedicationHistoryCategoryCatalogRepository
+):
+    """法人別薬歴記載区分カタログRepositoryのインメモリ実装。"""
+
+    def __init__(self) -> None:
+        self.items: dict[CorporateId, MedicationHistoryCategoryCatalog] = {}
+
+    async def get(
+        self,
+        *,
+        corporate_id: CorporateId,
+    ) -> MedicationHistoryCategoryCatalog | None:
+        """指定法人の区分カタログを取得する。"""
+        item = self.items.get(corporate_id)
+        if item is None:
+            return None
+        return copy.deepcopy(item)
+
+    async def save(self, catalog: MedicationHistoryCategoryCatalog) -> None:
+        """法人の区分カタログを保存する。"""
+        self.items[catalog.corporate_id] = copy.deepcopy(catalog)

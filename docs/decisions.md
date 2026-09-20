@@ -159,6 +159,23 @@ import を禁じている。この禁止を緩めると `validate()` から他�
 
 ---
 
+### ADR-53: 薬歴記載の区分体系を法人単位で階層管理し、SOAPの画一的必須を撤廃する
+
+薬歴（`MedicationHistoryRecord`）は、確定時に S・O・A・P の4セクションすべてに記載があることを一律ハードコードで要求していた。しかし現場の実態（「SとPだけ記録したい」「Oは変化なしのため省略したい」「独自の生活指導や次回確認事項を記録したい」等）に合わず、運用の柔軟性を阻害していた。
+
+したがって、以下の設計判断を採用した。
+
+1. **画一的全節必須の撤廃と白紙確定の拒否**:
+   `MedicationHistoryRecord` 単体での「S/O/A/P全4節必須」制約を撤廃し、部分的な記載（Sのみ、SとP等）でも確定できるように緩和した。一方で、記載が一切ない状態での確定・追記は `SoapContentRequiredError` で拒否し、白紙記録の発生を防ぐ不変条件を維持する。
+2. **大区分・中区分の階層カタログ集約（`MedicationHistoryCategoryCatalog`）**:
+   大区分（例: `soap`, `statutory`）およびそれに紐づく中区分（例: `s`, `o`, `a`, `p`, `handbook`, `residual_drug`, `concurrent_medication`, `other` 等）を法人（`CorporateId`）単位で管理する集約を導入した。
+3. **法人ごとの必須ルール設定と検証**:
+   中区分定義に `is_required: bool` を持たせ、法人の運用方針に応じた必須中区分（例: 「当法人ではSとPを必須とする」）を設定可能にした。薬歴確定ユースケース（`FinalizeMedicationHistoryUseCase`）は、リポジトリから法人のカタログを取得し、確定対象の薬歴が法人の必須ルールを満たしているかを検証する。
+4. **追加中区分のメモ保持（`additional_notes`）**:
+   S/O/A/P 以外の独自中区分や法令指導メモを構造化して保持できるよう、`MedicationHistoryRecord` に `additional_notes: tuple[CategorizedNote, ...]` を追加した。
+
+---
+
 ## 2026-09-19
 
 ### ADR-39: 保存前の境界は、書く側と同じロックの内側で読む

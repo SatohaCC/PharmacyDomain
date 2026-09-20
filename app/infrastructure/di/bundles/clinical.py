@@ -43,6 +43,10 @@ from app.application.dispensing.verify_dispensing import VerifyDispensingUseCase
 from app.application.medication_history.amend_medication_history import (
     AmendMedicationHistoryUseCase,
 )
+from app.application.medication_history.category_catalog import (
+    GetCategoryCatalogUseCase,
+    UpdateCategoryCatalogUseCase,
+)
 from app.application.medication_history.finalize_medication_history import (
     FinalizeMedicationHistoryUseCase,
 )
@@ -230,6 +234,8 @@ class MedicationHistoryUseCases:
     get_medical_profile: GetPatientMedicalProfileUseCase
     rebuild_medical_profile: RebuildPatientMedicalProfileUseCase
     verify_statutory_record: VerifyStatutoryRecordUseCase
+    get_category_catalog: GetCategoryCatalogUseCase
+    update_category_catalog: UpdateCategoryCatalogUseCase
 
 
 def build_medication_history_use_cases(
@@ -245,6 +251,7 @@ def build_medication_history_use_cases(
     """
     record_repository = repositories.medication_history
     profile_repository = repositories.patient_medical_profile
+    catalog_repository = repositories.medication_history_category_catalog
     counselor_qualification = CounselorQualificationAdapter(repositories.staff)
     counselor = CounselorQualificationService()
     dispensing_source = DispensingSourceAdapter(repositories.dispensing)
@@ -266,6 +273,7 @@ def build_medication_history_use_cases(
             profile_repository,
             corporate_access,
             unit_of_work,
+            category_catalog_repository=catalog_repository,
         ),
         amend=AmendMedicationHistoryUseCase(
             record_repository,
@@ -294,6 +302,14 @@ def build_medication_history_use_cases(
                 repositories.staff,
             ),
             StatutoryDispensingRecordService(),
+        ),
+        get_category_catalog=GetCategoryCatalogUseCase(
+            catalog_repository,
+            corporate_access,
+        ),
+        update_category_catalog=UpdateCategoryCatalogUseCase(
+            catalog_repository,
+            corporate_access,
         ),
     )
 

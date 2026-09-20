@@ -43,7 +43,7 @@ from app.domain.medication_history import (
     MedicationHistoryAlreadyFinalizedError,
     MedicationHistoryNotFinalizedError,
     MedicationHistoryStatus,
-    SoapSectionEmptyError,
+    SoapContentRequiredError,
 )
 from app.domain.staff.primitives import StaffId, StaffQualifications
 from tests.application.medication_history.helpers import (
@@ -349,7 +349,7 @@ class Test確定と投影:
         )
 
         # Act / Assert
-        with pytest.raises(SoapSectionEmptyError):
+        with pytest.raises(SoapContentRequiredError):
             await _finalize(fixture, started.id)
 
     async def test_確定済は_下書きを編集できない(self) -> None:

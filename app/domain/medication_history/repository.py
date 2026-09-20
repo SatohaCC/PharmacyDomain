@@ -6,6 +6,9 @@ from typing import Protocol
 
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.primitives import DispensingId
+from app.domain.medication_history.category_catalog import (
+    MedicationHistoryCategoryCatalog,
+)
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
@@ -98,4 +101,20 @@ class PatientMedicalProfileRepository(Protocol):
         患者との1:1関係を ``PatientMedicalProfileId`` ではなく ``patient_id`` の
         一意制約で表すのは、``PatientExternalIdentifier`` と同じ作法である。
         """
+        ...
+
+
+class MedicationHistoryCategoryCatalogRepository(Protocol):
+    """法人別薬歴記載区分カタログを永続化・検索する操作インターフェース。"""
+
+    async def get(
+        self,
+        *,
+        corporate_id: CorporateId,
+    ) -> MedicationHistoryCategoryCatalog | None:
+        """法人の区分カタログを取得する。未作成の場合はNoneを返す。"""
+        ...
+
+    async def save(self, catalog: MedicationHistoryCategoryCatalog) -> None:
+        """法人の区分カタログを保存（作成または更新）する。"""
         ...

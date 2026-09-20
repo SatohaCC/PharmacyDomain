@@ -17,12 +17,15 @@ from fastapi import APIRouter, Depends, Query
 
 from app.application.medication_history import (
     AmendMedicationHistoryCommand,
+    CategoryCatalogDto,
     FinalizeMedicationHistoryCommand,
     GetMedicationHistoryQuery,
     GetPatientMedicalProfileQuery,
     HandbookStatusInput,
     ListMedicationHistoriesQuery,
+    MajorCategoryInput,
     MedicationHistoryDto,
+    MediumCategoryInput,
     PatientMedicalProfileDto,
     ProfileUpdateInput,
     RebuildPatientMedicalProfileCommand,
@@ -30,6 +33,7 @@ from app.application.medication_history import (
     SoapInput,
     StartMedicationHistoryCommand,
     StatutoryRecordSufficiencyDto,
+    UpdateCategoryCatalogCommand,
     UpdateMedicationHistoryDraftCommand,
     VerifyStatutoryRecordQuery,
 )
@@ -86,6 +90,13 @@ class RebuildMedicalProfileRequest(RequestModel):
     """頭書きの再構築の入力。"""
 
     as_of: date
+
+
+class UpdateCategoryCatalogRequest(RequestModel):
+    """区分カタログの更新入力。"""
+
+    major_categories: tuple[MajorCategoryInput, ...] = ()
+    medium_categories: tuple[MediumCategoryInput, ...] = ()
 
 
 @router.post(
@@ -260,6 +271,38 @@ async def rebuild_medical_profile(
     return await use_cases.rebuild_medical_profile.execute(
         RebuildPatientMedicalProfileCommand(
             corporate_id=corporate_id, patient_id=patient_id, as_of=body.as_of
+        )
+    )
+
+
+@router.get(
+    "/medication-history-category-catalog",
+    response_model=CategoryCatalogDto,
+)
+async def get_medication_history_category_catalog(
+    corporate_id: str,
+    use_cases: MedicationHistoryUseCasesDep,
+) -> CategoryCatalogDto:
+    """法人の薬歴記載区分カタログを取得する。"""
+    return await use_cases.get_category_catalog.execute(corporate_id)
+
+
+@router.put(
+    "/medication-history-category-catalog",
+    response_model=CategoryCatalogDto,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def update_medication_history_category_catalog(
+    corporate_id: str,
+    body: UpdateCategoryCatalogRequest,
+    use_cases: MedicationHistoryUseCasesDep,
+) -> CategoryCatalogDto:
+    """法人の薬歴記載区分カタログを更新する。"""
+    return await use_cases.update_category_catalog.execute(
+        UpdateCategoryCatalogCommand(
+            corporate_id=corporate_id,
+            major_categories=body.major_categories,
+            medium_categories=body.medium_categories,
         )
     )
 

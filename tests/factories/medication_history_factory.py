@@ -12,6 +12,7 @@ from app.domain.medication_history import (
     AllergenName,
     AllergyReaction,
     AllergySeverity,
+    CategorizedNote,
     ConcurrentCategory,
     ConditionName,
     ConditionStatus,
@@ -238,6 +239,7 @@ def create_record(
     handbook_status: HandbookStatus | None = None,
     residual_drug: ResidualDrugRecord | None = None,
     profile_updates: ProfileUpdateIntents | None = None,
+    additional_notes: tuple[CategorizedNote, ...] = (),
 ) -> MedicationHistoryRecord:
     """薬歴を下書き状態で組み立てる。"""
     return MedicationHistoryRecord.start(
@@ -263,6 +265,7 @@ def create_record(
         if residual_drug is not None
         else ResidualDrugRecord.none_remaining(),
         profile_updates=profile_updates,
+        additional_notes=additional_notes,
     )
 
 

@@ -62,6 +62,7 @@ LIFECYCLE_DIALECTS: dict[str, str] = {
     "CorporateMembership": "status_enum",
     "UserInvitation": "status_enum",
     "StaffPersonLink": "none",
+    "MedicationHistoryCategoryCatalog": "none",
 }
 
 #: ``active_flag`` 方言の集約について、無効化後に一意キーを再利用できるか。

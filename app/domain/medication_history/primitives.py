@@ -41,6 +41,28 @@ class PatientMedicalProfileId(EntityUUID):
     identifier_name = "頭書きID"
 
 
+class CategoryCatalogId(EntityUUID):
+    """薬歴記載区分カタログ集約の一意識別子（UUIDv7）。"""
+
+    identifier_name = "区分カタログID"
+
+
+class MajorCategoryCode(BaseNormalizedString):
+    """大区分コード（英小文字推奨、例: soap, statutory）。"""
+
+
+class MajorCategoryName(BaseNormalizedString):
+    """大区分表示名（例: SOAP, 法令）。"""
+
+
+class MediumCategoryCode(BaseNormalizedString):
+    """中区分コード（例: s, o, a, p, handbook, residual_drug）。"""
+
+
+class MediumCategoryName(BaseNormalizedString):
+    """中区分表示名（例: S（主観的情報）, 残薬確認）。"""
+
+
 # --------------------------------------------------------------------------
 # 監査時刻
 # --------------------------------------------------------------------------

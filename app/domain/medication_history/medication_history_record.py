@@ -19,7 +19,7 @@ from app.domain.foundation.entity import AggregateRoot
 from app.domain.medication_history.exceptions import (
     MedicationHistoryAlreadyFinalizedError,
     MedicationHistoryNotFinalizedError,
-    SoapSectionEmptyError,
+    SoapContentRequiredError,
 )
 from app.domain.medication_history.primitives import (
     AmendmentReason,
@@ -30,6 +30,7 @@ from app.domain.medication_history.primitives import (
     MedicationHistoryStatus,
 )
 from app.domain.medication_history.value_objects import (
+    CategorizedNote,
     HandbookStatus,
     MedicationHistoryAmendment,
     ProfileUpdateIntents,
@@ -62,6 +63,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     information_sheet_provided: bool = False
     # 別モジュールの frozen dataclass なので ruff が不変性を追えない（RUF009）。
     profile_updates: ProfileUpdateIntents = field(default_factory=ProfileUpdateIntents)
+    additional_notes: tuple[CategorizedNote, ...] = ()
     status: MedicationHistoryStatus = MedicationHistoryStatus.DRAFT
     amendments: tuple[MedicationHistoryAmendment, ...] = ()
 
@@ -84,23 +86,17 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             raise MedicationHistoryNotFinalizedError()
 
     def _ensure_finalized_soap_is_complete(self) -> None:
-        """確定済の薬歴に、記載の無いSOAPセクションが無いことを検証する。
+        """確定済の薬歴に、服薬指導等の記載が1件以上あることを検証する。
 
-        判定対象は ``soap`` ではなく :attr:`effective_soap` とする。下流が読むのは
-        最後の追記の内容なので、``soap`` だけを見ると「確定時は埋まっていたのに
-        追記で空へ戻した薬歴」を通してしまい、通則(4) が記載事項として求める内容が
-        事後に消える。
-
-        確定操作の中ではなくここに置く。そうすると ``finalize()`` / ``amend()`` /
-        ``dataclasses.replace()`` / Repositoryからの復元がすべて同じ判定を通り、
-        空セクションを持つ確定済の薬歴はそもそも構築できなくなる。操作メソッド側に
-        書くと、経路を1つ足すたびに書き写す必要があり、復元経路が素通りする。
+        S/O/A/Pの全4節画一的強制は行わないが、SOAPおよび追加記載メモの
+        双方が空である白紙の確定は拒否する。
         """
         if not self.status.is_finalized:
             return
-        empty_section = self.effective_soap.empty_section_label
-        if empty_section is not None:
-            raise SoapSectionEmptyError(section_label=empty_section)
+        has_soap = self.effective_soap.has_content
+        has_additional = any(note.has_content for note in self.additional_notes)
+        if not has_soap and not has_additional:
+            raise SoapContentRequiredError()
 
     # ------------------------------------------------------------------
     # 導出プロパティ
@@ -147,6 +143,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         residual_drug: ResidualDrugRecord,
         information_sheet_provided: bool = False,
         profile_updates: ProfileUpdateIntents | None = None,
+        additional_notes: tuple[CategorizedNote, ...] = (),
     ) -> Self:
         """服薬指導の記録を下書きとして起こす。"""
         return cls(
@@ -168,6 +165,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
                 if profile_updates is not None
                 else ProfileUpdateIntents()
             ),
+            additional_notes=additional_notes,
             status=MedicationHistoryStatus.DRAFT,
         )
 

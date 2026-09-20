@@ -36,6 +36,49 @@ class SoapSectionEmptyError(MedicationHistoryDomainError):
         super().__init__(message)
 
 
+class SoapContentRequiredError(MedicationHistoryDomainError):
+    """薬歴確定時にSOAPおよび記録メモがすべて空（白紙）の場合の例外。"""
+
+    default_message = (
+        "確定済みの薬歴には服薬指導の記録が1件以上必要です（白紙では確定できません）。"
+    )
+    default_code = "MEDICATION_HISTORY_SOAP_CONTENT_REQUIRED"
+
+
+class DuplicateMajorCategoryError(MedicationHistoryDomainError):
+    """大区分コードが重複している場合の例外。"""
+
+    default_message = "同一の区分カタログ内で大区分コードが重複しています。"
+    default_code = "MEDICATION_HISTORY_DUPLICATE_MAJOR_CATEGORY"
+
+
+class DuplicateMediumCategoryError(MedicationHistoryDomainError):
+    """中区分コードが重複している場合の例外。"""
+
+    default_message = "同一の区分カタログ内で中区分コードが重複しています。"
+    default_code = "MEDICATION_HISTORY_DUPLICATE_MEDIUM_CATEGORY"
+
+
+class MajorCategoryNotFoundError(MedicationHistoryDomainError):
+    """中区分が参照する大区分が存在しない場合の例外。"""
+
+    default_message = "指定された大区分コードは区分カタログに存在しません。"
+    default_code = "MEDICATION_HISTORY_MAJOR_CATEGORY_NOT_FOUND"
+
+
+class RequiredCategoryMissingError(MedicationHistoryDomainError):
+    """法人ルールで必須と指定された中区分に記載がない場合の例外。"""
+
+    default_message = "法人ルールで必須とされている中区分に記載がありません。"
+    default_code = "MEDICATION_HISTORY_REQUIRED_CATEGORY_MISSING"
+
+    def __init__(self, *, medium_category_name: str | None = None) -> None:
+        message = self.default_message
+        if medium_category_name is not None:
+            message = f"{message}不足している中区分: {medium_category_name}。"
+        super().__init__(message)
+
+
 class ResidualDrugDetailRequiredError(MedicationHistoryDomainError):
     """残薬ありとしたのに数量または理由が無い場合の例外。
 

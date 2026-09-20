@@ -12,6 +12,7 @@ from app.application.medication_history.get_medication_history import (
 from app.application.medication_history.support import load_record_or_raise
 from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history import (
+    MedicationHistoryCategoryCatalogRepository,
     MedicationHistoryRecord,
     MedicationHistoryRecordId,
     MedicationHistoryRepository,
@@ -50,11 +51,14 @@ class FinalizeMedicationHistoryUseCase:
         profile_repository: PatientMedicalProfileRepository,
         corporate_access: CorporateAccessBoundary,
         unit_of_work: UnitOfWork,
+        category_catalog_repository: MedicationHistoryCategoryCatalogRepository
+        | None = None,
     ) -> None:
         self._record_repository = record_repository
         self._profile_repository = profile_repository
         self._corporate_access = corporate_access
         self._unit_of_work = unit_of_work
+        self._category_catalog_repository = category_catalog_repository
 
     async def execute(
         self, command: FinalizeMedicationHistoryCommand
@@ -71,6 +75,12 @@ class FinalizeMedicationHistoryUseCase:
             corporate_id=corporate_id,
             record_id=MedicationHistoryRecordId.parse(command.record_id),
         )
+        if self._category_catalog_repository is not None:
+            catalog = await self._category_catalog_repository.get(
+                corporate_id=corporate_id
+            )
+            if catalog is not None:
+                catalog.validate_record_compliance(record)
         finalized = record.finalize()
         await self._record_repository.save(finalized)
         await self._project_to_profile(finalized)
