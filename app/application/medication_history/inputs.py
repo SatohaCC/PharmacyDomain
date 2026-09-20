@@ -94,14 +94,59 @@ class StopConcurrentMedicationIntentInput:
 
 
 @dataclass(frozen=True, kw_only=True)
+class RetractAllergyIntentInput:
+    """取り消すアレルギー歴の入力。"""
+
+    allergen: str
+    reason: str | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class RetractAdverseReactionIntentInput:
+    """取り消す副作用歴の入力。"""
+
+    medicine_name: str
+    reason: str | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class UpdateConditionStatusIntentInput:
+    """更新する疾患状態の入力。"""
+
+    condition_name: str
+    new_status: str
+    is_contraindication_target: bool | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class RetractConditionIntentInput:
+    """取り消す疾患の入力。"""
+
+    condition_name: str
+    reason: str | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
 class ProfileUpdateInput:
     """1回の服薬指導が頭書きへ加える差分の入力。"""
 
     new_allergies: tuple[AllergyIntentInput, ...] = field(default_factory=tuple)
+    retracted_allergies: tuple[RetractAllergyIntentInput, ...] = field(
+        default_factory=tuple
+    )
     new_adverse_reactions: tuple[AdverseReactionIntentInput, ...] = field(
         default_factory=tuple
     )
+    retracted_adverse_reactions: tuple[RetractAdverseReactionIntentInput, ...] = field(
+        default_factory=tuple
+    )
     new_conditions: tuple[ConditionIntentInput, ...] = field(default_factory=tuple)
+    updated_conditions: tuple[UpdateConditionStatusIntentInput, ...] = field(
+        default_factory=tuple
+    )
+    retracted_conditions: tuple[RetractConditionIntentInput, ...] = field(
+        default_factory=tuple
+    )
     new_concurrent_medications: tuple[ConcurrentMedicationIntentInput, ...] = field(
         default_factory=tuple
     )

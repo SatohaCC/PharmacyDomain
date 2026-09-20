@@ -1,11 +1,14 @@
 """MedicationHistoryコンテキストの公開窓口。"""
 
 from app.domain.medication_history.exceptions import (
+    AdverseReactionNotFoundError,
+    AllergyNotFoundError,
     ConcurrentMedicationNotFoundError,
     ConcurrentMedicationPeriodInvertedError,
     CounselorQualificationError,
     HandbookGuidanceRequiredError,
     HandbookReasonNotAllowedError,
+    MedicalConditionNotFoundError,
     MedicationHistoryAlreadyExistsError,
     MedicationHistoryAlreadyFinalizedError,
     MedicationHistoryDomainError,
@@ -45,6 +48,7 @@ from app.domain.medication_history.primitives import (
     PatientMedicalProfileId,
     ResidualDrugQuantity,
     ResidualDrugReason,
+    RetractionReason,
     StatutoryCategory,
 )
 from app.domain.medication_history.repository import (
@@ -77,14 +81,20 @@ from app.domain.medication_history.value_objects import (
     ProfileProvenance,
     ProfileUpdateIntents,
     ResidualDrugRecord,
+    RetractAdverseReactionIntent,
+    RetractAllergyIntent,
+    RetractConditionIntent,
     SoapRecord,
     StopConcurrentMedicationIntent,
+    UpdateConditionStatusIntent,
 )
 
 __all__ = [
+    "AdverseReactionNotFoundError",
     "AdverseReactionRecord",
     "AdverseReactionSymptom",
     "AllergenName",
+    "AllergyNotFoundError",
     "AllergyReaction",
     "AllergyRecord",
     "AllergySeverity",
@@ -115,6 +125,7 @@ __all__ = [
     "LifestyleNote",
     "LifestyleProfile",
     "LifestyleUpdateIntent",
+    "MedicalConditionNotFoundError",
     "MedicalConditionRecord",
     "MedicationHistoryAlreadyExistsError",
     "MedicationHistoryAlreadyFinalizedError",
@@ -143,9 +154,14 @@ __all__ = [
     "ResidualDrugQuantity",
     "ResidualDrugReason",
     "ResidualDrugRecord",
+    "RetractAdverseReactionIntent",
+    "RetractAllergyIntent",
+    "RetractConditionIntent",
+    "RetractionReason",
     "SoapRecord",
     "SoapSectionEmptyError",
     "StatutoryCategory",
     "StopConcurrentMedicationIntent",
     "UnfinalizedRecordProjectionError",
+    "UpdateConditionStatusIntent",
 ]

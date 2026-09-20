@@ -79,7 +79,10 @@ from app.domain.dispensing.exceptions import DispensingAlreadyExistsError
 from app.domain.foundation.exceptions import ConcurrentModificationError, DomainError
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.medication_history.exceptions import (
+    AdverseReactionNotFoundError,
+    AllergyNotFoundError,
     ConcurrentMedicationNotFoundError,
+    MedicalConditionNotFoundError,
     MedicationHistoryAlreadyExistsError,
     MedicationHistoryAlreadyFinalizedError,
     PatientMedicalProfileAlreadyExistsError,
@@ -201,6 +204,9 @@ _STATUS_BY_EXCEPTION: Final[Mapping[type[BaseException], HTTPStatus]] = {
     StaffApplicationNotFoundError: HTTPStatus.NOT_FOUND,
     StoreNotFoundError: HTTPStatus.NOT_FOUND,
     ConcurrentMedicationNotFoundError: HTTPStatus.NOT_FOUND,
+    AllergyNotFoundError: HTTPStatus.NOT_FOUND,
+    AdverseReactionNotFoundError: HTTPStatus.NOT_FOUND,
+    MedicalConditionNotFoundError: HTTPStatus.NOT_FOUND,
     InquiryNotFoundError: HTTPStatus.NOT_FOUND,
     StaffDomainNotFoundError: HTTPStatus.NOT_FOUND,
     # --- 409: 既存のデータ・状態と衝突する ---

@@ -17,14 +17,22 @@ from typing import Self
 from app.domain.corporate.primitives import CorporateId
 from app.domain.foundation.entity import AggregateRoot
 from app.domain.medication_history.exceptions import (
+    AdverseReactionNotFoundError,
+    AllergyNotFoundError,
     ConcurrentMedicationNotFoundError,
+    MedicalConditionNotFoundError,
     ProfilePatientMismatchError,
     UnfinalizedRecordProjectionError,
 )
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
-from app.domain.medication_history.primitives import PatientMedicalProfileId
+from app.domain.medication_history.primitives import (
+    AllergenName,
+    ConditionName,
+    ConditionStatus,
+    PatientMedicalProfileId,
+)
 from app.domain.medication_history.value_objects import (
     AdverseReactionRecord,
     AllergyRecord,
@@ -234,11 +242,85 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
                 else self.family_pharmacist
             ),
         )
-        for intent in intents.stopped_concurrent_medications:
+        for allergy_intent in intents.retracted_allergies:
+            updated = updated._retract_allergy(allergy_intent.allergen)
+        for adverse_intent in intents.retracted_adverse_reactions:
+            updated = updated._retract_adverse_reaction(adverse_intent.medicine_name)
+        for condition_update in intents.updated_conditions:
+            updated = updated._update_condition_status(
+                condition_update.condition_name,
+                condition_update.new_status,
+                condition_update.is_contraindication_target,
+                provenance,
+            )
+        for condition_retract in intents.retracted_conditions:
+            updated = updated._retract_condition(condition_retract.condition_name)
+        for stop_intent in intents.stopped_concurrent_medications:
             updated = updated._close_concurrent_medication(
-                intent.medicine_name, intent.ended_on
+                stop_intent.medicine_name, stop_intent.ended_on
             )
         return updated
+
+    def _retract_allergy(self, allergen: AllergenName) -> Self:
+        """誤登録または否定されたアレルギー歴を取り消す。"""
+        kept = [item for item in self.allergies if item.allergen != allergen]
+        if len(kept) == len(self.allergies):
+            raise AllergyNotFoundError(allergen=allergen.value)
+        return replace(self, allergies=tuple(kept))
+
+    def _retract_adverse_reaction(self, medicine_name: MedicineName) -> Self:
+        """誤登録または否定された副作用歴を取り消す。"""
+        kept = [
+            item
+            for item in self.adverse_reactions
+            if item.medicine_name != medicine_name
+        ]
+        if len(kept) == len(self.adverse_reactions):
+            raise AdverseReactionNotFoundError(medicine_name=medicine_name.value)
+        return replace(self, adverse_reactions=tuple(kept))
+
+    def _update_condition_status(
+        self,
+        condition_name: ConditionName,
+        new_status: ConditionStatus,
+        is_contraindication_target: bool | None,
+        provenance: ProfileProvenance,
+    ) -> Self:
+        """既往疾患の状態（治癒・寛解・コントロール等）を更新する。"""
+        updated_conditions: list[MedicalConditionRecord] = []
+        found = False
+        for item in self.medical_conditions:
+            if item.condition_name == condition_name:
+                contraindication = (
+                    is_contraindication_target
+                    if is_contraindication_target is not None
+                    else item.is_contraindication_target
+                )
+                updated_conditions.append(
+                    replace(
+                        item,
+                        condition_status=new_status,
+                        is_contraindication_target=contraindication,
+                        provenance=provenance,
+                    )
+                )
+                found = True
+            else:
+                updated_conditions.append(item)
+        if not found:
+            raise MedicalConditionNotFoundError(condition_name=condition_name.value)
+        return replace(self, medical_conditions=tuple(updated_conditions))
+
+    def _retract_condition(self, condition_name: ConditionName) -> Self:
+        """誤登録された疾患情報を取り消す。"""
+        kept = [
+            item
+            for item in self.medical_conditions
+            if item.condition_name != condition_name
+        ]
+        if len(kept) == len(self.medical_conditions):
+            raise MedicalConditionNotFoundError(condition_name=condition_name.value)
+        return replace(self, medical_conditions=tuple(kept))
 
     def _close_concurrent_medication(
         self, medicine_name: MedicineName, ended_on: date

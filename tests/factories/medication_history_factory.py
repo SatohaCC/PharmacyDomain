@@ -31,9 +31,14 @@ from app.domain.medication_history import (
     NewConditionIntent,
     ProfileUpdateIntents,
     ResidualDrugRecord,
+    RetractAdverseReactionIntent,
+    RetractAllergyIntent,
+    RetractConditionIntent,
+    RetractionReason,
     SoapRecord,
     StatutoryCategory,
     StopConcurrentMedicationIntent,
+    UpdateConditionStatusIntent,
 )
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import PrescriptionId
@@ -138,6 +143,53 @@ def create_stop_intent(
     return StopConcurrentMedicationIntent(
         medicine_name=MedicineName(medicine_name),
         ended_on=ended_on,
+    )
+
+
+def create_retract_allergy_intent(
+    allergen: str = "ペニシリン系",
+    reason: str | None = "患者申し出による誤登録の修正。",
+) -> RetractAllergyIntent:
+    """アレルギー歴取消の差分を組み立てる。"""
+    return RetractAllergyIntent(
+        allergen=AllergenName(allergen),
+        reason=RetractionReason(reason) if reason is not None else None,
+    )
+
+
+def create_retract_adverse_reaction_intent(
+    medicine_name: str = "ロキソプロフェンＮａ錠６０ｍｇ",
+    reason: str | None = "精査の結果、副作用ではなく一過性の胃炎と判明したため。",
+) -> RetractAdverseReactionIntent:
+    """副作用歴取消の差分を組み立てる。"""
+    return RetractAdverseReactionIntent(
+        medicine_name=MedicineName(medicine_name),
+        reason=RetractionReason(reason) if reason is not None else None,
+    )
+
+
+def create_update_condition_status_intent(
+    condition_name: str = "緑内障",
+    new_status: ConditionStatus = ConditionStatus.RESOLVED,
+    *,
+    is_contraindication_target: bool | None = False,
+) -> UpdateConditionStatusIntent:
+    """疾患状態更新の差分を組み立てる。"""
+    return UpdateConditionStatusIntent(
+        condition_name=ConditionName(condition_name),
+        new_status=new_status,
+        is_contraindication_target=is_contraindication_target,
+    )
+
+
+def create_retract_condition_intent(
+    condition_name: str = "緑内障",
+    reason: str | None = "他科受診時の誤認により誤登録されたため。",
+) -> RetractConditionIntent:
+    """疾患取消の差分を組み立てる。"""
+    return RetractConditionIntent(
+        condition_name=ConditionName(condition_name),
+        reason=RetractionReason(reason) if reason is not None else None,
     )
 
 

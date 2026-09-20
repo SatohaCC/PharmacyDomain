@@ -100,6 +100,48 @@ class ConcurrentMedicationNotFoundError(MedicationHistoryDomainError):
         super().__init__(message)
 
 
+class AllergyNotFoundError(MedicationHistoryDomainError):
+    """取り消そうとしたアレルギー歴が頭書きに存在しない場合の例外。"""
+
+    default_message = "指定されたアレルギー歴が頭書きに見つかりません。"
+    default_code = "MEDICATION_HISTORY_ALLERGY_NOT_FOUND"
+
+    def __init__(self, *, allergen: str | None = None) -> None:
+        """対象のアレルゲン名を添えて例外を生成する。"""
+        message = self.default_message
+        if allergen is not None:
+            message = f"{message}対象のアレルゲン: {allergen}。"
+        super().__init__(message)
+
+
+class AdverseReactionNotFoundError(MedicationHistoryDomainError):
+    """取り消そうとした副作用歴が頭書きに存在しない場合の例外。"""
+
+    default_message = "指定された副作用歴が頭書きに見つかりません。"
+    default_code = "MEDICATION_HISTORY_ADVERSE_REACTION_NOT_FOUND"
+
+    def __init__(self, *, medicine_name: str | None = None) -> None:
+        """対象の医薬品名を添えて例外を生成する。"""
+        message = self.default_message
+        if medicine_name is not None:
+            message = f"{message}対象の医薬品: {medicine_name}。"
+        super().__init__(message)
+
+
+class MedicalConditionNotFoundError(MedicationHistoryDomainError):
+    """更新または取り消そうとした疾患情報が頭書きに存在しない場合の例外。"""
+
+    default_message = "指定された疾患情報が頭書きに見つかりません。"
+    default_code = "MEDICATION_HISTORY_CONDITION_NOT_FOUND"
+
+    def __init__(self, *, condition_name: str | None = None) -> None:
+        """対象の疾患名を添えて例外を生成する。"""
+        message = self.default_message
+        if condition_name is not None:
+            message = f"{message}対象の疾患: {condition_name}。"
+        super().__init__(message)
+
+
 class ProfilePatientMismatchError(MedicationHistoryDomainError):
     """別の患者・別法人の薬歴を頭書きへ投影しようとした場合の例外。
 

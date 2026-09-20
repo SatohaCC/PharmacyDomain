@@ -52,9 +52,14 @@ from app.domain.medication_history import (
     ResidualDrugQuantity,
     ResidualDrugReason,
     ResidualDrugRecord,
+    RetractAdverseReactionIntent,
+    RetractAllergyIntent,
+    RetractConditionIntent,
+    RetractionReason,
     SoapRecord,
     StatutoryCategory,
     StopConcurrentMedicationIntent,
+    UpdateConditionStatusIntent,
 )
 from app.domain.prescription.primitives import MedicalInstitutionName
 from app.domain.shared.medicine import MedicineName
@@ -173,6 +178,13 @@ def build_profile_updates(source: ProfileUpdateInput | None) -> ProfileUpdateInt
             )
             for item in source.new_allergies
         ),
+        retracted_allergies=tuple(
+            RetractAllergyIntent(
+                allergen=AllergenName(required_text(item.allergen, "アレルゲン")),
+                reason=build_optional(item.reason, RetractionReason),
+            )
+            for item in source.retracted_allergies
+        ),
         new_adverse_reactions=tuple(
             NewAdverseReactionIntent(
                 medicine_name=MedicineName(
@@ -185,6 +197,15 @@ def build_profile_updates(source: ProfileUpdateInput | None) -> ProfileUpdateInt
             )
             for item in source.new_adverse_reactions
         ),
+        retracted_adverse_reactions=tuple(
+            RetractAdverseReactionIntent(
+                medicine_name=MedicineName(
+                    required_text(item.medicine_name, "医薬品名")
+                ),
+                reason=build_optional(item.reason, RetractionReason),
+            )
+            for item in source.retracted_adverse_reactions
+        ),
         new_conditions=tuple(
             NewConditionIntent(
                 condition_name=ConditionName(
@@ -196,6 +217,27 @@ def build_profile_updates(source: ProfileUpdateInput | None) -> ProfileUpdateInt
                 is_contraindication_target=item.is_contraindication_target,
             )
             for item in source.new_conditions
+        ),
+        updated_conditions=tuple(
+            UpdateConditionStatusIntent(
+                condition_name=ConditionName(
+                    required_text(item.condition_name, "疾患名")
+                ),
+                new_status=parse_enum(
+                    ConditionStatus, item.new_status, "新しい疾患の状態"
+                ),
+                is_contraindication_target=item.is_contraindication_target,
+            )
+            for item in source.updated_conditions
+        ),
+        retracted_conditions=tuple(
+            RetractConditionIntent(
+                condition_name=ConditionName(
+                    required_text(item.condition_name, "疾患名")
+                ),
+                reason=build_optional(item.reason, RetractionReason),
+            )
+            for item in source.retracted_conditions
         ),
         new_concurrent_medications=tuple(
             NewConcurrentMedicationIntent(

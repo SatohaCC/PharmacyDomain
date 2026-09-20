@@ -79,6 +79,19 @@ Prescriptionの側で複数回にまたがる回数バリデーションや複�
 薬歴（SOAPの充足、服薬指導、患者医療プロファイルの頭書き投影、法的3年保存要件）の
 モデリングに開発リソースを集中する。
 
+### ADR-50: 頭書きの誤登録取消と疾患状態変更も薬歴の確定時差分として投影する
+
+患者医療プロファイル（頭書き）に登録されたアレルギー歴・副作用歴・疾患情報について、「誤登録だった」「疑いだったアレルギーが検査で否定された」「疾患が治癒・寛解した」といった事象が発生した際、頭書きを直接編集・削除することは ADR-4（薬歴からの決定的な再構築可能性）を壊すため許されない。
+
+また、これらの事象は患者への服薬指導や聞き取りの中で判明する臨床的事実であり、真の記録である薬歴（`MedicationHistoryRecord`）に残すべきものである。
+
+したがって、以下の設計を採用した：
+1. `MedicationHistoryRecord` の `ProfileUpdateIntents` に、アレルギー取消（`retracted_allergies`）、副作用歴取消（`retracted_adverse_reactions`）、疾患取消（`retracted_conditions`）、および疾患状態更新（`updated_conditions`）を持たせる。取消には理由（`RetractionReason`）を任意で付与できる。
+2. 頭書き（`PatientMedicalProfile`）は、薬歴確定時の `apply(record)` によってこれらの差分を適用し、プロファイル内の該当項目を削除または状態変更（`ConditionStatus`）する。
+3. 存在しないアレルゲン・医薬品・疾患に対する取消や状態変更は、`AllergyNotFoundError`、`AdverseReactionNotFoundError`、`MedicalConditionNotFoundError` で拒否する。
+
+これにより、頭書きの直接編集を許さずに誤登録の是正や治癒状態への更新を実現しつつ、過去の全確定薬歴からの決定的再構築（rebuild）可能性を完全に維持する。
+
 ---
 
 ## 2026-09-19

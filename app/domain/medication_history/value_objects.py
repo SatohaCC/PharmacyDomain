@@ -42,6 +42,7 @@ from app.domain.medication_history.primitives import (
     MedicationHistoryRecordId,
     ResidualDrugQuantity,
     ResidualDrugReason,
+    RetractionReason,
     StatutoryCategory,
 )
 from app.domain.prescription.primitives import MedicalInstitutionName
@@ -411,6 +412,60 @@ class NewConditionIntent(ValueObject):
 
 
 @dataclass(frozen=True, kw_only=True)
+class RetractAllergyIntent(ValueObject):
+    """薬歴で取り消したアレルギー歴（誤登録・否定）。"""
+
+    allergen: AllergenName
+    reason: RetractionReason | None = None
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "allergen": "アレルゲン",
+        "reason": "取消理由",
+    }
+
+
+@dataclass(frozen=True, kw_only=True)
+class RetractAdverseReactionIntent(ValueObject):
+    """薬歴で取り消した副作用歴（誤登録・否定）。"""
+
+    medicine_name: MedicineName
+    reason: RetractionReason | None = None
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "medicine_name": "医薬品名",
+        "reason": "取消理由",
+    }
+
+
+@dataclass(frozen=True, kw_only=True)
+class UpdateConditionStatusIntent(ValueObject):
+    """薬歴で確認した疾患の状態変更（治癒・寛解・コントロール等）。"""
+
+    condition_name: ConditionName
+    new_status: ConditionStatus
+    is_contraindication_target: bool | None = None
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "condition_name": "疾患名",
+        "new_status": "新しい疾患状態",
+        "is_contraindication_target": "禁忌対象の変更",
+    }
+
+
+@dataclass(frozen=True, kw_only=True)
+class RetractConditionIntent(ValueObject):
+    """薬歴で取り消した疾患情報（誤登録）。"""
+
+    condition_name: ConditionName
+    reason: RetractionReason | None = None
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "condition_name": "疾患名",
+        "reason": "取消理由",
+    }
+
+
+@dataclass(frozen=True, kw_only=True)
 class NewConcurrentMedicationIntent(ValueObject):
     """薬歴で聞き取った併用薬の開始。"""
 
@@ -480,8 +535,12 @@ class ProfileUpdateIntents(ValueObject):
     """
 
     new_allergies: tuple[NewAllergyIntent, ...] = ()
+    retracted_allergies: tuple[RetractAllergyIntent, ...] = ()
     new_adverse_reactions: tuple[NewAdverseReactionIntent, ...] = ()
+    retracted_adverse_reactions: tuple[RetractAdverseReactionIntent, ...] = ()
     new_conditions: tuple[NewConditionIntent, ...] = ()
+    updated_conditions: tuple[UpdateConditionStatusIntent, ...] = ()
+    retracted_conditions: tuple[RetractConditionIntent, ...] = ()
     new_concurrent_medications: tuple[NewConcurrentMedicationIntent, ...] = ()
     stopped_concurrent_medications: tuple[StopConcurrentMedicationIntent, ...] = ()
     lifestyle_update: LifestyleUpdateIntent | None = None
@@ -490,8 +549,12 @@ class ProfileUpdateIntents(ValueObject):
 
     _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
         "new_allergies": "追加するアレルギー歴",
+        "retracted_allergies": "取り消すアレルギー歴",
         "new_adverse_reactions": "追加する副作用歴",
+        "retracted_adverse_reactions": "取り消す副作用歴",
         "new_conditions": "追加する疾患",
+        "updated_conditions": "更新する疾患状態",
+        "retracted_conditions": "取り消す疾患",
         "new_concurrent_medications": "追加する併用薬",
         "stopped_concurrent_medications": "終了する併用薬",
         "lifestyle_update": "生活像の更新",
@@ -504,8 +567,12 @@ class ProfileUpdateIntents(ValueObject):
         """頭書きへの差分が1件も無いか。"""
         return not (
             self.new_allergies
+            or self.retracted_allergies
             or self.new_adverse_reactions
+            or self.retracted_adverse_reactions
             or self.new_conditions
+            or self.updated_conditions
+            or self.retracted_conditions
             or self.new_concurrent_medications
             or self.stopped_concurrent_medications
             or self.lifestyle_update is not None
