@@ -282,3 +282,7 @@ class LifestyleNote(BaseFreeText):
 
 class AmendmentReason(BaseFreeText):
     """確定済薬歴へ追記した理由。"""
+
+
+class RetractionReason(BaseFreeText):
+    """頭書き要素（アレルギー・副作用・疾患）を取り消す理由。"""

@@ -16,8 +16,12 @@ import pytest
 
 from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history import (
+    AdverseReactionNotFoundError,
+    AllergyNotFoundError,
     ConcurrentMedicationNotFoundError,
+    ConditionStatus,
     GenericPreferenceType,
+    MedicalConditionNotFoundError,
     PatientMedicalProfile,
     ProfilePatientMismatchError,
     ProfileUpdateIntents,
@@ -35,7 +39,11 @@ from tests.factories.medication_history_factory import (
     create_generic_preference_intents,
     create_lifestyle_intents,
     create_record,
+    create_retract_adverse_reaction_intent,
+    create_retract_allergy_intent,
+    create_retract_condition_intent,
     create_stop_intent,
+    create_update_condition_status_intent,
 )
 
 _CORPORATE_ID = CorporateId.generate()
@@ -64,8 +72,14 @@ def _timeline() -> tuple[MedicationHistoryRecord, ...]:
         _record(
             counseled_at=datetime(2026, 6, 1, 1, 0, tzinfo=UTC),
             profile_updates=ProfileUpdateIntents(
-                new_allergies=(create_allergy_intent(),),
-                new_conditions=(create_condition_intent(),),
+                new_allergies=(
+                    create_allergy_intent("ペニシリン系"),
+                    create_allergy_intent("卵白", reaction="蕁麻疹"),
+                ),
+                new_conditions=(
+                    create_condition_intent("緑内障"),
+                    create_condition_intent("高血圧", is_contraindication_target=False),
+                ),
             ),
         ),
         _record(
@@ -87,6 +101,15 @@ def _timeline() -> tuple[MedicationHistoryRecord, ...]:
             counseled_at=datetime(2026, 9, 1, 1, 0, tzinfo=UTC),
             profile_updates=ProfileUpdateIntents(
                 stopped_concurrent_medications=(create_stop_intent(),),
+                retracted_allergies=(create_retract_allergy_intent("卵白"),),
+                updated_conditions=(
+                    create_update_condition_status_intent(
+                        "緑内障",
+                        new_status=ConditionStatus.CONTROLLED,
+                        is_contraindication_target=True,
+                    ),
+                ),
+                retracted_conditions=(create_retract_condition_intent("高血圧"),),
             ),
         ),
     )
@@ -294,6 +317,185 @@ class Test投影の前提:
         # Act / Assert
         with pytest.raises(ConcurrentMedicationNotFoundError, match="総合感冒薬"):
             profile.apply(record)
+
+    def test_存在しないアレルギーは_取り消せない(self) -> None:
+        # Arrange
+        record = _record(
+            counseled_at=datetime(2026, 6, 1, 1, 0, tzinfo=UTC),
+            profile_updates=ProfileUpdateIntents(
+                retracted_allergies=(create_retract_allergy_intent("ペニシリン系"),)
+            ),
+        )
+        profile = PatientMedicalProfile.empty_for(
+            corporate_id=_CORPORATE_ID, patient_id=_PATIENT_ID
+        )
+
+        # Act / Assert
+        with pytest.raises(AllergyNotFoundError, match="ペニシリン系"):
+            profile.apply(record)
+
+    def test_存在しない副作用は_取り消せない(self) -> None:
+        # Arrange
+        record = _record(
+            counseled_at=datetime(2026, 6, 1, 1, 0, tzinfo=UTC),
+            profile_updates=ProfileUpdateIntents(
+                retracted_adverse_reactions=(create_retract_adverse_reaction_intent(),)
+            ),
+        )
+        profile = PatientMedicalProfile.empty_for(
+            corporate_id=_CORPORATE_ID, patient_id=_PATIENT_ID
+        )
+
+        # Act / Assert
+        with pytest.raises(AdverseReactionNotFoundError):
+            profile.apply(record)
+
+    def test_存在しない疾患は_更新できない(self) -> None:
+        # Arrange
+        record = _record(
+            counseled_at=datetime(2026, 6, 1, 1, 0, tzinfo=UTC),
+            profile_updates=ProfileUpdateIntents(
+                updated_conditions=(
+                    create_update_condition_status_intent("未登録の疾患"),
+                )
+            ),
+        )
+        profile = PatientMedicalProfile.empty_for(
+            corporate_id=_CORPORATE_ID, patient_id=_PATIENT_ID
+        )
+
+        # Act / Assert
+        with pytest.raises(MedicalConditionNotFoundError, match="未登録の疾患"):
+            profile.apply(record)
+
+    def test_存在しない疾患は_取り消せない(self) -> None:
+        # Arrange
+        record = _record(
+            counseled_at=datetime(2026, 6, 1, 1, 0, tzinfo=UTC),
+            profile_updates=ProfileUpdateIntents(
+                retracted_conditions=(create_retract_condition_intent("未登録の疾患"),)
+            ),
+        )
+        profile = PatientMedicalProfile.empty_for(
+            corporate_id=_CORPORATE_ID, patient_id=_PATIENT_ID
+        )
+
+        # Act / Assert
+        with pytest.raises(MedicalConditionNotFoundError, match="未登録の疾患"):
+            profile.apply(record)
+
+
+class Testアレルギーと副作用の取消:
+    """誤登録されたアレルギー歴・副作用歴を取り消せる。"""
+
+    def test_アレルギーの誤登録を取り消せる(self) -> None:
+        # Arrange
+        record1 = _record(
+            counseled_at=datetime(2026, 6, 1, 1, 0, tzinfo=UTC),
+            profile_updates=ProfileUpdateIntents(
+                new_allergies=(create_allergy_intent("ペニシリン系"),)
+            ),
+        )
+        record2 = _record(
+            counseled_at=datetime(2026, 6, 10, 1, 0, tzinfo=UTC),
+            profile_updates=ProfileUpdateIntents(
+                retracted_allergies=(create_retract_allergy_intent("ペニシリン系"),)
+            ),
+        )
+
+        # Act
+        profile = _apply_sequentially((record1, record2))
+
+        # Assert
+        assert profile.allergies == ()
+
+    def test_副作用の誤登録を取り消せる(self) -> None:
+        # Arrange
+        record1 = _record(
+            counseled_at=datetime(2026, 6, 1, 1, 0, tzinfo=UTC),
+            profile_updates=ProfileUpdateIntents(
+                new_adverse_reactions=(
+                    create_adverse_reaction_intent("ロキソプロフェンＮａ錠６０ｍｇ"),
+                )
+            ),
+        )
+        record2 = _record(
+            counseled_at=datetime(2026, 6, 10, 1, 0, tzinfo=UTC),
+            profile_updates=ProfileUpdateIntents(
+                retracted_adverse_reactions=(
+                    create_retract_adverse_reaction_intent(
+                        "ロキソプロフェンＮａ錠６０ｍｇ"
+                    ),
+                )
+            ),
+        )
+
+        # Act
+        profile = _apply_sequentially((record1, record2))
+
+        # Assert
+        assert profile.adverse_reactions == ()
+
+
+class Test疾患状態の更新と取消:
+    """疾患の治癒・寛解への状態更新および誤登録の取消。"""
+
+    def test_疾患の状態を加療中から治癒に更新できる(self) -> None:
+        # Arrange: 最初は緑内障（加療中・禁忌対象）として登録
+        record1 = _record(
+            counseled_at=datetime(2026, 6, 1, 1, 0, tzinfo=UTC),
+            profile_updates=ProfileUpdateIntents(
+                new_conditions=(
+                    create_condition_intent("緑内障", is_contraindication_target=True),
+                )
+            ),
+        )
+        # 後日の薬歴で治癒（既往）かつ禁忌対象外へ更新
+        record2 = _record(
+            counseled_at=datetime(2026, 8, 1, 1, 0, tzinfo=UTC),
+            profile_updates=ProfileUpdateIntents(
+                updated_conditions=(
+                    create_update_condition_status_intent(
+                        "緑内障",
+                        new_status=ConditionStatus.RESOLVED,
+                        is_contraindication_target=False,
+                    ),
+                )
+            ),
+        )
+
+        # Act
+        profile = _apply_sequentially((record1, record2))
+
+        # Assert
+        assert len(profile.medical_conditions) == 1
+        condition = profile.medical_conditions[0]
+        assert condition.condition_status is ConditionStatus.RESOLVED
+        assert condition.is_contraindication_target is False
+        assert condition.provenance.source_record_id == record2.id
+        assert condition.provenance.recorded_on == date(2026, 8, 1)
+        assert profile.contraindication_conditions == ()
+
+    def test_疾患の誤登録を取り消せる(self) -> None:
+        # Arrange
+        record1 = _record(
+            counseled_at=datetime(2026, 6, 1, 1, 0, tzinfo=UTC),
+            profile_updates=ProfileUpdateIntents(
+                new_conditions=(create_condition_intent("緑内障"),)
+            ),
+        )
+        record2 = _record(
+            counseled_at=datetime(2026, 6, 10, 1, 0, tzinfo=UTC),
+            profile_updates=ProfileUpdateIntents(
+                retracted_conditions=(create_retract_condition_intent("緑内障"),)
+            ),
+        )
+
+        # Act
+        profile = _apply_sequentially((record1, record2))
+
+        # Assert
+        assert profile.medical_conditions == ()
 
 
 class Test併用薬の期間:

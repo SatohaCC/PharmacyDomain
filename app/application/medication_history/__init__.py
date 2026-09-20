@@ -52,8 +52,12 @@ from app.application.medication_history.inputs import (
     LabeledNoteInput,
     ProfileUpdateInput,
     ResidualDrugInput,
+    RetractAdverseReactionIntentInput,
+    RetractAllergyIntentInput,
+    RetractConditionIntentInput,
     SoapInput,
     StopConcurrentMedicationIntentInput,
+    UpdateConditionStatusIntentInput,
 )
 from app.application.medication_history.reference import (
     DispensingReferenceBoundary,
@@ -111,6 +115,9 @@ __all__ = [
     "RebuildPatientMedicalProfileUseCase",
     "ResidualDrugDto",
     "ResidualDrugInput",
+    "RetractAdverseReactionIntentInput",
+    "RetractAllergyIntentInput",
+    "RetractConditionIntentInput",
     "SoapDto",
     "SoapInput",
     "StaffQualificationBoundary",
@@ -118,6 +125,7 @@ __all__ = [
     "StartMedicationHistoryUseCase",
     "StopConcurrentMedicationIntentInput",
     "StoreReferenceBoundary",
+    "UpdateConditionStatusIntentInput",
     "UpdateMedicationHistoryDraftCommand",
     "UpdateMedicationHistoryDraftUseCase",
 ]

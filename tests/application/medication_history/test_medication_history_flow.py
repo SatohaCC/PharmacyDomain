@@ -18,6 +18,7 @@ from app.application.medication_history import (
     AllergyIntentInput,
     AmendMedicationHistoryCommand,
     ConcurrentMedicationIntentInput,
+    ConditionIntentInput,
     FinalizeMedicationHistoryCommand,
     GetMedicationHistoryQuery,
     GetPatientMedicalProfileQuery,
@@ -29,8 +30,10 @@ from app.application.medication_history import (
     PatientMedicalProfileNotFoundError,
     ProfileUpdateInput,
     RebuildPatientMedicalProfileCommand,
+    RetractAllergyIntentInput,
     SoapInput,
     StopConcurrentMedicationIntentInput,
+    UpdateConditionStatusIntentInput,
     UpdateMedicationHistoryDraftCommand,
 )
 from app.domain.corporate.primitives import CorporateId
@@ -271,6 +274,72 @@ class Test確定と投影:
         )
         assert len(profile.allergies) == 1
         assert profile.allergies[0].provenance.source_record_id == started.id
+
+    async def test_後日の薬歴確定でアレルギー取消や疾患状態更新が頭書きに反映される(
+        self,
+    ) -> None:
+        # Arrange: 1回目の薬歴でアレルギーと疾患（加療中）を登録
+        fixture = create_fixture()
+        first_updates = ProfileUpdateInput(
+            new_allergies=(
+                AllergyIntentInput(
+                    allergen="ペニシリン系", reaction="皮疹", severity="moderate"
+                ),
+            ),
+            new_conditions=(
+                ConditionIntentInput(
+                    condition_name="緑内障",
+                    condition_status="ongoing",
+                    is_contraindication_target=True,
+                ),
+            ),
+        )
+        first = await fixture.start.execute(
+            create_start_command(fixture, profile_updates=first_updates)
+        )
+        await _finalize(fixture, first.id)
+
+        # 別の調剤セッションを起こし、2回目の薬歴でアレルギー取消と治癒更新
+        second_dispensing = register_another_dispensing(fixture)
+        second_updates = ProfileUpdateInput(
+            retracted_allergies=(
+                RetractAllergyIntentInput(
+                    allergen="ペニシリン系", reason="患者申告の誤り確認"
+                ),
+            ),
+            updated_conditions=(
+                UpdateConditionStatusIntentInput(
+                    condition_name="緑内障",
+                    new_status="resolved",
+                    is_contraindication_target=False,
+                ),
+            ),
+        )
+        second = await fixture.start.execute(
+            create_start_command(
+                fixture,
+                dispensing=second_dispensing,
+                profile_updates=second_updates,
+            )
+        )
+
+        # Act
+        await _finalize(fixture, second.id)
+
+        # Assert: アレルギーは空になり、疾患は治癒（resolved）に更新されている
+        profile = await fixture.get_profile.execute(
+            GetPatientMedicalProfileQuery(
+                corporate_id=str(fixture.corporate_id.value),
+                patient_id=str(fixture.patient_id.value),
+                as_of=_AS_OF,
+            )
+        )
+        assert profile.allergies == ()
+        assert len(profile.medical_conditions) == 1
+        cond = profile.medical_conditions[0]
+        assert cond.condition_status == "resolved"
+        assert cond.is_contraindication_target is False
+        assert cond.provenance.source_record_id == second.id
 
     async def test_SOAPが空だと_確定できない(self) -> None:
         # Arrange
