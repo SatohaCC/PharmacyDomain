@@ -6,19 +6,30 @@ AGENTS.md「Boundaryの例外契約」が求める「定義だけで raise さ�
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from app.application.medication_history.exceptions import (
     MedicationHistoryDispensingNotFoundError,
+    MedicationHistoryPatientNotFoundError,
+    MedicationHistoryPrescriptionNotFoundError,
     MedicationHistoryStaffNotFoundError,
     MedicationHistoryStoreNotFoundError,
 )
 from app.application.medication_history.reference import (
     DispensingReferenceBoundary,
     StaffQualificationBoundary,
+    StatutoryRecordSourceBoundary,
     StoreReferenceBoundary,
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.primitives import DispensingId
+from app.domain.medication_history import (
+    StatutoryPharmacistName,
+    StatutoryRecordSource,
+)
+from app.domain.patient.primitives import PatientId
+from app.domain.prescription.primitives import PrescriptionId
 from app.domain.staff.primitives import StaffId, StaffQualifications
 from app.domain.store.primitives import StoreId
 
@@ -97,3 +108,71 @@ class FakeCounselorQualificationSource(StaffQualificationBoundary):
         if qualifications is None:
             raise MedicationHistoryStaffNotFoundError()
         return qualifications
+
+
+class FakeStatutoryRecordSource(StatutoryRecordSourceBoundary):
+    """登録されたスナップショットを、スタッフの解決だけ絞り込んで返す境界。
+
+    氏名を引けるスタッフは ``resolvable`` で制御する。**未登録のスタッフは
+    例外にせず結果から落とす**（Protocolの契約どおり）。
+    """
+
+    def __init__(self) -> None:
+        self.sources: dict[
+            tuple[CorporateId, PrescriptionId], StatutoryRecordSource
+        ] = {}
+        self.missing_patients: set[tuple[CorporateId, PatientId]] = set()
+        self.resolvable: set[StaffId] | None = None
+        self.requested_staff_ids: list[frozenset[StaffId]] = []
+
+    def register(
+        self,
+        *,
+        corporate_id: CorporateId,
+        source: StatutoryRecordSource,
+    ) -> None:
+        """指定法人の処方箋に対するスナップショットを登録する。"""
+        self.sources[(corporate_id, source.prescription_id)] = source
+
+    def hide_patient(
+        self,
+        *,
+        corporate_id: CorporateId,
+        patient_id: PatientId,
+    ) -> None:
+        """指定患者を解決できない状態にする。"""
+        self.missing_patients.add((corporate_id, patient_id))
+
+    async def build(
+        self,
+        *,
+        corporate_id: CorporateId,
+        patient_id: PatientId,
+        prescription_id: PrescriptionId,
+        staff_ids: frozenset[StaffId],
+    ) -> StatutoryRecordSource:
+        """未登録の患者・処方箋は404相当を送出し、スタッフは落とすだけにする。"""
+        self.requested_staff_ids.append(staff_ids)
+        if (corporate_id, patient_id) in self.missing_patients:
+            raise MedicationHistoryPatientNotFoundError()
+        source = self.sources.get((corporate_id, prescription_id))
+        if source is None:
+            raise MedicationHistoryPrescriptionNotFoundError()
+        return replace(
+            source,
+            pharmacist_names=self._resolve(source.pharmacist_names, staff_ids),
+        )
+
+    def _resolve(
+        self,
+        names: tuple[StatutoryPharmacistName, ...],
+        staff_ids: frozenset[StaffId],
+    ) -> tuple[StatutoryPharmacistName, ...]:
+        """問い合わせ対象のうち、氏名を引けるスタッフだけを残す。"""
+        allowed = self.resolvable
+        return tuple(
+            name
+            for name in names
+            if name.staff_id in staff_ids
+            and (allowed is None or name.staff_id in allowed)
+        )

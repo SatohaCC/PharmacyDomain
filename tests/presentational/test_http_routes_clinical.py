@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from pydantic import TypeAdapter
 
 from app.application.medication_history import SoapInput
+from app.domain.medication_history import StatutoryDispensingRecordItem
 from app.infrastructure.di import (
     DispensingUseCases,
     MedicationHistoryUseCases,
@@ -338,6 +339,7 @@ def history_client(
         list_by_patient=history_fixture.list_by_patient,
         get_medical_profile=history_fixture.get_profile,
         rebuild_medical_profile=history_fixture.rebuild_profile,
+        verify_statutory_record=history_fixture.verify_statutory_record,
     )
     yield from _client({get_medication_history_use_cases: lambda: bundle})
 
@@ -449,3 +451,39 @@ def test_患者ごとの薬歴一覧が引ける(
     # Assert
     assert listed.status_code == HTTPStatus.OK
     assert [item["id"] for item in listed.json()] == [started.json()["id"]]
+
+
+def test_確定済の薬歴は_調剤録の代替可否を返す(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    """記載事項の充足は、号ごとの判定として外から読める必要がある。"""
+    # Arrange
+    corporate_id = str(history_fixture.corporate_id.value)
+    started = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories",
+        json=_start_history_body(history_fixture),
+        headers=_HEADERS,
+    )
+    assert started.status_code == HTTPStatus.CREATED, started.text
+    record_id = started.json()["id"]
+    finalized = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/{record_id}/finalization",
+        headers=_HEADERS,
+    )
+    assert finalized.status_code == HTTPStatus.OK, finalized.text
+
+    # Act
+    response = history_client.get(
+        f"/corporates/{corporate_id}"
+        f"/medication-histories/{record_id}/statutory-record-sufficiency",
+        headers=_HEADERS,
+    )
+
+    # Assert
+    assert response.status_code == HTTPStatus.OK, response.text
+    body = response.json()
+    assert body["record_id"] == record_id
+    assert body["substitutes_dispensing_record"] is True
+    assert body["blockers"] == []
+    assert len(body["assessments"]) == len(StatutoryDispensingRecordItem)

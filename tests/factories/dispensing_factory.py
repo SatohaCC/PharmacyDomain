@@ -15,6 +15,8 @@ from app.domain.dispensing import (
     DispensedDate,
     DispensedMedicine,
     DispensedRp,
+    DispensingCancellationReason,
+    DispensingCompletionType,
     DispensingIteration,
     DispensingProcess,
     DispensingSplitReason,
@@ -24,6 +26,7 @@ from app.domain.dispensing import (
     QuantityAdjustmentReason,
     SubstitutionCategory,
     SubstitutionDetail,
+    SubstitutionReason,
     VerificationResult,
     VerificationTimestamp,
 )
@@ -63,12 +66,18 @@ def create_substitution(
     category: SubstitutionCategory = SubstitutionCategory.GENERIC_SUBSTITUTION,
     original_code: str = MEDICINE_CODE,
     original_name: str = MEDICINE_NAME,
+    reason: str | None = None,
 ) -> SubstitutionDetail:
-    """代替調剤の記録を組み立てる。"""
+    """代替調剤の記録を組み立てる。
+
+    変更理由は任意項目なので、既定では**記録しない**。調剤録の記載事項として
+    理由が要るかを問うテストは、理由を明示して組み立てる。
+    """
     return SubstitutionDetail(
         category=category,
         original_identifier=create_identifier(original_code),
         original_name=MedicineName(original_name),
+        reason=SubstitutionReason(reason) if reason is not None else None,
     )
 
 
@@ -176,3 +185,26 @@ def verify_passed(
         verified_at=VerificationTimestamp(datetime(2026, 8, 24, 2, 0, tzinfo=UTC)),
         result=VerificationResult.PASSED,
     )
+
+
+def complete_dispensing(
+    process: DispensingProcess,
+    *,
+    verifier_id: StaffId | None = None,
+) -> DispensingProcess:
+    """最終鑑査を通して交付済（``COMPLETED``）まで進める。
+
+    調剤録の記載事項を判定するテストは、どれも交付済を前提にする。各ケースで
+    ``verify`` と ``complete`` を書き写すと、終了区分の指定が散らばる。
+    """
+    return verify_passed(process, verifier_id=verifier_id).complete(
+        completion_type=DispensingCompletionType.COMPLETED
+    )
+
+
+def cancel_dispensing(
+    process: DispensingProcess,
+    reason: str = "患者が来局せず、交付できなかったため。",
+) -> DispensingProcess:
+    """調剤を中止する。理由は必須。"""
+    return process.cancel(DispensingCancellationReason(reason))

@@ -210,3 +210,42 @@ class CounselorQualificationError(MedicationHistoryDomainError):
 
     default_message = "服薬指導は薬剤師資格を持つスタッフだけが行えます。"
     default_code = "MEDICATION_HISTORY_COUNSELOR_QUALIFICATION_REQUIRED"
+
+
+class StatutoryRecordSourceMismatchError(MedicationHistoryDomainError):
+    """薬歴・調剤セッション・スナップショットが同じ1件を指していない場合の例外。
+
+    無関係な記録を継ぎ接ぎした「充足」を作らせないため、報告ではなく拒否する。
+    """
+
+    default_message = (
+        "調剤録の記載事項は、同じ調剤に対応する薬歴と記録からのみ判定できます。"
+    )
+    default_code = "MEDICATION_HISTORY_STATUTORY_SOURCE_MISMATCH"
+
+
+class StatutoryItemNotAssessedError(MedicationHistoryDomainError):
+    """調剤録の記載事項に判定の無いものが残っている場合の例外。
+
+    記載事項を1つでも落とした結果は、調剤録の充足を語れない。
+    """
+
+    default_message = "判定していない調剤録の記載事項があります。"
+    default_code = "MEDICATION_HISTORY_STATUTORY_ITEM_NOT_ASSESSED"
+
+    def __init__(self, *, item_labels: tuple[str, ...] = ()) -> None:
+        """判定の無かった記載事項名を添えて例外を生成する。"""
+        message = self.default_message
+        if item_labels:
+            message = f"{message}判定が無い事項: {'、'.join(item_labels)}。"
+        super().__init__(message)
+
+
+class StatutoryItemAssessedTwiceError(MedicationHistoryDomainError):
+    """同じ記載事項に2つ以上の判定が付いている場合の例外。
+
+    どちらが答えかが決まらない結果を、充足の根拠として残さない。
+    """
+
+    default_message = "同じ調剤録の記載事項に複数の判定が付いています。"
+    default_code = "MEDICATION_HISTORY_STATUTORY_ITEM_ASSESSED_TWICE"

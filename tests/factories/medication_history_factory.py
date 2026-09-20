@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 
 from app.domain.corporate.primitives import CorporateId
+from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.primitives import DispensingId
 from app.domain.medication_history import (
     AdverseReactionSymptom,
@@ -37,17 +38,29 @@ from app.domain.medication_history import (
     RetractionReason,
     SoapRecord,
     StatutoryCategory,
+    StatutoryInquiryRecord,
+    StatutoryPharmacistName,
+    StatutoryRecordSource,
     StopConcurrentMedicationIntent,
     UpdateConditionStatusIntent,
 )
-from app.domain.patient.primitives import PatientId
-from app.domain.prescription.primitives import PrescriptionId
+from app.domain.patient.primitives import PatientBirthDate, PatientId
+from app.domain.prescription.primitives import (
+    InquiryNumber,
+    MedicalInstitutionAddressLine,
+    MedicalInstitutionName,
+    PrescriptionId,
+    PrescriptionIssuedDate,
+)
 from app.domain.shared.medicine import MedicineName
+from app.domain.shared.person_name import PersonNames
 from app.domain.staff.primitives import StaffId
 from app.domain.store.primitives import StoreId
 
 COUNSELED_AT = datetime(2026, 8, 24, 5, 0, tzinfo=UTC)
 STARTED_ON = date(2026, 8, 1)
+BIRTH_DATE = date(1960, 4, 2)
+ISSUED_DATE = date(2026, 8, 23)
 
 
 def create_note(
@@ -251,3 +264,118 @@ def create_record(
         else ResidualDrugRecord.none_remaining(),
         profile_updates=profile_updates,
     )
+
+
+def create_person_names(
+    last_name: str = "山田",
+    first_name: str = "太郎",
+    last_name_kana: str = "ヤマダ",
+    first_name_kana: str = "タロウ",
+) -> PersonNames:
+    """漢字とカナの氏名一式を組み立てる。"""
+    return PersonNames.create(
+        last_name=last_name,
+        first_name=first_name,
+        last_name_kana=last_name_kana,
+        first_name_kana=first_name_kana,
+    )
+
+
+def create_pharmacist_name(
+    staff_id: StaffId,
+    last_name: str = "鈴木",
+    first_name: str = "花子",
+) -> StatutoryPharmacistName:
+    """調剤録へ記載する薬剤師1名の氏名を組み立てる。"""
+    return StatutoryPharmacistName(
+        staff_id=staff_id,
+        names=create_person_names(
+            last_name=last_name,
+            first_name=first_name,
+            last_name_kana="スズキ",
+            first_name_kana="ハナコ",
+        ),
+    )
+
+
+def create_inquiry(
+    number: int = 1,
+    *,
+    has_response: bool = True,
+) -> StatutoryInquiryRecord:
+    """疑義照会1件の写しを組み立てる。"""
+    return StatutoryInquiryRecord(
+        inquiry_number=InquiryNumber(number), has_response=has_response
+    )
+
+
+def create_statutory_source(
+    *,
+    patient_id: PatientId,
+    prescription_id: PrescriptionId,
+    pharmacist_ids: tuple[StaffId, ...] = (),
+    pharmacist_names: tuple[StatutoryPharmacistName, ...] | None = None,
+    patient_birth_date: date | None = BIRTH_DATE,
+    issued_date: date = ISSUED_DATE,
+    institution_name: str = "医療法人社団さくら内科クリニック",
+    institution_address: str | None = "東京都千代田区丸の内1-1-1",
+    inquiries: tuple[StatutoryInquiryRecord, ...] = (),
+) -> StatutoryRecordSource:
+    """調剤録の記載事項のスナップショットを組み立てる。
+
+    既定では欠落の無い状態を作る。個別のケースは欠けさせたい項目だけを指定する。
+    ``pharmacist_ids`` を渡すと、そのスタッフ全員の氏名を引ける状態にする。
+    """
+    return StatutoryRecordSource(
+        patient_id=patient_id,
+        patient_names=create_person_names(),
+        patient_birth_date=(
+            PatientBirthDate(patient_birth_date)
+            if patient_birth_date is not None
+            else None
+        ),
+        pharmacist_names=(
+            pharmacist_names
+            if pharmacist_names is not None
+            else tuple(create_pharmacist_name(staff_id) for staff_id in pharmacist_ids)
+        ),
+        prescription_id=prescription_id,
+        prescription_issued_date=PrescriptionIssuedDate(issued_date),
+        prescriber_names=create_person_names(
+            last_name="佐藤",
+            first_name="一郎",
+            last_name_kana="サトウ",
+            first_name_kana="イチロウ",
+        ),
+        medical_institution_name=MedicalInstitutionName(institution_name),
+        medical_institution_address=(
+            MedicalInstitutionAddressLine(institution_address)
+            if institution_address is not None
+            else None
+        ),
+        inquiries=inquiries,
+    )
+
+
+def create_record_for(
+    dispensing: DispensingProcess,
+    *,
+    counselor_id: StaffId | None = None,
+    soap: SoapRecord | None = None,
+    finalized: bool = True,
+) -> MedicationHistoryRecord:
+    """指定の調剤セッションに対応する薬歴を組み立てる。
+
+    法人・店舗・患者・処方箋は調剤セッションから取る。ユースケースも同じ取り方を
+    するので、ここで取り違えた組み合わせを既定にしない。
+    """
+    record = create_record(
+        corporate_id=dispensing.corporate_id,
+        store_id=dispensing.store_id,
+        patient_id=dispensing.patient_id,
+        dispensing_id=dispensing.id,
+        prescription_id=dispensing.prescription_id,
+        counselor_id=counselor_id,
+        soap=soap,
+    )
+    return record.finalize() if finalized else record

@@ -8,6 +8,8 @@ from app.application.medication_history.exceptions import (
     MedicationHistoryApplicationError,
     MedicationHistoryDispensingNotFoundError,
     MedicationHistoryNotFoundError,
+    MedicationHistoryPatientNotFoundError,
+    MedicationHistoryPrescriptionNotFoundError,
     MedicationHistoryStaffNotFoundError,
     MedicationHistoryStoreNotFoundError,
     PatientMedicalProfileNotFoundError,
@@ -62,6 +64,7 @@ from app.application.medication_history.inputs import (
 from app.application.medication_history.reference import (
     DispensingReferenceBoundary,
     StaffQualificationBoundary,
+    StatutoryRecordSourceBoundary,
     StoreReferenceBoundary,
 )
 from app.application.medication_history.start_medication_history import (
@@ -71,6 +74,13 @@ from app.application.medication_history.start_medication_history import (
 from app.application.medication_history.update_medication_history_draft import (
     UpdateMedicationHistoryDraftCommand,
     UpdateMedicationHistoryDraftUseCase,
+)
+from app.application.medication_history.verify_statutory_record import (
+    StatutoryItemAssessmentDto,
+    StatutoryRecordBlockerDto,
+    StatutoryRecordSufficiencyDto,
+    VerifyStatutoryRecordQuery,
+    VerifyStatutoryRecordUseCase,
 )
 
 __all__ = [
@@ -105,6 +115,8 @@ __all__ = [
     "MedicationHistoryDispensingNotFoundError",
     "MedicationHistoryDto",
     "MedicationHistoryNotFoundError",
+    "MedicationHistoryPatientNotFoundError",
+    "MedicationHistoryPrescriptionNotFoundError",
     "MedicationHistoryStaffNotFoundError",
     "MedicationHistoryStoreNotFoundError",
     "PatientMedicalProfileDto",
@@ -123,9 +135,15 @@ __all__ = [
     "StaffQualificationBoundary",
     "StartMedicationHistoryCommand",
     "StartMedicationHistoryUseCase",
+    "StatutoryItemAssessmentDto",
+    "StatutoryRecordBlockerDto",
+    "StatutoryRecordSourceBoundary",
+    "StatutoryRecordSufficiencyDto",
     "StopConcurrentMedicationIntentInput",
     "StoreReferenceBoundary",
     "UpdateConditionStatusIntentInput",
     "UpdateMedicationHistoryDraftCommand",
     "UpdateMedicationHistoryDraftUseCase",
+    "VerifyStatutoryRecordQuery",
+    "VerifyStatutoryRecordUseCase",
 ]

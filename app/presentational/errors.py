@@ -46,6 +46,8 @@ from app.application.identity.resolve_actor import UnavailableIdentityError
 from app.application.medication_history.exceptions import (
     MedicationHistoryDispensingNotFoundError,
     MedicationHistoryNotFoundError,
+    MedicationHistoryPatientNotFoundError,
+    MedicationHistoryPrescriptionNotFoundError,
     MedicationHistoryStaffNotFoundError,
     MedicationHistoryStoreNotFoundError,
     PatientMedicalProfileNotFoundError,
@@ -188,6 +190,8 @@ _STATUS_BY_EXCEPTION: Final[Mapping[type[BaseException], HTTPStatus]] = {
     DispensingStoreNotFoundError: HTTPStatus.NOT_FOUND,
     MedicationHistoryDispensingNotFoundError: HTTPStatus.NOT_FOUND,
     MedicationHistoryNotFoundError: HTTPStatus.NOT_FOUND,
+    MedicationHistoryPatientNotFoundError: HTTPStatus.NOT_FOUND,
+    MedicationHistoryPrescriptionNotFoundError: HTTPStatus.NOT_FOUND,
     MedicationHistoryStaffNotFoundError: HTTPStatus.NOT_FOUND,
     MedicationHistoryStoreNotFoundError: HTTPStatus.NOT_FOUND,
     PatientMedicalProfileNotFoundError: HTTPStatus.NOT_FOUND,

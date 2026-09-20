@@ -12,7 +12,9 @@ uv run ruff check . && uv run ruff format --check .  # Lint & Format チェッ�
 
 # 実PostgreSQLに対する結合テスト（TEST_DATABASE_URL が無ければ自動スキップ）
 docker compose up -d postgres
-TEST_DATABASE_URL=postgresql+asyncpg://pharmacydomain:pharmacydomain-dev-password@127.0.0.1:5432/pharmacydomain \n  uv run pytest -m integration -q
+set -a; [ -f .env ] && . ./.env; set +a  # シェルは.envを自動で読まないので明示的に読み込む
+TEST_DATABASE_URL=postgresql+asyncpg://pharmacydomain:pharmacydomain-dev-password@127.0.0.1:${POSTGRES_PORT:-5432}/pharmacydomain \
+  uv run pytest -m integration -q
 
 # 個別実行（違反箇所を特定したいとき）
 uv run python -m tools.check_imports --verbose --fail-on-violation  # 依存の向き
@@ -20,6 +22,7 @@ uv run python -m tools.check_lcom --verbose --fail-on-violation     # クラス�
 uv run python -m tools.check_fake_conformance --verbose --fail-on-violation  # フェイクのProtocol適合
 ```
 
+- **結合テストの接続ポートは `POSTGRES_PORT` から引く**: `compose.yaml` はホスト側の公開ポートを `.env` の `POSTGRES_PORT`（既定 5432）に従わせている。コマンド例で `5432` をベタ書きすると、`POSTGRES_PORT` を変えている環境（他プロジェクトとの衝突回避等）でこのコマンドをそのまま実行したときに接続エラーになる。`TEST_DATABASE_URL` が無いときの自動スキップと違い、間違ったポートへの接続は `ConnectionRefusedError` として失敗するので気づけはするが、そこで手が止まる。**シェルは `.env` を自動で読み込まない**（読むのは `docker compose` 自身だけ）ので、`${POSTGRES_PORT:-5432}` と書くだけでは足りず、`TEST_DATABASE_URL=...` を組み立てる前にコマンド例の側で `.env` を読み込む必要がある。読み込まなければ環境変数 `POSTGRES_PORT` は未設定のままなので既定値 5432 に落ち、`.env` で上書きしている環境では書いた本人の意図に反してベタ書きと同じ結果になる。
 - **言語・コメント**: ドキュメント、docstring、エラーメッセージ、テスト名はすべて**日本語**。
 - **品質要求**: `mypy --strict` と `ruff` のチェックを必ずパスさせること。
 - **CI**: 上記5つのゲートは `.github/workflows/quality-gate.yml` が `main` への push と全 pull request で実行する。結合テストは PostgreSQL サービスを持つ別ジョブで走る。ゲートを増減するときは、このファイル・本節のコマンド一覧・`tests/tools/test_ci_quality_gate.py` の `REQUIRED_GATES` の3つを揃えないと pytest が落ちる。**ブランチ保護は未設定なので、赤いまま `main` へ push すること自体は止まらない**（GitHubのリポジトリ設定でしか変えられず、リポジトリ内のファイルからは強制できない）。
@@ -76,6 +79,7 @@ uv run python -m tools.check_fake_conformance --verbose --fail-on-violation  # �
 - **用量に `float` を使わない**: 実在する用量刻み（0.05刻み等）で不均等服用の合計が一致せず、正当な処方を弾く（6,859通りのうち869通りで失敗する）。`BaseNonNegativeDecimal` / `BasePositiveDecimal` を使い、Application境界では `str` で受けて `Decimal` へ変換する。`tests/domain/test_decimal_primitives.py` が全数で固定する。
 - **判定できないことを「該当しない」に倒さない**: 医薬品マスタが無い状態で麻薬区分を「該当しない」と答えると、麻薬処方箋の必須項目チェックが素通りする。`MedicineRestrictionFlag` は `UNKNOWN` を明示的に持ち、Domain Service がそれを拒否する（fail-closed）。到達可能なUseCaseを作らないのではなく、**作った上で失敗させる**（分岐を書くと、マスタが入ったときに消し忘れる）。
 - **`is_active` は集約ルートだけ**: 期間（`ended_on` 等）から導出できる子レコードに真偽フラグを足すと、同じ事実の表現が2つになり必ず食い違う。`tests/domain/test_active_flag_placement.py` が `app/domain` の全 dataclass を走査し、`is_active` を持つクラスの集合を表で固定する。方言表（`test_lifecycle_dialects.py`）は集約ルートしか見ないので、これが子レコード側の歯止めになる。
+- **調剤録の記載事項は号の表で持ち、他コンテキストの事実はスナップショットで運ぶ**: 薬歴が薬剤師法第28条の調剤録の代替になるかは、施行規則第16条第1項の記載事項が揃っているかで決まる。記載事項は薬歴・調剤・処方箋・患者に分かれており、薬歴ドメインは処方箋集約・患者集約を import できない（禁止を緩めると `validate()` から他集約へ手が伸びる余地ができる）。そこで `StatutoryDispensingRecordItem` を**号の列挙**にし、号ごとの判定関数の表と列挙の一致をモジュール読み込み時に検査する（号を足して判定を書き忘れたら import で落ちる）。判定結果 `StatutoryRecordSufficiency` は全号がちょうど1件ずつ現れることを `validate()` で要求する。表は「判定関数が在るか」しか見ないので、結果を組み立てる側で号を落とせる穴が残る。処方箋・患者・薬剤師の事実は `StatutoryRecordSource` で運び、**全フィールドに既定値を置かない**（空の既定値は「該当なし」と区別できないので、書き忘れは `TypeError` で落とす）。充足は3値で答え、「該当なし」は源データが事由の不発生を積極的に示すときだけ返す。「薬歴が未確定」「調剤が未完了」は記載事項ではないので `StatutoryRecordBlocker` として別に並べる（表へ混ぜると「第何号が足りないのか」に答えられない）。薬歴・調剤・スナップショットが同じ1件を指さないときは報告ではなく例外で拒否する（集約IDの一致だけでは足りず、法人・患者・処方箋のどれかが食い違えば別の調剤の記載事項を継ぎ接ぎした「充足」になる）。スナップショットは**患者の同一性と患者の記載事項を分離不能に束ねる**（`patient_id` を持たせる）。分けると、そのスナップショットが本当にその患者のものかが呼び出し側の規約になり、別人の氏名を根拠に第一号が充足したと報告できる。`article_clause` は法令名から書く（応答本文に単独で現れる）。**判定は報告であって強制ではない**。記載が足りない薬歴の確定は止めない（所在地の未記録は服薬指導そのものの瑕疵ではなく、指導記録を残せなくするほうが害が大きい）。
 - **投影集約に直接編集を許さない**: `PatientMedicalProfile`（頭書き）は薬歴からの投影であり、状態変更は `apply(record)` だけ。個別の `register_*` を公開すると、薬歴に由来しない要素を作れて再構築が不可能になる。保存順序は `save(record)` → `save(profile)` で固定し、同じ UnitOfWork で確定する。後者が失敗した場合も薬歴から作り直せる。
 - **Boundaryの例外契約**: 参照Boundary（Protocol）の `Raises:` に、他テナント・未存在をどの例外へ畳み込むかを明記する。他テナントのデータは存在を隠すため404相当の `XxxNotFoundError` に揃え、`AuthorizationError` を送出しない（存在が漏れる）。契約は `tests/fakes/` のフェイク実装（Receptionは `tests/fakes/reception_reference_boundaries.py`）とユースケーステストで実行可能な形にし、定義だけで raise されない例外を残さない。
 

@@ -51,3 +51,21 @@ class PatientMedicalProfileNotFoundError(MedicationHistoryApplicationError):
 
     default_message = "対象患者の頭書きはまだ作成されていません。"
     default_code = "MEDICATION_HISTORY_PROFILE_NOT_FOUND"
+
+
+class MedicationHistoryPatientNotFoundError(MedicationHistoryApplicationError):
+    """薬歴の対象患者が存在しない、または法人が異なる場合の例外。
+
+    別法人の患者を指した場合もこの例外に畳む。``AuthorizationError`` へ分けると、
+    他法人にその患者が在ることが呼び出し元へ漏れる。
+    """
+
+    default_message = "薬歴の対象患者が見つかりません。"
+    default_code = "MEDICATION_HISTORY_PATIENT_NOT_FOUND"
+
+
+class MedicationHistoryPrescriptionNotFoundError(MedicationHistoryApplicationError):
+    """薬歴の元になった処方箋が存在しない、または法人が異なる場合の例外。"""
+
+    default_message = "薬歴の対象となる処方箋が見つかりません。"
+    default_code = "MEDICATION_HISTORY_PRESCRIPTION_NOT_FOUND"
