@@ -215,3 +215,34 @@ class AddFollowUpCommand:
     information_sheet_provided: bool = False
     profile_updates: ProfileUpdateInput | None = None
     additional_notes: tuple[CategorizedNoteInput, ...] = ()
+
+
+@dataclass(frozen=True, kw_only=True)
+class RecordTracingReportCommand:
+    """処方医への服薬情報等提供（トレーシングレポート）記録コマンド。"""
+
+    corporate_id: str
+    record_id: str
+    reporter_id: str
+    provided_at: datetime
+    medical_institution_name: str
+    physician_name: str
+    category: str
+    fee_category: str
+    delivery_method: str
+    content: str
+    follow_up_id: str | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class RecordTracingReportResponseCommand:
+    """トレーシングレポートに対する処方医返答の記録コマンド。"""
+
+    corporate_id: str
+    record_id: str
+    tracing_report_id: str
+    responded_at: datetime
+    content: str
+    action_type: str
+    received_by: str
+    acknowledged_physician_name: str | None = None

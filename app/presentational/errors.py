@@ -84,11 +84,14 @@ from app.domain.medication_history.exceptions import (
     AdverseReactionNotFoundError,
     AllergyNotFoundError,
     ConcurrentMedicationNotFoundError,
+    FollowUpNotFoundError,
     MajorCategoryNotFoundError,
     MedicalConditionNotFoundError,
     MedicationHistoryAlreadyExistsError,
     MedicationHistoryAlreadyFinalizedError,
     PatientMedicalProfileAlreadyExistsError,
+    TracingReportAlreadyRespondedError,
+    TracingReportNotFoundError,
 )
 from app.domain.medicine_catalog.exceptions import MedicineEffectivePeriodConflictError
 from app.domain.patient.exceptions import PatientExternalIdentifierAlreadyExistsError
@@ -215,6 +218,8 @@ _STATUS_BY_EXCEPTION: Final[Mapping[type[BaseException], HTTPStatus]] = {
     InquiryNotFoundError: HTTPStatus.NOT_FOUND,
     StaffDomainNotFoundError: HTTPStatus.NOT_FOUND,
     MajorCategoryNotFoundError: HTTPStatus.NOT_FOUND,
+    FollowUpNotFoundError: HTTPStatus.NOT_FOUND,
+    TracingReportNotFoundError: HTTPStatus.NOT_FOUND,
     # --- 409: 既存のデータ・状態と衝突する ---
     ConcurrentModificationError: HTTPStatus.CONFLICT,
     CorporateNameAlreadyExistsError: HTTPStatus.CONFLICT,
@@ -224,6 +229,7 @@ _STATUS_BY_EXCEPTION: Final[Mapping[type[BaseException], HTTPStatus]] = {
     MedicationHistoryAlreadyExistsError: HTTPStatus.CONFLICT,
     MedicationHistoryAlreadyFinalizedError: HTTPStatus.CONFLICT,
     PatientMedicalProfileAlreadyExistsError: HTTPStatus.CONFLICT,
+    TracingReportAlreadyRespondedError: HTTPStatus.CONFLICT,
     MedicineEffectivePeriodConflictError: HTTPStatus.CONFLICT,
     PatientExternalIdentifierAlreadyExistsError: HTTPStatus.CONFLICT,
     InquiryAlreadyResolvedError: HTTPStatus.CONFLICT,

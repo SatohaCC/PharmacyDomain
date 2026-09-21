@@ -313,3 +313,70 @@ class DuplicatedFollowUpIdError(MedicationHistoryDomainError):
 
     default_message = "同一IDのフォローアップが既に存在します。"
     default_code = "MEDICATION_HISTORY_DUPLICATED_FOLLOW_UP_ID"
+
+
+# --------------------------------------------------------------------------
+# 処方医への服薬情報等提供（トレーシングレポート）
+# --------------------------------------------------------------------------
+
+
+class TracingReportDomainError(MedicationHistoryDomainError):
+    """トレーシングレポートに関するドメイン例外の基底。"""
+
+
+class TracingReportOnDraftError(TracingReportDomainError):
+    """未確定の下書き薬歴に対してトレーシングレポートを追加しようとした場合の例外。"""
+
+    default_message = "下書き状態の薬歴にはトレーシングレポートを追加できません。"
+    default_code = "MEDICATION_HISTORY_TRACING_REPORT_ON_DRAFT"
+
+
+class TracingReportDateBeforeCounselingError(TracingReportDomainError):
+    """トレーシングレポート提供日時が初回服薬指導日時より前である場合の例外。"""
+
+    default_message = (
+        "トレーシングレポート提供日時は初回服薬指導日時以降である必要があります。"
+    )
+    default_code = "MEDICATION_HISTORY_TRACING_REPORT_DATE_BEFORE_COUNSELING"
+
+
+class FollowUpNotFoundError(TracingReportDomainError):
+    """指定されたフォローアップ記録が見つからない場合の例外。"""
+
+    default_message = "指定されたフォローアップ記録が見つかりません。"
+    default_code = "MEDICATION_HISTORY_FOLLOW_UP_NOT_FOUND"
+
+
+class TracingReportDateBeforeFollowUpError(TracingReportDomainError):
+    """トレーシングレポート提供日時が紐付け先フォローアップ日時より前である場合の例外。"""
+
+    default_message = "トレーシングレポート提供日時は紐付け先フォローアップ日時以降である必要があります。"
+    default_code = "MEDICATION_HISTORY_TRACING_REPORT_DATE_BEFORE_FOLLOW_UP"
+
+
+class DuplicatedTracingReportIdError(TracingReportDomainError):
+    """同一IDのトレーシングレポートが既に存在する場合の例外。"""
+
+    default_message = "同一IDのトレーシングレポートが既に存在します。"
+    default_code = "MEDICATION_HISTORY_DUPLICATED_TRACING_REPORT_ID"
+
+
+class TracingReportNotFoundError(TracingReportDomainError):
+    """指定されたトレーシングレポートが見つからない場合の例外。"""
+
+    default_message = "指定されたトレーシングレポートが見つかりません。"
+    default_code = "MEDICATION_HISTORY_TRACING_REPORT_NOT_FOUND"
+
+
+class TracingReportAlreadyRespondedError(TracingReportDomainError):
+    """既に医師返答が記録されているトレーシングレポートに再度返答しようとした場合の例外。"""
+
+    default_message = "このトレーシングレポートには既に医師返答が記録されています。"
+    default_code = "MEDICATION_HISTORY_TRACING_REPORT_ALREADY_RESPONDED"
+
+
+class TracingReportResponseDateBeforeProvidedError(TracingReportDomainError):
+    """医師返答日時が提供日時より前である場合の例外。"""
+
+    default_message = "医師返答日時は提供日時以降である必要があります。"
+    default_code = "MEDICATION_HISTORY_TRACING_REPORT_RESPONSE_DATE_BEFORE_PROVIDED"

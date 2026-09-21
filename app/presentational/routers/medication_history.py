@@ -32,6 +32,8 @@ from app.application.medication_history import (
     PatientMedicalProfileDto,
     ProfileUpdateInput,
     RebuildPatientMedicalProfileCommand,
+    RecordTracingReportCommand,
+    RecordTracingReportResponseCommand,
     ResidualDrugInput,
     SoapInput,
     StartMedicationHistoryCommand,
@@ -101,6 +103,30 @@ class AddFollowUpRequest(RequestModel):
     residual_drug: ResidualDrugInput | None = None
     information_sheet_provided: bool = False
     profile_updates: ProfileUpdateInput | None = None
+
+
+class RecordTracingReportRequest(RequestModel):
+    """トレーシングレポート記録の入力。"""
+
+    reporter_id: str
+    provided_at: datetime
+    medical_institution_name: str
+    physician_name: str
+    category: str
+    fee_category: str
+    delivery_method: str
+    content: str
+    follow_up_id: str | None = None
+
+
+class RecordTracingReportResponseRequest(RequestModel):
+    """トレーシングレポート医師返答の入力。"""
+
+    responded_at: datetime
+    content: str
+    action_type: str
+    received_by: str
+    acknowledged_physician_name: str | None = None
 
 
 class RebuildMedicalProfileRequest(RequestModel):
@@ -251,6 +277,72 @@ async def add_follow_up(
             residual_drug=body.residual_drug,
             information_sheet_provided=body.information_sheet_provided,
             profile_updates=body.profile_updates,
+        )
+    )
+
+
+@router.post(
+    "/medication-histories/{record_id}/tracing-reports",
+    status_code=HTTPStatus.CREATED,
+    response_model=MedicationHistoryDto,
+    responses=error_responses(
+        HTTPStatus.NOT_FOUND,
+        HTTPStatus.CONFLICT,
+        HTTPStatus.UNPROCESSABLE_CONTENT,
+    ),
+)
+async def record_tracing_report(
+    corporate_id: str,
+    record_id: str,
+    body: RecordTracingReportRequest,
+    use_cases: MedicationHistoryUseCasesDep,
+) -> MedicationHistoryDto:
+    """確定済み薬歴に処方医へのトレーシングレポート記録を追加する。"""
+    return await use_cases.record_tracing_report.execute(
+        RecordTracingReportCommand(
+            corporate_id=corporate_id,
+            record_id=record_id,
+            reporter_id=body.reporter_id,
+            provided_at=body.provided_at,
+            medical_institution_name=body.medical_institution_name,
+            physician_name=body.physician_name,
+            category=body.category,
+            fee_category=body.fee_category,
+            delivery_method=body.delivery_method,
+            content=body.content,
+            follow_up_id=body.follow_up_id,
+        )
+    )
+
+
+@router.post(
+    "/medication-histories/{record_id}/tracing-reports/{report_id}/response",
+    status_code=HTTPStatus.OK,
+    response_model=MedicationHistoryDto,
+    responses=error_responses(
+        HTTPStatus.NOT_FOUND,
+        HTTPStatus.CONFLICT,
+        HTTPStatus.UNPROCESSABLE_CONTENT,
+    ),
+)
+async def record_tracing_report_response(
+    corporate_id: str,
+    record_id: str,
+    report_id: str,
+    body: RecordTracingReportResponseRequest,
+    use_cases: MedicationHistoryUseCasesDep,
+) -> MedicationHistoryDto:
+    """トレーシングレポートに対する処方医からの返答を記録する。"""
+    return await use_cases.record_tracing_report_response.execute(
+        RecordTracingReportResponseCommand(
+            corporate_id=corporate_id,
+            record_id=record_id,
+            tracing_report_id=report_id,
+            responded_at=body.responded_at,
+            content=body.content,
+            action_type=body.action_type,
+            received_by=body.received_by,
+            acknowledged_physician_name=body.acknowledged_physician_name,
         )
     )
 

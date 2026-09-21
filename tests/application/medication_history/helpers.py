@@ -16,6 +16,8 @@ from app.application.medication_history import (
     ListMedicationHistoriesByPatientUseCase,
     ProfileUpdateInput,
     RebuildPatientMedicalProfileUseCase,
+    RecordTracingReportResponseUseCase,
+    RecordTracingReportUseCase,
     ResidualDrugInput,
     SoapInput,
     StartMedicationHistoryCommand,
@@ -102,6 +104,8 @@ class MedicationHistoryFixture:
     get_category_catalog: GetCategoryCatalogUseCase
     update_category_catalog: UpdateCategoryCatalogUseCase
     add_follow_up: AddFollowUpUseCase
+    record_tracing_report: RecordTracingReportUseCase
+    record_tracing_report_response: RecordTracingReportResponseUseCase
     record_repository: InMemoryMedicationHistoryRepository
     profile_repository: InMemoryPatientMedicalProfileRepository
     category_catalog_repository: InMemoryMedicationHistoryCategoryCatalogRepository
@@ -213,6 +217,16 @@ def create_fixture() -> MedicationHistoryFixture:
             staff_qualification,
             CounselorQualificationService(),
             unit_of_work=NullUnitOfWork(),
+        ),
+        record_tracing_report=RecordTracingReportUseCase(
+            record_repository,
+            corporate_access,
+            staff_qualification,
+            CounselorQualificationService(),
+        ),
+        record_tracing_report_response=RecordTracingReportResponseUseCase(
+            record_repository,
+            corporate_access,
         ),
         record_repository=record_repository,
         profile_repository=profile_repository,

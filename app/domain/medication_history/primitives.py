@@ -11,6 +11,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import ClassVar
 
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.primitives.primitives import (
     BaseAwareTimestamp,
     BaseFreeText,
@@ -421,3 +422,137 @@ class StatutoryRecordBlocker(StrEnum):
             self.DISPENSING_NOT_COMPLETED: "調剤が未完了",
         }
         return labels[self]
+
+
+# --------------------------------------------------------------------------
+# 処方医への服薬情報等提供（トレーシングレポート）
+# --------------------------------------------------------------------------
+
+
+class TracingReportId(EntityUUID):
+    """トレーシングレポートの一意識別子。"""
+
+    identifier_name: ClassVar[str] = "トレーシングレポートID"
+
+
+class TracingReportTimestamp(BaseAwareTimestamp):
+    """トレーシングレポートの提供・返答日時。"""
+
+    timestamp_name: ClassVar[str] = "トレーシングレポート日時"
+
+
+class TracingReportCategory(StrEnum):
+    """トレーシングレポートの提供区分。"""
+
+    RESIDUAL_DRUG = "residual_drug"
+    ADVERSE_REACTION = "adverse_reaction"
+    ADHERENCE = "adherence"
+    PRESCRIPTION_PROPOSAL = "prescription_proposal"
+    PATIENT_CONSULTATION = "patient_consultation"
+    OTHER = "other"
+
+    @property
+    def label(self) -> str:
+        """画面表示・帳票出力用の日本語名称。"""
+        labels = {
+            self.RESIDUAL_DRUG: "残薬調整",
+            self.ADVERSE_REACTION: "副作用疑い・モニタリング",
+            self.ADHERENCE: "服薬状況・アドヒアランス",
+            self.PRESCRIPTION_PROPOSAL: "処方提案・ポリファーマシー",
+            self.PATIENT_CONSULTATION: "患者相談・生活状況",
+            self.OTHER: "その他",
+        }
+        return labels[self]
+
+
+class TracingReportFeeCategory(StrEnum):
+    """調剤報酬 服薬情報等提供料の区分。"""
+
+    FEE_1 = "fee_1"
+    FEE_2 = "fee_2"
+    FEE_3 = "fee_3"
+    NONE = "none"
+
+    @property
+    def label(self) -> str:
+        """画面表示・帳票出力用の日本語名称。"""
+        labels = {
+            self.FEE_1: "服薬情報等提供料1",
+            self.FEE_2: "服薬情報等提供料2",
+            self.FEE_3: "服薬情報等提供料3",
+            self.NONE: "算定なし",
+        }
+        return labels[self]
+
+
+class TracingReportDeliveryMethod(StrEnum):
+    """トレーシングレポートの提供手段。"""
+
+    FAX = "fax"
+    MAIL = "mail"
+    ELECTRONIC = "electronic"
+    HAND_DELIVERY = "hand_delivery"
+
+    @property
+    def label(self) -> str:
+        """画面表示・帳票出力用の日本語名称。"""
+        labels = {
+            self.FAX: "FAX",
+            self.MAIL: "郵送",
+            self.ELECTRONIC: "電子",
+            self.HAND_DELIVERY: "手渡し",
+        }
+        return labels[self]
+
+
+class PrescriberActionType(StrEnum):
+    """トレーシングレポートに対する処方医の対応区分。"""
+
+    AGREED_REFLECT_NEXT = "agreed_reflect_next"
+    MAINTAIN_CURRENT = "maintain_current"
+    EXAMINATION_REQUIRED = "examination_required"
+    ACKNOWLEDGED = "acknowledged"
+
+    @property
+    def label(self) -> str:
+        """画面表示・帳票出力用の日本語名称。"""
+        labels = {
+            self.AGREED_REFLECT_NEXT: "次回処方に反映・変更",
+            self.MAINTAIN_CURRENT: "現状維持・継続観察",
+            self.EXAMINATION_REQUIRED: "追加検査・受診指示",
+            self.ACKNOWLEDGED: "確認・了解",
+        }
+        return labels[self]
+
+
+class PhysicianName(BaseNormalizedString):
+    """処方医氏名。"""
+
+    def validate(self) -> None:
+        super().validate()
+        if not self.value:
+            raise DomainValidationError("処方医氏名は空にできません。")
+        if len(self.value) > 100:
+            raise DomainValidationError("処方医氏名は100文字以内で指定してください。")
+
+
+class TracingReportContent(BaseFreeText):
+    """トレーシングレポートの提供内容。"""
+
+    def validate(self) -> None:
+        super().validate()
+        if not self.value:
+            raise DomainValidationError("提供内容は空にできません。")
+        if len(self.value) > 2000:
+            raise DomainValidationError("提供内容は2000文字以内で指定してください。")
+
+
+class TracingReportResponseContent(BaseFreeText):
+    """トレーシングレポートに対する医師の返答内容。"""
+
+    def validate(self) -> None:
+        super().validate()
+        if not self.value:
+            raise DomainValidationError("返答内容は空にできません。")
+        if len(self.value) > 2000:
+            raise DomainValidationError("返答内容は2000文字以内で指定してください。")
