@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+import dataclasses
+import uuid
+from collections.abc import Callable, Sequence
 from datetime import date
 
 from sqlalchemy import select
@@ -21,7 +24,7 @@ from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,
 )
-from app.infrastructure.postgres.schema import medicines
+from app.infrastructure.postgres.schema import medicines as medicines_table
 
 
 def identifier_key(identifier: MedicineIdentifier) -> str:
@@ -65,11 +68,16 @@ def _search_columns(medicine: Medicine) -> dict[str, object]:
 
 
 MEDICINE_MAPPING = AggregateMapping(
-    table=medicines,
+    table=medicines_table,
     aggregate_type=Medicine,
     label="医薬品マスタ",
     search_columns=_search_columns,
 )
+
+
+def _make_conflict_error(code: str | None) -> Callable[[], Exception]:
+    """期間重複排他制約違反時の例外生成クロージャを返す。"""
+    return lambda: MedicineEffectivePeriodConflictError(medicine_code=code)
 
 
 class PostgresMedicineCatalogRepository(
@@ -94,9 +102,9 @@ class PostgresMedicineCatalogRepository(
         """
         return await self.find_one(
             MEDICINE_MAPPING,
-            select(medicines).where(
-                medicines.c.identifier_key == identifier_key(identifier),
-                medicines.c.effective_range.contains(as_of),
+            select(medicines_table).where(
+                medicines_table.c.identifier_key == identifier_key(identifier),
+                medicines_table.c.effective_range.contains(as_of),
             ),
         )
 
@@ -104,9 +112,9 @@ class PostgresMedicineCatalogRepository(
         """同じ薬品コードの全ての行を収載日の昇順で返す。"""
         return await self.find_all(
             MEDICINE_MAPPING,
-            select(medicines)
-            .where(medicines.c.identifier_key == identifier_key(identifier))
-            .order_by(medicines.c.listed_on, medicines.c.id),
+            select(medicines_table)
+            .where(medicines_table.c.identifier_key == identifier_key(identifier))
+            .order_by(medicines_table.c.listed_on, medicines_table.c.id),
         )
 
     async def save(self, medicine: Medicine) -> None:
@@ -123,3 +131,51 @@ class PostgresMedicineCatalogRepository(
                 ),
             },
         )
+
+    async def save_all(self, medicines: Sequence[Medicine]) -> None:
+        """同一薬品コードの収載期間重複を原子的に防ぎ、複数マスタ行を一括保存する。"""
+        if not medicines:
+            return
+
+        keys = [identifier_key(med.identifier) for med in medicines]
+        stmt = select(
+            medicines_table.c.id,
+            medicines_table.c.identifier_key,
+            medicines_table.c.listed_on,
+            medicines_table.c.withdrawn_on,
+        ).where(medicines_table.c.identifier_key.in_(keys))
+        result = await self.session.execute(stmt)
+        existing_lookup: dict[tuple[str, date, date | None], uuid.UUID] = {
+            (
+                row.identifier_key,
+                row.listed_on,
+                row.withdrawn_on,
+            ): row.id
+            for row in result.all()
+        }
+
+        for medicine in medicines:
+            key = identifier_key(medicine.identifier)
+            period = medicine.effective_period
+            lookup_key = (
+                key,
+                period.listed_on.value,
+                period.withdrawn_on.value if period.withdrawn_on is not None else None,
+            )
+            matched_id = existing_lookup.get(lookup_key)
+            if matched_id is not None:
+                target = dataclasses.replace(
+                    medicine, id=MedicineCatalogEntryId(matched_id)
+                )
+            else:
+                target = medicine
+
+            target_code = target.identifier.code
+            raw_code = target_code.value if target_code is not None else None
+            await self.save_with_conflict_map(
+                MEDICINE_MAPPING,
+                target,
+                conflicts={
+                    "excl_medicines_effective_period": _make_conflict_error(raw_code),
+                },
+            )

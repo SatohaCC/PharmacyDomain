@@ -19,6 +19,8 @@ from fastapi import APIRouter, Depends, Query
 
 from app.application.medicine_catalog import (
     GetEffectiveMedicineQuery,
+    ImportYjCatalogCommand,
+    ImportYjCatalogResultDto,
     MedicineDto,
     RegisterMedicineCommand,
 )
@@ -106,6 +108,34 @@ async def get_effective_medicine(
     """指定時点で有効な医薬品を取得する。"""
     return await use_cases.get_effective.execute(
         GetEffectiveMedicineQuery(code_type=code_type, code=code, as_of=as_of)
+    )
+
+
+class ImportYjCatalogRequest(RequestModel):
+    """YJコードリストCSVインポートの入力。"""
+
+    csv_text: str | None = None
+    file_path: str | None = None
+    catalog_version: date | None = None
+
+
+@router.post(
+    "/import-csv",
+    status_code=HTTPStatus.CREATED,
+    response_model=ImportYjCatalogResultDto,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def import_yj_catalog(
+    body: ImportYjCatalogRequest,
+    use_cases: MedicineCatalogUseCasesDep,
+) -> ImportYjCatalogResultDto:
+    """YJコードリストCSVを一括インポートする（ベンダーシステム管理者専用）。"""
+    return await use_cases.import_yj.execute(
+        ImportYjCatalogCommand(
+            csv_text=body.csv_text,
+            file_path=body.file_path,
+            catalog_version=body.catalog_version,
+        )
     )
 
 

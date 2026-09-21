@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date
 from typing import Protocol
 
@@ -55,4 +56,8 @@ class MedicineCatalogRepository(Protocol):
 
         Applicationの事前readは早期エラー用であり原子性の代替ではない。
         """
+        ...
+
+    async def save_all(self, medicines: Sequence[Medicine]) -> None:
+        """同一薬品コードの収載期間重複を原子的に防ぎ、複数マスタ行を一括保存する。"""
         ...

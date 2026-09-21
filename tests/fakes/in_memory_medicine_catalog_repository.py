@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Sequence
 from datetime import date
 
 from app.domain.medicine_catalog.medicine import Medicine
@@ -59,8 +60,34 @@ class InMemoryMedicineCatalogRepository(MedicineCatalogRepository):
         判定は ``MedicineEffectivePeriodConflictService`` を呼び、規則の実装が
         2箇所に分かれないようにする。
         """
-        MedicineEffectivePeriodConflictService().ensure_no_conflict(
-            medicine,
-            [item for item in self.items.values() if item.id != medicine.id],
-        )
-        self.items[medicine.id] = copy.deepcopy(medicine)
+        await self.save_all([medicine])
+
+    async def save_all(self, medicines: Sequence[Medicine]) -> None:
+        """同一薬品コードの収載期間重複を原子的に防ぎ、複数マスタ行を一括保存する。"""
+        import dataclasses
+
+        conflict_service = MedicineEffectivePeriodConflictService()
+        temp_items = dict(self.items)
+
+        for med in medicines:
+            existing_match_id = None
+            for item in temp_items.values():
+                if (
+                    item.identifier == med.identifier
+                    and item.effective_period.listed_on
+                    == med.effective_period.listed_on
+                    and item.effective_period.withdrawn_on
+                    == med.effective_period.withdrawn_on
+                ):
+                    existing_match_id = item.id
+                    break
+
+            if existing_match_id is not None:
+                updated_med = dataclasses.replace(med, id=existing_match_id)
+                temp_items[existing_match_id] = copy.deepcopy(updated_med)
+            else:
+                others = [item for item in temp_items.values() if item.id != med.id]
+                conflict_service.ensure_no_conflict(med, others)
+                temp_items[med.id] = copy.deepcopy(med)
+
+        self.items = temp_items
