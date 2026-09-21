@@ -16,6 +16,7 @@ from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import ClassVar, Self
 
+from app.domain.foundation.entity import Entity
 from app.domain.foundation.value_object import ValueObject
 from app.domain.medication_history.exceptions import (
     ConcurrentMedicationPeriodInvertedError,
@@ -712,9 +713,12 @@ class MedicationHistoryAmendment(ValueObject):
     }
 
 
-@dataclass(frozen=True, kw_only=True)
-class FollowUpRecord(ValueObject):
-    """服薬期間中のフォローアップ（調剤後フォロー）記録。"""
+@dataclass(frozen=True, eq=False, kw_only=True)
+class FollowUpRecord(Entity[FollowUpId]):
+    """服薬期間中のフォローアップ（調剤後フォロー）記録。
+
+    固有の識別子（FollowUpId）で同一性を持つ集約内子エンティティ。
+    """
 
     id: FollowUpId
     counselor_id: StaffId
@@ -772,9 +776,13 @@ class TracingReportResponse(ValueObject):
     }
 
 
-@dataclass(frozen=True, kw_only=True)
-class TracingReport(ValueObject):
-    """処方医への服薬情報等提供（トレーシングレポート）記録。"""
+@dataclass(frozen=True, eq=False, kw_only=True)
+class TracingReport(Entity[TracingReportId]):
+    """処方医への服薬情報等提供（トレーシングレポート）記録。
+
+    固有の識別子（TracingReportId）を持ち、処方医返答の受領・記録という
+    状態遷移（ライフサイクル）を持つ集約内子エンティティ。
+    """
 
     id: TracingReportId
     reporter_id: StaffId
