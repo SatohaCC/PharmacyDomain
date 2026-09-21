@@ -23,6 +23,7 @@ from app.presentational.routers import (
     identity,
     medication_history,
     medicine_catalog,
+    nsips,
     patient,
     prescription,
     reception,
@@ -43,6 +44,7 @@ _ROUTER_FOR_BUNDLE: Final[Mapping[str, ModuleType]] = {
     "dispensing": dispensing,
     "medication_history": medication_history,
     "medicine_catalog": medicine_catalog,
+    "integration": nsips,
 }
 
 

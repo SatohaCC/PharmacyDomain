@@ -20,6 +20,7 @@ from app.infrastructure.di import (
     CorporateUseCases,
     CoverageUseCases,
     DispensingUseCases,
+    IntegrationUseCases,
     MedicationHistoryUseCases,
     MedicineCatalogUseCases,
     PatientUseCases,
@@ -207,6 +208,11 @@ def get_medicine_catalog_use_cases(scope: _Scope) -> MedicineCatalogUseCases:
     return scope.use_cases.medicine_catalog
 
 
+def get_integration_use_cases(scope: _Scope) -> IntegrationUseCases:
+    """外部連携コンテキストのユースケース束を返す。"""
+    return scope.use_cases.integration
+
+
 #: ルータが受け取る依存の別名。
 Actor = Annotated[ActorContext, Depends(get_actor_context)]
 CorporateUseCasesDep = Annotated[CorporateUseCases, Depends(get_corporate_use_cases)]
@@ -225,6 +231,9 @@ MedicationHistoryUseCasesDep = Annotated[
 MedicineCatalogUseCasesDep = Annotated[
     MedicineCatalogUseCases, Depends(get_medicine_catalog_use_cases)
 ]
+IntegrationUseCasesDep = Annotated[
+    IntegrationUseCases, Depends(get_integration_use_cases)
+]
 
 
 __all__ = [
@@ -233,6 +242,7 @@ __all__ = [
     "CorporateUseCasesDep",
     "CoverageUseCasesDep",
     "DispensingUseCasesDep",
+    "IntegrationUseCasesDep",
     "MedicationHistoryUseCasesDep",
     "MedicineCatalogUseCasesDep",
     "PatientUseCasesDep",
@@ -247,6 +257,7 @@ __all__ = [
     "get_corporate_use_cases",
     "get_coverage_use_cases",
     "get_dispensing_use_cases",
+    "get_integration_use_cases",
     "get_medication_history_use_cases",
     "get_medicine_catalog_use_cases",
     "get_patient_use_cases",

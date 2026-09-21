@@ -11,6 +11,7 @@ from app.infrastructure.di.bundles import (
     CorporateUseCases,
     CoverageUseCases,
     DispensingUseCases,
+    IntegrationUseCases,
     MedicationHistoryUseCases,
     MedicineCatalogUseCases,
     PatientUseCases,
@@ -21,6 +22,7 @@ from app.infrastructure.di.bundles import (
     build_corporate_use_cases,
     build_coverage_use_cases,
     build_dispensing_use_cases,
+    build_integration_use_cases,
     build_medication_history_use_cases,
     build_medicine_catalog_use_cases,
     build_patient_use_cases,
@@ -164,6 +166,21 @@ class PostgresUseCaseRegistry:
             )
         return cast(MedicineCatalogUseCases, self._cache["medicine_catalog"])
 
+    @property
+    def integration(self) -> IntegrationUseCases:
+        if "integration" not in self._cache:
+            self._cache["integration"] = build_integration_use_cases(
+                self._repositories,
+                self._corporate_access,
+                self.patient,
+                self.prescription,
+                self.dispensing,
+                self.medication_history,
+                self._unit_of_work,
+                self._clock,
+            )
+        return cast(IntegrationUseCases, self._cache["integration"])
+
 
 # リフレクション検査（test_composition / test_route_coverage）のために型ヒントを明示登録する。
 PostgresUseCaseRegistry.__annotations__ = {
@@ -178,6 +195,7 @@ PostgresUseCaseRegistry.__annotations__ = {
     "dispensing": DispensingUseCases,
     "medication_history": MedicationHistoryUseCases,
     "medicine_catalog": MedicineCatalogUseCases,
+    "integration": IntegrationUseCases,
 }
 
 __all__ = ["PostgresUseCaseRegistry"]

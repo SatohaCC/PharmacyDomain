@@ -181,6 +181,7 @@ paths = ["app"]
     "app.application.dispensing",
     "app.application.medication_history",
     "app.application.medicine_catalog",
+    "app.application.integration",
     "fastapi",
     "sqlalchemy",
 ]

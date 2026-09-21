@@ -28,6 +28,7 @@ from app.presentational.routers import (
     identity,
     medication_history,
     medicine_catalog,
+    nsips,
     patient,
     prescription,
     reception,
@@ -102,6 +103,7 @@ def create_app(
         dispensing.router,
         medication_history.router,
         medicine_catalog.router,
+        nsips.router,
     ):
         app.include_router(router)
     return app
