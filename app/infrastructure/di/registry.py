@@ -106,7 +106,7 @@ class PostgresUseCaseRegistry:
     def patient(self) -> PatientUseCases:
         if "patient" not in self._cache:
             self._cache["patient"] = build_patient_use_cases(
-                self._repositories, self._corporate_access
+                self._repositories, self._corporate_access, self._clock
             )
         return cast(PatientUseCases, self._cache["patient"])
 

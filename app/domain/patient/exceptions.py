@@ -15,3 +15,10 @@ class PatientExternalIdentifierAlreadyExistsError(PatientDomainError):
 
     default_message = "同じ連携先の外部患者IDは既に登録されています。"
     default_code = "PATIENT_EXTERNAL_IDENTIFIER_ALREADY_EXISTS"
+
+
+class PatientStateConflictError(PatientDomainError):
+    """患者の現在状態と要求された操作が競合している場合の例外。"""
+
+    default_message = "患者の現在状態と要求された操作が競合しています。"
+    default_code = "PATIENT_STATE_CONFLICT"

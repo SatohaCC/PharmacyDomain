@@ -26,6 +26,8 @@ from app.domain.dispensing import (
 )
 from app.domain.foundation.exceptions import DomainError
 from app.domain.foundation.primitives.base import DomainPrimitive
+from app.domain.patient.lifecycle import PatientStatus
+from app.domain.patient.patient import Patient
 from app.domain.prescription import (
     BlockingInquiryExistsError,
     InquiryNumber,
@@ -65,6 +67,7 @@ from app.infrastructure.postgres.codec import (
     encode_aggregate,
 )
 from tests.factories.dispensing_factory import create_dispensing, verify_passed
+from tests.factories.persistence_factory import create_patient
 from tests.factories.prescription_factory import (
     create_prescription,
     create_response,
@@ -418,3 +421,36 @@ def test_開局時間の無い古い行も_店舗として復元できる() -> N
 
     # Assert
     assert restored.business_hours is None
+
+
+def test_TC30_患者集約のcodec往復() -> None:
+    """患者集約（ライフサイクル状態・変更履歴を含む）がJSONB往復で完全復元できる。"""
+    # Arrange
+    patient = create_patient()
+
+    # Act
+    encoded = encode_aggregate(patient)
+    restored = decode_aggregate(encoded, Patient)
+
+    # Assert
+    assert restored.id == patient.id
+    assert restored.status == PatientStatus.ACTIVE
+    assert restored.merged_into_id is None
+    assert restored.status_history == ()
+
+
+def test_TC31_患者集約_後方互換復元() -> None:
+    """statusやmerged_into_idの無い過去のJSONB行も患者として復元できる。"""
+    # Arrange: 過去のpayloadをシミュレート
+    payload = encode_aggregate(create_patient())
+    payload.pop("status", None)
+    payload.pop("merged_into_id", None)
+    payload.pop("status_history", None)
+
+    # Act
+    restored = decode_aggregate(payload, Patient)
+
+    # Assert: dataclassの既定値へ安全にフォールバックすること
+    assert restored.status == PatientStatus.ACTIVE
+    assert restored.merged_into_id is None
+    assert restored.status_history == ()

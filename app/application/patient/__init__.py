@@ -8,6 +8,10 @@ from app.application.patient.change_patient_names import (
     ChangePatientNamesCommand,
     ChangePatientNamesUseCase,
 )
+from app.application.patient.deactivate_patient import (
+    DeactivatePatientCommand,
+    DeactivatePatientUseCase,
+)
 from app.application.patient.deactivate_patient_external_identifier import (
     DeactivatePatientExternalIdentifierCommand,
     DeactivatePatientExternalIdentifierUseCase,
@@ -21,6 +25,7 @@ from app.application.patient.get_patient import (
     GetPatientQuery,
     GetPatientUseCase,
     PatientDto,
+    PatientStatusChangeDto,
 )
 from app.application.patient.get_patient_external_identifier import (
     GetPatientExternalIdentifierQuery,
@@ -29,6 +34,15 @@ from app.application.patient.get_patient_external_identifier import (
 from app.application.patient.list_patient_external_identifiers import (
     ListPatientExternalIdentifiersQuery,
     ListPatientExternalIdentifiersUseCase,
+)
+from app.application.patient.merge_patients import (
+    MergePatientsCommand,
+    MergePatientsResultDto,
+    MergePatientsUseCase,
+)
+from app.application.patient.reactivate_patient import (
+    ReactivatePatientCommand,
+    ReactivatePatientUseCase,
 )
 from app.application.patient.register_patient import (
     RegisterPatientCommand,
@@ -45,19 +59,27 @@ __all__ = [
     "ChangePatientBirthDateUseCase",
     "ChangePatientNamesCommand",
     "ChangePatientNamesUseCase",
+    "DeactivatePatientCommand",
     "DeactivatePatientExternalIdentifierCommand",
     "DeactivatePatientExternalIdentifierUseCase",
+    "DeactivatePatientUseCase",
     "GetPatientExternalIdentifierQuery",
     "GetPatientExternalIdentifierUseCase",
     "GetPatientQuery",
     "GetPatientUseCase",
     "ListPatientExternalIdentifiersQuery",
     "ListPatientExternalIdentifiersUseCase",
+    "MergePatientsCommand",
+    "MergePatientsResultDto",
+    "MergePatientsUseCase",
     "PatientApplicationError",
     "PatientDto",
     "PatientExternalIdentifierDto",
     "PatientExternalIdentifierNotFoundError",
     "PatientNotFoundError",
+    "PatientStatusChangeDto",
+    "ReactivatePatientCommand",
+    "ReactivatePatientUseCase",
     "RegisterPatientCommand",
     "RegisterPatientExternalIdentifierCommand",
     "RegisterPatientExternalIdentifierUseCase",

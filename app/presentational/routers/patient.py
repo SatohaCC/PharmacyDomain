@@ -16,12 +16,16 @@ from fastapi import APIRouter, Depends, Response
 from app.application.patient import (
     ChangePatientBirthDateCommand,
     ChangePatientNamesCommand,
+    DeactivatePatientCommand,
     DeactivatePatientExternalIdentifierCommand,
     GetPatientExternalIdentifierQuery,
     GetPatientQuery,
     ListPatientExternalIdentifiersQuery,
+    MergePatientsCommand,
+    MergePatientsResultDto,
     PatientDto,
     PatientExternalIdentifierDto,
+    ReactivatePatientCommand,
     RegisterPatientCommand,
     RegisterPatientExternalIdentifierCommand,
 )
@@ -65,6 +69,25 @@ class ChangePatientBirthDateRequest(RequestModel):
     """生年月日変更の入力。``None`` は解除を意味する。"""
 
     birth_date: date | None = None
+
+
+class DeactivatePatientRequest(RequestModel):
+    """患者無効化の入力。"""
+
+    reason: str
+
+
+class ReactivatePatientRequest(RequestModel):
+    """患者再有効化の入力。"""
+
+    reason: str
+
+
+class MergePatientsRequest(RequestModel):
+    """患者名寄せ統合の入力。"""
+
+    target_patient_id: str
+    reason: str
 
 
 class RegisterExternalIdentifierRequest(RequestModel):
@@ -154,6 +177,72 @@ async def change_patient_birth_date(
             corporate_id=corporate_id,
             patient_id=patient_id,
             birth_date=body.birth_date,
+        )
+    )
+
+
+@router.post(
+    "/patients/{patient_id}/deactivation",
+    status_code=HTTPStatus.NO_CONTENT,
+    response_class=Response,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def deactivate_patient(
+    corporate_id: str,
+    patient_id: str,
+    body: DeactivatePatientRequest,
+    use_cases: PatientUseCasesDep,
+) -> None:
+    """患者を無効化（利用停止）する。"""
+    await use_cases.deactivate.execute(
+        DeactivatePatientCommand(
+            corporate_id=corporate_id,
+            patient_id=patient_id,
+            reason=body.reason,
+        )
+    )
+
+
+@router.post(
+    "/patients/{patient_id}/reactivation",
+    status_code=HTTPStatus.NO_CONTENT,
+    response_class=Response,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def reactivate_patient(
+    corporate_id: str,
+    patient_id: str,
+    body: ReactivatePatientRequest,
+    use_cases: PatientUseCasesDep,
+) -> None:
+    """患者を再有効化する。"""
+    await use_cases.reactivate.execute(
+        ReactivatePatientCommand(
+            corporate_id=corporate_id,
+            patient_id=patient_id,
+            reason=body.reason,
+        )
+    )
+
+
+@router.post(
+    "/patients/{patient_id}/merge",
+    response_model=MergePatientsResultDto,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def merge_patients(
+    corporate_id: str,
+    patient_id: str,
+    body: MergePatientsRequest,
+    use_cases: PatientUseCasesDep,
+) -> MergePatientsResultDto:
+    """患者を別の患者集約へ名寄せ統合する。"""
+    return await use_cases.merge.execute(
+        MergePatientsCommand(
+            corporate_id=corporate_id,
+            source_patient_id=patient_id,
+            target_patient_id=body.target_patient_id,
+            reason=body.reason,
         )
     )
 
