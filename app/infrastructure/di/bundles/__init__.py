@@ -8,6 +8,10 @@ from app.infrastructure.di.bundles.clinical import (
     build_medication_history_use_cases,
     build_prescription_use_cases,
 )
+from app.infrastructure.di.bundles.integration import (
+    IntegrationUseCases,
+    build_integration_use_cases,
+)
 from app.infrastructure.di.bundles.medicine_catalog import (
     MedicineCatalogUseCases,
     build_medicine_catalog_use_cases,
@@ -33,6 +37,7 @@ __all__ = [
     "CorporateUseCases",
     "CoverageUseCases",
     "DispensingUseCases",
+    "IntegrationUseCases",
     "MedicationHistoryUseCases",
     "MedicineCatalogUseCases",
     "PatientUseCases",
@@ -43,6 +48,7 @@ __all__ = [
     "build_corporate_use_cases",
     "build_coverage_use_cases",
     "build_dispensing_use_cases",
+    "build_integration_use_cases",
     "build_medication_history_use_cases",
     "build_medicine_catalog_use_cases",
     "build_patient_use_cases",
