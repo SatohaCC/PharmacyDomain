@@ -39,6 +39,7 @@ from app.application.coverage import (
 )
 from app.application.medicine_catalog import (
     GetEffectiveMedicineUseCase,
+    ImportYjCatalogUseCase,
     RegisterMedicineUseCase,
 )
 from app.application.patient import (
@@ -345,16 +346,18 @@ def create_reception_use_cases(
 
 def create_medicine_catalog_use_cases(
     medicines: InMemoryMedicineCatalogRepository,
+    authorization: AuthorizationService | None = None,
 ) -> MedicineCatalogUseCases:
     """インメモリRepositoryの上に医薬品マスタユースケース束を組み立てる。
 
     薬価基準は法人ごとに内容が違わないので、対象法人を伴わない
     ``AuthorizationService`` を直接渡す。
     """
-    authorization = AuthorizationService(vendor_admin())
+    auth = authorization or AuthorizationService(vendor_admin())
     return MedicineCatalogUseCases(
         register=RegisterMedicineUseCase(
-            medicines, authorization, MedicineEffectivePeriodConflictService()
+            medicines, auth, MedicineEffectivePeriodConflictService()
         ),
-        get_effective=GetEffectiveMedicineUseCase(medicines, authorization),
+        get_effective=GetEffectiveMedicineUseCase(medicines, auth),
+        import_yj=ImportYjCatalogUseCase(medicines, auth),
     )
