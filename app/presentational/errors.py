@@ -94,7 +94,10 @@ from app.domain.medication_history.exceptions import (
     TracingReportNotFoundError,
 )
 from app.domain.medicine_catalog.exceptions import MedicineEffectivePeriodConflictError
-from app.domain.patient.exceptions import PatientExternalIdentifierAlreadyExistsError
+from app.domain.patient.exceptions import (
+    PatientExternalIdentifierAlreadyExistsError,
+    PatientStateConflictError,
+)
 from app.domain.prescription.exceptions import (
     InquiryAlreadyResolvedError,
     InquiryNotFoundError,
@@ -179,6 +182,7 @@ _STATUS_BY_EXCEPTION: Final[Mapping[type[BaseException], HTTPStatus]] = {
     ManagerExclusiveDutyConflictError: HTTPStatus.CONFLICT,
     ManagerAssignmentStateConflictError: HTTPStatus.CONFLICT,
     StoreStateConflictError: HTTPStatus.CONFLICT,
+    PatientStateConflictError: HTTPStatus.CONFLICT,
     # --- 403: 主体は判明したうえでの拒否 ---
     # 別テナントのリソースは TenantBoundaryNotFoundError（404）として隠すので、
     # ここへ来るのは自テナント内の権限不足だけである。

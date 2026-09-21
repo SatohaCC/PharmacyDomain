@@ -45,9 +45,12 @@ from app.application.patient import (
     ChangePatientBirthDateUseCase,
     ChangePatientNamesUseCase,
     DeactivatePatientExternalIdentifierUseCase,
+    DeactivatePatientUseCase,
     GetPatientExternalIdentifierUseCase,
     GetPatientUseCase,
     ListPatientExternalIdentifiersUseCase,
+    MergePatientsUseCase,
+    ReactivatePatientUseCase,
     RegisterPatientExternalIdentifierUseCase,
     RegisterPatientUseCase,
 )
@@ -267,11 +270,15 @@ def create_patient_use_cases(
 ) -> PatientUseCases:
     """インメモリRepositoryの上に患者ユースケース束を組み立てる。"""
     access = _access_for(corporate_repository)
+    clock = FakeClock()
     return PatientUseCases(
         register=RegisterPatientUseCase(patients, access),
         get=GetPatientUseCase(patients, access),
         change_names=ChangePatientNamesUseCase(patients, access),
         change_birth_date=ChangePatientBirthDateUseCase(patients, access),
+        deactivate=DeactivatePatientUseCase(patients, access, clock),
+        reactivate=ReactivatePatientUseCase(patients, access, clock),
+        merge=MergePatientsUseCase(patients, access, clock),
         register_external_identifier=RegisterPatientExternalIdentifierUseCase(
             patients, identifiers, access
         ),

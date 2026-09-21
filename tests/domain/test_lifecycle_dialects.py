@@ -44,7 +44,9 @@ LIFECYCLE_DIALECTS: dict[str, str] = {
     # 医薬品マスタは収載日〜経過措置期限で有効期間が決まる。期限当日までは
     # 使えるので閉区間であり、資格の半開区間とは区間の取り方が違う。
     "Medicine": "dated_activation",
-    "Patient": "none",
+    # 患者は通常（active）、死亡・転居等の無効化（inactive）、および
+    # 重複登録解消のための名寄せ統合（merged）の状態を持つ。
+    "Patient": "status_enum",
     # 頭書きは薬歴からの投影なので「無効化」という状態を持たない。
     # 要素の終了は併用薬の ended_on など、要素側の期間で表す。
     "PatientMedicalProfile": "none",

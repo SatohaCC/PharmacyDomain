@@ -21,6 +21,19 @@ class GetPatientQuery:
 
 
 @dataclass(frozen=True, kw_only=True)
+class PatientStatusChangeDto:
+    """患者状態変更履歴DTO。"""
+
+    before: str
+    after: str
+    reason: str
+    person_id: str
+    account_id: str
+    recorded_at: str
+    merged_into_id: str | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
 class PatientDto:
     """患者詳細の出力データ（DTO）。"""
 
@@ -32,6 +45,9 @@ class PatientDto:
     last_name_kana: str
     first_name_kana: str
     birth_date: str | None
+    status: str = "active"
+    merged_into_id: str | None = None
+    status_history: tuple[PatientStatusChangeDto, ...] = ()
 
     @classmethod
     def from_entity(cls, patient: Patient) -> PatientDto:
@@ -46,6 +62,24 @@ class PatientDto:
             first_name_kana=patient.names.kana.first_name.value,
             birth_date=(
                 patient.birth_date.value.isoformat() if patient.birth_date else None
+            ),
+            status=patient.status.value,
+            merged_into_id=str(patient.merged_into_id.value)
+            if patient.merged_into_id
+            else None,
+            status_history=tuple(
+                PatientStatusChangeDto(
+                    before=change.before.value,
+                    after=change.after.value,
+                    reason=change.reason.value,
+                    person_id=str(change.person_id.value),
+                    account_id=str(change.account_id.value),
+                    recorded_at=change.recorded_at.isoformat(),
+                    merged_into_id=str(change.merged_into_id.value)
+                    if change.merged_into_id
+                    else None,
+                )
+                for change in patient.status_history
             ),
         )
 

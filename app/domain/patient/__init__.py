@@ -3,8 +3,15 @@
 from app.domain.patient.exceptions import (
     PatientDomainError,
     PatientExternalIdentifierAlreadyExistsError,
+    PatientStateConflictError,
 )
 from app.domain.patient.external_identifier import PatientExternalIdentifier
+from app.domain.patient.lifecycle import (
+    PatientStatus,
+    PatientStatusChange,
+    PatientStatusReason,
+)
+from app.domain.patient.merge_service import PatientMergeService
 from app.domain.patient.patient import Patient
 from app.domain.patient.primitives import (
     ExternalPatientId,
@@ -30,6 +37,11 @@ __all__ = [
     "PatientExternalIdentifierId",
     "PatientExternalIdentifierRepository",
     "PatientId",
+    "PatientMergeService",
     "PatientNumber",
     "PatientRepository",
+    "PatientStateConflictError",
+    "PatientStatus",
+    "PatientStatusChange",
+    "PatientStatusReason",
 ]

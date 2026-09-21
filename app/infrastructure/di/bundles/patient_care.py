@@ -34,6 +34,7 @@ from app.application.patient.change_patient_birth_date import (
     ChangePatientBirthDateUseCase,
 )
 from app.application.patient.change_patient_names import ChangePatientNamesUseCase
+from app.application.patient.deactivate_patient import DeactivatePatientUseCase
 from app.application.patient.deactivate_patient_external_identifier import (
     DeactivatePatientExternalIdentifierUseCase,
 )
@@ -44,6 +45,8 @@ from app.application.patient.get_patient_external_identifier import (
 from app.application.patient.list_patient_external_identifiers import (
     ListPatientExternalIdentifiersUseCase,
 )
+from app.application.patient.merge_patients import MergePatientsUseCase
+from app.application.patient.reactivate_patient import ReactivatePatientUseCase
 from app.application.patient.register_patient import RegisterPatientUseCase
 from app.application.patient.register_patient_external_identifier import (
     RegisterPatientExternalIdentifierUseCase,
@@ -71,6 +74,9 @@ class PatientUseCases:
     get: GetPatientUseCase
     change_names: ChangePatientNamesUseCase
     change_birth_date: ChangePatientBirthDateUseCase
+    deactivate: DeactivatePatientUseCase
+    reactivate: ReactivatePatientUseCase
+    merge: MergePatientsUseCase
     register_external_identifier: RegisterPatientExternalIdentifierUseCase
     get_external_identifier: GetPatientExternalIdentifierUseCase
     list_external_identifiers: ListPatientExternalIdentifiersUseCase
@@ -80,6 +86,7 @@ class PatientUseCases:
 def build_patient_use_cases(
     repositories: PostgresRepositorySet,
     corporate_access: CorporateAccessService,
+    clock: Clock,
 ) -> PatientUseCases:
     """患者ユースケースを組み立てる。"""
     patient_repository = repositories.patient
@@ -91,6 +98,13 @@ def build_patient_use_cases(
         change_birth_date=ChangePatientBirthDateUseCase(
             patient_repository, corporate_access
         ),
+        deactivate=DeactivatePatientUseCase(
+            patient_repository, corporate_access, clock
+        ),
+        reactivate=ReactivatePatientUseCase(
+            patient_repository, corporate_access, clock
+        ),
+        merge=MergePatientsUseCase(patient_repository, corporate_access, clock),
         register_external_identifier=RegisterPatientExternalIdentifierUseCase(
             patient_repository, identifier_repository, corporate_access
         ),
