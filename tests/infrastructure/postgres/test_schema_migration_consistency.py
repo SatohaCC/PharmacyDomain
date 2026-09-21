@@ -34,6 +34,9 @@ from app.domain.identity.primitives import (
 )
 from app.domain.identity.staff_person_link import StaffPersonLink
 from app.domain.identity.user_account import UserAccount
+from app.domain.medication_history.category_catalog import (
+    MedicationHistoryCategoryCatalog,
+)
 from app.domain.shared.person_name import PersonNames
 from app.domain.store.manager_assignment import (
     ManagerAssignmentPeriod,
@@ -56,6 +59,9 @@ from app.infrastructure.postgres.repositories.dispensing_process import (
 )
 from app.infrastructure.postgres.repositories.medication_history import (
     MEDICATION_HISTORY_RECORD_MAPPING,
+)
+from app.infrastructure.postgres.repositories.medication_history_category_catalog import (
+    MEDICATION_HISTORY_CATEGORY_CATALOG_MAPPING,
 )
 from app.infrastructure.postgres.repositories.medicine_catalog import MEDICINE_MAPPING
 from app.infrastructure.postgres.repositories.patient import PATIENT_MAPPING
@@ -183,6 +189,12 @@ def _row_value_cases() -> list[tuple[AggregateMapping[Any], Mapping[str, object]
         _case(PRESCRIPTION_MAPPING, create_prescription()),
         _case(DISPENSING_PROCESS_MAPPING, create_dispensing()),
         _case(MEDICATION_HISTORY_RECORD_MAPPING, create_record()),
+        _case(
+            MEDICATION_HISTORY_CATEGORY_CATALOG_MAPPING,
+            MedicationHistoryCategoryCatalog.create_default(
+                corporate_id=store.corporate_id
+            ),
+        ),
         _case(PATIENT_MEDICAL_PROFILE_MAPPING, create_medical_profile()),
         _case(MEDICINE_MAPPING, create_medicine()),
     ]

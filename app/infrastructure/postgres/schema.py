@@ -502,6 +502,20 @@ patient_medical_profiles = Table(
     ),
 )
 
+medication_history_category_catalogs = Table(
+    "medication_history_category_catalogs",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, nullable=False),
+    Column("corporate_id", UUID(as_uuid=True), nullable=False),
+    Column("payload", JSONB, nullable=False),
+    Column("version", Integer, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint(
+        "corporate_id", name="uq_medication_history_category_catalogs_corporate"
+    ),
+)
+
 # --------------------------------------------------------------------------
 # 医薬品マスタ（非テナント）
 # --------------------------------------------------------------------------

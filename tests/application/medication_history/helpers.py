@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from app.application.medication_history import (
     AmendMedicationHistoryUseCase,
     FinalizeMedicationHistoryUseCase,
+    GetCategoryCatalogUseCase,
     GetMedicationHistoryUseCase,
     GetPatientMedicalProfileUseCase,
     HandbookStatusInput,
@@ -18,6 +19,7 @@ from app.application.medication_history import (
     SoapInput,
     StartMedicationHistoryCommand,
     StartMedicationHistoryUseCase,
+    UpdateCategoryCatalogUseCase,
     UpdateMedicationHistoryDraftUseCase,
     VerifyStatutoryRecordUseCase,
 )
@@ -43,6 +45,7 @@ from tests.factories.dispensing_factory import complete_dispensing, create_dispe
 from tests.factories.medication_history_factory import create_statutory_source
 from tests.fakes.fake_clock import FakeClock
 from tests.fakes.in_memory_medication_history_repository import (
+    InMemoryMedicationHistoryCategoryCatalogRepository,
     InMemoryMedicationHistoryRepository,
 )
 from tests.fakes.in_memory_patient_medical_profile_repository import (
@@ -95,8 +98,11 @@ class MedicationHistoryFixture:
     get_profile: GetPatientMedicalProfileUseCase
     rebuild_profile: RebuildPatientMedicalProfileUseCase
     verify_statutory_record: VerifyStatutoryRecordUseCase
+    get_category_catalog: GetCategoryCatalogUseCase
+    update_category_catalog: UpdateCategoryCatalogUseCase
     record_repository: InMemoryMedicationHistoryRepository
     profile_repository: InMemoryPatientMedicalProfileRepository
+    category_catalog_repository: InMemoryMedicationHistoryCategoryCatalogRepository
     corporate_repository: AutoProvisioningCorporateRepository
     store_reference: FakeMedicationHistoryStoreReference
     dispensing_source: FakeDispensingSource
@@ -124,6 +130,7 @@ def create_fixture() -> MedicationHistoryFixture:
 
     record_repository = InMemoryMedicationHistoryRepository()
     profile_repository = InMemoryPatientMedicalProfileRepository()
+    category_catalog_repository = InMemoryMedicationHistoryCategoryCatalogRepository()
     store_reference = FakeMedicationHistoryStoreReference()
     store_reference.register(corporate_id=corporate_id, store_id=store_id)
     dispensing_source = FakeDispensingSource()
@@ -161,7 +168,11 @@ def create_fixture() -> MedicationHistoryFixture:
             record_repository, corporate_access
         ),
         finalize=FinalizeMedicationHistoryUseCase(
-            record_repository, profile_repository, corporate_access, NullUnitOfWork()
+            record_repository,
+            profile_repository,
+            corporate_access,
+            NullUnitOfWork(),
+            category_catalog_repository=category_catalog_repository,
         ),
         amend=AmendMedicationHistoryUseCase(
             record_repository,
@@ -187,8 +198,15 @@ def create_fixture() -> MedicationHistoryFixture:
             statutory_source,
             StatutoryDispensingRecordService(),
         ),
+        get_category_catalog=GetCategoryCatalogUseCase(
+            category_catalog_repository, corporate_access
+        ),
+        update_category_catalog=UpdateCategoryCatalogUseCase(
+            category_catalog_repository, corporate_access
+        ),
         record_repository=record_repository,
         profile_repository=profile_repository,
+        category_catalog_repository=category_catalog_repository,
         corporate_repository=corporate_repository,
         store_reference=store_reference,
         dispensing_source=dispensing_source,

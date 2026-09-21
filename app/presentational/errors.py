@@ -84,6 +84,7 @@ from app.domain.medication_history.exceptions import (
     AdverseReactionNotFoundError,
     AllergyNotFoundError,
     ConcurrentMedicationNotFoundError,
+    MajorCategoryNotFoundError,
     MedicalConditionNotFoundError,
     MedicationHistoryAlreadyExistsError,
     MedicationHistoryAlreadyFinalizedError,
@@ -213,6 +214,7 @@ _STATUS_BY_EXCEPTION: Final[Mapping[type[BaseException], HTTPStatus]] = {
     MedicalConditionNotFoundError: HTTPStatus.NOT_FOUND,
     InquiryNotFoundError: HTTPStatus.NOT_FOUND,
     StaffDomainNotFoundError: HTTPStatus.NOT_FOUND,
+    MajorCategoryNotFoundError: HTTPStatus.NOT_FOUND,
     # --- 409: 既存のデータ・状態と衝突する ---
     ConcurrentModificationError: HTTPStatus.CONFLICT,
     CorporateNameAlreadyExistsError: HTTPStatus.CONFLICT,

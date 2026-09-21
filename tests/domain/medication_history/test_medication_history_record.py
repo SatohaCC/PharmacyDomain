@@ -14,21 +14,25 @@ import pytest
 from app.domain.medication_history import (
     AmendmentReason,
     AmendmentTimestamp,
+    CategorizedNote,
+    CounselingNote,
     HandbookConsolidationReason,
     HandbookGuidanceRequiredError,
     HandbookNotPresentedReason,
     HandbookReasonNotAllowedError,
     HandbookStatus,
+    MajorCategoryCode,
     MedicationHistoryAlreadyFinalizedError,
     MedicationHistoryNotFinalizedError,
     MedicationHistoryStatus,
+    MediumCategoryCode,
     ResidualDrugDetailNotAllowedError,
     ResidualDrugDetailRequiredError,
     ResidualDrugQuantity,
     ResidualDrugReason,
     ResidualDrugRecord,
+    SoapContentRequiredError,
     SoapRecord,
-    SoapSectionEmptyError,
     StatutoryCategory,
 )
 from app.domain.staff.primitives import StaffId
@@ -154,50 +158,52 @@ class TestSOAPと確定:
         # Assert
         assert actual.status is MedicationHistoryStatus.DRAFT
 
-    @pytest.mark.parametrize(
-        ("section", "label"),
-        [
-            ("subjective", "S（主観的情報）"),
-            ("objective", "O（客観的情報）"),
-            ("assessment", "A（評価）"),
-            ("plan", "P（計画）"),
-        ],
-    )
-    def test_SOAPのいずれかが空だと_確定できない(
-        self, section: str, label: str
-    ) -> None:
-        # Arrange
-        soap = create_soap()
-        empty_soap = type(soap)(
-            **{
-                **{
-                    name: getattr(soap, name)
-                    for name in ("subjective", "objective", "assessment", "plan")
-                },
-                section: (),
-            }
-        )
-        record = create_record(soap=empty_soap)
+    def test_finalize_with_partial_soap_s_only(self) -> None:
+        """TC-REC-01: S節のみでも正常に確定できること。"""
+        soap = SoapRecord(subjective=(create_note("頭痛があるとのこと。"),))
+        record = create_record(soap=soap)
+        finalized = record.finalize()
+        assert finalized.is_finalized
 
-        # Act / Assert
-        with pytest.raises(SoapSectionEmptyError, match=label):
+    def test_finalize_with_s_and_p(self) -> None:
+        """TC-REC-02: SとP節のみでも正常に確定できること。"""
+        soap = SoapRecord(
+            subjective=(create_note("頭痛改善したとのこと。"),),
+            plan=(create_note("次回経過観察。"),),
+        )
+        record = create_record(soap=soap)
+        finalized = record.finalize()
+        assert finalized.is_finalized
+
+    def test_finalize_with_completely_empty_content_rejected(self) -> None:
+        """TC-REC-04: SOAP全節が空かつ追加メモもない白紙確定は拒否されること。"""
+        record = create_record(soap=SoapRecord())
+        with pytest.raises(SoapContentRequiredError):
             record.finalize()
 
-    def test_空文字だけの記載は_記載とみなさない(self) -> None:
-        """定型文の空欄を埋めただけの記録を確定させない。"""
-        # Arrange
-        soap = create_soap()
+    def test_finalize_with_additional_notes_only(self) -> None:
+        """TC-REC-05: SOAPの4枠は空だが追加中区分メモがある場合は確定できること。"""
         record = create_record(
-            soap=type(soap)(
+            soap=SoapRecord(),
+            additional_notes=(
+                CategorizedNote(
+                    major_category_code=MajorCategoryCode("statutory"),
+                    medium_category_code=MediumCategoryCode("concurrent_medication"),
+                    text=CounselingNote("他院でロキソニン処方あり。"),
+                ),
+            ),
+        )
+        finalized = record.finalize()
+        assert finalized.is_finalized
+
+    def test_空文字だけの記載は_記載とみなさない(self) -> None:
+        """定型文の空欄を埋めただけの記録（中身なし）は確定させない。"""
+        record = create_record(
+            soap=SoapRecord(
                 subjective=(create_note("   "),),
-                objective=soap.objective,
-                assessment=soap.assessment,
-                plan=soap.plan,
             )
         )
-
-        # Act / Assert
-        with pytest.raises(SoapSectionEmptyError):
+        with pytest.raises(SoapContentRequiredError):
             record.finalize()
 
     def test_全セクションが埋まっていれば_確定できる(self) -> None:
@@ -272,16 +278,12 @@ class Test追記:
         assert len(actual.amendments) == 1
 
     def test_空セクションのあるSOAPは_追記できない(self) -> None:
-        """確定時に課した記載事項の充足を、追記で抜けられないこと。
-
-        下流が読むのは ``effective_soap``（最後の追記）なので、ここを通すと
-        通則(4) が求める記載が確定後に消える。
-        """
+        """確定済の薬歴を白紙にする追記は拒否されること（TC-REC-06）。"""
         # Arrange
         record = create_record().finalize()
 
         # Act / Assert
-        with pytest.raises(SoapSectionEmptyError):
+        with pytest.raises(SoapContentRequiredError):
             record.amend(
                 amended_soap=SoapRecord(),
                 reason=_REASON,
@@ -290,10 +292,7 @@ class Test追記:
             )
 
     def test_実効SOAPが空になる確定済の薬歴は_構築できない(self) -> None:
-        """判定が確定操作ではなく構築時にあること。
-
-        追記メソッドだけで弾くと、Repositoryからの復元がこの判定を素通りする。
-        """
+        """白紙の確定済薬歴はreplaceでも構築できない。"""
         # Arrange: 追記の中身だけを空へ差し替えた状態を組み立てる
         record = create_record().finalize()
         amended = record.amend(
@@ -305,8 +304,19 @@ class Test追記:
         emptied = replace(amended.amendments[0], amended_soap=SoapRecord())
 
         # Act / Assert
-        with pytest.raises(SoapSectionEmptyError):
+        with pytest.raises(SoapContentRequiredError):
             replace(amended, amendments=(emptied,))
+
+    def test_amend_with_partial_soap(self) -> None:
+        """TC-REC-07: Sのみの部分記載で追記できること。"""
+        record = create_record().finalize()
+        amended = record.amend(
+            amended_soap=SoapRecord(subjective=(create_note("追記: 頭痛再発。"),)),
+            reason=_REASON,
+            amended_by=StaffId.generate(),
+            amended_at=_AMENDED_AT,
+        )
+        assert amended.effective_soap.subjective[0].text.value == "追記: 頭痛再発。"
 
     def test_追記は_確定済の薬歴にだけ付く(self) -> None:
         """追記だけを持つ下書きは構築できない。"""

@@ -41,7 +41,11 @@ from app.domain.medication_history.primitives import (
     HandbookConsolidationReason,
     HandbookNotPresentedReason,
     LifestyleNote,
+    MajorCategoryCode,
+    MajorCategoryName,
     MedicationHistoryRecordId,
+    MediumCategoryCode,
+    MediumCategoryName,
     ResidualDrugQuantity,
     ResidualDrugReason,
     RetractionReason,
@@ -80,6 +84,71 @@ class ProfileProvenance(ValueObject):
         "recorded_by": "登録した薬剤師",
         "recorded_on": "登録日",
     }
+
+
+# --------------------------------------------------------------------------
+# 区分定義（大区分・中区分）
+# --------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, kw_only=True)
+class MajorCategoryDefinition(ValueObject):
+    """大区分の定義。"""
+
+    code: MajorCategoryCode
+    name: MajorCategoryName
+    display_order: int
+    is_enabled: bool = True
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "code": "大区分コード",
+        "name": "大区分名",
+        "display_order": "表示順",
+        "is_enabled": "有効フラグ",
+    }
+
+
+@dataclass(frozen=True, kw_only=True)
+class MediumCategoryDefinition(ValueObject):
+    """中区分の定義（大区分に紐づく）。"""
+
+    code: MediumCategoryCode
+    major_category_code: MajorCategoryCode
+    name: MediumCategoryName
+    display_order: int
+    is_required: bool = False
+    is_enabled: bool = True
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "code": "中区分コード",
+        "major_category_code": "親大区分コード",
+        "name": "中区分名",
+        "display_order": "表示順",
+        "is_required": "確定時必須フラグ",
+        "is_enabled": "有効フラグ",
+    }
+
+
+@dataclass(frozen=True, kw_only=True)
+class CategorizedNote(ValueObject):
+    """大区分・中区分に紐づく記載メモ1件。"""
+
+    major_category_code: MajorCategoryCode
+    medium_category_code: MediumCategoryCode
+    text: CounselingNote
+    statutory_category: StatutoryCategory = StatutoryCategory.GENERAL
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "major_category_code": "大区分コード",
+        "medium_category_code": "中区分コード",
+        "text": "記載内容",
+        "statutory_category": "法定カテゴリ",
+    }
+
+    @property
+    def has_content(self) -> bool:
+        """本文が空でないか。"""
+        return bool(self.text.value.strip())
 
 
 # --------------------------------------------------------------------------
@@ -124,6 +193,19 @@ class SoapRecord(ValueObject):
         "assessment": "A（評価）",
         "plan": "P（計画）",
     }
+
+    @property
+    def has_content(self) -> bool:
+        """S/O/A/P のいずれか1つ以上に空でない記載があるか。"""
+        return any(
+            any(note.has_content for note in getattr(self, field_name))
+            for field_name in ("subjective", "objective", "assessment", "plan")
+        )
+
+    @property
+    def is_empty(self) -> bool:
+        """S/O/A/P の全セクションに記載が無い（白紙である）か。"""
+        return not self.has_content
 
     @property
     def empty_section_label(self) -> str | None:

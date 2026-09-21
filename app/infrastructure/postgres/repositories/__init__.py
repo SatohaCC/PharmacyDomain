@@ -34,6 +34,9 @@ from app.infrastructure.postgres.repositories.dispensing_process import (
 from app.infrastructure.postgres.repositories.medication_history import (
     PostgresMedicationHistoryRepository,
 )
+from app.infrastructure.postgres.repositories.medication_history_category_catalog import (
+    PostgresMedicationHistoryCategoryCatalogRepository,
+)
 from app.infrastructure.postgres.repositories.medicine_catalog import (
     PostgresMedicineCatalogRepository,
 )
@@ -91,6 +94,9 @@ class PostgresRepositorySet:
     prescription: PostgresPrescriptionRepository
     dispensing: PostgresDispensingProcessRepository
     medication_history: PostgresMedicationHistoryRepository
+    medication_history_category_catalog: (
+        PostgresMedicationHistoryCategoryCatalogRepository
+    )
     patient_medical_profile: PostgresPatientMedicalProfileRepository
     medicine_catalog: PostgresMedicineCatalogRepository
 
@@ -118,6 +124,9 @@ class PostgresRepositorySet:
             prescription=PostgresPrescriptionRepository(unit_of_work),
             dispensing=PostgresDispensingProcessRepository(unit_of_work),
             medication_history=PostgresMedicationHistoryRepository(unit_of_work),
+            medication_history_category_catalog=(
+                PostgresMedicationHistoryCategoryCatalogRepository(unit_of_work)
+            ),
             patient_medical_profile=PostgresPatientMedicalProfileRepository(
                 unit_of_work
             ),
@@ -129,6 +138,7 @@ __all__ = [
     "PostgresCorporateRepository",
     "PostgresCoverageSelectionRecordRepository",
     "PostgresDispensingProcessRepository",
+    "PostgresMedicationHistoryCategoryCatalogRepository",
     "PostgresMedicationHistoryRepository",
     "PostgresMedicineCatalogRepository",
     "PostgresPatientCoverageRepository",

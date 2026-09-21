@@ -20,6 +20,47 @@ class LabeledNoteInput:
 
 
 @dataclass(frozen=True, kw_only=True)
+class CategorizedNoteInput:
+    """大区分・中区分に紐づく記載メモ1件の入力。"""
+
+    major_category_code: str
+    medium_category_code: str
+    text: str
+    category: str = "general"
+
+
+@dataclass(frozen=True, kw_only=True)
+class MajorCategoryInput:
+    """大区分定義の入力。"""
+
+    code: str
+    name: str
+    display_order: int
+    is_enabled: bool = True
+
+
+@dataclass(frozen=True, kw_only=True)
+class MediumCategoryInput:
+    """中区分定義の入力。"""
+
+    code: str
+    major_category_code: str
+    name: str
+    display_order: int
+    is_required: bool = False
+    is_enabled: bool = True
+
+
+@dataclass(frozen=True, kw_only=True)
+class UpdateCategoryCatalogCommand:
+    """法人別薬歴記載区分カタログの更新入力。"""
+
+    corporate_id: str
+    major_categories: tuple[MajorCategoryInput, ...] = ()
+    medium_categories: tuple[MediumCategoryInput, ...] = ()
+
+
+@dataclass(frozen=True, kw_only=True)
 class SoapInput:
     """SOAP各セクションの入力。"""
 

@@ -52,6 +52,7 @@ READ_SCOPE_KINDS: Final[Mapping[str, ReadScopeKind]] = {
     "patient_external_identifiers": ReadScopeKind.CORPORATE,
     "patient_coverages": ReadScopeKind.CORPORATE,
     "patient_medical_profiles": ReadScopeKind.CORPORATE,
+    "medication_history_category_catalogs": ReadScopeKind.CORPORATE,
     "corporate_memberships": ReadScopeKind.CORPORATE,
     "user_invitations": ReadScopeKind.CORPORATE,
     "staff_person_links": ReadScopeKind.CORPORATE,

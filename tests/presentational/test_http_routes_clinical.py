@@ -426,6 +426,8 @@ def history_client(
         get_medical_profile=history_fixture.get_profile,
         rebuild_medical_profile=history_fixture.rebuild_profile,
         verify_statutory_record=history_fixture.verify_statutory_record,
+        get_category_catalog=history_fixture.get_category_catalog,
+        update_category_catalog=history_fixture.update_category_catalog,
     )
     yield from _client({get_medication_history_use_cases: lambda: bundle})
 
