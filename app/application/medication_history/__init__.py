@@ -1,5 +1,8 @@
 """MedicationHistoryコンテキストのApplication公開窓口。"""
 
+from app.application.medication_history.add_follow_up import (
+    AddFollowUpUseCase,
+)
 from app.application.medication_history.amend_medication_history import (
     AmendMedicationHistoryCommand,
     AmendMedicationHistoryUseCase,
@@ -27,6 +30,8 @@ from app.application.medication_history.finalize_medication_history import (
 )
 from app.application.medication_history.get_medication_history import (
     AmendmentDto,
+    CategorizedNoteDto,
+    FollowUpDto,
     GetMedicationHistoryQuery,
     GetMedicationHistoryUseCase,
     HandbookStatusDto,
@@ -53,6 +58,7 @@ from app.application.medication_history.get_patient_medical_profile import (
     RebuildPatientMedicalProfileUseCase,
 )
 from app.application.medication_history.inputs import (
+    AddFollowUpCommand,
     AdverseReactionIntentInput,
     AllergyIntentInput,
     CategorizedNoteInput,
@@ -95,6 +101,8 @@ from app.application.medication_history.verify_statutory_record import (
 )
 
 __all__ = [
+    "AddFollowUpCommand",
+    "AddFollowUpUseCase",
     "AdverseReactionDto",
     "AdverseReactionIntentInput",
     "AllergyDto",
@@ -102,6 +110,7 @@ __all__ = [
     "AmendMedicationHistoryCommand",
     "AmendMedicationHistoryUseCase",
     "AmendmentDto",
+    "CategorizedNoteDto",
     "CategorizedNoteInput",
     "CategoryCatalogDto",
     "ConcurrentMedicationDto",
@@ -111,6 +120,7 @@ __all__ = [
     "FamilyPharmacistDto",
     "FinalizeMedicationHistoryCommand",
     "FinalizeMedicationHistoryUseCase",
+    "FollowUpDto",
     "GenericPreferenceDto",
     "GetCategoryCatalogUseCase",
     "GetMedicationHistoryQuery",

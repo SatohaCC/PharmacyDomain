@@ -40,6 +40,9 @@ from app.application.dispensing.record_dispensed_content import (
 )
 from app.application.dispensing.start_dispensing import StartDispensingUseCase
 from app.application.dispensing.verify_dispensing import VerifyDispensingUseCase
+from app.application.medication_history.add_follow_up import (
+    AddFollowUpUseCase,
+)
 from app.application.medication_history.amend_medication_history import (
     AmendMedicationHistoryUseCase,
 )
@@ -236,6 +239,7 @@ class MedicationHistoryUseCases:
     verify_statutory_record: VerifyStatutoryRecordUseCase
     get_category_catalog: GetCategoryCatalogUseCase
     update_category_catalog: UpdateCategoryCatalogUseCase
+    add_follow_up: AddFollowUpUseCase
 
 
 def build_medication_history_use_cases(
@@ -310,6 +314,14 @@ def build_medication_history_use_cases(
         update_category_catalog=UpdateCategoryCatalogUseCase(
             catalog_repository,
             corporate_access,
+        ),
+        add_follow_up=AddFollowUpUseCase(
+            record_repository,
+            profile_repository,
+            corporate_access,
+            counselor_qualification,
+            counselor,
+            unit_of_work=unit_of_work,
         ),
     )
 

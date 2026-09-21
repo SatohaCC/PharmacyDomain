@@ -9,8 +9,10 @@ JSONを置くと、Application層の項目が増えたときにテストだけ�
 from __future__ import annotations
 
 from collections.abc import Iterator
+from datetime import datetime
 from http import HTTPStatus
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
@@ -32,6 +34,7 @@ from app.presentational.dependencies import (
 )
 from app.presentational.routers.dispensing import StartDispensingRequest
 from app.presentational.routers.medication_history import (
+    AddFollowUpRequest,
     StartMedicationHistoryRequest,
 )
 from app.presentational.routers.prescription import RegisterPrescriptionRequest
@@ -428,6 +431,7 @@ def history_client(
         verify_statutory_record=history_fixture.verify_statutory_record,
         get_category_catalog=history_fixture.get_category_catalog,
         update_category_catalog=history_fixture.update_category_catalog,
+        add_follow_up=history_fixture.add_follow_up,
     )
     yield from _client({get_medication_history_use_cases: lambda: bundle})
 
@@ -575,3 +579,85 @@ def test_確定済の薬歴は_調剤録の代替可否を返す(
     assert body["substitutes_dispensing_record"] is True
     assert body["blockers"] == []
     assert len(body["assessments"]) == len(StatutoryDispensingRecordItem)
+
+
+def test_確定済みの薬歴にフォローアップを追加できる(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    """TC-HTTP-01: 確定済み薬歴にフォローアップを追加して 201 CREATED が返る。"""
+    # Arrange
+    corporate_id = str(history_fixture.corporate_id.value)
+    started = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories",
+        json=_start_history_body(history_fixture),
+        headers=_HEADERS,
+    )
+    assert started.status_code == HTTPStatus.CREATED, started.text
+    record_id = started.json()["id"]
+    finalized = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/{record_id}/finalization",
+        headers=_HEADERS,
+    )
+    assert finalized.status_code == HTTPStatus.OK, finalized.text
+
+    body = AddFollowUpRequest(
+        counselor_id=str(history_fixture.counselor_id.value),
+        followed_up_at=datetime(2026, 9, 3, 14, 0, tzinfo=ZoneInfo("Asia/Tokyo")),
+        method="telephone",
+        soap=history_helpers.create_soap_input(
+            subjective="服用後の体調確認。問題なし。"
+        ),
+    ).model_dump(mode="json")
+
+    # Act
+    response = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/{record_id}/follow-ups",
+        json=body,
+        headers=_HEADERS,
+    )
+
+    # Assert
+    assert response.status_code == HTTPStatus.CREATED, response.text
+    result = response.json()
+    assert len(result["follow_ups"]) == 1
+    assert result["follow_ups"][0]["counselor_id"] == str(
+        history_fixture.counselor_id.value
+    )
+    assert result["follow_ups"][0]["method"] == "telephone"
+
+
+def test_未確定の下書き薬歴にフォローアップを追加すると422が返る(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    """TC-HTTP-02: 未確定（下書き）の薬歴にフォローアップを追加すると 422 UNPROCESSABLE_CONTENT。"""
+    # Arrange
+    corporate_id = str(history_fixture.corporate_id.value)
+    started = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories",
+        json=_start_history_body(history_fixture),
+        headers=_HEADERS,
+    )
+    assert started.status_code == HTTPStatus.CREATED, started.text
+    record_id = started.json()["id"]
+
+    body = AddFollowUpRequest(
+        counselor_id=str(history_fixture.counselor_id.value),
+        followed_up_at=datetime(2026, 9, 3, 14, 0, tzinfo=ZoneInfo("Asia/Tokyo")),
+        method="telephone",
+        soap=history_helpers.create_soap_input(
+            subjective="服用後の体調確認。問題なし。"
+        ),
+    ).model_dump(mode="json")
+
+    # Act
+    response = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/{record_id}/follow-ups",
+        json=body,
+        headers=_HEADERS,
+    )
+
+    # Assert
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_CONTENT, response.text
+    assert response.json()["code"]

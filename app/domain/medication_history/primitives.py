@@ -47,6 +47,12 @@ class CategoryCatalogId(EntityUUID):
     identifier_name = "区分カタログID"
 
 
+class FollowUpId(EntityUUID):
+    """服薬期間中のフォローアップ記録を一意に識別するID（UUIDv7）。"""
+
+    identifier_name = "フォローアップID"
+
+
 class MajorCategoryCode(BaseNormalizedString):
     """大区分コード（英小文字推奨、例: soap, statutory）。"""
 
@@ -110,6 +116,7 @@ class CounselingMethod(StrEnum):
     ONLINE = "online"
     TELEPHONE = "telephone"
     HOME_VISIT = "home_visit"
+    OTC = "otc"
 
     @property
     def label(self) -> str:
@@ -119,6 +126,7 @@ class CounselingMethod(StrEnum):
             self.ONLINE: "オンライン",
             self.TELEPHONE: "電話",
             self.HOME_VISIT: "訪問",
+            self.OTC: "OTC対応",
         }
         return labels[self]
 

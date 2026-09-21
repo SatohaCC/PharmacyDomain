@@ -8,7 +8,7 @@ SOAP のラベル付き記述と、頭書きへの差分（Intent）を受け取
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -198,3 +198,20 @@ class ProfileUpdateInput:
     generic_preference: str | None = None
     family_pharmacist_id: str | None = None
     family_pharmacist_agreed_on: date | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class AddFollowUpCommand:
+    """服薬期間中のフォローアップ追加コマンド。"""
+
+    corporate_id: str
+    record_id: str
+    counselor_id: str
+    followed_up_at: datetime
+    method: str
+    soap: SoapInput = field(default_factory=SoapInput)
+    handbook_status: HandbookStatusInput | None = None
+    residual_drug: ResidualDrugInput | None = None
+    information_sheet_provided: bool = False
+    profile_updates: ProfileUpdateInput | None = None
+    additional_notes: tuple[CategorizedNoteInput, ...] = ()
