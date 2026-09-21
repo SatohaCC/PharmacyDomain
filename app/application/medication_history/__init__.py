@@ -41,6 +41,8 @@ from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
     ResidualDrugDto,
     SoapDto,
+    TracingReportDto,
+    TracingReportResponseDto,
 )
 from app.application.medication_history.get_patient_medical_profile import (
     AdverseReactionDto,
@@ -69,6 +71,8 @@ from app.application.medication_history.inputs import (
     MajorCategoryInput,
     MediumCategoryInput,
     ProfileUpdateInput,
+    RecordTracingReportCommand,
+    RecordTracingReportResponseCommand,
     ResidualDrugInput,
     RetractAdverseReactionIntentInput,
     RetractAllergyIntentInput,
@@ -77,6 +81,12 @@ from app.application.medication_history.inputs import (
     StopConcurrentMedicationIntentInput,
     UpdateCategoryCatalogCommand,
     UpdateConditionStatusIntentInput,
+)
+from app.application.medication_history.record_tracing_report import (
+    RecordTracingReportUseCase,
+)
+from app.application.medication_history.record_tracing_report_response import (
+    RecordTracingReportResponseUseCase,
 )
 from app.application.medication_history.reference import (
     DispensingReferenceBoundary,
@@ -153,6 +163,10 @@ __all__ = [
     "ProvenanceDto",
     "RebuildPatientMedicalProfileCommand",
     "RebuildPatientMedicalProfileUseCase",
+    "RecordTracingReportCommand",
+    "RecordTracingReportResponseCommand",
+    "RecordTracingReportResponseUseCase",
+    "RecordTracingReportUseCase",
     "ResidualDrugDto",
     "ResidualDrugInput",
     "RetractAdverseReactionIntentInput",
@@ -169,6 +183,8 @@ __all__ = [
     "StatutoryRecordSufficiencyDto",
     "StopConcurrentMedicationIntentInput",
     "StoreReferenceBoundary",
+    "TracingReportDto",
+    "TracingReportResponseDto",
     "UpdateCategoryCatalogCommand",
     "UpdateCategoryCatalogUseCase",
     "UpdateConditionStatusIntentInput",

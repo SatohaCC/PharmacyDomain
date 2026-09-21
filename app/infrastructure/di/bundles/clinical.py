@@ -61,6 +61,12 @@ from app.application.medication_history.get_patient_medical_profile import (
     GetPatientMedicalProfileUseCase,
     RebuildPatientMedicalProfileUseCase,
 )
+from app.application.medication_history.record_tracing_report import (
+    RecordTracingReportUseCase,
+)
+from app.application.medication_history.record_tracing_report_response import (
+    RecordTracingReportResponseUseCase,
+)
 from app.application.medication_history.start_medication_history import (
     StartMedicationHistoryUseCase,
 )
@@ -240,6 +246,8 @@ class MedicationHistoryUseCases:
     get_category_catalog: GetCategoryCatalogUseCase
     update_category_catalog: UpdateCategoryCatalogUseCase
     add_follow_up: AddFollowUpUseCase
+    record_tracing_report: RecordTracingReportUseCase
+    record_tracing_report_response: RecordTracingReportResponseUseCase
 
 
 def build_medication_history_use_cases(
@@ -322,6 +330,16 @@ def build_medication_history_use_cases(
             counselor_qualification,
             counselor,
             unit_of_work=unit_of_work,
+        ),
+        record_tracing_report=RecordTracingReportUseCase(
+            record_repository,
+            corporate_access,
+            counselor_qualification,
+            counselor,
+        ),
+        record_tracing_report_response=RecordTracingReportResponseUseCase(
+            record_repository,
+            corporate_access,
         ),
     )
 

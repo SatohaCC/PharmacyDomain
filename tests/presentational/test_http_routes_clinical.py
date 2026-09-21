@@ -35,6 +35,8 @@ from app.presentational.dependencies import (
 from app.presentational.routers.dispensing import StartDispensingRequest
 from app.presentational.routers.medication_history import (
     AddFollowUpRequest,
+    RecordTracingReportRequest,
+    RecordTracingReportResponseRequest,
     StartMedicationHistoryRequest,
 )
 from app.presentational.routers.prescription import RegisterPrescriptionRequest
@@ -432,6 +434,8 @@ def history_client(
         get_category_catalog=history_fixture.get_category_catalog,
         update_category_catalog=history_fixture.update_category_catalog,
         add_follow_up=history_fixture.add_follow_up,
+        record_tracing_report=history_fixture.record_tracing_report,
+        record_tracing_report_response=history_fixture.record_tracing_report_response,
     )
     yield from _client({get_medication_history_use_cases: lambda: bundle})
 
@@ -661,3 +665,200 @@ def test_未確定の下書き薬歴にフォローアップを追加すると42
     # Assert
     assert response.status_code == HTTPStatus.UNPROCESSABLE_CONTENT, response.text
     assert response.json()["code"]
+
+
+def test_確定済みの薬歴にトレーシングレポートを追加できる(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    """TC-HTTP-01: 確定済みの薬歴にトレーシングレポートを追加して 201 CREATED。"""
+    # Arrange
+    corporate_id = str(history_fixture.corporate_id.value)
+    started = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories",
+        json=_start_history_body(history_fixture),
+        headers=_HEADERS,
+    )
+    assert started.status_code == HTTPStatus.CREATED, started.text
+    record_id = started.json()["id"]
+
+    finalized = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/{record_id}/finalization",
+        headers=_HEADERS,
+    )
+    assert finalized.status_code == HTTPStatus.OK, finalized.text
+
+    body = RecordTracingReportRequest(
+        reporter_id=str(history_fixture.counselor_id.value),
+        provided_at=datetime(2026, 9, 3, 14, 0, tzinfo=ZoneInfo("Asia/Tokyo")),
+        medical_institution_name="総合病院",
+        physician_name="山田医師",
+        category="residual_drug",
+        fee_category="fee_1",
+        delivery_method="fax",
+        content="残薬7日分あり",
+    ).model_dump(mode="json")
+
+    # Act
+    response = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/{record_id}/tracing-reports",
+        json=body,
+        headers=_HEADERS,
+    )
+
+    # Assert
+    assert response.status_code == HTTPStatus.CREATED, response.text
+    result = response.json()
+    assert len(result["tracing_reports"]) == 1
+    report = result["tracing_reports"][0]
+    assert report["reporter_id"] == str(history_fixture.counselor_id.value)
+    assert report["medical_institution_name"] == "総合病院"
+    assert report["physician_name"] == "山田医師"
+    assert report["category"] == "residual_drug"
+    assert report["fee_category"] == "fee_1"
+    assert report["delivery_method"] == "fax"
+    assert report["content"] == "残薬7日分あり"
+    assert report["response"] is None
+
+
+def test_トレーシングレポートに医師返答を記録できる(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    """TC-HTTP-02: トレーシングレポートに対する医師返答を記録して 200 OK。"""
+    # Arrange
+    corporate_id = str(history_fixture.corporate_id.value)
+    started = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories",
+        json=_start_history_body(history_fixture),
+        headers=_HEADERS,
+    )
+    assert started.status_code == HTTPStatus.CREATED, started.text
+    record_id = started.json()["id"]
+
+    finalized = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/{record_id}/finalization",
+        headers=_HEADERS,
+    )
+    assert finalized.status_code == HTTPStatus.OK, finalized.text
+
+    report_body = RecordTracingReportRequest(
+        reporter_id=str(history_fixture.counselor_id.value),
+        provided_at=datetime(2026, 9, 3, 14, 0, tzinfo=ZoneInfo("Asia/Tokyo")),
+        medical_institution_name="総合病院",
+        physician_name="山田医師",
+        category="residual_drug",
+        fee_category="fee_1",
+        delivery_method="fax",
+        content="残薬7日分あり",
+    ).model_dump(mode="json")
+
+    report_response = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/{record_id}/tracing-reports",
+        json=report_body,
+        headers=_HEADERS,
+    )
+    assert report_response.status_code == HTTPStatus.CREATED, report_response.text
+    report_id = report_response.json()["tracing_reports"][0]["id"]
+
+    resp_body = RecordTracingReportResponseRequest(
+        responded_at=datetime(2026, 9, 4, 10, 0, tzinfo=ZoneInfo("Asia/Tokyo")),
+        content="次回処方時に7日分減数します",
+        action_type="agreed_reflect_next",
+        received_by=str(history_fixture.counselor_id.value),
+        acknowledged_physician_name="山田医師",
+    ).model_dump(mode="json")
+
+    # Act
+    response = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/{record_id}/tracing-reports/{report_id}/response",
+        json=resp_body,
+        headers=_HEADERS,
+    )
+
+    # Assert
+    assert response.status_code == HTTPStatus.OK, response.text
+    result = response.json()
+    resp_data = result["tracing_reports"][0]["response"]
+    assert resp_data is not None
+    assert resp_data["content"] == "次回処方時に7日分減数します"
+    assert resp_data["action_type"] == "agreed_reflect_next"
+    assert resp_data["received_by"] == str(history_fixture.counselor_id.value)
+    assert resp_data["acknowledged_physician_name"] == "山田医師"
+
+
+def test_未確定の下書き薬歴にトレーシングレポートを追加すると422が返る(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    """TC-HTTP-03: 未確定（下書き）の薬歴にトレーシングレポートを追加すると 422 UNPROCESSABLE_CONTENT。"""
+    # Arrange
+    corporate_id = str(history_fixture.corporate_id.value)
+    started = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories",
+        json=_start_history_body(history_fixture),
+        headers=_HEADERS,
+    )
+    assert started.status_code == HTTPStatus.CREATED, started.text
+    record_id = started.json()["id"]
+
+    body = RecordTracingReportRequest(
+        reporter_id=str(history_fixture.counselor_id.value),
+        provided_at=datetime(2026, 9, 3, 14, 0, tzinfo=ZoneInfo("Asia/Tokyo")),
+        medical_institution_name="総合病院",
+        physician_name="山田医師",
+        category="residual_drug_adjustment",
+        fee_category="fee_1",
+        delivery_method="fax",
+        content="残薬7日分あり",
+    ).model_dump(mode="json")
+
+    # Act
+    response = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/{record_id}/tracing-reports",
+        json=body,
+        headers=_HEADERS,
+    )
+
+    # Assert
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_CONTENT, response.text
+    assert response.json()["code"]
+
+
+def test_存在しないレポートIDに返答を記録すると404が返る(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    """TC-HTTP-04: 存在しないレポートIDに返答を記録すると 404 NOT_FOUND。"""
+    # Arrange
+    corporate_id = str(history_fixture.corporate_id.value)
+    started = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories",
+        json=_start_history_body(history_fixture),
+        headers=_HEADERS,
+    )
+    assert started.status_code == HTTPStatus.CREATED, started.text
+    record_id = started.json()["id"]
+
+    finalized = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/{record_id}/finalization",
+        headers=_HEADERS,
+    )
+    assert finalized.status_code == HTTPStatus.OK, finalized.text
+
+    resp_body = RecordTracingReportResponseRequest(
+        responded_at=datetime(2026, 9, 4, 10, 0, tzinfo=ZoneInfo("Asia/Tokyo")),
+        content="了解しました",
+        action_type="acknowledged",
+        received_by=str(history_fixture.counselor_id.value),
+    ).model_dump(mode="json")
+
+    # Act
+    response = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/{record_id}/tracing-reports/0191eb70-0000-7000-8000-000000000099/response",
+        json=resp_body,
+        headers=_HEADERS,
+    )
+
+    # Assert
+    assert response.status_code == HTTPStatus.NOT_FOUND, response.text

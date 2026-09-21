@@ -19,6 +19,8 @@ from app.domain.medication_history import (
     MedicationHistoryRepository,
     ResidualDrugRecord,
     SoapRecord,
+    TracingReport,
+    TracingReportResponse,
 )
 from app.domain.patient.primitives import PatientId
 
@@ -181,6 +183,70 @@ class FollowUpDto:
 
 
 @dataclass(frozen=True, kw_only=True)
+class TracingReportResponseDto:
+    """トレーシングレポートに対する処方医返答の出力DTO。"""
+
+    responded_at: str
+    action_type: str
+    content: str
+    received_by: str
+    acknowledged_physician_name: str | None = None
+
+    @classmethod
+    def from_value(cls, value: TracingReportResponse) -> TracingReportResponseDto:
+        """処方医返答値オブジェクトからDTOを生成する。"""
+        return cls(
+            responded_at=value.responded_at.value.isoformat(),
+            action_type=value.action_type.value,
+            content=value.content.value,
+            received_by=str(value.received_by.value),
+            acknowledged_physician_name=unwrap(value.acknowledged_physician_name),
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
+class TracingReportDto:
+    """処方医への服薬情報等提供（トレーシングレポート）出力DTO。"""
+
+    id: str
+    reporter_id: str
+    provided_at: str
+    medical_institution_name: str
+    physician_name: str
+    category: str
+    fee_category: str
+    delivery_method: str
+    content: str
+    follow_up_id: str | None = None
+    response: TracingReportResponseDto | None = None
+
+    @classmethod
+    def from_value(cls, value: TracingReport) -> TracingReportDto:
+        """トレーシングレポート値オブジェクトからDTOを生成する。"""
+        return cls(
+            id=str(value.id.value),
+            reporter_id=str(value.reporter_id.value),
+            provided_at=value.provided_at.value.isoformat(),
+            medical_institution_name=value.medical_institution_name.value,
+            physician_name=value.physician_name.value,
+            category=value.category.value,
+            fee_category=value.fee_category.value,
+            delivery_method=value.delivery_method.value,
+            content=value.content.value,
+            follow_up_id=(
+                str(value.follow_up_id.value)
+                if value.follow_up_id is not None
+                else None
+            ),
+            response=(
+                TracingReportResponseDto.from_value(value.response)
+                if value.response is not None
+                else None
+            ),
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
 class MedicationHistoryDto:
     """薬歴取得ユースケースの出力DTO。"""
 
@@ -205,6 +271,7 @@ class MedicationHistoryDto:
     updates_profile: bool
     additional_notes: tuple[CategorizedNoteDto, ...] = ()
     follow_ups: tuple[FollowUpDto, ...] = ()
+    tracing_reports: tuple[TracingReportDto, ...] = ()
 
     @classmethod
     def from_entity(cls, record: MedicationHistoryRecord) -> MedicationHistoryDto:
@@ -233,6 +300,9 @@ class MedicationHistoryDto:
                 CategorizedNoteDto.from_value(note) for note in record.additional_notes
             ),
             follow_ups=tuple(FollowUpDto.from_value(fu) for fu in record.follow_ups),
+            tracing_reports=tuple(
+                TracingReportDto.from_value(report) for report in record.tracing_reports
+            ),
         )
 
 

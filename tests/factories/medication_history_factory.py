@@ -33,6 +33,8 @@ from app.domain.medication_history import (
     NewAllergyIntent,
     NewConcurrentMedicationIntent,
     NewConditionIntent,
+    PhysicianName,
+    PrescriberActionType,
     ProfileUpdateIntents,
     ResidualDrugRecord,
     RetractAdverseReactionIntent,
@@ -45,6 +47,15 @@ from app.domain.medication_history import (
     StatutoryPharmacistName,
     StatutoryRecordSource,
     StopConcurrentMedicationIntent,
+    TracingReport,
+    TracingReportCategory,
+    TracingReportContent,
+    TracingReportDeliveryMethod,
+    TracingReportFeeCategory,
+    TracingReportId,
+    TracingReportResponse,
+    TracingReportResponseContent,
+    TracingReportTimestamp,
     UpdateConditionStatusIntent,
 )
 from app.domain.patient.primitives import PatientBirthDate, PatientId
@@ -424,3 +435,55 @@ def create_record_for(
         soap=soap,
     )
     return record.finalize() if finalized else record
+
+
+def create_tracing_report(
+    *,
+    report_id: TracingReportId | None = None,
+    reporter_id: StaffId | None = None,
+    provided_at: datetime | None = None,
+    medical_institution_name: str = "総合医療センター",
+    physician_name: str = "山田太郎",
+    category: TracingReportCategory = TracingReportCategory.RESIDUAL_DRUG,
+    fee_category: TracingReportFeeCategory = TracingReportFeeCategory.FEE_2,
+    delivery_method: TracingReportDeliveryMethod = TracingReportDeliveryMethod.FAX,
+    content: str = "残薬が14日分確認されたため、次回処方時の日数調整をご検討ください。",
+    follow_up_id: FollowUpId | None = None,
+    response: TracingReportResponse | None = None,
+) -> TracingReport:
+    """トレーシングレポートのテストデータを組み立てる。"""
+    return TracingReport(
+        id=report_id or TracingReportId.generate(),
+        reporter_id=reporter_id or StaffId.generate(),
+        provided_at=TracingReportTimestamp(provided_at or COUNSELED_AT),
+        medical_institution_name=MedicalInstitutionName(medical_institution_name),
+        physician_name=PhysicianName(physician_name),
+        category=category,
+        fee_category=fee_category,
+        delivery_method=delivery_method,
+        content=TracingReportContent(content),
+        follow_up_id=follow_up_id,
+        response=response,
+    )
+
+
+def create_tracing_report_response(
+    *,
+    responded_at: datetime | None = None,
+    action_type: PrescriberActionType = PrescriberActionType.AGREED_REFLECT_NEXT,
+    content: str = "了解しました。次回処方時に14日分減量して処方します。",
+    received_by: StaffId | None = None,
+    acknowledged_physician_name: str | None = None,
+) -> TracingReportResponse:
+    """トレーシングレポート返答のテストデータを組み立てる。"""
+    return TracingReportResponse(
+        responded_at=TracingReportTimestamp(responded_at or COUNSELED_AT),
+        action_type=action_type,
+        content=TracingReportResponseContent(content),
+        received_by=received_by or StaffId.generate(),
+        acknowledged_physician_name=(
+            PhysicianName(acknowledged_physician_name)
+            if acknowledged_physician_name is not None
+            else None
+        ),
+    )

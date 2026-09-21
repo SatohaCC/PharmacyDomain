@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import ClassVar, Self
 
@@ -26,6 +26,8 @@ from app.domain.medication_history.exceptions import (
     SoapContentRequiredError,
     StatutoryItemAssessedTwiceError,
     StatutoryItemNotAssessedError,
+    TracingReportAlreadyRespondedError,
+    TracingReportResponseDateBeforeProvidedError,
 )
 from app.domain.medication_history.primitives import (
     AdverseReactionSymptom,
@@ -50,6 +52,8 @@ from app.domain.medication_history.primitives import (
     MedicationHistoryRecordId,
     MediumCategoryCode,
     MediumCategoryName,
+    PhysicianName,
+    PrescriberActionType,
     ResidualDrugQuantity,
     ResidualDrugReason,
     RetractionReason,
@@ -57,6 +61,13 @@ from app.domain.medication_history.primitives import (
     StatutoryDispensingRecordItem,
     StatutoryItemState,
     StatutoryRecordBlocker,
+    TracingReportCategory,
+    TracingReportContent,
+    TracingReportDeliveryMethod,
+    TracingReportFeeCategory,
+    TracingReportId,
+    TracingReportResponseContent,
+    TracingReportTimestamp,
 )
 from app.domain.patient.primitives import PatientBirthDate, PatientId
 from app.domain.prescription.primitives import (
@@ -735,6 +746,79 @@ class FollowUpRecord(ValueObject):
         has_additional = any(note.has_content for note in self.additional_notes)
         if not has_soap and not has_additional:
             raise SoapContentRequiredError()
+
+
+# --------------------------------------------------------------------------
+# 処方医への服薬情報等提供（トレーシングレポート）
+# --------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, kw_only=True)
+class TracingReportResponse(ValueObject):
+    """トレーシングレポートに対する処方医からの返答。"""
+
+    responded_at: TracingReportTimestamp
+    action_type: PrescriberActionType
+    content: TracingReportResponseContent
+    received_by: StaffId
+    acknowledged_physician_name: PhysicianName | None = None
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "responded_at": "返答日時",
+        "action_type": "対応区分",
+        "content": "返答内容",
+        "received_by": "受領者",
+        "acknowledged_physician_name": "返答医師名",
+    }
+
+
+@dataclass(frozen=True, kw_only=True)
+class TracingReport(ValueObject):
+    """処方医への服薬情報等提供（トレーシングレポート）記録。"""
+
+    id: TracingReportId
+    reporter_id: StaffId
+    provided_at: TracingReportTimestamp
+    medical_institution_name: MedicalInstitutionName
+    physician_name: PhysicianName
+    category: TracingReportCategory
+    fee_category: TracingReportFeeCategory
+    delivery_method: TracingReportDeliveryMethod
+    content: TracingReportContent
+    follow_up_id: FollowUpId | None = None
+    response: TracingReportResponse | None = None
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "id": "トレーシングレポートID",
+        "reporter_id": "作成薬剤師",
+        "provided_at": "提供日時",
+        "medical_institution_name": "提供先医療機関",
+        "physician_name": "提供先処方医",
+        "category": "提供区分",
+        "fee_category": "算定区分",
+        "delivery_method": "提供手段",
+        "content": "提供内容",
+        "follow_up_id": "契機フォローアップID",
+        "response": "医師返答",
+    }
+
+    @property
+    def is_responded(self) -> bool:
+        """医師からの返答が記録されているか。"""
+        return self.response is not None
+
+    def record_response(self, response: TracingReportResponse) -> Self:
+        """処方医からの返答を記録する。
+
+        Raises:
+            TracingReportAlreadyRespondedError: 既に返答が記録されている場合。
+            TracingReportResponseDateBeforeProvidedError: 返答日時が提供日時より前の場合。
+        """
+        if self.response is not None:
+            raise TracingReportAlreadyRespondedError()
+        if response.responded_at.value < self.provided_at.value:
+            raise TracingReportResponseDateBeforeProvidedError()
+        return replace(self, response=response)
 
 
 # --------------------------------------------------------------------------

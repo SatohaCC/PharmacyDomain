@@ -18,11 +18,19 @@ from app.domain.dispensing.primitives import DispensingId
 from app.domain.foundation.entity import AggregateRoot
 from app.domain.medication_history.exceptions import (
     DuplicatedFollowUpIdError,
+    DuplicatedTracingReportIdError,
     FollowUpDateBeforeCounselingError,
+    FollowUpNotFoundError,
     FollowUpOnDraftError,
     MedicationHistoryAlreadyFinalizedError,
     MedicationHistoryNotFinalizedError,
     SoapContentRequiredError,
+    TracingReportAlreadyRespondedError,
+    TracingReportDateBeforeCounselingError,
+    TracingReportDateBeforeFollowUpError,
+    TracingReportNotFoundError,
+    TracingReportOnDraftError,
+    TracingReportResponseDateBeforeProvidedError,
 )
 from app.domain.medication_history.primitives import (
     AmendmentReason,
@@ -31,6 +39,7 @@ from app.domain.medication_history.primitives import (
     CounselingTimestamp,
     MedicationHistoryRecordId,
     MedicationHistoryStatus,
+    TracingReportId,
 )
 from app.domain.medication_history.value_objects import (
     CategorizedNote,
@@ -40,6 +49,8 @@ from app.domain.medication_history.value_objects import (
     ProfileUpdateIntents,
     ResidualDrugRecord,
     SoapRecord,
+    TracingReport,
+    TracingReportResponse,
 )
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import PrescriptionId
@@ -71,6 +82,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     status: MedicationHistoryStatus = MedicationHistoryStatus.DRAFT
     amendments: tuple[MedicationHistoryAmendment, ...] = ()
     follow_ups: tuple[FollowUpRecord, ...] = ()
+    tracing_reports: tuple[TracingReport, ...] = ()
 
     # ------------------------------------------------------------------
     # 不変条件
@@ -253,3 +265,57 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         if any(existing.id == follow_up.id for existing in self.follow_ups):
             raise DuplicatedFollowUpIdError()
         return replace(self, follow_ups=(*self.follow_ups, follow_up))
+
+    def add_tracing_report(self, report: TracingReport) -> Self:
+        """確定済の薬歴に処方医へのトレーシングレポート提供記録を追加する。
+
+        Raises:
+            TracingReportOnDraftError: 薬歴が未確定（下書き）の場合。
+            TracingReportDateBeforeCounselingError: 初回指導日時より前の提供日時の場合。
+            FollowUpNotFoundError: 指定されたフォローアップIDが存在しない場合。
+            TracingReportDateBeforeFollowUpError: 紐付けられたフォローアップ日時より前の提供日時の場合。
+            DuplicatedTracingReportIdError: 同一のレポートIDが既に存在する場合。
+        """
+        if not self.is_finalized:
+            raise TracingReportOnDraftError()
+        if report.provided_at.value < self.counseled_at.value:
+            raise TracingReportDateBeforeCounselingError()
+        if report.follow_up_id is not None:
+            matching_follow_up = next(
+                (fu for fu in self.follow_ups if fu.id == report.follow_up_id), None
+            )
+            if matching_follow_up is None:
+                raise FollowUpNotFoundError()
+            if report.provided_at.value < matching_follow_up.followed_up_at.value:
+                raise TracingReportDateBeforeFollowUpError()
+        if any(existing.id == report.id for existing in self.tracing_reports):
+            raise DuplicatedTracingReportIdError()
+        return replace(self, tracing_reports=(*self.tracing_reports, report))
+
+    def record_tracing_report_response(
+        self,
+        tracing_report_id: TracingReportId,
+        response: TracingReportResponse,
+    ) -> Self:
+        """トレーシングレポートに対する処方医からの返答を記録する。
+
+        Raises:
+            TracingReportNotFoundError: 指定されたレポートIDが存在しない場合。
+            TracingReportAlreadyRespondedError: 既に返答が記録されている場合。
+            TracingReportResponseDateBeforeProvidedError: 提供日時より前の返答日時の場合。
+        """
+        report = next(
+            (r for r in self.tracing_reports if r.id == tracing_report_id), None
+        )
+        if report is None:
+            raise TracingReportNotFoundError()
+        if report.response is not None:
+            raise TracingReportAlreadyRespondedError()
+        if response.responded_at.value < report.provided_at.value:
+            raise TracingReportResponseDateBeforeProvidedError()
+        updated_report = replace(report, response=response)
+        updated_reports = tuple(
+            updated_report if r.id == tracing_report_id else r
+            for r in self.tracing_reports
+        )
+        return replace(self, tracing_reports=updated_reports)

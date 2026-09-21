@@ -195,6 +195,27 @@ import を禁じている。この禁止を緩めると `validate()` から他�
 
 ---
 
+### ADR-55: 処方医への服薬情報等提供（トレーシングレポート）および医師フィードバックを薬歴集約に保持する
+
+薬剤師法第25条の2に基づく情報提供義務、および調剤報酬「服薬情報等提供料（1・2・3）」において、保険薬局が処方医・保険医療機関へ文書等で情報提供（残薬調整、副作用疑い、アドヒアランス不良、処方提案、患者相談等）を行った事実、および処方医からの返答内容を追跡・管理する必要がある。
+
+調剤報酬規定（「情報提供を行った文書等の写し又はその内容を薬剤服用歴等に添付又は記載すること」「処方医からの返信等があった場合はその内容を薬剤服用歴等に添付又は記載すること」）により、トレーシングレポートおよび医師返答は薬歴と不可分に記録・保存することが法的要件である。
+
+したがって、以下の設計判断を採用した。
+
+1. **薬歴集約（`MedicationHistoryRecord`）への内包（`tracing_reports: tuple[TracingReport, ...]`）**:
+   トレーシングレポートを独立した集約として切り離さず、薬歴集約（`MedicationHistoryRecord`）の要素として保持する。これにより、調剤・指導の臨床コンテキストとの不可分性および調剤録法定3年保存義務との整合を担保する。確定済みの薬歴に対してのみ `add_tracing_report()` で追加可能とし、下書きへの追加は `TracingReportOnDraftError` で拒否する。
+2. **初回指導日時およびフォローアップ日時との時間的整合性**:
+   レポート提供日時（`provided_at`）は調剤時の服薬指導日時（`counseled_at`）以降でなければならず、過去日時の登録は `TracingReportDateBeforeCounselingError` で拒否する。また、調剤後フォローアップに紐づくレポートである場合（`follow_up_id` 指定時）、そのフォローアップの実施日時以降であることを `TracingReportDateBeforeFollowUpError` で検証する。
+3. **処方医からのフィードバック返答の記録モデル（`TracingReportResponse`）**:
+   レポート提出後の処方医からの返答（返答日時、対応区分、内容、受領スタッフ、確認医師名）を `record_tracing_report_response()` で追記する。提供日時より前の返答日時は `TracingReportResponseDateBeforeProvidedError`、二重返答は `TracingReportAlreadyRespondedError` で拒否する。
+4. **薬剤師資格とテナント認可の検証**:
+   トレーシングレポート作成・報告者（`reporter_id`）は、薬剤師法第25条の2に基づく指導・情報提供の主体であるため、`CounselorQualificationService.ensure_pharmacist` による薬剤師資格の保持を必須とする。また法人の有効状態を検証し、停止中法人からの登録は拒否する。
+5. **JSONB永続化の透過性と後方互換性**:
+   `MedicationHistoryRecord` のフィールド追加として `tracing_reports` を導入し、PostgreSQLの `medication_history_records.payload` に透過的にシリアライズ・デシリアライズされるため、既存テーブルへの列追加マイグレーションを不要とし、過去の保存データとの後方互換性を維持する。
+
+---
+
 ## 2026-09-19
 
 ### ADR-39: 保存前の境界は、書く側と同じロックの内側で読む
