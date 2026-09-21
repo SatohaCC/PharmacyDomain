@@ -286,6 +286,9 @@ def build_medication_history_use_cases(
             corporate_access,
             unit_of_work,
             category_catalog_repository=catalog_repository,
+            staff_qualification=counselor_qualification,
+            counselor_service=counselor,
+            clock=clock,
         ),
         amend=AmendMedicationHistoryUseCase(
             record_repository,

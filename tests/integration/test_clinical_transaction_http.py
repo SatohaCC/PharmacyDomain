@@ -46,6 +46,11 @@ from app.domain.medication_history.primitives import MedicationHistoryStatus
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
 from app.domain.prescription.prescription import Prescription
 from app.domain.prescription.primitives import PrescriptionStatus
+from app.domain.staff.primitives import (
+    PharmacistLicenseNumber,
+    PharmacistProfile,
+    StaffQualifications,
+)
 from app.infrastructure.di import PostgresCompositionRoot
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.repositories import PostgresRepositorySet
@@ -57,6 +62,7 @@ from tests.factories.medication_history_factory import (
     create_record,
 )
 from tests.factories.prescription_factory import create_prescription
+from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store
 from tests.fakes.fake_clock import FakeClock
 from tests.fakes.stub_actor_context_provider import (
@@ -120,9 +126,17 @@ async def setup_clinical(
         ),
         store_id=store.id,
     )
+    pharmacist = replace(
+        create_staff(corporate_id=corporate.id),
+        qualifications=StaffQualifications.from_profiles(
+            PharmacistProfile(license_number=PharmacistLicenseNumber("123456"))
+        ),
+    )
     record = create_record(
         corporate_id=corporate.id,
         store_id=store.id,
+        counselor_id=pharmacist.id,
+        counseled_at=_CLOCK.now(),
         # 差分が空でも頭書きは保存されるが、それでは「何が投影されたか」を
         # 確かめられない。アレルギーを1件持たせる。
         profile_updates=ProfileUpdateIntents(new_allergies=(create_allergy_intent(),)),
@@ -134,6 +148,7 @@ async def setup_clinical(
         await repositories.store.save(store)
         await repositories.account_person.save(person)
         await repositories.user_account.save(account)
+        await repositories.staff.save(pharmacist)
         if with_prescription:
             await repositories.prescription.save(prescription)
         await repositories.dispensing.save(process)

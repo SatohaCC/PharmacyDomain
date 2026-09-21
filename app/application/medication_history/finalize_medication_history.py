@@ -3,15 +3,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from app.application.access_control import CorporateAccessBoundary, Permission
 from app.application.common import UnitOfWork
+from app.application.common.clock import Clock
 from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
+)
+from app.application.medication_history.reference import (
+    StaffQualificationBoundary,
 )
 from app.application.medication_history.support import load_record_or_raise
 from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history import (
+    CounselorQualificationService,
+    FinalizationDelayReason,
+    FinalizedTimestamp,
     MedicationHistoryCategoryCatalogRepository,
     MedicationHistoryRecord,
     MedicationHistoryRecordId,
@@ -19,6 +27,7 @@ from app.domain.medication_history import (
     PatientMedicalProfile,
     PatientMedicalProfileRepository,
 )
+from app.domain.staff.primitives import StaffId
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -27,6 +36,9 @@ class FinalizeMedicationHistoryCommand:
 
     corporate_id: str
     record_id: str
+    finalized_by: str | None = None
+    finalized_at: datetime | None = None
+    delay_reason: str | None = None
 
 
 class FinalizeMedicationHistoryUseCase:
@@ -53,17 +65,23 @@ class FinalizeMedicationHistoryUseCase:
         unit_of_work: UnitOfWork,
         category_catalog_repository: MedicationHistoryCategoryCatalogRepository
         | None = None,
+        staff_qualification: StaffQualificationBoundary | None = None,
+        counselor_service: CounselorQualificationService | None = None,
+        clock: Clock | None = None,
     ) -> None:
         self._record_repository = record_repository
         self._profile_repository = profile_repository
         self._corporate_access = corporate_access
         self._unit_of_work = unit_of_work
         self._category_catalog_repository = category_catalog_repository
+        self._staff_qualification = staff_qualification
+        self._counselor_service = counselor_service
+        self._clock = clock
 
     async def execute(
         self, command: FinalizeMedicationHistoryCommand
     ) -> MedicationHistoryDto:
-        """SOAPの充足を集約に確認させてから確定し、頭書きへ投影する。"""
+        """SOAPの充足と確定者の資格を確認して確定し、頭書きへ投影する。"""
         self._unit_of_work.ensure_active()
         corporate_id = CorporateId.parse(command.corporate_id)
         await self._corporate_access.require_active(
@@ -75,13 +93,46 @@ class FinalizeMedicationHistoryUseCase:
             corporate_id=corporate_id,
             record_id=MedicationHistoryRecordId.parse(command.record_id),
         )
+
+        finalized_by = (
+            StaffId.parse(command.finalized_by)
+            if command.finalized_by is not None
+            else record.counselor_id
+        )
+        if (
+            self._staff_qualification is not None
+            and self._counselor_service is not None
+        ):
+            qualifications = await self._staff_qualification.get_qualifications(
+                corporate_id=corporate_id, staff_id=finalized_by
+            )
+            self._counselor_service.ensure_pharmacist(qualifications)
+
+        if command.finalized_at is not None:
+            finalized_at = FinalizedTimestamp(command.finalized_at)
+        elif self._clock is not None:
+            finalized_at = FinalizedTimestamp(self._clock.now())
+        else:
+            finalized_at = FinalizedTimestamp(record.counseled_at.value)
+
+        delay_reason = (
+            FinalizationDelayReason(command.delay_reason)
+            if command.delay_reason is not None
+            else None
+        )
+
         if self._category_catalog_repository is not None:
             catalog = await self._category_catalog_repository.get(
                 corporate_id=corporate_id
             )
             if catalog is not None:
                 catalog.validate_record_compliance(record)
-        finalized = record.finalize()
+
+        finalized = record.finalize(
+            finalized_at=finalized_at,
+            finalized_by=finalized_by,
+            delay_reason=delay_reason,
+        )
         await self._record_repository.save(finalized)
         await self._project_to_profile(finalized)
         return MedicationHistoryDto.from_entity(finalized)

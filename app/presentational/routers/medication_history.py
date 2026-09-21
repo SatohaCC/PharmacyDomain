@@ -77,10 +77,23 @@ class StartMedicationHistoryRequest(RequestModel):
 
 
 class UpdateMedicationHistoryDraftRequest(RequestModel):
-    """下書きの更新の入力。送られた内容で SOAP を置き換える。"""
+    """下書きの更新の入力。"""
 
-    soap: SoapInput
+    soap: SoapInput | None = None
     profile_updates: ProfileUpdateInput | None = None
+    method: str | None = None
+    handbook_status: HandbookStatusInput | None = None
+    residual_drug: ResidualDrugInput | None = None
+    information_sheet_provided: bool | None = None
+    additional_notes: tuple[CategorizedNoteInput, ...] | None = None
+
+
+class FinalizeMedicationHistoryRequest(RequestModel):
+    """薬歴確定の入力。"""
+
+    finalized_by: str | None = None
+    finalized_at: datetime | None = None
+    delay_reason: str | None = None
 
 
 class AmendMedicationHistoryRequest(RequestModel):
@@ -203,6 +216,11 @@ async def update_medication_history_draft(
             record_id=record_id,
             soap=body.soap,
             profile_updates=body.profile_updates,
+            method=body.method,
+            handbook_status=body.handbook_status,
+            residual_drug=body.residual_drug,
+            information_sheet_provided=body.information_sheet_provided,
+            additional_notes=body.additional_notes,
         )
     )
 
@@ -216,10 +234,17 @@ async def finalize_medication_history(
     corporate_id: str,
     record_id: str,
     use_cases: MedicationHistoryUseCasesDep,
+    body: FinalizeMedicationHistoryRequest | None = None,
 ) -> MedicationHistoryDto:
     """薬歴を確定する。頭書きへの投影も同じトランザクションで確定する。"""
     return await use_cases.finalize.execute(
-        FinalizeMedicationHistoryCommand(corporate_id=corporate_id, record_id=record_id)
+        FinalizeMedicationHistoryCommand(
+            corporate_id=corporate_id,
+            record_id=record_id,
+            finalized_by=body.finalized_by if body is not None else None,
+            finalized_at=body.finalized_at if body is not None else None,
+            delay_reason=body.delay_reason if body is not None else None,
+        )
     )
 
 

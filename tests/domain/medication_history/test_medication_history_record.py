@@ -11,11 +11,17 @@ from datetime import UTC, datetime
 
 import pytest
 
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.medication_history import (
     AmendmentReason,
     AmendmentTimestamp,
     CategorizedNote,
     CounselingNote,
+    FinalizationDateBeforeCounselingError,
+    FinalizationDelayReason,
+    FinalizationDelayReasonRequiredError,
+    FinalizationStaffRequiredError,
+    FinalizedTimestamp,
     HandbookConsolidationReason,
     HandbookGuidanceRequiredError,
     HandbookNotPresentedReason,
@@ -23,6 +29,7 @@ from app.domain.medication_history import (
     HandbookStatus,
     MajorCategoryCode,
     MedicationHistoryAlreadyFinalizedError,
+    MedicationHistoryDomainError,
     MedicationHistoryNotFinalizedError,
     MedicationHistoryStatus,
     MediumCategoryCode,
@@ -374,3 +381,193 @@ class Test法定カテゴリ:
         # Arrange / Act / Assert
         for category in StatutoryCategory:
             assert category.label
+
+
+class Test確定プリミティブ:
+    """TC-01 〜 TC-04: 確定日時および記載遅延理由プリミティブの検証。"""
+
+    def test_tc01_確定日時は_タイムゾーン付き日時で生成できる(self) -> None:
+        # Arrange / Act
+        now = datetime.now(UTC)
+        ts = FinalizedTimestamp(now)
+
+        # Assert
+        assert ts.value == now
+
+    def test_tc02_確定日時に_タイムゾーンが無いと拒否される(self) -> None:
+        # Arrange / Act / Assert
+        naive = datetime(2026, 9, 21, 10, 0, 0)  # noqa: DTZ001
+        with pytest.raises(DomainValidationError):
+            FinalizedTimestamp(naive)
+
+    def test_tc03_遅延理由は_正常な文字列で生成できる(self) -> None:
+        # Arrange / Act
+        reason = FinalizationDelayReason("救急当直および処方疑義照会対応のため翌日記載")
+
+        # Assert
+        assert reason.value == "救急当直および処方疑義照会対応のため翌日記載"
+
+    def test_tc04_遅延理由は_空文字で拒否される(self) -> None:
+        # Arrange / Act / Assert
+        with pytest.raises(DomainValidationError):
+            FinalizationDelayReason("")
+
+
+class Test下書き更新:
+    """TC-05 〜 TC-07: 下書き状態の全項目更新機能の検証。"""
+
+    def test_tc05_下書き薬歴の全項目を一括更新できる(self) -> None:
+        # Arrange
+        record = create_record()
+        new_handbook = HandbookStatus(presented=True)
+        new_residual = ResidualDrugRecord.none_remaining()
+        new_soap = create_soap()
+        new_note = CategorizedNote(
+            major_category_code=MajorCategoryCode("soap"),
+            medium_category_code=MediumCategoryCode("s"),
+            text=CounselingNote("下書き更新メモ"),
+        )
+
+        # Act
+        updated = record.update_draft(
+            handbook_status=new_handbook,
+            residual_drug=new_residual,
+            soap=new_soap,
+            information_sheet_provided=True,
+            additional_notes=(new_note,),
+        )
+
+        # Assert
+        assert updated.handbook_status == new_handbook
+        assert updated.residual_drug == new_residual
+        assert updated.information_sheet_provided is True
+        assert updated.additional_notes == (new_note,)
+        assert updated.status == MedicationHistoryStatus.DRAFT
+
+    def test_tc06_下書き薬歴の一部項目のみ更新できる(self) -> None:
+        # Arrange
+        record = create_record()
+        orig_soap = record.soap
+        new_handbook = HandbookStatus(presented=True)
+
+        # Act
+        updated = record.update_draft(handbook_status=new_handbook)
+
+        # Assert
+        assert updated.handbook_status == new_handbook
+        assert updated.soap == orig_soap
+
+    def test_tc07_確定済みの薬歴に対して下書き更新を呼ぶと拒否される(self) -> None:
+        # Arrange
+        record = create_record()
+        finalized = record.finalize(
+            finalized_at=FinalizedTimestamp(record.counseled_at.value),
+            finalized_by=record.counselor_id,
+        )
+
+        # Act / Assert
+        with pytest.raises(MedicationHistoryAlreadyFinalizedError):
+            finalized.update_draft(information_sheet_provided=True)
+
+
+class Test確定真正性と遅延理由:
+    """TC-08 〜 TC-14: 確定メタデータ、当日記載原則、遅延理由の検証。"""
+
+    def test_tc08_当日確定で確定日時と確定者が記録される(self) -> None:
+        # Arrange
+        record = create_record()
+        finalized_at = FinalizedTimestamp(record.counseled_at.value)
+        finalized_by = StaffId.generate()
+
+        # Act
+        finalized = record.finalize(
+            finalized_at=finalized_at,
+            finalized_by=finalized_by,
+        )
+
+        # Assert
+        assert finalized.is_finalized
+        assert finalized.finalized_at == finalized_at
+        assert finalized.finalized_by == finalized_by
+        assert finalized.delay_reason is None
+
+    def test_tc09_翌日確定で遅延理由を指定して確定できる(self) -> None:
+        # Arrange
+        record = create_record()
+        next_day = record.counseled_at.value.replace(
+            day=record.counseled_at.value.day + 1
+        )
+        finalized_at = FinalizedTimestamp(next_day)
+        finalized_by = StaffId.generate()
+        delay_reason = FinalizationDelayReason("疑義照会の回答待ちのため翌日記載")
+
+        # Act
+        finalized = record.finalize(
+            finalized_at=finalized_at,
+            finalized_by=finalized_by,
+            delay_reason=delay_reason,
+        )
+
+        # Assert
+        assert finalized.is_finalized
+        assert finalized.delay_reason == delay_reason
+
+    def test_tc10_翌日確定で遅延理由が無いと拒否される(self) -> None:
+        # Arrange
+        record = create_record()
+        next_day = record.counseled_at.value.replace(
+            day=record.counseled_at.value.day + 1
+        )
+        finalized_at = FinalizedTimestamp(next_day)
+        finalized_by = StaffId.generate()
+
+        # Act / Assert
+        with pytest.raises(FinalizationDelayReasonRequiredError):
+            record.finalize(
+                finalized_at=finalized_at,
+                finalized_by=finalized_by,
+                delay_reason=None,
+            )
+
+    def test_tc11_指導日時より過去の確定日時は拒否される(self) -> None:
+        # Arrange
+        record = create_record()
+        past = record.counseled_at.value.replace(
+            year=record.counseled_at.value.year - 1
+        )
+        finalized_at = FinalizedTimestamp(past)
+        finalized_by = StaffId.generate()
+
+        # Act / Assert
+        with pytest.raises(FinalizationDateBeforeCounselingError):
+            record.finalize(
+                finalized_at=finalized_at,
+                finalized_by=finalized_by,
+            )
+
+    def test_tc13_確定状態で確定者が欠落していると不変条件違反(self) -> None:
+        # Arrange
+        record = create_record()
+        finalized_at = FinalizedTimestamp(record.counseled_at.value)
+
+        # Act / Assert
+        with pytest.raises(FinalizationStaffRequiredError):
+            replace(
+                record,
+                status=MedicationHistoryStatus.FINALIZED,
+                finalized_at=finalized_at,
+                finalized_by=None,
+            )
+
+    def test_tc14_下書き状態で確定日時が設定されていると不変条件違反(self) -> None:
+        # Arrange
+        record = create_record()
+        finalized_at = FinalizedTimestamp(record.counseled_at.value)
+
+        # Act / Assert
+        with pytest.raises(MedicationHistoryDomainError):
+            replace(
+                record,
+                status=MedicationHistoryStatus.DRAFT,
+                finalized_at=finalized_at,
+            )

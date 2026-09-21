@@ -179,6 +179,9 @@ def create_fixture() -> MedicationHistoryFixture:
             corporate_access,
             NullUnitOfWork(),
             category_catalog_repository=category_catalog_repository,
+            staff_qualification=staff_qualification,
+            counselor_service=CounselorQualificationService(),
+            clock=clock,
         ),
         amend=AmendMedicationHistoryUseCase(
             record_repository,

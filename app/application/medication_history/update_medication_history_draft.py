@@ -8,14 +8,25 @@ from app.application.access_control import CorporateAccessBoundary, Permission
 from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
 )
-from app.application.medication_history.inputs import ProfileUpdateInput, SoapInput
+from app.application.medication_history.inputs import (
+    CategorizedNoteInput,
+    HandbookStatusInput,
+    ProfileUpdateInput,
+    ResidualDrugInput,
+    SoapInput,
+)
 from app.application.medication_history.support import (
+    build_additional_notes,
+    build_handbook_status,
     build_profile_updates,
+    build_residual_drug,
     build_soap,
     load_record_or_raise,
+    parse_enum,
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history import (
+    CounselingMethod,
     MedicationHistoryRecordId,
     MedicationHistoryRepository,
 )
@@ -27,12 +38,17 @@ class UpdateMedicationHistoryDraftCommand:
 
     corporate_id: str
     record_id: str
-    soap: SoapInput
+    soap: SoapInput | None = None
     profile_updates: ProfileUpdateInput | None = None
+    method: str | None = None
+    handbook_status: HandbookStatusInput | None = None
+    residual_drug: ResidualDrugInput | None = None
+    information_sheet_provided: bool | None = None
+    additional_notes: tuple[CategorizedNoteInput, ...] | None = None
 
 
 class UpdateMedicationHistoryDraftUseCase:
-    """下書きのSOAPと頭書き差分を差し替える。
+    """下書きの全項目（指導方法、SOAP、お薬手帳、残薬、情報提供文書、頭書き差分、追加メモ）を差し替える。
 
     確定済の薬歴は集約が拒否する（``MedicationHistoryAlreadyFinalizedError``）。
     調剤録は3年保存であり、遡って書き換えられる記録は監査に耐えない。
@@ -49,7 +65,7 @@ class UpdateMedicationHistoryDraftUseCase:
     async def execute(
         self, command: UpdateMedicationHistoryDraftCommand
     ) -> MedicationHistoryDto:
-        """SOAPと頭書き差分を保存する。"""
+        """下書きを更新して保存する。"""
         corporate_id = CorporateId.parse(command.corporate_id)
         await self._corporate_access.require_active(
             corporate_id=corporate_id,
@@ -60,9 +76,41 @@ class UpdateMedicationHistoryDraftUseCase:
             corporate_id=corporate_id,
             record_id=MedicationHistoryRecordId.parse(command.record_id),
         )
-        record = record.update_draft_soap(build_soap(command.soap))
-        record = record.update_draft_profile_updates(
+        method = (
+            parse_enum(CounselingMethod, command.method, "服薬指導方法")
+            if command.method is not None
+            else None
+        )
+        soap = build_soap(command.soap) if command.soap is not None else None
+        handbook_status = (
+            build_handbook_status(command.handbook_status)
+            if command.handbook_status is not None
+            else None
+        )
+        residual_drug = (
+            build_residual_drug(command.residual_drug)
+            if command.residual_drug is not None
+            else None
+        )
+        profile_updates = (
             build_profile_updates(command.profile_updates)
+            if command.profile_updates is not None
+            else None
+        )
+        additional_notes = (
+            build_additional_notes(command.additional_notes)
+            if command.additional_notes is not None
+            else None
+        )
+
+        record = record.update_draft(
+            method=method,
+            soap=soap,
+            handbook_status=handbook_status,
+            residual_drug=residual_drug,
+            information_sheet_provided=command.information_sheet_provided,
+            profile_updates=profile_updates,
+            additional_notes=additional_notes,
         )
         await self._repository.save(record)
         return MedicationHistoryDto.from_entity(record)

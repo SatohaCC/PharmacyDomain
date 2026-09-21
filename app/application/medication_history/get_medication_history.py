@@ -272,6 +272,9 @@ class MedicationHistoryDto:
     additional_notes: tuple[CategorizedNoteDto, ...] = ()
     follow_ups: tuple[FollowUpDto, ...] = ()
     tracing_reports: tuple[TracingReportDto, ...] = ()
+    finalized_at: str | None = None
+    finalized_by: str | None = None
+    delay_reason: str | None = None
 
     @classmethod
     def from_entity(cls, record: MedicationHistoryRecord) -> MedicationHistoryDto:
@@ -303,6 +306,17 @@ class MedicationHistoryDto:
             tracing_reports=tuple(
                 TracingReportDto.from_value(report) for report in record.tracing_reports
             ),
+            finalized_at=(
+                record.finalized_at.value.isoformat()
+                if record.finalized_at is not None
+                else None
+            ),
+            finalized_by=(
+                str(record.finalized_by.value)
+                if record.finalized_by is not None
+                else None
+            ),
+            delay_reason=unwrap(record.delay_reason),
         )
 
 
