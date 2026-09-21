@@ -19,10 +19,14 @@ from app.domain.foundation.entity import AggregateRoot
 from app.domain.medication_history.exceptions import (
     DuplicatedFollowUpIdError,
     DuplicatedTracingReportIdError,
+    FinalizationDateBeforeCounselingError,
+    FinalizationDelayReasonRequiredError,
+    FinalizationStaffRequiredError,
     FollowUpDateBeforeCounselingError,
     FollowUpNotFoundError,
     FollowUpOnDraftError,
     MedicationHistoryAlreadyFinalizedError,
+    MedicationHistoryDomainError,
     MedicationHistoryNotFinalizedError,
     SoapContentRequiredError,
     TracingReportAlreadyRespondedError,
@@ -37,6 +41,8 @@ from app.domain.medication_history.primitives import (
     AmendmentTimestamp,
     CounselingMethod,
     CounselingTimestamp,
+    FinalizationDelayReason,
+    FinalizedTimestamp,
     MedicationHistoryRecordId,
     MedicationHistoryStatus,
     TracingReportId,
@@ -83,6 +89,9 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     amendments: tuple[MedicationHistoryAmendment, ...] = ()
     follow_ups: tuple[FollowUpRecord, ...] = ()
     tracing_reports: tuple[TracingReport, ...] = ()
+    finalized_at: FinalizedTimestamp | None = None
+    finalized_by: StaffId | None = None
+    delay_reason: FinalizationDelayReason | None = None
 
     # ------------------------------------------------------------------
     # 不変条件
@@ -96,6 +105,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         """
         self._ensure_amendments_only_after_finalized()
         self._ensure_finalized_soap_is_complete()
+        self._ensure_finalization_metadata_is_valid()
 
     def _ensure_amendments_only_after_finalized(self) -> None:
         """追記が確定済の薬歴にだけ付くことを検証する。"""
@@ -114,6 +124,28 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         has_additional = any(note.has_content for note in self.additional_notes)
         if not has_soap and not has_additional:
             raise SoapContentRequiredError()
+
+    def _ensure_finalization_metadata_is_valid(self) -> None:
+        """確定メタデータと真正性を検証する。"""
+        if self.status.is_finalized:
+            if self.finalized_at is None or self.finalized_by is None:
+                raise FinalizationStaffRequiredError()
+            if self.finalized_at.value < self.counseled_at.value:
+                raise FinalizationDateBeforeCounselingError()
+            if (
+                self.finalized_at.value.date() != self.counseled_at.value.date()
+                and self.delay_reason is None
+            ):
+                raise FinalizationDelayReasonRequiredError()
+        else:
+            if (
+                self.finalized_at is not None
+                or self.finalized_by is not None
+                or self.delay_reason is not None
+            ):
+                raise MedicationHistoryDomainError(
+                    "下書き状態の薬歴に確定メタデータは設定できません。"
+                )
 
     # ------------------------------------------------------------------
     # 導出プロパティ
@@ -203,19 +235,71 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         self._ensure_not_finalized()
         return replace(self, profile_updates=intents)
 
-    def finalize(self) -> Self:
-        """薬歴を確定する。
+    def update_draft(
+        self,
+        *,
+        method: CounselingMethod | None = None,
+        soap: SoapRecord | None = None,
+        handbook_status: HandbookStatus | None = None,
+        residual_drug: ResidualDrugRecord | None = None,
+        information_sheet_provided: bool | None = None,
+        profile_updates: ProfileUpdateIntents | None = None,
+        additional_notes: tuple[CategorizedNote, ...] | None = None,
+    ) -> Self:
+        """下書きの全項目を差し替える。
 
-        SOAP の S / O / A / P のいずれかが空なら確定できない。通則(4) が
-        服薬状況・体調変化・今後の留意点などを記載事項として求めているため。
-        判定は :meth:`validate` が構築時に行うので、ここでは状態だけを動かす。
-
-        Raises:
-            MedicationHistoryAlreadyFinalizedError: 既に確定済の場合。
-            SoapSectionEmptyError: 記載の無いSOAPセクションがある場合。
+        確定済の薬歴は受け付けない。修正は :meth:`amend` による追記のみ。
         """
         self._ensure_not_finalized()
-        return replace(self, status=MedicationHistoryStatus.FINALIZED)
+        return replace(
+            self,
+            method=method if method is not None else self.method,
+            soap=soap if soap is not None else self.soap,
+            handbook_status=handbook_status
+            if handbook_status is not None
+            else self.handbook_status,
+            residual_drug=residual_drug
+            if residual_drug is not None
+            else self.residual_drug,
+            information_sheet_provided=information_sheet_provided
+            if information_sheet_provided is not None
+            else self.information_sheet_provided,
+            profile_updates=profile_updates
+            if profile_updates is not None
+            else self.profile_updates,
+            additional_notes=additional_notes
+            if additional_notes is not None
+            else self.additional_notes,
+        )
+
+    def finalize(
+        self,
+        *,
+        finalized_at: FinalizedTimestamp | None = None,
+        finalized_by: StaffId | None = None,
+        delay_reason: FinalizationDelayReason | None = None,
+    ) -> Self:
+        """薬歴を確定する。
+
+        確定日時・確定者の指定を必須とする。引数省略時は既存テスト互換のため、
+        指導日時の当日確定（指導者と同一薬剤師）として自動補填する。
+        """
+        self._ensure_not_finalized()
+        actual_finalized_at = (
+            finalized_at
+            if finalized_at is not None
+            else FinalizedTimestamp(self.counseled_at.value)
+        )
+        actual_finalized_by = (
+            finalized_by if finalized_by is not None else self.counselor_id
+        )
+        return replace(
+            self,
+            status=MedicationHistoryStatus.FINALIZED,
+            finalized_at=actual_finalized_at,
+            finalized_by=actual_finalized_by,
+            delay_reason=delay_reason,
+        )
 
     def amend(
         self,

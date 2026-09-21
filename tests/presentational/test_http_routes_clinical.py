@@ -18,7 +18,12 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import TypeAdapter
 
-from app.application.medication_history import SoapInput
+from app.application.medication_history import (
+    CategorizedNoteInput,
+    HandbookStatusInput,
+    ResidualDrugInput,
+    SoapInput,
+)
 from app.domain.medication_history import StatutoryDispensingRecordItem
 from app.domain.prescription import InquiryNumber, InquiryResultType
 from app.infrastructure.di import (
@@ -35,9 +40,11 @@ from app.presentational.dependencies import (
 from app.presentational.routers.dispensing import StartDispensingRequest
 from app.presentational.routers.medication_history import (
     AddFollowUpRequest,
+    FinalizeMedicationHistoryRequest,
     RecordTracingReportRequest,
     RecordTracingReportResponseRequest,
     StartMedicationHistoryRequest,
+    UpdateMedicationHistoryDraftRequest,
 )
 from app.presentational.routers.prescription import RegisterPrescriptionRequest
 from tests.application.dispensing import helpers as dispensing_helpers
@@ -508,6 +515,73 @@ def test_薬歴を起票して確定すると_頭書きへ投影される(
     assert finalized.json()["status"] == "finalized"
     assert profile.status_code == HTTPStatus.OK, profile.text
     assert profile.json()["patient_id"] == patient_id
+
+
+def test_TC25_下書きの全項目更新と確定メタデータ付き確定(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    # Arrange: 起票
+    corporate_id = str(history_fixture.corporate_id.value)
+    started_res = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories",
+        json=_start_history_body(history_fixture),
+        headers=_HEADERS,
+    )
+    assert started_res.status_code == HTTPStatus.CREATED
+    record_id = started_res.json()["id"]
+    base = f"/corporates/{corporate_id}/medication-histories/{record_id}"
+
+    # Act 1: 下書きの全項目更新 (PUT /draft)
+    draft_update_body = UpdateMedicationHistoryDraftRequest(
+        method="telephone",
+        residual_drug=ResidualDrugInput(
+            has_residual_drugs=True, quantity=10, reason="飲み忘れ"
+        ),
+        handbook_status=HandbookStatusInput(presented=True),
+        information_sheet_provided=True,
+        additional_notes=(
+            CategorizedNoteInput(
+                major_category_code="guidance",
+                medium_category_code="adherence",
+                text="服用タイミングを朝食後に変更指導。",
+            ),
+        ),
+    ).model_dump(mode="json")
+    update_res = history_client.put(
+        f"{base}/draft",
+        json=draft_update_body,
+        headers=_HEADERS,
+    )
+
+    # Assert 1
+    assert update_res.status_code == HTTPStatus.OK, update_res.text
+    updated = update_res.json()
+    assert updated["method"] == "telephone"
+    assert updated["residual_drug"]["has_residual_drugs"] is True
+    assert updated["residual_drug"]["quantity"] == 10
+    assert updated["handbook_status"]["presented"] is True
+    assert updated["information_sheet_provided"] is True
+    assert len(updated["additional_notes"]) == 1
+    assert updated["status"] == "draft"
+
+    # Act 2: 確定 (POST /finalization) - 確定者資格の検証と確定メタデータの記録
+    counselor_str = str(history_fixture.counselor_id.value)
+    finalize_res = history_client.post(
+        f"{base}/finalization",
+        json=FinalizeMedicationHistoryRequest(
+            finalized_by=counselor_str,
+        ).model_dump(mode="json"),
+        headers=_HEADERS,
+    )
+
+    # Assert 2
+    assert finalize_res.status_code == HTTPStatus.OK, finalize_res.text
+    finalized = finalize_res.json()
+    assert finalized["status"] == "finalized"
+    assert finalized["finalized_by"] == counselor_str
+    assert finalized["finalized_at"] is not None
+    assert finalized["delay_reason"] is None
 
 
 def test_確定済みの薬歴は_訂正として積まれる(

@@ -87,6 +87,19 @@ class AmendmentTimestamp(BaseAwareTimestamp):
     timestamp_name: ClassVar[str] = "追記日時"
 
 
+class FinalizedTimestamp(BaseAwareTimestamp):
+    """薬歴を確定した日時。"""
+
+    timestamp_name: ClassVar[str] = "確定日時"
+
+
+class FinalizationDelayReason(BaseNormalizedString):
+    """薬歴確定の遅延理由（1〜200文字）。"""
+
+    min_length: ClassVar[int] = 1
+    max_length: ClassVar[int] = 200
+
+
 # --------------------------------------------------------------------------
 # 薬歴の状態・指導方法
 # --------------------------------------------------------------------------

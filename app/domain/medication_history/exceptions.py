@@ -45,6 +45,27 @@ class SoapContentRequiredError(MedicationHistoryDomainError):
     default_code = "MEDICATION_HISTORY_SOAP_CONTENT_REQUIRED"
 
 
+class FinalizationDelayReasonRequiredError(MedicationHistoryDomainError):
+    """指導日当日に確定されなかった薬歴で、遅延理由が記載されていない場合の例外。"""
+
+    default_message = "服薬指導日と確定日が異なる場合は、記載遅延理由が必要です。"
+    default_code = "MEDICATION_HISTORY_FINALIZATION_DELAY_REASON_REQUIRED"
+
+
+class FinalizationDateBeforeCounselingError(MedicationHistoryDomainError):
+    """確定日時が服薬指導日時より過去である場合の例外。"""
+
+    default_message = "確定日時は服薬指導日時以降である必要があります。"
+    default_code = "MEDICATION_HISTORY_FINALIZATION_DATE_BEFORE_COUNSELING"
+
+
+class FinalizationStaffRequiredError(MedicationHistoryDomainError):
+    """薬歴確定を行った薬剤師が指定されていない場合の例外。"""
+
+    default_message = "薬歴を確定するには、確定した薬剤師の指定が必要です。"
+    default_code = "MEDICATION_HISTORY_FINALIZATION_STAFF_REQUIRED"
+
+
 class DuplicateMajorCategoryError(MedicationHistoryDomainError):
     """大区分コードが重複している場合の例外。"""
 

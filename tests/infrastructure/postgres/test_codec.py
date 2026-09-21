@@ -26,6 +26,12 @@ from app.domain.dispensing import (
 )
 from app.domain.foundation.exceptions import DomainError
 from app.domain.foundation.primitives.base import DomainPrimitive
+from app.domain.medication_history import (
+    FinalizationDelayReason,
+    FinalizedTimestamp,
+    MedicationHistoryRecord,
+    MedicationHistoryStatus,
+)
 from app.domain.patient.lifecycle import PatientStatus
 from app.domain.patient.patient import Patient
 from app.domain.prescription import (
@@ -67,6 +73,7 @@ from app.infrastructure.postgres.codec import (
     encode_aggregate,
 )
 from tests.factories.dispensing_factory import create_dispensing, verify_passed
+from tests.factories.medication_history_factory import create_record
 from tests.factories.persistence_factory import create_patient
 from tests.factories.prescription_factory import (
     create_prescription,
@@ -454,3 +461,40 @@ def test_TC31_患者集約_後方互換復元() -> None:
     assert restored.status == PatientStatus.ACTIVE
     assert restored.merged_into_id is None
     assert restored.status_history == ()
+
+
+def test_TC24_薬歴集約のcodec往復と後方互換復元() -> None:
+    """確定メタデータを含む薬歴のJSONB往復と、旧payloadからの後方互換復元ができる。"""
+    # Arrange 1: 確定済み薬歴（finalized_at, finalized_by, delay_reason あり）の往復
+    record = create_record()
+    finalized = record.finalize(
+        finalized_at=FinalizedTimestamp(datetime(2026, 8, 25, 10, 0, tzinfo=UTC)),
+        finalized_by=StaffId.generate(),
+        delay_reason=FinalizationDelayReason("翌日確認のため"),
+    )
+    encoded = encode_aggregate(finalized)
+
+    # Act 1
+    restored = decode_aggregate(encoded, MedicationHistoryRecord)
+
+    # Assert 1
+    assert restored.id == finalized.id
+    assert restored.status == MedicationHistoryStatus.FINALIZED
+    assert restored.finalized_at == finalized.finalized_at
+    assert restored.finalized_by == finalized.finalized_by
+    assert restored.delay_reason == finalized.delay_reason
+
+    # Arrange 2: 旧形式（確定メタデータフィールドが存在しないpayload）
+    legacy_payload = encode_aggregate(create_record())
+    legacy_payload.pop("finalized_at", None)
+    legacy_payload.pop("finalized_by", None)
+    legacy_payload.pop("delay_reason", None)
+
+    # Act 2
+    restored_legacy = decode_aggregate(legacy_payload, MedicationHistoryRecord)
+
+    # Assert 2
+    assert restored_legacy.status == MedicationHistoryStatus.DRAFT
+    assert restored_legacy.finalized_at is None
+    assert restored_legacy.finalized_by is None
+    assert restored_legacy.delay_reason is None

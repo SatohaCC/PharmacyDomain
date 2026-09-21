@@ -39,6 +39,7 @@ from app.application.medication_history import (
 from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history import (
     CounselorQualificationError,
+    FinalizationDelayReasonRequiredError,
     MedicationHistoryAlreadyExistsError,
     MedicationHistoryAlreadyFinalizedError,
     MedicationHistoryNotFinalizedError,
@@ -707,3 +708,206 @@ class Test一覧:
 
         # Assert
         assert actual == ()
+
+
+class Test下書きの網羅的更新ユースケース:
+    """TC-15 〜 TC-17: 下書き薬歴の全項目更新ユースケースの検証。"""
+
+    async def test_tc15_下書きの全項目を更新して保存できる(self) -> None:
+        # Arrange
+        from app.application.medication_history.inputs import (
+            CategorizedNoteInput,
+            HandbookStatusInput,
+            ResidualDrugInput,
+        )
+
+        fixture = create_fixture()
+        record_id = await _start(fixture)
+
+        cmd = UpdateMedicationHistoryDraftCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            record_id=record_id,
+            soap=create_soap_input(subjective="下書き更新されたS"),
+            handbook_status=HandbookStatusInput(
+                presented=False,
+                not_presented_reason="forgot",
+                guidance_provided=True,
+            ),
+            residual_drug=ResidualDrugInput(
+                has_residual_drugs=True,
+                quantity=14,
+                reason="飲み忘れ",
+            ),
+            information_sheet_provided=True,
+            additional_notes=(
+                CategorizedNoteInput(
+                    major_category_code="soap",
+                    medium_category_code="s",
+                    text="更新された追加メモ",
+                ),
+            ),
+        )
+
+        # Act
+        actual = await fixture.update_draft.execute(cmd)
+
+        # Assert
+        assert actual.soap.subjective[0].text == "下書き更新されたS"
+        assert not actual.handbook_status.presented
+        assert actual.handbook_status.not_presented_reason == "forgot"
+        assert actual.residual_drug.has_residual_drugs
+        assert actual.residual_drug.quantity == 14
+        assert actual.information_sheet_provided is True
+        assert len(actual.additional_notes) == 1
+        assert actual.additional_notes[0].text == "更新された追加メモ"
+
+    async def test_tc16_確定済み薬歴への下書き更新は拒否される(self) -> None:
+        # Arrange
+        fixture = create_fixture()
+        record_id = await _start(fixture)
+        await _finalize(fixture, record_id)
+
+        cmd = UpdateMedicationHistoryDraftCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            record_id=record_id,
+            information_sheet_provided=True,
+        )
+
+        # Act / Assert
+        with pytest.raises(MedicationHistoryAlreadyFinalizedError):
+            await fixture.update_draft.execute(cmd)
+
+    async def test_tc17_停止中法人の下書き更新は拒否される(self) -> None:
+        # Arrange
+        fixture = create_fixture()
+        record_id = await _start(fixture)
+        fixture.corporate_repository.set_inactive(fixture.corporate_id)
+
+        cmd = UpdateMedicationHistoryDraftCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            record_id=record_id,
+            information_sheet_provided=True,
+        )
+
+        # Act / Assert
+        with pytest.raises(CorporateInactiveError):
+            await fixture.update_draft.execute(cmd)
+
+
+class Test薬歴確定ユースケース真正性と遅延理由:
+    """TC-18 〜 TC-23: 確定ユースケースにおける確定者、確定日時、遅延理由の検証。"""
+
+    async def test_tc18_当日確定で確定者と確定日時が保存される(self) -> None:
+        # Arrange
+        fixture = create_fixture()
+        record_id = await _start(fixture)
+        finalized_at = fixture.clock.now()
+
+        cmd = FinalizeMedicationHistoryCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            record_id=record_id,
+            finalized_by=str(fixture.counselor_id.value),
+            finalized_at=finalized_at,
+        )
+
+        # Act
+        actual = await fixture.finalize.execute(cmd)
+
+        # Assert
+        assert actual.status == MedicationHistoryStatus.FINALIZED.value
+        assert actual.finalized_at == finalized_at.isoformat()
+        assert actual.finalized_by == str(fixture.counselor_id.value)
+        assert actual.delay_reason is None
+
+    async def test_tc19_遅延確定で遅延理由が保存される(self) -> None:
+        # Arrange
+        from datetime import timedelta
+
+        fixture = create_fixture()
+        record_id = await _start(fixture)
+        next_day = fixture.clock.now() + timedelta(days=1)
+
+        cmd = FinalizeMedicationHistoryCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            record_id=record_id,
+            finalized_by=str(fixture.counselor_id.value),
+            finalized_at=next_day,
+            delay_reason="処方照会と患者再来局の確認のため翌日確定",
+        )
+
+        # Act
+        actual = await fixture.finalize.execute(cmd)
+
+        # Assert
+        assert actual.status == MedicationHistoryStatus.FINALIZED.value
+        assert actual.delay_reason == "処方照会と患者再来局の確認のため翌日確定"
+
+    async def test_tc20_遅延確定で遅延理由が無いと拒否される(self) -> None:
+        # Arrange
+        fixture = create_fixture()
+        record_id = await _start(fixture)
+        next_day = fixture.clock.now() + timedelta(days=1)
+
+        cmd = FinalizeMedicationHistoryCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            record_id=record_id,
+            finalized_by=str(fixture.counselor_id.value),
+            finalized_at=next_day,
+            delay_reason=None,
+        )
+
+        # Act / Assert
+        with pytest.raises(FinalizationDelayReasonRequiredError):
+            await fixture.finalize.execute(cmd)
+
+    async def test_tc21_確定者が薬剤師資格を持たない場合は拒否される(self) -> None:
+        # Arrange
+        from datetime import UTC, datetime
+
+        fixture = create_fixture()
+        record_id = await _start(fixture)
+        non_pharmacist_id = StaffId.generate()
+        # 資格を持たないスタッフとして登録
+        fixture.staff_qualification.register(
+            corporate_id=fixture.corporate_id,
+            staff_id=non_pharmacist_id,
+            qualifications=StaffQualifications.empty(),
+        )
+
+        cmd = FinalizeMedicationHistoryCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            record_id=record_id,
+            finalized_by=str(non_pharmacist_id.value),
+            finalized_at=datetime.now(UTC),
+        )
+
+        # Act / Assert
+        with pytest.raises(CounselorQualificationError):
+            await fixture.finalize.execute(cmd)
+
+    async def test_tc23_確定メタデータがDTOとして正しく取得できる(self) -> None:
+        # Arrange
+        fixture = create_fixture()
+        record_id = await _start(fixture)
+        finalized_at = fixture.clock.now()
+
+        await fixture.finalize.execute(
+            FinalizeMedicationHistoryCommand(
+                corporate_id=str(fixture.corporate_id.value),
+                record_id=record_id,
+                finalized_by=str(fixture.counselor_id.value),
+                finalized_at=finalized_at,
+            )
+        )
+
+        # Act
+        actual = await fixture.get.execute(
+            GetMedicationHistoryQuery(
+                corporate_id=str(fixture.corporate_id.value),
+                record_id=record_id,
+            )
+        )
+
+        # Assert
+        assert actual.finalized_at == finalized_at.isoformat()
+        assert actual.finalized_by == str(fixture.counselor_id.value)

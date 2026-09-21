@@ -15,6 +15,7 @@ from app.application.medication_history.exceptions import (
     MedicationHistoryNotFoundError,
 )
 from app.application.medication_history.inputs import (
+    CategorizedNoteInput,
     HandbookStatusInput,
     LabeledNoteInput,
     ProfileUpdateInput,
@@ -28,6 +29,7 @@ from app.domain.medication_history import (
     AllergenName,
     AllergyReaction,
     AllergySeverity,
+    CategorizedNote,
     ConcurrentCategory,
     ConditionName,
     ConditionStatus,
@@ -41,9 +43,11 @@ from app.domain.medication_history import (
     LabeledNote,
     LifestyleNote,
     LifestyleUpdateIntent,
+    MajorCategoryCode,
     MedicationHistoryRecord,
     MedicationHistoryRecordId,
     MedicationHistoryRepository,
+    MediumCategoryCode,
     NewAdverseReactionIntent,
     NewAllergyIntent,
     NewConcurrentMedicationIntent,
@@ -66,6 +70,7 @@ from app.domain.shared.medicine import MedicineName
 from app.domain.staff.primitives import StaffId
 
 __all__ = [
+    "build_additional_notes",
     "build_handbook_status",
     "build_profile_updates",
     "build_residual_drug",
@@ -143,6 +148,23 @@ def build_handbook_status(source: HandbookStatusInput) -> HandbookStatus:
             if consolidation_reason is not None
             else None
         ),
+    )
+
+
+def build_additional_notes(
+    sources: tuple[CategorizedNoteInput, ...],
+) -> tuple[CategorizedNote, ...]:
+    """大区分・中区分メモの列を構成する。"""
+    return tuple(
+        CategorizedNote(
+            major_category_code=MajorCategoryCode(note.major_category_code),
+            medium_category_code=MediumCategoryCode(note.medium_category_code),
+            text=CounselingNote(note.text),
+            statutory_category=parse_enum(
+                StatutoryCategory, note.category, "記載メモの法定区分"
+            ),
+        )
+        for note in sources
     )
 
 
