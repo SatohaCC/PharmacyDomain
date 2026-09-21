@@ -19,6 +19,8 @@ from app.domain.medication_history import (
     CounselingMethod,
     CounselingNote,
     CounselingTimestamp,
+    FollowUpId,
+    FollowUpRecord,
     GenericPreferenceIntent,
     GenericPreferenceType,
     HandbookNotPresentedReason,
@@ -265,6 +267,46 @@ def create_record(
         if residual_drug is not None
         else ResidualDrugRecord.none_remaining(),
         profile_updates=profile_updates,
+        additional_notes=additional_notes,
+    )
+
+
+def create_follow_up(
+    *,
+    follow_up_id: FollowUpId | None = None,
+    counselor_id: StaffId | None = None,
+    followed_up_at: datetime | None = None,
+    method: CounselingMethod = CounselingMethod.TELEPHONE,
+    soap: SoapRecord | None = None,
+    handbook_status: HandbookStatus | None = None,
+    residual_drug: ResidualDrugRecord | None = None,
+    information_sheet_provided: bool = False,
+    profile_updates: ProfileUpdateIntents | None = None,
+    additional_notes: tuple[CategorizedNote, ...] = (),
+) -> FollowUpRecord:
+    """服薬期間中のフォローアップ記録を組み立てる。"""
+    return FollowUpRecord(
+        id=follow_up_id if follow_up_id is not None else FollowUpId.generate(),
+        counselor_id=counselor_id if counselor_id is not None else StaffId.generate(),
+        followed_up_at=CounselingTimestamp(
+            followed_up_at
+            if followed_up_at is not None
+            else datetime(2026, 8, 27, 5, 0, tzinfo=UTC)
+        ),
+        method=method,
+        soap=soap
+        if soap is not None
+        else create_soap(subjective="服用後の体調に問題なし。"),
+        handbook_status=handbook_status
+        if handbook_status is not None
+        else create_handbook_status(),
+        residual_drug=residual_drug
+        if residual_drug is not None
+        else ResidualDrugRecord.none_remaining(),
+        information_sheet_provided=information_sheet_provided,
+        profile_updates=profile_updates
+        if profile_updates is not None
+        else ProfileUpdateIntents(),
         additional_notes=additional_notes,
     )
 

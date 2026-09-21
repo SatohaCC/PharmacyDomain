@@ -292,3 +292,24 @@ class StatutoryItemAssessedTwiceError(MedicationHistoryDomainError):
 
     default_message = "同じ調剤録の記載事項に複数の判定が付いています。"
     default_code = "MEDICATION_HISTORY_STATUTORY_ITEM_ASSESSED_TWICE"
+
+
+class FollowUpOnDraftError(MedicationHistoryDomainError):
+    """未確定の下書き薬歴に対してフォローアップを追加しようとした場合の例外。"""
+
+    default_message = "下書き状態の薬歴にはフォローアップを追加できません。"
+    default_code = "MEDICATION_HISTORY_FOLLOW_UP_ON_DRAFT"
+
+
+class FollowUpDateBeforeCounselingError(MedicationHistoryDomainError):
+    """フォローアップ実施日時が初回服薬指導日時より前である場合の例外。"""
+
+    default_message = "フォローアップ日時は初回服薬指導日時以降である必要があります。"
+    default_code = "MEDICATION_HISTORY_FOLLOW_UP_DATE_BEFORE_COUNSELING"
+
+
+class DuplicatedFollowUpIdError(MedicationHistoryDomainError):
+    """同一IDのフォローアップが既に存在する場合の例外。"""
+
+    default_message = "同一IDのフォローアップが既に存在します。"
+    default_code = "MEDICATION_HISTORY_DUPLICATED_FOLLOW_UP_ID"

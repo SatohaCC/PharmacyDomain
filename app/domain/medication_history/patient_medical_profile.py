@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, datetime
 from typing import Self
 
 from app.domain.corporate.primitives import CorporateId
@@ -38,10 +38,12 @@ from app.domain.medication_history.value_objects import (
     AllergyRecord,
     ConcurrentMedicationRecord,
     FamilyPharmacistAgreement,
+    FollowUpRecord,
     GenericPreference,
     LifestyleProfile,
     MedicalConditionRecord,
     ProfileProvenance,
+    ProfileUpdateIntents,
 )
 from app.domain.patient.primitives import PatientId
 from app.domain.shared.medicine import MedicineName
@@ -135,15 +137,43 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
         patient_id: PatientId,
         records: tuple[MedicationHistoryRecord, ...],
     ) -> Self:
-        """確定済薬歴の列から頭書きを再構築する。
+        """確定済薬歴の列および紐づくフォローアップから頭書きを再構築する。
 
-        ``counseled_at`` 昇順に畳み込む。頭書きは薬歴からの投影なので、
+        指導日時・フォローアップ日時の昇順にすべての差分を畳み込む。頭書きは薬歴からの投影なので、
         確定済薬歴が残ってさえいれば投影を作り直せる。再構築は履歴からの
         復元を担い、薬歴と頭書きの保存を原子的にする責務は Unit of Work が担う。
         """
         profile = cls.empty_for(corporate_id=corporate_id, patient_id=patient_id)
-        for record in sorted(records, key=lambda item: item.counseled_at.value):
-            profile = profile.apply(record)
+
+        @dataclass(frozen=True)
+        class _ProfileEvent:
+            occurred_at: datetime
+            record: MedicationHistoryRecord
+            follow_up: FollowUpRecord | None = None
+
+        raw_events: list[_ProfileEvent] = []
+        for record in records:
+            raw_events.append(
+                _ProfileEvent(
+                    occurred_at=record.counseled_at.value,
+                    record=record,
+                )
+            )
+            for follow_up in record.follow_ups:
+                raw_events.append(
+                    _ProfileEvent(
+                        occurred_at=follow_up.followed_up_at.value,
+                        record=record,
+                        follow_up=follow_up,
+                    )
+                )
+
+        raw_events.sort(key=lambda ev: ev.occurred_at)
+        for ev in raw_events:
+            if ev.follow_up is not None:
+                profile = profile.apply_follow_up(ev.record, ev.follow_up)
+            else:
+                profile = profile.apply(ev.record)
         return profile
 
     # ------------------------------------------------------------------
@@ -165,7 +195,28 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
         if not record.is_finalized:
             raise UnfinalizedRecordProjectionError()
         provenance = _provenance_of(record)
-        intents = record.profile_updates
+        return self._apply_intents(record.profile_updates, provenance)
+
+    def apply_follow_up(
+        self, record: MedicationHistoryRecord, follow_up: FollowUpRecord
+    ) -> Self:
+        """フォローアップ記録の頭書き差分を適用する。
+
+        Raises:
+            ProfilePatientMismatchError: 別の患者・法人の薬歴である場合。
+            UnfinalizedRecordProjectionError: 未確定の薬歴である場合。
+            ConcurrentMedicationNotFoundError: 終了対象の併用薬が無い場合。
+        """
+        self._ensure_same_patient(record)
+        if not record.is_finalized:
+            raise UnfinalizedRecordProjectionError()
+        provenance = _provenance_of_follow_up(record, follow_up)
+        return self._apply_intents(follow_up.profile_updates, provenance)
+
+    def _apply_intents(
+        self, intents: ProfileUpdateIntents, provenance: ProfileProvenance
+    ) -> Self:
+        """差分群を指定された由来で頭書きに反映する。"""
         updated = replace(
             self,
             allergies=(
@@ -361,4 +412,15 @@ def _provenance_of(record: MedicationHistoryRecord) -> ProfileProvenance:
         source_record_id=record.id,
         recorded_by=record.counselor_id,
         recorded_on=record.counseled_at.value.date(),
+    )
+
+
+def _provenance_of_follow_up(
+    record: MedicationHistoryRecord, follow_up: FollowUpRecord
+) -> ProfileProvenance:
+    """フォローアップ記録から由来を組み立てる。"""
+    return ProfileProvenance(
+        source_record_id=record.id,
+        recorded_by=follow_up.counselor_id,
+        recorded_on=follow_up.followed_up_at.value.date(),
     )

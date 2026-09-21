@@ -9,6 +9,8 @@ from app.application.common.optional_conversion import unwrap
 from app.application.medication_history.support import load_record_or_raise
 from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history import (
+    CategorizedNote,
+    FollowUpRecord,
     HandbookStatus,
     LabeledNote,
     MedicationHistoryAmendment,
@@ -125,8 +127,62 @@ class AmendmentDto:
 
 
 @dataclass(frozen=True, kw_only=True)
+class CategorizedNoteDto:
+    """大区分・中区分に紐づく記載メモ1件の出力DTO。"""
+
+    major_category_code: str
+    medium_category_code: str
+    text: str
+    category: str
+
+    @classmethod
+    def from_value(cls, value: CategorizedNote) -> CategorizedNoteDto:
+        """記載メモからDTOを生成する。"""
+        return cls(
+            major_category_code=value.major_category_code.value,
+            medium_category_code=value.medium_category_code.value,
+            text=value.text.value,
+            category=value.statutory_category.value,
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
+class FollowUpDto:
+    """服薬期間中のフォローアップ出力DTO。"""
+
+    id: str
+    counselor_id: str
+    followed_up_at: str
+    method: str
+    soap: SoapDto
+    handbook_status: HandbookStatusDto
+    residual_drug: ResidualDrugDto
+    information_sheet_provided: bool
+    additional_notes: tuple[CategorizedNoteDto, ...] = ()
+    updates_profile: bool = False
+
+    @classmethod
+    def from_value(cls, value: FollowUpRecord) -> FollowUpDto:
+        """フォローアップ値オブジェクトからDTOを生成する。"""
+        return cls(
+            id=str(value.id.value),
+            counselor_id=str(value.counselor_id.value),
+            followed_up_at=value.followed_up_at.value.isoformat(),
+            method=value.method.value,
+            soap=SoapDto.from_value(value.soap),
+            handbook_status=HandbookStatusDto.from_value(value.handbook_status),
+            residual_drug=ResidualDrugDto.from_value(value.residual_drug),
+            information_sheet_provided=value.information_sheet_provided,
+            additional_notes=tuple(
+                CategorizedNoteDto.from_value(note) for note in value.additional_notes
+            ),
+            updates_profile=not value.profile_updates.is_empty,
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
 class MedicationHistoryDto:
-    """薬歴の出力DTO。"""
+    """薬歴取得ユースケースの出力DTO。"""
 
     id: str
     corporate_id: str
@@ -147,6 +203,8 @@ class MedicationHistoryDto:
     information_sheet_provided: bool
     amendments: tuple[AmendmentDto, ...]
     updates_profile: bool
+    additional_notes: tuple[CategorizedNoteDto, ...] = ()
+    follow_ups: tuple[FollowUpDto, ...] = ()
 
     @classmethod
     def from_entity(cls, record: MedicationHistoryRecord) -> MedicationHistoryDto:
@@ -171,6 +229,10 @@ class MedicationHistoryDto:
                 AmendmentDto.from_value(item) for item in record.amendments
             ),
             updates_profile=record.updates_profile,
+            additional_notes=tuple(
+                CategorizedNoteDto.from_value(note) for note in record.additional_notes
+            ),
+            follow_ups=tuple(FollowUpDto.from_value(fu) for fu in record.follow_ups),
         )
 
 

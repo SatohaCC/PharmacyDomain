@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import ClassVar, Self
 
@@ -23,6 +23,7 @@ from app.domain.medication_history.exceptions import (
     HandbookReasonNotAllowedError,
     ResidualDrugDetailNotAllowedError,
     ResidualDrugDetailRequiredError,
+    SoapContentRequiredError,
     StatutoryItemAssessedTwiceError,
     StatutoryItemNotAssessedError,
 )
@@ -36,7 +37,10 @@ from app.domain.medication_history.primitives import (
     ConcurrentCategory,
     ConditionName,
     ConditionStatus,
+    CounselingMethod,
     CounselingNote,
+    CounselingTimestamp,
+    FollowUpId,
     GenericPreferenceType,
     HandbookConsolidationReason,
     HandbookNotPresentedReason,
@@ -695,6 +699,42 @@ class MedicationHistoryAmendment(ValueObject):
         "amended_by": "追記者",
         "amended_at": "追記日時",
     }
+
+
+@dataclass(frozen=True, kw_only=True)
+class FollowUpRecord(ValueObject):
+    """服薬期間中のフォローアップ（調剤後フォロー）記録。"""
+
+    id: FollowUpId
+    counselor_id: StaffId
+    followed_up_at: CounselingTimestamp
+    method: CounselingMethod
+    soap: SoapRecord
+    handbook_status: HandbookStatus
+    residual_drug: ResidualDrugRecord
+    information_sheet_provided: bool = False
+    profile_updates: ProfileUpdateIntents = field(default_factory=ProfileUpdateIntents)
+    additional_notes: tuple[CategorizedNote, ...] = ()
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "id": "フォローアップID",
+        "counselor_id": "指導薬剤師",
+        "followed_up_at": "フォローアップ日時",
+        "method": "実施方法",
+        "soap": "SOAP記録",
+        "handbook_status": "お薬手帳確認",
+        "residual_drug": "残薬確認",
+        "information_sheet_provided": "情報提供文書有無",
+        "profile_updates": "頭書き差分",
+        "additional_notes": "追加記載メモ",
+    }
+
+    def validate(self) -> None:
+        """白紙のフォローアップ記録を拒否する。"""
+        has_soap = self.soap.has_content
+        has_additional = any(note.has_content for note in self.additional_notes)
+        if not has_soap and not has_additional:
+            raise SoapContentRequiredError()
 
 
 # --------------------------------------------------------------------------

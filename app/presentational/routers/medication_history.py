@@ -9,14 +9,17 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import Field
 
 from app.application.medication_history import (
+    AddFollowUpCommand,
     AmendMedicationHistoryCommand,
+    CategorizedNoteInput,
     CategoryCatalogDto,
     FinalizeMedicationHistoryCommand,
     GetMedicationHistoryQuery,
@@ -84,6 +87,20 @@ class AmendMedicationHistoryRequest(RequestModel):
     amended_by: str
     reason: str
     amended_soap: SoapInput
+
+
+class AddFollowUpRequest(RequestModel):
+    """フォローアップ記録の追加入力。"""
+
+    counselor_id: str
+    followed_up_at: datetime
+    method: str
+    soap: SoapInput = Field(default_factory=SoapInput)
+    additional_notes: tuple[CategorizedNoteInput, ...] = ()
+    handbook_status: HandbookStatusInput | None = None
+    residual_drug: ResidualDrugInput | None = None
+    information_sheet_provided: bool = False
+    profile_updates: ProfileUpdateInput | None = None
 
 
 class RebuildMedicalProfileRequest(RequestModel):
@@ -200,6 +217,40 @@ async def amend_medication_history(
             amended_by=body.amended_by,
             reason=body.reason,
             amended_soap=body.amended_soap,
+        )
+    )
+
+
+@router.post(
+    "/medication-histories/{record_id}/follow-ups",
+    status_code=HTTPStatus.CREATED,
+    response_model=MedicationHistoryDto,
+    responses=error_responses(
+        HTTPStatus.NOT_FOUND,
+        HTTPStatus.CONFLICT,
+        HTTPStatus.UNPROCESSABLE_CONTENT,
+    ),
+)
+async def add_follow_up(
+    corporate_id: str,
+    record_id: str,
+    body: AddFollowUpRequest,
+    use_cases: MedicationHistoryUseCasesDep,
+) -> MedicationHistoryDto:
+    """服薬期間中のフォローアップ記録を追加する。"""
+    return await use_cases.add_follow_up.execute(
+        AddFollowUpCommand(
+            corporate_id=corporate_id,
+            record_id=record_id,
+            counselor_id=body.counselor_id,
+            followed_up_at=body.followed_up_at,
+            method=body.method,
+            soap=body.soap,
+            additional_notes=body.additional_notes,
+            handbook_status=body.handbook_status,
+            residual_drug=body.residual_drug,
+            information_sheet_provided=body.information_sheet_provided,
+            profile_updates=body.profile_updates,
         )
     )
 

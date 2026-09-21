@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.application.medication_history import (
+    AddFollowUpUseCase,
     AmendMedicationHistoryUseCase,
     FinalizeMedicationHistoryUseCase,
     GetCategoryCatalogUseCase,
@@ -100,6 +101,7 @@ class MedicationHistoryFixture:
     verify_statutory_record: VerifyStatutoryRecordUseCase
     get_category_catalog: GetCategoryCatalogUseCase
     update_category_catalog: UpdateCategoryCatalogUseCase
+    add_follow_up: AddFollowUpUseCase
     record_repository: InMemoryMedicationHistoryRepository
     profile_repository: InMemoryPatientMedicalProfileRepository
     category_catalog_repository: InMemoryMedicationHistoryCategoryCatalogRepository
@@ -203,6 +205,14 @@ def create_fixture() -> MedicationHistoryFixture:
         ),
         update_category_catalog=UpdateCategoryCatalogUseCase(
             category_catalog_repository, corporate_access
+        ),
+        add_follow_up=AddFollowUpUseCase(
+            record_repository,
+            profile_repository,
+            corporate_access,
+            staff_qualification,
+            CounselorQualificationService(),
+            unit_of_work=NullUnitOfWork(),
         ),
         record_repository=record_repository,
         profile_repository=profile_repository,

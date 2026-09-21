@@ -17,6 +17,9 @@ from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.primitives import DispensingId
 from app.domain.foundation.entity import AggregateRoot
 from app.domain.medication_history.exceptions import (
+    DuplicatedFollowUpIdError,
+    FollowUpDateBeforeCounselingError,
+    FollowUpOnDraftError,
     MedicationHistoryAlreadyFinalizedError,
     MedicationHistoryNotFinalizedError,
     SoapContentRequiredError,
@@ -31,6 +34,7 @@ from app.domain.medication_history.primitives import (
 )
 from app.domain.medication_history.value_objects import (
     CategorizedNote,
+    FollowUpRecord,
     HandbookStatus,
     MedicationHistoryAmendment,
     ProfileUpdateIntents,
@@ -66,6 +70,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     additional_notes: tuple[CategorizedNote, ...] = ()
     status: MedicationHistoryStatus = MedicationHistoryStatus.DRAFT
     amendments: tuple[MedicationHistoryAmendment, ...] = ()
+    follow_ups: tuple[FollowUpRecord, ...] = ()
 
     # ------------------------------------------------------------------
     # 不変条件
@@ -232,3 +237,19 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         """確定済でないことを保証する。"""
         if self.is_finalized:
             raise MedicationHistoryAlreadyFinalizedError()
+
+    def add_follow_up(self, follow_up: FollowUpRecord) -> Self:
+        """確定済の薬歴に服薬期間中フォローアップ記録を追加する。
+
+        Raises:
+            FollowUpOnDraftError: 薬歴が未確定（下書き）の場合。
+            FollowUpDateBeforeCounselingError: 初回指導日時より前のフォローアップ日時の場合。
+            DuplicatedFollowUpIdError: 同一のフォローアップIDが既に存在する場合。
+        """
+        if not self.is_finalized:
+            raise FollowUpOnDraftError()
+        if follow_up.followed_up_at.value < self.counseled_at.value:
+            raise FollowUpDateBeforeCounselingError()
+        if any(existing.id == follow_up.id for existing in self.follow_ups):
+            raise DuplicatedFollowUpIdError()
+        return replace(self, follow_ups=(*self.follow_ups, follow_up))
