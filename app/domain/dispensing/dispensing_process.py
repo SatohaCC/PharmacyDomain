@@ -26,6 +26,7 @@ from app.domain.dispensing.exceptions import (
     DuplicatedPreparationMethodError,
     NextDispensingDateMismatchError,
     SubstitutionWithoutChangeError,
+    TotalSplitCountMismatchError,
     VerificationNotPassedError,
     VerificationStatusMismatchError,
 )
@@ -42,6 +43,7 @@ from app.domain.dispensing.primitives import (
     DispensingTimestamp,
     NextDispensingDate,
     PreparationMethod,
+    TotalSplitCount,
     VerificationNotes,
     VerificationResult,
     VerificationTimestamp,
@@ -207,6 +209,7 @@ class DispensingProcess(AggregateRoot[DispensingId]):
     dispensed_rps: tuple[DispensedRp, ...]
     completion_type: DispensingCompletionType = DispensingCompletionType.COMPLETED
     split_reason: DispensingSplitReason | None = None
+    total_split_count: TotalSplitCount | None = None
     next_dispensing_date: NextDispensingDate | None = None
     audit: DispensingPrescriptionAudit | None = None
     verification: DispensingVerification | None = None
@@ -221,7 +224,7 @@ class DispensingProcess(AggregateRoot[DispensingId]):
         """調剤セッションが単独で判定できる不変条件を検証する。"""
         self._ensure_has_rp()
         self._ensure_rp_numbers_are_unique()
-        self._ensure_iteration_matches_split_reason()
+        self._ensure_split_parameters_consistency()
         self._ensure_next_dispensing_date_matches_completion_type()
         self._ensure_cancellation_reason_matches_status()
         self._ensure_verification_matches_status()
@@ -256,19 +259,26 @@ class DispensingProcess(AggregateRoot[DispensingId]):
         if len(numbers) != len(set(numbers)):
             raise DuplicatedDispensedRpNumberError()
 
-    def _ensure_iteration_matches_split_reason(self) -> None:
-        """分割理由ごとの調剤回数の範囲に収まっていることを検証する。
+    def _ensure_split_parameters_consistency(self) -> None:
+        """分割理由と合計分割回数の有無、および回数の自己無撞着性を検証する。
 
-        リフィル処方箋の総使用回数は処方箋集約が持つので、ここでは判定せず
-        Domain Service に委ねる。
+        薬局実務において分割調剤の可否判定・回数管理・点数算定はすべてレセコンの責務であり、
+        調剤集約はレセコンからNSIPS等で連携された業務事実（今回回数と合計分割回数）を
+        記録する。ここではセッション単体の自己無撞着性（分割パラメータの整合性および
+        今回回数が合計分割回数以内であること）のみを保証する。
         """
-        if self.split_reason is None:
-            return
-        if not self.split_reason.allows_iteration(self.iteration.value):
+        has_reason = self.split_reason is not None
+        has_total = self.total_split_count is not None
+        if has_reason != has_total:
+            raise TotalSplitCountMismatchError()
+        if (
+            self.split_reason is not None
+            and self.total_split_count is not None
+            and self.iteration.value > self.total_split_count.value
+        ):
             raise DispensingIterationOutOfRangeError(
-                reason_label=self.split_reason.label,
                 iteration=self.iteration.value,
-                allowed=self.split_reason.allowed_range_label,
+                total=self.total_split_count.value,
             )
 
     def _ensure_next_dispensing_date_matches_completion_type(self) -> None:
@@ -351,6 +361,7 @@ class DispensingProcess(AggregateRoot[DispensingId]):
         started_at: DispensingTimestamp,
         dispensed_rps: tuple[DispensedRp, ...],
         split_reason: DispensingSplitReason | None = None,
+        total_split_count: TotalSplitCount | None = None,
     ) -> Self:
         """調剤セッションを開始する。
 
@@ -369,6 +380,7 @@ class DispensingProcess(AggregateRoot[DispensingId]):
             started_at=started_at,
             dispensed_rps=dispensed_rps,
             split_reason=split_reason,
+            total_split_count=total_split_count,
             status=DispensingProcessStatus.IN_PROGRESS,
         )
 

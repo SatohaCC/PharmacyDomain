@@ -20,6 +20,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import ClassVar
 
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.primitives.primitives import (
     BaseAwareTimestamp,
     BaseDate,
@@ -56,6 +57,22 @@ class DispensingIteration(BasePositiveInt):
     quantity_name: ClassVar[str] = "調剤回数"
 
 
+class TotalSplitCount(BasePositiveInt):
+    """分割調剤における合計分割回数（全何回分割か）。
+
+    分割調剤である以上、2分割以上（2以上の整数）である必要がある。
+    注9（長期保存困難等）など回数上限の定めがない分割調剤も存在するため、
+    この型自体には特定の上限値（3回等）は課さない。
+    """
+
+    quantity_name: ClassVar[str] = "合計分割回数"
+
+    def validate(self) -> None:
+        super().validate()
+        if self.value < 2:
+            raise DomainValidationError("合計分割回数は2回以上で指定してください。")
+
+
 class DispensingSplitReason(StrEnum):
     """分割調剤の理由（調剤基本料の注9・注10・注11）。
 
@@ -90,43 +107,6 @@ class DispensingSplitReason(StrEnum):
             self.PRESCRIBER_INSTRUCTED: "11",
         }
         return numbers[self]
-
-    @property
-    def iteration_range(self) -> tuple[int, int | None]:
-        """許容される調剤回数の範囲 ``(下限, 上限)``。上限なしは ``None``。"""
-        return _SPLIT_ITERATION_RANGES[self]
-
-    def allows_iteration(self, iteration: int) -> bool:
-        """指定の調剤回数がこの分割理由で成立するかを返す。"""
-        minimum, maximum = self.iteration_range
-        if iteration < minimum:
-            return False
-        return maximum is None or iteration <= maximum
-
-    @property
-    def allowed_range_label(self) -> str:
-        """許容範囲の表示用文字列。"""
-        minimum, maximum = self.iteration_range
-        if maximum is None:
-            return f"{minimum}回目以降"
-        if minimum == maximum:
-            return f"{minimum}回目のみ"
-        return f"{minimum}〜{maximum}回目"
-
-
-#: 分割理由ごとの調剤回数の範囲。判定を分割理由ごとの ``if`` で書くと、
-#: 理由が増えたときに必ず書き漏れる。
-_SPLIT_ITERATION_RANGES: dict[DispensingSplitReason, tuple[int, int | None]] = {
-    # 注9: 14日分を超える投薬で2回目以降に成立する。回数上限の定めなし。
-    DispensingSplitReason.LONG_TERM_STORAGE: (2, None),
-    # 注10: 「2回目の調剤を行った場合に限り」＝実質2分割。
-    DispensingSplitReason.GENERIC_TRIAL: (1, 2),
-    # 注11: 3分割まで。
-    DispensingSplitReason.PRESCRIBER_INSTRUCTED: (1, 3),
-}
-
-if set(_SPLIT_ITERATION_RANGES) != set(DispensingSplitReason):
-    raise RuntimeError("DispensingSplitReason の回数範囲表に定義漏れがあります。")
 
 
 class DispensedDate(BaseDate):

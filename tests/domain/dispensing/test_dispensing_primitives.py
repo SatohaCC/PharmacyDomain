@@ -20,48 +20,39 @@ from app.domain.dispensing import (
     PreparationMethod,
     QuantityAdjustmentReason,
     SubstitutionCategory,
+    TotalSplitCount,
     VerificationResult,
     VerificationTimestamp,
 )
 from app.domain.foundation.exceptions import DomainValidationError
 
 
-class Test分割理由と調剤回数:
-    """保険調剤の理解のために（令和8年度）の注9・注10・注11。"""
+class TestTotalSplitCount:
+    """合計分割回数（2回以上の整数）。"""
 
-    def test_後発医薬品の試用は_2回目までしか成立しない(self) -> None:
-        """注10 は「2回目の調剤を行った場合に限り」＝実質2分割。"""
-        # Arrange
-        reason = DispensingSplitReason.GENERIC_TRIAL
+    def test_2以上の整数で構築できる(self) -> None:
+        # Arrange / Act
+        actual2 = TotalSplitCount(2)
+        actual3 = TotalSplitCount(3)
+        actual10 = TotalSplitCount(10)
 
-        # Act / Assert
-        assert reason.allows_iteration(1)
-        assert reason.allows_iteration(2)
-        assert not reason.allows_iteration(3)
+        # Assert
+        assert actual2.value == 2
+        assert actual3.value == 3
+        assert actual10.value == 10
 
-    def test_医師の分割指示は_3回目まで成立する(self) -> None:
-        """注11 は3分割まで。"""
-        # Arrange
-        reason = DispensingSplitReason.PRESCRIBER_INSTRUCTED
-
-        # Act / Assert
-        assert reason.allows_iteration(3)
-        assert not reason.allows_iteration(4)
-
-    def test_長期保存の困難性等は_上限が無い(self) -> None:
-        """注9 は回数上限の定めが無い。上限を型に持たせると表現できなくなる。"""
-        # Arrange
-        reason = DispensingSplitReason.LONG_TERM_STORAGE
-
-        # Act / Assert
-        assert reason.iteration_range == (2, None)
-        assert reason.allows_iteration(2)
-        assert reason.allows_iteration(99)
-
-    def test_長期保存の困難性等は_1回目には成立しない(self) -> None:
-        """注9 は2回目以降の分割調剤に対する規定。"""
+    def test_1以下は受け付けない(self) -> None:
+        """分割調剤である以上、2分割以上が必要。"""
         # Arrange / Act / Assert
-        assert not DispensingSplitReason.LONG_TERM_STORAGE.allows_iteration(1)
+        with pytest.raises(DomainValidationError, match="合計分割回数"):
+            TotalSplitCount(1)
+
+        with pytest.raises(DomainValidationError):
+            TotalSplitCount(0)
+
+
+class Test分割理由:
+    """分割調剤の理由（注9・注10・注11）。"""
 
     def test_分割理由には_調剤基本料の注番号が対応する(self) -> None:
         # Arrange / Act / Assert
@@ -69,14 +60,11 @@ class Test分割理由と調剤回数:
         assert DispensingSplitReason.GENERIC_TRIAL.note_number == "10"
         assert DispensingSplitReason.PRESCRIBER_INSTRUCTED.note_number == "11"
 
-    def test_全ての分割理由に_回数範囲が定義されている(self) -> None:
-        """読み込み時チェックが効いていることを、利用側からも確かめる。"""
+    def test_表示名が取得できる(self) -> None:
         # Arrange / Act / Assert
-        for reason in DispensingSplitReason:
-            minimum, maximum = reason.iteration_range
-            assert minimum >= 1
-            assert maximum is None or maximum >= minimum
-            assert reason.allowed_range_label
+        assert "長期保存" in DispensingSplitReason.LONG_TERM_STORAGE.label
+        assert "後発医薬品" in DispensingSplitReason.GENERIC_TRIAL.label
+        assert "分割指示" in DispensingSplitReason.PRESCRIBER_INSTRUCTED.label
 
     def test_リフィルは_分割理由に含まれない(self) -> None:
         """リフィルは処方箋側の指示であり、回数の根拠も算定方法も異なる。"""

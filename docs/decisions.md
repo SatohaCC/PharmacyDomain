@@ -3,6 +3,69 @@
 プロジェクトの重要な設計判断と、その採用理由・却下理由を時系列で残します。
 現在の型と振る舞いはコード、保証範囲はテストと静的チェッカを正とします。
 
+## 2026-09-21
+
+### ADR-57: 分割調剤の回数算定バリデーションをDispensing集約から撤廃し、NSIPS連携データに基づく自己無撞着性管理へ是正する
+
+- **種別**: ドメインモデル改定 / 責務境界是正
+- **背景**:
+  `DispensingProcess`（調剤集約）に調剤基本料注9・10・11の点数算定要件（`_SPLIT_ITERATION_RANGES` および `_ensure_iteration_matches_split_reason()`）が不変条件として混入し、長期保存困難（注9）の分割調剤において第1回目の調剤セッションが `DispensingIterationOutOfRangeError` で不当に拒否される不具合（Issue #6）が発生していた。
+  薬局実務において、分割調剤の可否判定・回数管理・点数算定はすべてレセコン（受付・会計・請求システム）の責務である。本システム（調剤・薬歴ドメイン）は、レセコンからNSIPS（新調剤システム情報交換仕様）等を介して受け取った調剤セッション事実（分割理由 `split_reason`、今回調剤回数 `iteration`、合計分割回数 `total_split_count`）を客観的に記録する責務を持ち、集約単体で算定要件を先回りして回数を裁くべきではない（ADR-49の「受付NSIPS単位で記録を完結させる」原則）。
+- **決定事項**:
+  1. **算定要件バリデーションの完全撤廃（方針A）**:
+     `DispensingProcess` 集約から算定ルールに基づく回数制限バリデーション（`_SPLIT_ITERATION_RANGES`、`_ensure_iteration_matches_split_reason()`）を完全に撤廃した。これにより、長期保存困難（注9）の第1回目を含め、レセコンから連携された正当な業務事実を客観的に記録可能とした。
+  2. **NSIPS受信データとしての合計分割回数（`TotalSplitCount`）の導入**:
+     レセコンからNSIPS連携される分割調剤データ構造（今回回数・合計分割回数・分割理由）に基づき、`TotalSplitCount(BasePositiveInt)`（2以上の正の整数）を導入した。
+  3. **セッション単独の自己無撞着性（集約不変条件）**:
+     集約では点数算定要件には立ち入らず、セッション単独の自己無撞着性のみを保証する。
+     - `split_reason` と `total_split_count` は双方が指定されているか、双方が未指定（通常調剤）であること（片方のみは `TotalSplitCountMismatchError` で拒否）。
+     - 分割調剤時、今回回数は合計分割回数以下であること（`iteration.value <= total_split_count.value`、超過時は `DispensingIterationOutOfRangeError` で拒否）。
+  4. **処方箋原本との臨床的整合性（Domain Service）**:
+     医師指示による分割調剤（`PRESCRIBER_INSTRUCTED`）については、`DispensingPrescriptionConsistencyService` において処方箋原本の分割指示（`management.split`）との突合（処方箋に指示があること、および調剤回数・合計分割回数が処方箋指示の全分割回数以内であること）を引き続き検証し、臨床安全性を担保する。
+  5. **永続化の後方互換性**:
+     `DispensingProcess` の `total_split_count: TotalSplitCount | None = None` は既定値を持つため、既存の PostgreSQL `dispensing_processes.payload` JSONB レコードの復元を壊さず、マイグレーション不要で完全な後方互換性を維持する。
+
+### ADR-56: 患者集約のライフサイクル（有効・無効・名寄せ統合）と非破壊的マージのモデリング
+
+重複登録された患者の統合（名寄せ）や、死亡・転居・利用停止に伴う無効化の要求に対し、
+過去の処方箋原本・調剤セッション・薬歴記録との不可分性を保ちつつ、安全に患者集約の
+状態を遷移させるモデリング方針を決定した。
+
+患者データは処方箋（`Prescription`）・調剤（`DispensingProcess`）・薬歴（`MedicationHistoryRecord`）
+などの法的文書から外部キー（`PatientId`）で参照されている。重複患者を物理削除したり、
+過去データの外部キーをマージ先端のIDへ機械的に一括書き換えする「破壊的マージ」は、
+過去の調剤時点における保険資格確認・服薬指導の真正性を損なう重大なリスクがある。
+
+したがって、以下の設計判断を採用した。
+
+1. **ライフサイクル方言を `status_enum` とし、監査履歴を保持する**:
+   患者（`Patient`）のライフサイクル方言を従来の `none`（状態なし）から `status_enum` へ改定した。
+   状態は `PatientStatus.ACTIVE`（通常有効）、`INACTIVE`（利用停止・無効）、`MERGED`（他患者へ統合済み）
+   の3値とし、状態変更監査ログ `status_history: tuple[PatientStatusChange, ...]` にて
+   変更日時（タイムゾーン必須）・変更前状態・変更後状態・変更理由（`PatientStatusReason`、
+   空文字禁止・200文字制限）・統合先IDを不変タプルとして追記保持する。
+2. **非破壊的マージ（統合元集約の凍結）の採用**:
+   マージ操作では、統合元（source）のステータスを `MERGED` へ遷移させ、`merged_into_id` に
+   統合先（target）の `PatientId` を記録して凍結する。
+   過去の調剤・薬歴データの参照先IDは改変せず、当時の事実をそのまま残す。
+   統合元が特定された業務照会においては、`merged_into_id` を参照して現在の真実へ誘導できる。
+3. **終端状態としての保護と属性変更のブロック**:
+   `MERGED` は終端状態であり、統合済み患者に対する再度の名寄せ（多段マージの防止）、
+   再有効化（`reactivate`）、無効化（`deactivate`）を `PatientStateConflictError` で拒否する。
+   さらに、統合済み患者に対する氏名変更（`change_names`）や生年月日変更（`change_birth_date`）も
+   `PatientStateConflictError` で拒否し、凍結された過去の患者情報の改変を封じる。
+4. **ドメインサービス（`PatientMergeService`）による複数集約整合性と多重防御**:
+   マージは2つの患者集約にまたがるため、無状態の `PatientMergeService.merge()` が担当する。
+   - **マルチテナント境界**: `source.corporate_id == target.corporate_id` を検証し、法人間マージを拒否（`PatientMergeCorporateMismatchError`）。
+   - **自己マージ禁止**: `source.id != target.id` を検証し、自身への統合を拒否（`PatientSelfMergeError`）。集約不変条件でも `merged_into_id != id` を二重に強制する。
+   - **統合先端の有効性**: `target.is_active is True`（target が `ACTIVE` であること）を要求し、無効化済みまたは統合済みの患者を宛先とするマージを拒否。
+5. **JSONB永続化の透過性と後方互換性**:
+   `Patient` 集約のフィールド追加（`status=ACTIVE`, `merged_into_id=None`, `status_history=()`）は
+   dataclass の既定値で宣言されているため、既存の PostgreSQL `patients.payload` JSONB レコードに対し
+   DBスキーマの `ALTER TABLE` やマイグレーションを一切不要とし、完全な後方互換性を維持する。
+
+---
+
 ## 2026-09-20
 
 ### ADR-46: 本人確認境界の出力は、外部主体だけにする

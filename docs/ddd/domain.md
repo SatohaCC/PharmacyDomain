@@ -21,6 +21,7 @@ FastAPI、DB、Application層へ依存しません。現在の型やメソッド
 | 患者・保険 | Patient / Coverage / Reception / Claim | 資格台帳、受付時選択、請求Snapshotを別の事実として分ける |
 | 調剤業務 | Prescription / Dispensing / MedicationHistory | 原本、調剤作業、服薬指導記録を別集約で管理する |
 | 参照データ | MedicineCatalog | 国が定める非テナントの版付きマスタとして扱う |
+| 認証・認可 | Identity | 本人、アカウント、法人アクセス権を法人の外側に独立させる |
 
 各コンテキストは他集約のEntityを保持せず、所有元のID Primitiveで参照します。
 複数集約を同時に見なければ判定できない規則だけを、無状態のDomain Serviceへ置きます。
@@ -79,9 +80,14 @@ Claim は現時点では Domain 層のみのため、永続化対象には含め
 - 子レコードに、期間から導出できる `is_active` を重ねて持たせない
 - 患者医療プロファイルは薬歴からの投影とし、直接編集できる独立集約にはしない
 - 無効化後の一意キー再利用は全称ルールにせず、患者外部IDとスタッフコードで別に判断する
+- 患者集約は `ACTIVE` / `INACTIVE` / `MERGED` のライフサイクルを持ち、名寄せは過去データを改変しない非破壊的マージ（統合元を凍結）とする
+- 店舗集約は `ACTIVE` / `SUSPENDED` / `CLOSED` のライフサイクルを持ち、管理薬剤師の配置義務（在任判定）と専任義務（自然人単位制約）を店舗状態と独立して管理する
 
-Prescription、Dispensing、MedicationHistoryの背景は各文書を参照してください。
+各コンテキストの背景と詳細は個別文書を参照してください。
 
+- [Corporate](corporate.md)
+- [Store](store.md)
+- [Patient](patient.md)
 - [Prescription](prescription.md)
 - [Dispensing](dispensing.md)
 - [MedicationHistory](medication_history.md)

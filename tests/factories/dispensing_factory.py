@@ -27,6 +27,7 @@ from app.domain.dispensing import (
     SubstitutionCategory,
     SubstitutionDetail,
     SubstitutionReason,
+    TotalSplitCount,
     VerificationResult,
     VerificationTimestamp,
 )
@@ -151,6 +152,9 @@ def create_quantity_adjustment(
     )
 
 
+_DEFAULT_SPLIT_COUNT: object = object()
+
+
 def create_dispensing(
     *,
     corporate_id: CorporateId | None = None,
@@ -162,8 +166,21 @@ def create_dispensing(
     dispenser_id: StaffId | None = None,
     dispensed_rps: tuple[DispensedRp, ...] | None = None,
     split_reason: DispensingSplitReason | None = None,
+    total_split_count: int | TotalSplitCount | object | None = _DEFAULT_SPLIT_COUNT,
 ) -> DispensingProcess:
     """調剤セッションを開始した状態で組み立てる。"""
+    resolved_total_split: TotalSplitCount | None
+    if total_split_count is _DEFAULT_SPLIT_COUNT:
+        resolved_total_split = (
+            TotalSplitCount(max(2, iteration)) if split_reason is not None else None
+        )
+    elif isinstance(total_split_count, int):
+        resolved_total_split = TotalSplitCount(total_split_count)
+    elif isinstance(total_split_count, TotalSplitCount):
+        resolved_total_split = total_split_count
+    else:
+        resolved_total_split = None
+
     return DispensingProcess.start(
         corporate_id=corporate_id
         if corporate_id is not None
@@ -181,6 +198,7 @@ def create_dispensing(
         if dispensed_rps is not None
         else (create_dispensed_rp(),),
         split_reason=split_reason,
+        total_split_count=resolved_total_split,
     )
 
 
