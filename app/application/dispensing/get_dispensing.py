@@ -216,6 +216,7 @@ class DispensingProcessDto:
     status: str
     completion_type: str
     split_reason: str | None
+    total_split_count: int | None = None
     next_dispensing_date: str | None
     dispensed_rps: tuple[DispensedRpDto, ...]
     audit: DispensingAuditDto | None
@@ -238,6 +239,7 @@ class DispensingProcessDto:
             status=process.status.value,
             completion_type=process.completion_type.value,
             split_reason=unwrap(process.split_reason),
+            total_split_count=unwrap(process.total_split_count),
             next_dispensing_date=(
                 process.next_dispensing_date.value.isoformat()
                 if process.next_dispensing_date is not None

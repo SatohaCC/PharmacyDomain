@@ -50,6 +50,7 @@ from app.domain.dispensing import (
     DispensingPharmacistQualificationError,
     DispensingPharmacistService,
     DispensingProcessStatus,
+    DispensingSplitReason,
     InquiryNotAgreedError,
     InquiryReferenceNotInPrescriptionError,
     IterationExceedsInstructionError,
@@ -140,6 +141,24 @@ class Test調剤の開始:
             dispensing_id=DispensingId.parse(actual.id),
         )
         assert stored is not None
+
+    async def test_分割調剤の開始で今回回数と合計分割回数が記録される(self) -> None:
+        # Arrange
+        fixture = create_fixture()
+        command = create_start_command(
+            fixture,
+            iteration=1,
+            split_reason=DispensingSplitReason.LONG_TERM_STORAGE.value,
+            total_split_count=2,
+        )
+
+        # Act
+        actual = await fixture.start.execute(command)
+
+        # Assert
+        assert actual.iteration == 1
+        assert actual.split_reason == DispensingSplitReason.LONG_TERM_STORAGE.value
+        assert actual.total_split_count == 2
 
     async def test_患者は処方箋から決まる(self) -> None:
         """Commandに患者IDを持たせない。処方箋と食い違う患者を指定できてしまう。"""

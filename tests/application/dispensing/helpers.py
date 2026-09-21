@@ -271,9 +271,15 @@ def create_start_command(
     dispensed_on: date = DISPENSED_ON,
     dispensed_rps: tuple[DispensedRpInput, ...] | None = None,
     split_reason: str | None = None,
+    total_split_count: int | None = None,
     dispenser_id: StaffId | None = None,
 ) -> StartDispensingCommand:
     """調剤開始コマンドを組み立てる。"""
+    resolved_total_split = (
+        total_split_count
+        if total_split_count is not None
+        else (max(2, iteration) if split_reason is not None else None)
+    )
     return StartDispensingCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
@@ -287,6 +293,7 @@ def create_start_command(
             dispensed_rps if dispensed_rps is not None else (create_rp_input(),)
         ),
         split_reason=split_reason,
+        total_split_count=resolved_total_split,
     )
 
 

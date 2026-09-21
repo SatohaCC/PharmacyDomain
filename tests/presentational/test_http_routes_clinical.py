@@ -278,6 +278,26 @@ def test_調剤を開始して_鑑査と完了まで進められる(
     assert completed.json()["status"] == "completed"
 
 
+def test_分割調剤を開始すると_今回回数と合計分割回数が返る(
+    dispensing_client: TestClient,
+    dispensing_fixture: dispensing_helpers.DispensingFixture,
+) -> None:
+    corporate_id = str(dispensing_fixture.corporate_id.value)
+    body = _start_dispensing_body(dispensing_fixture)
+    body["split_reason"] = "long_term_storage"
+    body["total_split_count"] = 2
+    started = dispensing_client.post(
+        f"/corporates/{corporate_id}/dispensings",
+        json=body,
+        headers=_HEADERS,
+    )
+    assert started.status_code == HTTPStatus.CREATED, started.text
+    res = started.json()
+    assert res["iteration"] == 1
+    assert res["split_reason"] == "long_term_storage"
+    assert res["total_split_count"] == 2
+
+
 def test_処方箋ごとの調剤一覧が引ける(
     dispensing_client: TestClient,
     dispensing_fixture: dispensing_helpers.DispensingFixture,

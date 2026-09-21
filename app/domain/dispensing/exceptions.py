@@ -63,32 +63,29 @@ class DuplicatedPreparationMethodError(DispensingDomainError):
 
 
 class DispensingIterationOutOfRangeError(DispensingDomainError):
-    """分割理由ごとの調剤回数の範囲を外れている場合の例外。
+    """調剤回数が合計分割回数を超えている場合の例外。"""
 
-    後発医薬品の試用（注10）は「2回目の調剤を行った場合に限り」であり実質2分割、
-    医師の分割指示（注11）は3回まで、長期保存の困難性等（注9）は上限の定めが
-    無いが2回目以降にしか成立しない。
-    """
-
-    default_message = "分割理由に対して調剤回数が範囲外です。"
+    default_message = "調剤回数が合計分割回数を超えています。"
     default_code = "DISPENSING_ITERATION_OUT_OF_RANGE"
 
     def __init__(
         self,
         *,
-        reason_label: str | None = None,
         iteration: int | None = None,
-        allowed: str | None = None,
+        total: int | None = None,
     ) -> None:
-        """分割理由・回数・許容範囲を添えて例外を生成する。"""
+        """調剤回数と合計分割回数を添えて例外を生成する。"""
         message = self.default_message
-        if reason_label is not None:
-            message = f"{message}分割理由: {reason_label}。"
-        if iteration is not None:
-            message = f"{message}指定された回数: {iteration}。"
-        if allowed is not None:
-            message = f"{message}許容範囲: {allowed}。"
+        if iteration is not None and total is not None:
+            message = f"{message}調剤回数: {iteration}回目、合計分割回数: {total}回。"
         super().__init__(message)
+
+
+class TotalSplitCountMismatchError(DispensingDomainError):
+    """分割理由の有無と合計分割回数の有無が一致しない場合の例外。"""
+
+    default_message = "分割調剤の場合は分割理由と合計分割回数の両方を指定してください。"
+    default_code = "DISPENSING_TOTAL_SPLIT_COUNT_MISMATCH"
 
 
 class NextDispensingDateMismatchError(DispensingDomainError):

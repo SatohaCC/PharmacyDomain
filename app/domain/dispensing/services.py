@@ -295,10 +295,10 @@ class DispensingConsistencyService:
     def ensure_iteration_is_within_instruction(
         self, process: DispensingProcess, prescription: Prescription
     ) -> None:
-        """調剤回数が処方箋の指示の範囲内であることを検証する。
+        """調剤回数および合計分割回数が処方箋の指示の範囲内であることを検証する。
 
-        分割理由ごとの上限（注9・注10・注11）は集約が構築時に見ているので、
-        ここでは**処方箋側にしか無い上限**だけを見る。
+        集約側ではセッション単体の自己無撞着性（iteration <= total_split_count）を
+        保証し、ここでは**処方箋側の指示（医師の分割指示・リフィル）との整合性**を検証する。
         """
         iteration = process.iteration.value
         management = prescription.management_info
@@ -310,6 +310,12 @@ class DispensingConsistencyService:
                 limit=management.split.total_split_count.value,
                 instruction="医師の分割指示",
             )
+            if process.total_split_count is not None:
+                _ensure_within(
+                    iteration=process.total_split_count.value,
+                    limit=management.split.total_split_count.value,
+                    instruction="医師の分割指示の全分割回数",
+                )
         if management.refill is not None:
             _ensure_within(
                 iteration=iteration,

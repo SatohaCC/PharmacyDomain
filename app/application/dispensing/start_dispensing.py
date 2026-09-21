@@ -33,6 +33,7 @@ from app.domain.dispensing import (
     DispensingProcessRepository,
     DispensingSplitReason,
     DispensingTimestamp,
+    TotalSplitCount,
 )
 from app.domain.prescription.primitives import PrescriptionId, PrescriptionStatus
 from app.domain.staff.primitives import StaffId
@@ -51,6 +52,7 @@ class StartDispensingCommand:
     dispensed_date: date
     dispensed_rps: tuple[DispensedRpInput, ...]
     split_reason: str | None = None
+    total_split_count: int | None = None
 
 
 class StartDispensingUseCase:
@@ -115,6 +117,11 @@ class StartDispensingUseCase:
             started_at=DispensingTimestamp(self._clock.now()),
             dispensed_rps=build_dispensed_rps(command.dispensed_rps),
             split_reason=self._parse_split_reason(command.split_reason),
+            total_split_count=(
+                TotalSplitCount(command.total_split_count)
+                if command.total_split_count is not None
+                else None
+            ),
         )
         existing = await self._repository.list_by_prescription(
             corporate_id=corporate_id,

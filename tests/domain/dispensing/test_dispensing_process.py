@@ -38,6 +38,8 @@ from app.domain.dispensing import (
     SubstitutionCategory,
     SubstitutionDetail,
     SubstitutionWithoutChangeError,
+    TotalSplitCount,
+    TotalSplitCountMismatchError,
     VerificationNotPassedError,
     VerificationResult,
     VerificationStatusMismatchError,
@@ -137,46 +139,114 @@ class Test構造の不変条件:
 
 
 class Test分割理由と調剤回数:
-    """リフィルの総使用回数は処方箋集約が持つのでここでは見ない。"""
+    """NSIPSで受信する分割理由・今回調剤回数・合計分割回数の整合性を検証する。"""
 
-    def test_後発医薬品の試用で3回目は_構築できない(self) -> None:
-        # Arrange / Act / Assert
-        with pytest.raises(DispensingIterationOutOfRangeError, match="後発医薬品"):
-            create_dispensing(
-                iteration=3, split_reason=DispensingSplitReason.GENERIC_TRIAL
-            )
+    def test_長期保存の困難性等で1回目が正常に構築できる(self) -> None:
+        """Issue #6 の是正: 注9 の第1回目もレセコン連携事実として正常に記録できる。"""
+        # Arrange / Act
+        actual = create_dispensing(
+            iteration=1,
+            split_reason=DispensingSplitReason.LONG_TERM_STORAGE,
+            total_split_count=2,
+        )
 
-    def test_医師の分割指示で4回目は_構築できない(self) -> None:
-        # Arrange / Act / Assert
-        with pytest.raises(DispensingIterationOutOfRangeError):
-            create_dispensing(
-                iteration=4, split_reason=DispensingSplitReason.PRESCRIBER_INSTRUCTED
-            )
+        # Assert
+        assert actual.iteration.value == 1
+        assert actual.split_reason is DispensingSplitReason.LONG_TERM_STORAGE
+        assert actual.total_split_count == TotalSplitCount(2)
+
+    def test_長期保存の困難性等で2回目が正常に構築できる(self) -> None:
+        # Arrange / Act
+        actual = create_dispensing(
+            iteration=2,
+            split_reason=DispensingSplitReason.LONG_TERM_STORAGE,
+            total_split_count=2,
+        )
+
+        # Assert
+        assert actual.iteration.value == 2
+        assert actual.split_reason is DispensingSplitReason.LONG_TERM_STORAGE
 
     def test_長期保存の困難性等は_回数が大きくても構築できる(self) -> None:
         """注9 に回数上限の定めが無い。"""
         # Arrange / Act
         actual = create_dispensing(
-            iteration=8, split_reason=DispensingSplitReason.LONG_TERM_STORAGE
+            iteration=8,
+            split_reason=DispensingSplitReason.LONG_TERM_STORAGE,
+            total_split_count=10,
         )
 
         # Assert
         assert actual.iteration.value == 8
+        assert actual.total_split_count == TotalSplitCount(10)
 
-    def test_長期保存の困難性等で1回目は_構築できない(self) -> None:
-        # Arrange / Act / Assert
-        with pytest.raises(DispensingIterationOutOfRangeError):
-            create_dispensing(
-                iteration=1, split_reason=DispensingSplitReason.LONG_TERM_STORAGE
-            )
-
-    def test_分割理由が無ければ_回数の上限を課さない(self) -> None:
-        """リフィルの上限は処方箋側の総使用回数であり Domain Service が見る。"""
+    def test_後発医薬品の試用で調剤セッションが構築できる(self) -> None:
         # Arrange / Act
-        actual = create_dispensing(iteration=3)
+        actual1 = create_dispensing(
+            iteration=1,
+            split_reason=DispensingSplitReason.GENERIC_TRIAL,
+            total_split_count=2,
+        )
+        actual2 = create_dispensing(
+            iteration=2,
+            split_reason=DispensingSplitReason.GENERIC_TRIAL,
+            total_split_count=2,
+        )
+
+        # Assert
+        assert actual1.iteration.value == 1
+        assert actual2.iteration.value == 2
+
+    def test_医師の分割指示で調剤セッションが構築できる(self) -> None:
+        # Arrange / Act
+        actual = create_dispensing(
+            iteration=1,
+            split_reason=DispensingSplitReason.PRESCRIBER_INSTRUCTED,
+            total_split_count=3,
+        )
+
+        # Assert
+        assert actual.iteration.value == 1
+        assert actual.split_reason is DispensingSplitReason.PRESCRIBER_INSTRUCTED
+
+    def test_分割理由が無ければ_通常調剤として構築できる(self) -> None:
+        """通常調剤では split_reason と total_split_count は共に None。"""
+        # Arrange / Act
+        actual = create_dispensing(iteration=1)
 
         # Assert
         assert actual.split_reason is None
+        assert actual.total_split_count is None
+
+    def test_調剤回数が合計分割回数を超えると_構築できない(self) -> None:
+        """自己無撞着性: iteration <= total_split_count でなければならない。"""
+        # Arrange / Act / Assert
+        with pytest.raises(DispensingIterationOutOfRangeError):
+            create_dispensing(
+                iteration=3,
+                split_reason=DispensingSplitReason.LONG_TERM_STORAGE,
+                total_split_count=2,
+            )
+
+    def test_分割理由があるのに合計分割回数が無いと_構築できない(self) -> None:
+        """パラメータ整合性: 分割調剤には両方が必要。"""
+        # Arrange / Act / Assert
+        with pytest.raises(TotalSplitCountMismatchError):
+            create_dispensing(
+                iteration=1,
+                split_reason=DispensingSplitReason.LONG_TERM_STORAGE,
+                total_split_count=None,
+            )
+
+    def test_合計分割回数があるのに分割理由が無いと_構築できない(self) -> None:
+        """パラメータ整合性: 分割理由のない合計分割回数は成立しない。"""
+        # Arrange / Act / Assert
+        with pytest.raises(TotalSplitCountMismatchError):
+            create_dispensing(
+                iteration=1,
+                split_reason=None,
+                total_split_count=TotalSplitCount(2),
+            )
 
 
 class Test調剤終了区分と次回調剤予定日:

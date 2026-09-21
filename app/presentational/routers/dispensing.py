@@ -51,6 +51,7 @@ class StartDispensingRequest(RequestModel):
     dispensed_date: date
     dispensed_rps: list[DispensedRpInput]
     split_reason: str | None = None
+    total_split_count: int | None = None
 
 
 class RecordDispensedContentRequest(RequestModel):
@@ -104,6 +105,7 @@ async def start_dispensing(
             dispensed_date=body.dispensed_date,
             dispensed_rps=tuple(body.dispensed_rps),
             split_reason=body.split_reason,
+            total_split_count=body.total_split_count,
         )
     )
 

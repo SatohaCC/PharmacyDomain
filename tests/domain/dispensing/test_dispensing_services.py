@@ -348,6 +348,27 @@ class Test調剤回数と処方箋の指示:
         with pytest.raises(IterationExceedsInstructionError, match="医師の分割指示"):
             _SERVICE.ensure_iteration_is_within_instruction(process, prescription)
 
+    def test_合計分割回数が処方箋の指示を超えると_拒否される(self) -> None:
+        """処方箋が2分割なのにレセコンから3分割で指示された場合は拒否する。"""
+        # Arrange
+        prescription = _prescription(
+            management_info=PrescriptionManagementInfo(
+                split=SplitInstruction(
+                    total_split_count=SplitCount(2),
+                    split_iteration=SplitIteration(1),
+                )
+            )
+        )
+        process = create_dispensing(
+            iteration=1,
+            split_reason=DispensingSplitReason.PRESCRIBER_INSTRUCTED,
+            total_split_count=3,
+        )
+
+        # Act / Assert
+        with pytest.raises(IterationExceedsInstructionError, match="全分割回数"):
+            _SERVICE.ensure_iteration_is_within_instruction(process, prescription)
+
     def test_薬局判断の分割調剤は_処方箋に指示が無くても通る(self) -> None:
         """注9・注10 は薬局の判断であり、処方箋には現れない。"""
         # Arrange
