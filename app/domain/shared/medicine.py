@@ -13,6 +13,8 @@ import するのが正しい。一方 ``MedicineCatalogEntryId`` は版付きマ
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import ClassVar
@@ -266,3 +268,26 @@ class MedicineIdentifier(ValueObject):
                 f"薬品コード種別が「{self.code_type.label}」のときは"
                 "薬品コードが必要です。"
             )
+
+
+class YjCode(BaseNormalizedString):
+    """厚生労働省薬価基準収載医薬品コード（YJコード、12桁英数字）。"""
+
+    def _normalize(self, value: str) -> str:
+        if not isinstance(value, str):
+            raise DomainValidationError("YJコードは文字列である必要があります。")
+        nfkc = unicodedata.normalize("NFKC", value)
+        return super()._normalize(nfkc).upper()
+
+    def validate(self) -> None:
+        if not self.value:
+            raise DomainValidationError("YJコードは空にできません。")
+        if not re.fullmatch(r"^[0-9A-Z]{12}$", self.value):
+            raise DomainValidationError(
+                f"YJコードは12桁の半角英数字である必要があります。指定された値: '{self.value}'"
+            )
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, YjCode):
+            return NotImplemented
+        return self.value < other.value

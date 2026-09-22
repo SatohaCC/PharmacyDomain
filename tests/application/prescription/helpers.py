@@ -13,6 +13,7 @@ from datetime import date
 from app.application.access_control import ActorContext, AuthorizationService
 from app.application.corporate import CorporateAccessService
 from app.application.prescription import (
+    AuditDrugInteractionsUseCase,
     CancelPrescriptionUseCase,
     DepartmentInput,
     GetPrescriptionUseCase,
@@ -59,6 +60,7 @@ from tests.application.access_helpers import (
     create_vendor_corporate_access_for,
 )
 from tests.fakes.fake_clock import FakeClock
+from tests.fakes.fake_drug_interaction import FakeDrugInteractionDataSource
 from tests.fakes.in_memory_prescription_repository import (
     InMemoryPrescriptionRepository,
 )
@@ -198,6 +200,8 @@ class PrescriptionFixture:
     ready_for_dispensing: ReadyForDispensingUseCase
     cancel: CancelPrescriptionUseCase
     get: GetPrescriptionUseCase
+    audit_interactions: AuditDrugInteractionsUseCase
+    interaction_data_source: FakeDrugInteractionDataSource
     repository: InMemoryPrescriptionRepository
     corporate_repository: AutoProvisioningCorporateRepository
     store_reference: FakePrescriptionStoreReference
@@ -286,6 +290,11 @@ def create_fixture(
         ready_for_dispensing=ReadyForDispensingUseCase(repository, corporate_access),
         cancel=CancelPrescriptionUseCase(repository, corporate_access),
         get=GetPrescriptionUseCase(repository, corporate_access),
+        audit_interactions=AuditDrugInteractionsUseCase(
+            authorization_service=AuthorizationService(corporate_access.actor),
+            data_source=FakeDrugInteractionDataSource(),
+        ),
+        interaction_data_source=FakeDrugInteractionDataSource(),
         repository=repository,
         corporate_repository=corporate_repository,
         store_reference=store_reference,

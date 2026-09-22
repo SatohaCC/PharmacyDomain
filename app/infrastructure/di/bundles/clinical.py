@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.application.access_control import AuthorizationService
 from app.application.common.clock import Clock
 from app.application.composition.dispensing_references import (
     DispensingStaffQualificationAdapter,
@@ -76,6 +77,9 @@ from app.application.medication_history.update_medication_history_draft import (
 from app.application.medication_history.verify_statutory_record import (
     VerifyStatutoryRecordUseCase,
 )
+from app.application.prescription.audit_interactions import (
+    AuditDrugInteractionsUseCase,
+)
 from app.application.prescription.cancel_prescription import CancelPrescriptionUseCase
 from app.application.prescription.get_prescription import GetPrescriptionUseCase
 from app.application.prescription.ready_for_dispensing import ReadyForDispensingUseCase
@@ -93,12 +97,16 @@ from app.domain.medication_history.services import (
     CounselorQualificationService,
     StatutoryDispensingRecordService,
 )
+from app.domain.prescription.interaction_audit import DrugInteractionDataSource
 from app.domain.prescription.services import (
     InquiryPharmacistService,
     NarcoticPrescriptionService,
     PrescriptionDocumentNumberUniquenessService,
     PublicExpenseBurdenService,
     RefillEligibilityService,
+)
+from app.infrastructure.external.drug_interaction import (
+    BlackBoxDrugInteractionDataSource,
 )
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.repositories import PostgresRepositorySet
@@ -118,12 +126,15 @@ class PrescriptionUseCases:
     cancel: CancelPrescriptionUseCase
     start_inquiry: StartInquiryUseCase
     resolve_inquiry: ResolveInquiryUseCase
+    audit_interactions: AuditDrugInteractionsUseCase
 
 
 def build_prescription_use_cases(
     repositories: PostgresRepositorySet,
     corporate_access: CorporateAccessService,
     clock: Clock,
+    *,
+    interaction_data_source: DrugInteractionDataSource | None = None,
 ) -> PrescriptionUseCases:
     """処方箋ユースケースを組み立てる。"""
     repository = repositories.prescription
@@ -153,6 +164,10 @@ def build_prescription_use_cases(
             clock,
         ),
         resolve_inquiry=ResolveInquiryUseCase(repository, corporate_access, clock),
+        audit_interactions=AuditDrugInteractionsUseCase(
+            authorization_service=AuthorizationService(corporate_access.actor),
+            data_source=interaction_data_source or BlackBoxDrugInteractionDataSource(),
+        ),
     )
 
 

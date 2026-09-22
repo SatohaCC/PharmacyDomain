@@ -30,7 +30,15 @@ from app.application.prescription import (
     RpInput,
     StartInquiryCommand,
 )
-from app.presentational.dependencies import PrescriptionUseCasesDep, get_actor_context
+from app.application.prescription.audit_interactions import (
+    AuditDrugInteractionsCommand,
+    DrugInteractionAuditReportDto,
+)
+from app.presentational.dependencies import (
+    Actor,
+    PrescriptionUseCasesDep,
+    get_actor_context,
+)
 from app.presentational.errors import error_responses
 from app.presentational.schemas import RequestModel
 
@@ -209,6 +217,31 @@ async def resolve_inquiry(
             result_type=body.result_type,
             content=body.content,
         )
+    )
+
+
+class AuditDrugInteractionsRequest(RequestModel):
+    """相互作用鑑査リクエスト。"""
+
+    yj_codes: list[str]
+
+
+@router.post(
+    "/audit-interactions",
+    response_model=DrugInteractionAuditReportDto,
+    status_code=HTTPStatus.OK,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def audit_drug_interactions(
+    corporate_id: str,
+    body: AuditDrugInteractionsRequest,
+    use_cases: PrescriptionUseCasesDep,
+    actor: Actor,
+) -> DrugInteractionAuditReportDto:
+    """処方薬・併用薬の全組み合わせの相互作用（飲み合わせ）を鑑査する。"""
+    return await use_cases.audit_interactions.execute(
+        actor=actor,
+        command=AuditDrugInteractionsCommand(yj_codes=body.yj_codes),
     )
 
 

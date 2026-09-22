@@ -29,6 +29,13 @@ from app.domain.prescription.exceptions import (
     SplitIterationOutOfRangeError,
     UnequalDosageTotalMismatchError,
 )
+from app.domain.prescription.interaction_audit import (
+    DrugInteractionAuditResult,
+    DrugInteractionAuditService,
+    DrugInteractionDataSource,
+    DrugInteractionPair,
+    InteractionSeverity,
+)
 from app.domain.prescription.prescription import (
     Prescription,
     PrescriptionInquiry,
@@ -131,6 +138,10 @@ __all__ = [
     "DosageSupplementCodeRequiredError",
     "DosageSupplementText",
     "DosageSupplementType",
+    "DrugInteractionAuditResult",
+    "DrugInteractionAuditService",
+    "DrugInteractionDataSource",
+    "DrugInteractionPair",
     "DuplicatedDosageSupplementError",
     "DuplicatedMedicineSupplementError",
     "GenericSubstitutionRestriction",
@@ -146,6 +157,7 @@ __all__ = [
     "InquiryResponseContent",
     "InquiryResultType",
     "InquiryTimestamp",
+    "InteractionSeverity",
     "LaboratoryData",
     "LaboratoryDataText",
     "MedicalInstitutionAddressLine",

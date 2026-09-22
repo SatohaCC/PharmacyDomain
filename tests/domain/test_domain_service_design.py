@@ -47,7 +47,7 @@ from app.domain.store.primitives import (
 )
 from app.domain.store.store import Store
 
-#: 承認された全ドメインサービスの一覧（24件）。
+#: 承認された全ドメインサービスの一覧（25件）。
 EXPECTED_DOMAIN_SERVICES: frozenset[str] = frozenset(
     {
         "CorporateNameUniquenessService",
@@ -56,6 +56,7 @@ EXPECTED_DOMAIN_SERVICES: frozenset[str] = frozenset(
         "DispensingConsistencyService",
         "DispensingIterationUniquenessService",
         "DispensingPharmacistService",
+        "DrugInteractionAuditService",
         "InquiryPharmacistService",
         "InsurancePharmacyNumberUniquenessService",
         "LastAdministratorService",
@@ -125,7 +126,7 @@ def _all_concrete_domain_services() -> list[type[object]]:
 
 
 def test_全ドメインサービスが網羅的に検出される() -> None:
-    """TC-01: 全24件のドメインサービスが漏れなく走査され、承認一覧と完全一致すること。"""
+    """TC-01: 全25件のドメインサービスが漏れなく走査され、承認一覧と完全一致すること。"""
     services = _all_concrete_domain_services()
     actual_names = {s.__name__ for s in services}
 
@@ -137,14 +138,14 @@ def test_全ドメインサービスが網羅的に検出される() -> None:
 
 
 def test_純粋ドメインサービスが無状態である() -> None:
-    """TC-02: 19件の純粋ドメインサービスが引数なしでインスタンス化でき、可変状態を持たないこと。"""
+    """TC-02: 20件の純粋ドメインサービスが引数なしでインスタンス化でき、可変状態を持たないこと。"""
     services = _all_concrete_domain_services()
     pure_services = [
         s for s in services if s.__name__ not in REPOSITORY_BACKED_SERVICES
     ]
 
-    assert len(pure_services) == 19, (
-        f"純粋ドメインサービス数が19件ではありません: {len(pure_services)}"
+    assert len(pure_services) == 20, (
+        f"純粋ドメインサービス数が20件ではありません: {len(pure_services)}"
     )
 
     for s in pure_services:

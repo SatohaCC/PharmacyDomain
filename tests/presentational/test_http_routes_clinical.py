@@ -86,6 +86,7 @@ def prescription_client(
         cancel=prescription_fixture.cancel,
         start_inquiry=prescription_fixture.start_inquiry,
         resolve_inquiry=prescription_fixture.resolve_inquiry,
+        audit_interactions=prescription_fixture.audit_interactions,
     )
     yield from _client({get_prescription_use_cases: lambda: bundle})
 
@@ -212,6 +213,23 @@ def test_疑義照会に回答すると_調剤可能にできる(
     assert resolved.json()["has_open_inquiry"] is False
     assert ready.status_code == HTTPStatus.OK, ready.text
     assert ready.json()["status"] == "ready_for_dispensing"
+
+
+def test_処方薬相互作用鑑査で全組み合わせが取得できる(
+    prescription_client: TestClient,
+    prescription_fixture: prescription_helpers.PrescriptionFixture,
+) -> None:
+    """TC-11: 複数YJコードをPOSTすると全組み合わせの相互作用鑑査結果が返る。"""
+    corporate_id = str(prescription_fixture.corporate_id.value)
+    response = prescription_client.post(
+        f"/corporates/{corporate_id}/prescriptions/audit-interactions",
+        json={"yj_codes": ["1179041F1025", "2149001F1020", "3339001F1023"]},
+        headers=_HEADERS,
+    )
+    assert response.status_code == HTTPStatus.OK, response.text
+    data = response.json()
+    assert data["total_combinations"] == 3
+    assert len(data["pairs"]) == 3
 
 
 # --- 調剤 -------------------------------------------------------------------

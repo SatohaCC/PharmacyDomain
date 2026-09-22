@@ -1,5 +1,11 @@
 """PrescriptionコンテキストのApplication公開窓口。"""
 
+from app.application.prescription.audit_interactions import (
+    AuditDrugInteractionsCommand,
+    AuditDrugInteractionsUseCase,
+    DrugInteractionAuditReportDto,
+    DrugInteractionPairDto,
+)
 from app.application.prescription.cancel_prescription import (
     CancelPrescriptionCommand,
     CancelPrescriptionUseCase,
@@ -71,6 +77,8 @@ from app.application.prescription.start_inquiry import (
 )
 
 __all__ = [
+    "AuditDrugInteractionsCommand",
+    "AuditDrugInteractionsUseCase",
     "CancelPrescriptionCommand",
     "CancelPrescriptionUseCase",
     "DepartmentDto",
@@ -79,6 +87,8 @@ __all__ = [
     "DosageInstructionInput",
     "DosageSupplementDto",
     "DosageSupplementInput",
+    "DrugInteractionAuditReportDto",
+    "DrugInteractionPairDto",
     "GetPrescriptionQuery",
     "GetPrescriptionUseCase",
     "MedicalInstitutionDto",
