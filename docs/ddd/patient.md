@@ -19,7 +19,7 @@ Patientコンテキストは、調剤薬局における患者の同一性（`Pat
 Patientコンテキストが所有するもの:
 
 - **患者の同一性**: 法人内で一意な UUIDv7 識別子（`PatientId`）
-- **患者基本情報**: 漢字氏名（`PatientName`）、カナ氏名（`PatientKanaName`）、生年月日（`PatientBirthDate`）
+- **患者基本情報**: 氏名（Shared Kernelの `PersonNames`: 漢字氏名 `PersonName`、カナ氏名 `PersonNameKana`）、生年月日（`PatientBirthDate`）
 - **ライフサイクル状態と履歴**:
   - 利用状態（`PatientStatus`: `ACTIVE` / `INACTIVE` / `MERGED`）
   - 名寄せ統合先ID（`merged_into_id: PatientId | None`）

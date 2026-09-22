@@ -81,7 +81,7 @@ Prescriptionが所有するもの:
 
 ## 未解決事項
 
-- MedicineCatalog集約はあるが、薬価基準・HOTコード等からの実データ取り込みがない
+- 厚生労働省薬価基準収載医薬品コード（YJコード）CSVからのMedicineCatalog実データ取り込み、およびNSIPS処方・調剤データ連携（受付インジェスチョン）は実装済み（HOTコード等の追加形式取り込みは将来拡張）
 - 処方箋の公費枠とCoverage台帳を接続する `PublicExpenseAvailabilityBoundary` の実アダプタは実装済み
 - 後発品変更調剤で、変更先が本当に後発品かを検証していない
 - PostgreSQL Repositoryと業務HTTPルートは実装済みで、引換番号一意性は partial unique index と

@@ -17,21 +17,26 @@ sources:
 MedicationHistoryは、1回ごとの服薬指導記録と、患者について継続的に参照する
 医療プロファイル（頭書き）を管理します。
 
-## 2つの集約
+## 3つの集約
 
 ```mermaid
-flowchart LR
-    R[MedicationHistoryRecord<br>真の記録] -->|確定時に差分を投影| P[PatientMedicalProfile<br>再構築可能な投影]
+flowchart TD
+    R[MedicationHistoryRecord<br>真の記録<br>（子: FollowUpRecord, TracingReport）] -->|確定時に差分を投影| P[PatientMedicalProfile<br>再構築可能な投影（頭書き）]
     R -->|全確定記録を再適用| P
+    C[MedicationHistoryCategoryCatalog<br>法人別記載区分カタログ] -.->|区分検証| R
 ```
 
 `MedicationHistoryRecord` はSOAP、指導薬剤師、指導日時、残薬・手帳確認、
-頭書きへ反映する差分を保持する真の記録です。
+頭書きへ反映する差分を保持する真の記録です。また、服薬期間中の継続的な指導記録である `FollowUpRecord`
+および処方医への服薬情報等提供書である `TracingReport`（トレーシングレポート）を子エンティティとして集約内に保持します。
 
 `PatientMedicalProfile` はアレルギー、副作用、既往歴、併用薬、生活像などを
 継続表示する投影です。新規項目の追加だけでなく、誤登録や否定に伴う取消、
 既往疾患の状態（治癒・寛解等）の変更も薬歴の確定時差分として投影します。
 独立した入力経路を持たず、確定済み薬歴の `apply(record)` だけで更新し、由来となる薬歴IDを保持します。
+
+`MedicationHistoryCategoryCatalog` は法人ごとの薬歴記載区分（大区分・中区分）を管理する集約ルートです。
+SOAP各節や指導項目の記載区分体系を法人単位で保持・検証します。
 
 ## 境界
 

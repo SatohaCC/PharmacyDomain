@@ -20,10 +20,10 @@ Storeコンテキストが所有するもの:
 
 - **店舗の同一性**: 法人内で一意な UUIDv7 識別子（`StoreId`）
 - **店舗基本情報**:
-  - 店舗名称（`StoreName`、`StoreKanaName`、`StoreRomajiName`）
+  - 店舗名称（`StoreNames`: 正式名称 `StoreName`、カナ `StoreNameKana`、ローマ字 `StoreNameRomaji`）
   - 内部管理コード（`StoreCode`）
-  - 所在地（`StoreAddress`: 郵便番号、住所）
-  - 連絡先（`StoreContactInfo`: 電話番号、FAX番号、メールアドレス）
+  - 所在地（`StoreAddress`: 郵便番号 `StorePostalCode`、住所 `StoreAddressLine`）
+  - 連絡先（`ContactInfo`: 代表電話 `StorePhoneNumber`、FAX `StoreFaxNumber`、メール `StoreEmailAddress`）
   - 保険薬局指定番号（`InsurancePharmacyNumber`）
 - **店舗ライフサイクル**:
   - 状態（`StoreStatus`: `ACTIVE` / `SUSPENDED` / `CLOSED`）
