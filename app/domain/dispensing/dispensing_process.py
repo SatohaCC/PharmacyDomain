@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from datetime import date
 from typing import Self
 
 from app.domain.corporate.primitives import CorporateId
@@ -69,6 +70,7 @@ from app.domain.shared.medicine import (
     MedicineUnit,
     RpNumber,
 )
+from app.domain.shared.preservation import PreservationPolicyCatalog
 from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.staff.primitives import StaffId
 from app.domain.store.primitives import StoreId
@@ -500,3 +502,13 @@ class DispensingProcess(AggregateRoot[DispensingId]):
             raise DispensingStatusTransitionError(
                 current=self.status.label, target=operation
             )
+
+    def calculate_retention_expiry_date(
+        self, catalog: PreservationPolicyCatalog
+    ) -> date:
+        """調剤録の法定保存満了日を計算する。
+
+        薬剤師法第28条（調剤録の保存）に基づき、調剤日（dispensed_date）を
+        起算基準としてポリシーカタログから満了日を計算する。
+        """
+        return catalog.calculate_expiry_date(self.dispensed_date.value)

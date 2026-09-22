@@ -103,6 +103,7 @@ from app.domain.prescription.exceptions import (
     InquiryNotFoundError,
     PrescriptionDocumentNumberAlreadyExistsError,
 )
+from app.domain.shared.preservation import PreservationPolicyNotFoundError
 from app.domain.staff.exceptions import (
     AffiliationDateConflictError,
     ConcurrentStoreConflictError,
@@ -224,6 +225,7 @@ _STATUS_BY_EXCEPTION: Final[Mapping[type[BaseException], HTTPStatus]] = {
     MajorCategoryNotFoundError: HTTPStatus.NOT_FOUND,
     FollowUpNotFoundError: HTTPStatus.NOT_FOUND,
     TracingReportNotFoundError: HTTPStatus.NOT_FOUND,
+    PreservationPolicyNotFoundError: HTTPStatus.NOT_FOUND,
     # --- 409: 既存のデータ・状態と衝突する ---
     ConcurrentModificationError: HTTPStatus.CONFLICT,
     CorporateNameAlreadyExistsError: HTTPStatus.CONFLICT,

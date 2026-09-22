@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from app.application.access_control import CorporateAccessBoundary, Permission
 from app.application.common import UnitOfWork
@@ -10,7 +12,7 @@ from app.application.common.clock import Clock
 from app.application.dispensing.start_dispensing import StartDispensingUseCase
 from app.application.integration.nsips.exceptions import NsipsParseError
 from app.application.integration.nsips.mapper import NsipsDataMapper
-from app.application.integration.nsips.models import NsipsBundle
+from app.application.integration.nsips.models import NsipsBundle, NsipsPrescriptionInfo
 from app.application.integration.nsips.parser import NsipsParser
 from app.application.medication_history.add_follow_up import AddFollowUpUseCase
 from app.application.medication_history.get_medication_history import (
@@ -33,9 +35,15 @@ from app.application.prescription.register_prescription import (
     RegisterPrescriptionUseCase,
 )
 from app.domain.corporate.primitives import CorporateId
+from app.domain.medication_history import (
+    ExternalCorrectionTimestamp,
+    ExternalPrescriptionCorrection,
+    MedicationHistoryRepository,
+)
 from app.domain.patient.primitives import ExternalPatientId, ExternalSystemName
 from app.domain.patient.repository import PatientExternalIdentifierRepository
 from app.domain.prescription import (
+    Prescription,
     PrescriptionDocumentNumber,
     PrescriptionRepository,
 )
@@ -69,6 +77,7 @@ class IngestNsipsResultDto:
     is_new_patient: bool
     is_duplicate: bool = False
     is_follow_up_only: bool = False
+    has_pending_correction_review: bool = False
 
 
 class IngestNsipsUseCase:
@@ -90,6 +99,7 @@ class IngestNsipsUseCase:
         add_follow_up_use_case: AddFollowUpUseCase | None = None,
         list_medication_histories_use_case: ListMedicationHistoriesByPatientUseCase
         | None = None,
+        medication_history_repo: MedicationHistoryRepository | None = None,
         parser: NsipsParser | None = None,
         mapper: NsipsDataMapper | None = None,
         clock: Clock | None = None,
@@ -98,6 +108,9 @@ class IngestNsipsUseCase:
         self._unit_of_work = unit_of_work
         self._patient_external_id_repo = patient_external_id_repo
         self._prescription_repo = prescription_repo
+        self._medication_history_repo = medication_history_repo or getattr(
+            start_medication_history_use_case, "_repository", None
+        )
         self._register_patient_use_case = register_patient_use_case
         self._register_patient_external_id_use_case = (
             register_patient_external_id_use_case
@@ -133,23 +146,85 @@ class IngestNsipsUseCase:
         else:
             raise NsipsParseError("NSIPSデータが指定されていません。")
 
-        # 2. 冪等性チェック（同一処方箋番号の重複検知）
+        # 2. 冪等性および処方訂正（Uファイル）チェック
         doc_num = bundle.prescription.document_number
         existing_prescription = await self._prescription_repo.get_by_document_number(
             corporate_id=corporate_id,
             document_number=PrescriptionDocumentNumber(doc_num),
         )
         if existing_prescription is not None:
+            diff_summary = self._detect_prescription_differences(
+                existing_prescription, bundle.prescription
+            )
+            if diff_summary is None:
+                return IngestNsipsResultDto(
+                    corporate_id=command.corporate_id,
+                    store_id=command.store_id,
+                    patient_id=str(existing_prescription.patient_id.value),
+                    prescription_id=str(existing_prescription.id.value),
+                    document_number=doc_num,
+                    patient_name=bundle.patient.kanji_name,
+                    is_new_patient=False,
+                    is_duplicate=True,
+                    is_follow_up_only=False,
+                    has_pending_correction_review=False,
+                )
+
+            # 差分あり: Uファイル（処方訂正）
+            has_pending_review = False
+            matching_history_id_str: str | None = None
+            matching_dispensing_id_str: str | None = None
+
+            if self._medication_history_repo is not None:
+                records = await self._medication_history_repo.list_by_patient(
+                    corporate_id=corporate_id,
+                    patient_id=existing_prescription.patient_id,
+                )
+                matching_record = next(
+                    (
+                        r
+                        for r in records
+                        if r.prescription_id == existing_prescription.id
+                    ),
+                    None,
+                )
+                if matching_record is not None:
+                    matching_history_id_str = str(matching_record.id.value)
+                    matching_dispensing_id_str = str(
+                        matching_record.dispensing_id.value
+                    )
+                    if matching_record.is_finalized:
+                        now_utc = (
+                            self._clock.now()
+                            if self._clock is not None
+                            else datetime.now(UTC)
+                        )
+                        correction = ExternalPrescriptionCorrection(
+                            correction_id=f"corr-{uuid.uuid7()}",
+                            corrected_at=ExternalCorrectionTimestamp(now_utc),
+                            source_document_number=doc_num,
+                            reason=f"レセコンUファイル処方訂正受信: {diff_summary}",
+                            details=diff_summary,
+                        )
+                        updated_history = matching_record.record_external_correction(
+                            correction
+                        )
+                        await self._medication_history_repo.save(updated_history)
+                        has_pending_review = True
+
             return IngestNsipsResultDto(
                 corporate_id=command.corporate_id,
                 store_id=command.store_id,
                 patient_id=str(existing_prescription.patient_id.value),
                 prescription_id=str(existing_prescription.id.value),
+                dispensing_id=matching_dispensing_id_str,
+                medication_history_id=matching_history_id_str,
                 document_number=doc_num,
                 patient_name=bundle.patient.kanji_name,
                 is_new_patient=False,
-                is_duplicate=True,
+                is_duplicate=False,
                 is_follow_up_only=False,
+                has_pending_correction_review=has_pending_review,
             )
 
         # 3. 患者の解決（照合または新規登録）
@@ -275,3 +350,40 @@ class IngestNsipsUseCase:
             is_duplicate=False,
             is_follow_up_only=True,
         )
+
+    def _detect_prescription_differences(
+        self, existing: Prescription, incoming: NsipsPrescriptionInfo
+    ) -> str | None:
+        """既存処方と受信したNSIPS処方の差異を検出し、サマリ文字列を返す。"""
+        if len(existing.rps) != len(incoming.rps):
+            return f"剤数変更: {len(existing.rps)}剤 -> {len(incoming.rps)}剤"
+
+        diffs: list[str] = []
+        incoming_rps_by_num = {rp.rp_number: rp for rp in incoming.rps}
+        for ex_rp in existing.rps:
+            rp_num = ex_rp.rp_number.value
+            in_rp = incoming_rps_by_num.get(rp_num)
+            if in_rp is None:
+                diffs.append(f"Rp{rp_num} 削除")
+                continue
+            if ex_rp.quantity.value != in_rp.dispensing_quantity:
+                diffs.append(
+                    f"Rp{rp_num} 数量変更: {ex_rp.quantity.value} -> {in_rp.dispensing_quantity}"
+                )
+            ex_med_codes = [
+                m.identifier.code.value if m.identifier.code is not None else ""
+                for m in ex_rp.medicines
+            ]
+            in_med_codes = [m.medicine_code for m in in_rp.medicines]
+            if ex_med_codes != in_med_codes:
+                diffs.append(f"Rp{rp_num} 薬品変更")
+            else:
+                for ex_m, in_m in zip(ex_rp.medicines, in_rp.medicines, strict=False):
+                    if ex_m.amount.value != in_m.dosage:
+                        diffs.append(
+                            f"Rp{rp_num} 用量変更: {ex_m.amount.value} -> {in_m.dosage}"
+                        )
+
+        if diffs:
+            return " / ".join(diffs)
+        return None

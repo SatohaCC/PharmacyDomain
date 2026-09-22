@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from datetime import date
 from typing import Self
 
 from app.domain.corporate.primitives import CorporateId
@@ -41,6 +42,7 @@ from app.domain.medication_history.primitives import (
     AmendmentTimestamp,
     CounselingMethod,
     CounselingTimestamp,
+    ExternalCorrectionTimestamp,
     FinalizationDelayReason,
     FinalizedTimestamp,
     MedicationHistoryRecordId,
@@ -49,6 +51,7 @@ from app.domain.medication_history.primitives import (
 )
 from app.domain.medication_history.value_objects import (
     CategorizedNote,
+    ExternalPrescriptionCorrection,
     FollowUpRecord,
     HandbookStatus,
     MedicationHistoryAmendment,
@@ -60,6 +63,7 @@ from app.domain.medication_history.value_objects import (
 )
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import PrescriptionId
+from app.domain.shared.preservation import PreservationPolicyCatalog
 from app.domain.staff.primitives import StaffId
 from app.domain.store.primitives import StoreId
 
@@ -92,6 +96,8 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     finalized_at: FinalizedTimestamp | None = None
     finalized_by: StaffId | None = None
     delay_reason: FinalizationDelayReason | None = None
+    retention_expiry_date: date | None = None
+    external_corrections: tuple[ExternalPrescriptionCorrection, ...] = ()
 
     # ------------------------------------------------------------------
     # 不変条件
@@ -403,3 +409,53 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             for r in self.tracing_reports
         )
         return replace(self, tracing_reports=updated_reports)
+
+    @property
+    def has_pending_correction_review(self) -> bool:
+        """未確認の外部処方訂正が存在するか。"""
+        return any(not c.is_acknowledged for c in self.external_corrections)
+
+    def record_external_correction(
+        self, correction: ExternalPrescriptionCorrection
+    ) -> Self:
+        """確定済みの記録を壊さず外部処方訂正を追記する。
+
+        確定済み薬歴の原本（SOAP・確定日時・確定者）は真正性保護のため不可逆凍結し、
+        外部から発生した処方変更・調剤訂正の事実を本証跡として記録する。
+        """
+        return replace(
+            self, external_corrections=(*self.external_corrections, correction)
+        )
+
+    def acknowledge_external_correction(
+        self,
+        *,
+        correction_id: str,
+        acknowledged_by: StaffId,
+        acknowledged_at: ExternalCorrectionTimestamp,
+    ) -> Self:
+        """外部処方訂正を薬剤師が確認したことを記録する。"""
+        target = next(
+            (c for c in self.external_corrections if c.correction_id == correction_id),
+            None,
+        )
+        if target is None:
+            raise MedicationHistoryDomainError("指定された外部訂正IDが存在しません。")
+        updated_correction = replace(
+            target,
+            acknowledged_by=acknowledged_by,
+            acknowledged_at=acknowledged_at,
+        )
+        updated_corrections = tuple(
+            updated_correction if c.correction_id == correction_id else c
+            for c in self.external_corrections
+        )
+        return replace(self, external_corrections=updated_corrections)
+
+    def calculate_and_set_retention_expiry(
+        self, catalog: PreservationPolicyCatalog
+    ) -> Self:
+        """保存期間ポリシーに基づいて法定保存満了日を設定する。"""
+        base_date = self.counseled_at.value.date()
+        expiry_date = catalog.calculate_expiry_date(base_date)
+        return replace(self, retention_expiry_date=expiry_date)
