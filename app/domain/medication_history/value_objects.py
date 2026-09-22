@@ -43,6 +43,7 @@ from app.domain.medication_history.primitives import (
     CounselingMethod,
     CounselingNote,
     CounselingTimestamp,
+    ExternalCorrectionTimestamp,
     FollowUpId,
     GenericPreferenceType,
     HandbookConsolidationReason,
@@ -711,6 +712,38 @@ class MedicationHistoryAmendment(ValueObject):
         "amended_by": "追記者",
         "amended_at": "追記日時",
     }
+
+
+@dataclass(frozen=True, kw_only=True)
+class ExternalPrescriptionCorrection(ValueObject):
+    """外部レセコン（Uファイル等）による処方訂正の監査証跡。
+
+    確定済み薬歴の原本記録（SOAP、確定日時、確定者）は真正性保護のため不可逆凍結し、
+    外部から発生した処方変更・調剤訂正の事実を本証跡として記録する。
+    """
+
+    correction_id: str
+    corrected_at: ExternalCorrectionTimestamp
+    source_document_number: str
+    reason: str
+    details: str | None = None
+    acknowledged_at: ExternalCorrectionTimestamp | None = None
+    acknowledged_by: StaffId | None = None
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "correction_id": "訂正ID",
+        "corrected_at": "外部訂正日時",
+        "source_document_number": "処方箋番号",
+        "reason": "訂正理由",
+        "details": "訂正詳細",
+        "acknowledged_at": "確認日時",
+        "acknowledged_by": "確認者",
+    }
+
+    @property
+    def is_acknowledged(self) -> bool:
+        """薬剤師によって確認（または追記により対処）されたか。"""
+        return self.acknowledged_at is not None
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)
