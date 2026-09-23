@@ -5,6 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import date
 
+from app.application.composition.coverage_selection_adapter import (
+    CoverageSelectionAdapter,
+)
 from app.application.composition.dispensing_references import (
     DispensingStaffQualificationAdapter,
     DispensingStoreReferenceAdapter,
@@ -16,13 +19,19 @@ from app.application.composition.medication_history_references import (
     MedicationHistoryStoreReferenceAdapter,
 )
 from app.application.composition.prescription_references import (
+    CoverageSelectionPublicExpenseAdapter,
     PrescriptionPatientReferenceAdapter,
     PrescriptionStoreReferenceAdapter,
+)
+from app.application.coverage.register_patient_coverage import (
+    RegisterPatientCoverageUseCase,
 )
 from app.application.dispensing import (
     StartDispensingUseCase,
 )
 from app.application.integration.nsips.ingest_nsips import (
+    IngestNsipsCommand,
+    IngestNsipsResultDto,
     IngestNsipsUseCase,
 )
 from app.application.integration.nsips.mapper import NsipsDataMapper
@@ -40,7 +49,11 @@ from app.application.prescription import (
     ReadyForDispensingUseCase,
     RegisterPrescriptionUseCase,
 )
+from app.application.reception.record_coverage_selection import (
+    RecordCoverageSelectionUseCase,
+)
 from app.domain.corporate import CorporateId
+from app.domain.coverage import CoverageSelectionService, PatientCoverageConflictService
 from app.domain.dispensing import (
     DispensingConsistencyService,
     DispensingIterationUniquenessService,
@@ -78,11 +91,17 @@ from tests.application.access_helpers import (
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store
 from tests.fakes.fake_clock import FakeClock
+from tests.fakes.in_memory_coverage_selection_record_repository import (
+    InMemoryCoverageSelectionRecordRepository,
+)
 from tests.fakes.in_memory_dispensing_process_repository import (
     InMemoryDispensingProcessRepository,
 )
 from tests.fakes.in_memory_medication_history_repository import (
     InMemoryMedicationHistoryRepository,
+)
+from tests.fakes.in_memory_patient_coverage_repository import (
+    InMemoryPatientCoverageRepository,
 )
 from tests.fakes.in_memory_patient_medical_profile_repository import (
     InMemoryPatientMedicalProfileRepository,
@@ -103,7 +122,6 @@ from tests.fakes.in_memory_store_repository import (
 from tests.fakes.null_unit_of_work import NullUnitOfWork
 from tests.fakes.prescription_reference_boundaries import (
     FakeMedicineRestrictionSource,
-    FakePublicExpenseAvailability,
 )
 
 
@@ -134,6 +152,30 @@ class NsipsFixture:
     medicine_restriction: FakeMedicineRestrictionSource
     unit_of_work: NullUnitOfWork
     clock: FakeClock
+    patient_coverage_repo: InMemoryPatientCoverageRepository
+    coverage_selection_repo: InMemoryCoverageSelectionRecordRepository
+
+
+async def execute_structured_test_command(
+    fixture: NsipsFixture, command: IngestNsipsCommand
+) -> IngestNsipsResultDto:
+    """合成raw Fixtureを解析してから、構造化入力経路で取込む。
+
+    対応版が未確認のraw形式は本番取込で拒否する。Applicationの他の振る舞いを
+    合成Fixtureで検証するときは、パーサーを通した結果を明示的な構造化入力として
+    渡し、raw形式の受入れをテストしたように見せない。
+    """
+    if command.structured_bundle is not None:
+        return await fixture.use_case.execute(command)
+    if command.raw_nsips_text is None:
+        return await fixture.use_case.execute(command)
+    bundle = NsipsParser().parse(command.raw_nsips_text)
+    structured_command = replace(
+        command,
+        raw_nsips_text=None,
+        structured_bundle=bundle,
+    )
+    return await fixture.use_case.execute(structured_command)
 
 
 async def create_fixture() -> NsipsFixture:
@@ -198,12 +240,32 @@ async def create_fixture() -> NsipsFixture:
         )
     )
 
-    public_expense = FakePublicExpenseAvailability()
+    patient_coverage_repo = InMemoryPatientCoverageRepository()
+    coverage_selection_repo = InMemoryCoverageSelectionRecordRepository()
+    conflict_service = PatientCoverageConflictService()
 
     # ユースケース組み立て
     register_patient = RegisterPatientUseCase(patient_repo, corporate_access)
     register_patient_ext = RegisterPatientExternalIdentifierUseCase(
         patient_repo, patient_external_id_repo, corporate_access
+    )
+
+    register_coverage = RegisterPatientCoverageUseCase(
+        repository=patient_coverage_repo,
+        patient_reference=PrescriptionPatientReferenceAdapter(patient_repo),
+        conflict_service=conflict_service,
+        corporate_access=corporate_access,
+    )
+
+    record_coverage_selection = RecordCoverageSelectionUseCase(
+        repository=coverage_selection_repo,
+        corporate_access=corporate_access,
+        store_reference=PrescriptionStoreReferenceAdapter(store_repo),
+        patient_reference=PrescriptionPatientReferenceAdapter(patient_repo),
+        coverage_selection=CoverageSelectionAdapter(
+            patient_coverage_repo, CoverageSelectionService()
+        ),
+        clock=clock,
     )
 
     register_prescription = RegisterPrescriptionUseCase(
@@ -212,7 +274,9 @@ async def create_fixture() -> NsipsFixture:
         store_reference=PrescriptionStoreReferenceAdapter(store_repo),
         patient_reference=PrescriptionPatientReferenceAdapter(patient_repo),
         medicine_restriction=medicine_restriction,
-        public_expense_availability=public_expense,
+        public_expense_availability=CoverageSelectionPublicExpenseAdapter(
+            coverage_selection_repo
+        ),
         uniqueness_service=PrescriptionDocumentNumberUniquenessService(),
         narcotic_service=NarcoticPrescriptionService(),
         refill_service=RefillEligibilityService(),
@@ -262,7 +326,12 @@ async def create_fixture() -> NsipsFixture:
         corporate_access=corporate_access,
         unit_of_work=unit_of_work,
         patient_external_id_repo=patient_external_id_repo,
+        patient_repo=patient_repo,
         prescription_repo=prescription_repo,
+        dispensing_repo=dispensing_repo,
+        patient_coverage_repo=patient_coverage_repo,
+        register_coverage_use_case=register_coverage,
+        record_coverage_selection_use_case=record_coverage_selection,
         register_patient_use_case=register_patient,
         register_patient_external_id_use_case=register_patient_ext,
         register_prescription_use_case=register_prescription,
@@ -273,6 +342,7 @@ async def create_fixture() -> NsipsFixture:
         list_medication_histories_use_case=list_medication_histories,
         parser=NsipsParser(),
         mapper=NsipsDataMapper(),
+        clock=clock,
     )
 
     return NsipsFixture(
@@ -292,4 +362,6 @@ async def create_fixture() -> NsipsFixture:
         medicine_restriction=medicine_restriction,
         unit_of_work=unit_of_work,
         clock=clock,
+        patient_coverage_repo=patient_coverage_repo,
+        coverage_selection_repo=coverage_selection_repo,
     )

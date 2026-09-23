@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
 
+from app.application.coverage.register_patient_coverage import (
+    RegisterPatientCoverageCommand,
+)
 from app.application.dispensing.inputs import (
     DispensedMedicineInput,
     DispensedRpInput,
 )
 from app.application.dispensing.start_dispensing import StartDispensingCommand
+from app.application.integration.nsips.exceptions import NsipsParseError
 from app.application.integration.nsips.models import NsipsBundle
 from app.application.medication_history.inputs import (
     AddFollowUpCommand,
-    HandbookStatusInput,
+    BillingAdditionInput,
     LabeledNoteInput,
-    ResidualDrugInput,
     SoapInput,
 )
 from app.application.medication_history.start_medication_history import (
@@ -55,7 +58,76 @@ class NsipsDataMapper:
             last_name_kana=last_kana,
             first_name_kana=first_kana,
             birth_date=bundle.patient.birth_date,
+            gender=bundle.patient.gender,
+            postal_code=bundle.patient.postal_code,
+            address=bundle.patient.address,
+            phone_number=bundle.patient.phone_number,
         )
+
+    @staticmethod
+    def to_coverage_commands(
+        bundle: NsipsBundle,
+        *,
+        corporate_id: str,
+        patient_id: str,
+    ) -> list[RegisterPatientCoverageCommand]:
+        """NSIPSの保険・公費情報から患者資格登録コマンド群を生成する。"""
+        if bundle.insurance is None:
+            return []
+
+        ins = bundle.insurance
+        if bundle.dispensed_date is None:
+            raise NsipsParseError("調剤日がないため患者資格を登録できません。")
+        base_date = bundle.dispensed_date
+        commands: list[RegisterPatientCoverageCommand] = []
+
+        if ins.insurer_number and ins.insured_symbol and ins.insured_number:
+            commands.append(
+                RegisterPatientCoverageCommand(
+                    corporate_id=corporate_id,
+                    patient_id=patient_id,
+                    coverage_type="insurance",
+                    valid_from=base_date,
+                    activated_on=base_date,
+                    priority=1,
+                    insurer_number=ins.insurer_number,
+                    insured_symbol=ins.insured_symbol,
+                    insured_number=ins.insured_number,
+                    branch_number=ins.branch_number,
+                    insured_type=ins.insured_type,
+                    benefit_ratio=ins.benefit_ratio,
+                )
+            )
+
+        if ins.public_payer_number_1 and ins.public_recipient_number_1:
+            commands.append(
+                RegisterPatientCoverageCommand(
+                    corporate_id=corporate_id,
+                    patient_id=patient_id,
+                    coverage_type="public_expense",
+                    valid_from=base_date,
+                    activated_on=base_date,
+                    priority=1,
+                    payer_number=ins.public_payer_number_1,
+                    recipient_number=ins.public_recipient_number_1,
+                )
+            )
+
+        if ins.public_payer_number_2 and ins.public_recipient_number_2:
+            commands.append(
+                RegisterPatientCoverageCommand(
+                    corporate_id=corporate_id,
+                    patient_id=patient_id,
+                    coverage_type="public_expense",
+                    valid_from=base_date,
+                    activated_on=base_date,
+                    priority=2,
+                    payer_number=ins.public_payer_number_2,
+                    recipient_number=ins.public_recipient_number_2,
+                )
+            )
+
+        return commands
 
     @staticmethod
     def to_prescription_command(
@@ -64,37 +136,41 @@ class NsipsDataMapper:
         corporate_id: str,
         store_id: str,
         patient_id: str,
+        coverage_selection_record_id: str | None = None,
     ) -> RegisterPrescriptionCommand:
         """処方箋登録コマンドへ変換する。"""
         p = bundle.prescription
 
         # 医療機関
-        pref_code = p.institution_code[:2] if len(p.institution_code) >= 2 else "13"
         institution = MedicalInstitutionInput(
             code_type="medical",
             code=p.institution_code,
-            prefecture_code=pref_code,
+            prefecture_code=p.institution_prefecture_code,
             name=p.institution_name,
         )
 
         # 診療科
-        dept_code = p.department_code or "01"
-        dept_name = p.department_name or "内科"
         department = DepartmentInput(
-            code_type="standard",
-            code=dept_code,
-            name=dept_name,
+            code_type="standard" if p.department_code is not None else "none",
+            code=p.department_code,
+            name=p.department_name,
         )
 
         # 処方医
         doc_raw = p.doctor_name.strip()
         last_name, first_name = NsipsDataMapper._split_doctor_name(doc_raw)
 
+        doctor_kana = p.doctor_kana.strip() if p.doctor_kana else None
+        doctor_last_name_kana, doctor_first_name_kana = (
+            NsipsDataMapper._split_name(doctor_kana)
+            if doctor_kana is not None
+            else (None, None)
+        )
         prescriber = PrescriberInput(
             last_name=last_name,
             first_name=first_name,
-            last_name_kana="サトウ",
-            first_name_kana="イシ",
+            last_name_kana=doctor_last_name_kana,
+            first_name_kana=doctor_first_name_kana,
         )
 
         # Rp
@@ -143,6 +219,7 @@ class NsipsDataMapper:
             department=department,
             prescriber=prescriber,
             rps=tuple(rps),
+            coverage_selection_record_id=coverage_selection_record_id,
         )
 
     @staticmethod
@@ -242,7 +319,7 @@ class NsipsDataMapper:
             prescription_id=prescription_id,
             dispenser_id=dispenser_id,
             iteration=iteration,
-            dispensed_date=p.issued_date,
+            dispensed_date=bundle.dispensed_date,
             dispensed_rps=tuple(dispensed_rps),
             total_split_count=total_split,
             split_reason=split_reason,
@@ -263,27 +340,44 @@ class NsipsDataMapper:
         med_lines: list[str] = []
         for rp in p.rps:
             med_names = ", ".join(m.medicine_name for m in rp.medicines)
-            med_lines.append(f"Rp{rp.rp_number}: {med_names} ({rp.instructions})")
+            prep_info = ""
+            if rp.preparation_method:
+                pm_upper = rp.preparation_method.upper()
+                if "PACKAGE" in pm_upper or "UNIT" in pm_upper or "DOSE" in pm_upper:
+                    prep_info = f" [一包化 ({rp.preparation_method})]"
+                else:
+                    prep_info = f" [{rp.preparation_method}]"
+            med_lines.append(
+                f"Rp{rp.rp_number}: {med_names} ({rp.instructions}){prep_info}"
+            )
 
-        obj_summary = "処方・調剤内容:\n" + "\n".join(med_lines)
+        obj_summary = "NSIPSから受信した処方・調剤内容:\n" + "\n".join(med_lines)
+
+        billing_additions = tuple(
+            BillingAdditionInput(
+                code=add.code,
+                name=add.name,
+                points=add.points,
+                quantity=add.quantity,
+            )
+            for add in bundle.additions
+        )
 
         return StartMedicationHistoryCommand(
             corporate_id=corporate_id,
             store_id=store_id,
             dispensing_id=dispensing_id,
             counselor_id=counselor_id,
-            method="face_to_face",
+            method=None,
             soap=SoapInput(
                 objective=(LabeledNoteInput(text=obj_summary),),
             ),
-            handbook_status=HandbookStatusInput(
-                presented=True,
-            ),
-            residual_drug=ResidualDrugInput(
-                has_residual_drugs=False,
-            ),
-            information_sheet_provided=False,
+            handbook_status=None,
+            residual_drug=None,
+            information_sheet_provided=None,
             profile_updates=None,
+            billing_additions=billing_additions,
+            source_system="NSIPS",
         )
 
     @staticmethod
@@ -293,24 +387,26 @@ class NsipsDataMapper:
         corporate_id: str,
         record_id: str,
         counselor_id: str,
-        followed_up_at: datetime | None = None,
+        followed_up_at: datetime,
     ) -> AddFollowUpCommand:
         """フォローアップ記録コマンドへ変換する。"""
-        dt = followed_up_at or datetime.now(UTC)
         return AddFollowUpCommand(
             corporate_id=corporate_id,
             record_id=record_id,
             counselor_id=counselor_id,
-            followed_up_at=dt,
-            method="telephone",
+            followed_up_at=followed_up_at,
+            method=None,
             soap=SoapInput(
                 objective=(
-                    LabeledNoteInput(text="服薬フォローアップ / 指導料算定受付"),
+                    LabeledNoteInput(
+                        text="NSIPSから受信した服薬期間中フォローアップ受付"
+                    ),
                 ),
             ),
-            handbook_status=HandbookStatusInput(presented=True),
-            residual_drug=ResidualDrugInput(has_residual_drugs=False),
-            information_sheet_provided=False,
+            handbook_status=None,
+            residual_drug=None,
+            information_sheet_provided=None,
+            source_system="NSIPS",
         )
 
     @staticmethod

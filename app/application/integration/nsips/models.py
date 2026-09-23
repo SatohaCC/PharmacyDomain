@@ -15,7 +15,7 @@ class NsipsPatientInfo:
     kanji_name: str
     kana_name: str
     birth_date: date
-    gender: str
+    gender: str | None
     postal_code: str | None = None
     address: str | None = None
     phone_number: str | None = None
@@ -63,8 +63,36 @@ class NsipsPrescriptionInfo:
     department_code: str | None
     department_name: str | None
     doctor_name: str
+    institution_prefecture_code: str | None = None
+    doctor_kana: str | None = None
     rps: tuple[NsipsRpInfo, ...] = field(default_factory=tuple)
     split_info: NsipsSplitInfo | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class NsipsInsuranceInfo:
+    """NSIPSから抽出した保険・公費情報（レコード03）。"""
+
+    insurer_number: str
+    insured_symbol: str
+    insured_number: str
+    branch_number: str | None = None
+    insured_type: str | None = None
+    benefit_ratio: int | None = None
+    public_payer_number_1: str | None = None
+    public_recipient_number_1: str | None = None
+    public_payer_number_2: str | None = None
+    public_recipient_number_2: str | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class NsipsAdditionInfo:
+    """NSIPSから抽出した算定加算情報（レコード08）。"""
+
+    code: str
+    name: str
+    points: int | None = None
+    quantity: int | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -74,3 +102,6 @@ class NsipsBundle:
     header_version: str
     patient: NsipsPatientInfo
     prescription: NsipsPrescriptionInfo
+    dispensed_date: date | None = None
+    insurance: NsipsInsuranceInfo | None = None
+    additions: tuple[NsipsAdditionInfo, ...] = ()

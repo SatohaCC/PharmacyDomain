@@ -30,6 +30,7 @@ from app.domain.medication_history import (
     FinalizationDelayReason,
     FinalizedTimestamp,
     MedicationHistoryRecord,
+    MedicationHistorySourceSystem,
     MedicationHistoryStatus,
 )
 from app.domain.patient.lifecycle import PatientStatus
@@ -177,6 +178,23 @@ def test_必須フィールドが欠けたpayloadは_復元を拒否する() -> 
     # Act & Assert
     with pytest.raises(PersistenceMappingError):
         decode_aggregate(payload, Corporate)
+
+
+def test_tc43_従来PatientJSONBを新しい任意属性Noneで復元する() -> None:
+    """新属性を持たない保存済みPatientを意味変更なしで復元する。"""
+    patient = create_patient()
+    payload = encode_aggregate(patient)
+    for field_name in ("gender", "postal_code", "address", "phone_number"):
+        payload.pop(field_name, None)
+
+    restored = decode_aggregate(payload, Patient)
+
+    assert restored.id == patient.id
+    assert restored.names == patient.names
+    assert restored.birth_date == patient.birth_date
+    for field_name in ("gender", "postal_code", "address", "phone_number"):
+        assert hasattr(restored, field_name)
+        assert getattr(restored, field_name) is None
 
 
 def test_型の合わないpayloadは_復元を拒否する() -> None:
@@ -498,3 +516,34 @@ def test_TC24_薬歴集約のcodec往復と後方互換復元() -> None:
     assert restored_legacy.finalized_at is None
     assert restored_legacy.finalized_by is None
     assert restored_legacy.delay_reason is None
+
+
+def test_TC23_薬歴の未記録状態をcodec往復し旧payloadも復元する() -> None:
+    """確認済み否定と不明を往復し、旧payloadでは由来を未設定にする。"""
+    assessed = create_record(information_sheet_provided=False)
+    assessed_round_trip = decode_aggregate(
+        encode_aggregate(assessed), MedicationHistoryRecord
+    )
+    assert assessed_round_trip.information_sheet_provided is False
+    assert assessed_round_trip.residual_drug is not None
+    assert assessed_round_trip.residual_drug.has_residual_drugs is False
+
+    unassessed = dataclasses.replace(
+        create_record(information_sheet_provided=None),
+        method=None,
+        handbook_status=None,
+        residual_drug=None,
+        source_system=MedicationHistorySourceSystem("NSIPS"),
+    )
+    encoded = encode_aggregate(unassessed)
+    encoded.pop("source_system")
+    legacy = decode_aggregate(encoded, MedicationHistoryRecord)
+    assert legacy.source_system is None
+
+    restored = decode_aggregate(encode_aggregate(unassessed), MedicationHistoryRecord)
+    assert restored.method is None
+    assert restored.handbook_status is None
+    assert restored.residual_drug is None
+    assert restored.information_sheet_provided is None
+    assert restored.source_system is not None
+    assert restored.source_system.value == "NSIPS"

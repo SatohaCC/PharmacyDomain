@@ -155,8 +155,8 @@ class InsuranceCoverageDetails(ValueObject):
     insurer_number: InsurerNumber
     insured_symbol: CoverageSymbol
     insured_number: CoverageCode
-    insured_type: CoverageInsuredType
-    benefit_ratio: CoverageBenefitRatio
+    insured_type: CoverageInsuredType | None
+    benefit_ratio: CoverageBenefitRatio | None
     branch_number: CoverageBranchNumber | None = None
 
     _FIELD_LABELS: ClassVar[Mapping[str, str]] = {

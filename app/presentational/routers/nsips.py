@@ -5,16 +5,19 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 from http import HTTPStatus
-from typing import Any
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Response
+from pydantic import model_validator
 
 from app.application.integration.nsips.ingest_nsips import (
     IngestNsipsCommand,
     IngestNsipsResultDto,
 )
 from app.application.integration.nsips.models import (
+    NsipsAdditionInfo,
     NsipsBundle,
+    NsipsInsuranceInfo,
     NsipsMedicineInfo,
     NsipsPatientInfo,
     NsipsPrescriptionInfo,
@@ -41,81 +44,197 @@ router = APIRouter(
 )
 
 
+class NsipsPatientRequest(RequestModel):
+    """構造化入力の患者情報。"""
+
+    external_patient_id: str
+    kanji_name: str
+    kana_name: str
+    birth_date: date
+    gender: str | None = None
+    postal_code: str | None = None
+    address: str | None = None
+    phone_number: str | None = None
+
+
+class NsipsMedicineRequest(RequestModel):
+    """構造化入力の薬品明細。"""
+
+    medicine_code: str = ""
+    medicine_name: str
+    dosage: Decimal
+    unit: str
+
+
+class NsipsRpRequest(RequestModel):
+    """構造化入力のRp。"""
+
+    rp_number: int
+    group_name: str
+    instructions: str
+    dispensing_quantity: int
+    medicines: tuple[NsipsMedicineRequest, ...]
+    preparation_method: str | None = None
+
+
+class NsipsSplitRequest(RequestModel):
+    """構造化入力の分割調剤情報。"""
+
+    iteration: int
+    total_split_count: int
+    split_reason: str
+
+
+class NsipsPrescriptionRequest(RequestModel):
+    """構造化入力の処方情報。"""
+
+    document_number: str
+    issued_date: date
+    institution_code: str
+    institution_name: str
+    department_code: str | None = None
+    department_name: str | None = None
+    doctor_name: str
+    institution_prefecture_code: str | None = None
+    doctor_kana: str | None = None
+    rps: tuple[NsipsRpRequest, ...]
+    split_info: NsipsSplitRequest | None = None
+
+
+class NsipsInsuranceRequest(RequestModel):
+    """構造化入力の保険・公費情報。"""
+
+    insurer_number: str
+    insured_symbol: str
+    insured_number: str
+    branch_number: str | None = None
+    insured_type: Literal["self", "family"] | None = None
+    benefit_ratio: int | None = None
+    public_payer_number_1: str | None = None
+    public_recipient_number_1: str | None = None
+    public_payer_number_2: str | None = None
+    public_recipient_number_2: str | None = None
+
+
+class NsipsAdditionRequest(RequestModel):
+    """構造化入力の算定加算情報。"""
+
+    code: str
+    name: str
+    points: int | None = None
+    quantity: int | None = None
+
+
+class NsipsBundleRequest(RequestModel):
+    """構造化入力のNSIPS Bundle。"""
+
+    header_version: str = "unverified"
+    patient: NsipsPatientRequest
+    prescription: NsipsPrescriptionRequest
+    dispensed_date: date | None = None
+    insurance: NsipsInsuranceRequest | None = None
+    additions: tuple[NsipsAdditionRequest, ...] = ()
+
+
 class IngestNsipsRequest(RequestModel):
     """NSIPS取込リクエストボディ。"""
 
     operator_staff_id: str
     raw_nsips_text: str | None = None
-    structured_bundle: dict[str, Any] | None = None
+    structured_bundle: NsipsBundleRequest | None = None
+
+    @model_validator(mode="after")
+    def require_exactly_one_input(self) -> IngestNsipsRequest:
+        """rawと構造化入力の片方だけが指定されていることを検証する。"""
+        if (self.raw_nsips_text is None) == (self.structured_bundle is None):
+            raise ValueError(
+                "raw_nsips_textかstructured_bundleのどちらか一方が必要です。"
+            )
+        return self
 
 
-def _build_bundle_from_dict(raw: dict[str, Any]) -> NsipsBundle:
-    raw_pat = raw["patient"]
-    raw_presc = raw["prescription"]
-
+def _build_bundle_from_request(raw: NsipsBundleRequest) -> NsipsBundle:
+    """型検証済みリクエストからアプリケーションBundleを組み立てる。"""
     patient = NsipsPatientInfo(
-        external_patient_id=raw_pat["external_patient_id"],
-        kanji_name=raw_pat["kanji_name"],
-        kana_name=raw_pat["kana_name"],
-        birth_date=date.fromisoformat(raw_pat["birth_date"])
-        if isinstance(raw_pat["birth_date"], str)
-        else raw_pat["birth_date"],
-        gender=raw_pat["gender"],
-        postal_code=raw_pat.get("postal_code"),
-        address=raw_pat.get("address"),
-        phone_number=raw_pat.get("phone_number"),
+        external_patient_id=raw.patient.external_patient_id,
+        kanji_name=raw.patient.kanji_name,
+        kana_name=raw.patient.kana_name,
+        birth_date=raw.patient.birth_date,
+        gender=raw.patient.gender,
+        postal_code=raw.patient.postal_code,
+        address=raw.patient.address,
+        phone_number=raw.patient.phone_number,
     )
-
-    rps: list[NsipsRpInfo] = []
-    for raw_rp in raw_presc.get("rps", []):
-        meds: list[NsipsMedicineInfo] = []
-        for raw_med in raw_rp.get("medicines", []):
-            meds.append(
-                NsipsMedicineInfo(
-                    medicine_code=raw_med.get("medicine_code", ""),
-                    medicine_name=raw_med["medicine_name"],
-                    dosage=Decimal(str(raw_med["dosage"])),
-                    unit=raw_med["unit"],
-                )
-            )
-        rps.append(
-            NsipsRpInfo(
-                rp_number=raw_rp["rp_number"],
-                group_name=raw_rp.get("group_name", "内服"),
-                instructions=raw_rp.get("instructions", ""),
-                dispensing_quantity=raw_rp.get("dispensing_quantity", 1),
-                medicines=tuple(meds),
-                preparation_method=raw_rp.get("preparation_method"),
-            )
-        )
-
-    split_info = None
-    if raw_presc.get("split_info"):
-        raw_split = raw_presc["split_info"]
-        split_info = NsipsSplitInfo(
-            iteration=raw_split["iteration"],
-            total_split_count=raw_split["total_split_count"],
-            split_reason=raw_split["split_reason"],
-        )
-
     prescription = NsipsPrescriptionInfo(
-        document_number=raw_presc["document_number"],
-        issued_date=date.fromisoformat(raw_presc["issued_date"])
-        if isinstance(raw_presc["issued_date"], str)
-        else raw_presc["issued_date"],
-        institution_code=raw_presc["institution_code"],
-        institution_name=raw_presc["institution_name"],
-        department_code=raw_presc.get("department_code"),
-        department_name=raw_presc.get("department_name"),
-        doctor_name=raw_presc["doctor_name"],
-        rps=tuple(rps),
-        split_info=split_info,
+        document_number=raw.prescription.document_number,
+        issued_date=raw.prescription.issued_date,
+        institution_code=raw.prescription.institution_code,
+        institution_name=raw.prescription.institution_name,
+        department_code=raw.prescription.department_code,
+        department_name=raw.prescription.department_name,
+        doctor_name=raw.prescription.doctor_name,
+        institution_prefecture_code=raw.prescription.institution_prefecture_code,
+        doctor_kana=raw.prescription.doctor_kana,
+        rps=tuple(
+            NsipsRpInfo(
+                rp_number=rp.rp_number,
+                group_name=rp.group_name,
+                instructions=rp.instructions,
+                dispensing_quantity=rp.dispensing_quantity,
+                medicines=tuple(
+                    NsipsMedicineInfo(
+                        medicine_code=medicine.medicine_code,
+                        medicine_name=medicine.medicine_name,
+                        dosage=medicine.dosage,
+                        unit=medicine.unit,
+                    )
+                    for medicine in rp.medicines
+                ),
+                preparation_method=rp.preparation_method,
+            )
+            for rp in raw.prescription.rps
+        ),
+        split_info=(
+            NsipsSplitInfo(
+                iteration=raw.prescription.split_info.iteration,
+                total_split_count=raw.prescription.split_info.total_split_count,
+                split_reason=raw.prescription.split_info.split_reason,
+            )
+            if raw.prescription.split_info is not None
+            else None
+        ),
     )
-
+    insurance = (
+        NsipsInsuranceInfo(
+            insurer_number=raw.insurance.insurer_number,
+            insured_symbol=raw.insurance.insured_symbol,
+            insured_number=raw.insurance.insured_number,
+            branch_number=raw.insurance.branch_number,
+            insured_type=raw.insurance.insured_type,
+            benefit_ratio=raw.insurance.benefit_ratio,
+            public_payer_number_1=raw.insurance.public_payer_number_1,
+            public_recipient_number_1=raw.insurance.public_recipient_number_1,
+            public_payer_number_2=raw.insurance.public_payer_number_2,
+            public_recipient_number_2=raw.insurance.public_recipient_number_2,
+        )
+        if raw.insurance is not None
+        else None
+    )
     return NsipsBundle(
-        header_version=raw.get("header_version", "1.0"),
+        header_version=raw.header_version,
         patient=patient,
         prescription=prescription,
+        dispensed_date=raw.dispensed_date,
+        insurance=insurance,
+        additions=tuple(
+            NsipsAdditionInfo(
+                code=addition.code,
+                name=addition.name,
+                points=addition.points,
+                quantity=addition.quantity,
+            )
+            for addition in raw.additions
+        ),
     )
 
 
@@ -133,9 +252,11 @@ async def ingest_nsips(
     response: Response,
 ) -> IngestNsipsResultDto:
     """NSIPS受付データを取り込む。"""
-    bundle: NsipsBundle | None = None
-    if body.structured_bundle is not None:
-        bundle = _build_bundle_from_dict(body.structured_bundle)
+    bundle = (
+        _build_bundle_from_request(body.structured_bundle)
+        if body.structured_bundle is not None
+        else None
+    )
 
     result = await use_cases.ingest_nsips.execute(
         IngestNsipsCommand(

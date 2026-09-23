@@ -64,8 +64,16 @@ class PatientCoverageDto:
                 if insurance and insurance.branch_number
                 else None
             ),
-            insured_type=(insurance.insured_type.value if insurance else None),
-            benefit_ratio=(insurance.benefit_ratio.value if insurance else None),
+            insured_type=(
+                insurance.insured_type.value
+                if insurance and insurance.insured_type is not None
+                else None
+            ),
+            benefit_ratio=(
+                insurance.benefit_ratio.value
+                if insurance and insurance.benefit_ratio is not None
+                else None
+            ),
             payer_number=(
                 public_expense.payer_number.value if public_expense else None
             ),

@@ -37,6 +37,8 @@ from app.domain.medication_history.primitives import (
     AllergySeverity,
     AmendmentReason,
     AmendmentTimestamp,
+    BillingAdditionCode,
+    BillingAdditionName,
     ConcurrentCategory,
     ConditionName,
     ConditionStatus,
@@ -52,6 +54,7 @@ from app.domain.medication_history.primitives import (
     MajorCategoryCode,
     MajorCategoryName,
     MedicationHistoryRecordId,
+    MedicationHistorySourceSystem,
     MediumCategoryCode,
     MediumCategoryName,
     PhysicianName,
@@ -80,7 +83,7 @@ from app.domain.prescription.primitives import (
     PrescriptionIssuedDate,
 )
 from app.domain.shared.medicine import MedicineName
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import PersonName, PersonNames
 from app.domain.staff.primitives import StaffId
 
 
@@ -756,11 +759,12 @@ class FollowUpRecord(Entity[FollowUpId]):
     id: FollowUpId
     counselor_id: StaffId
     followed_up_at: CounselingTimestamp
-    method: CounselingMethod
+    method: CounselingMethod | None
     soap: SoapRecord
-    handbook_status: HandbookStatus
-    residual_drug: ResidualDrugRecord
-    information_sheet_provided: bool = False
+    handbook_status: HandbookStatus | None
+    residual_drug: ResidualDrugRecord | None
+    information_sheet_provided: bool | None = False
+    source_system: MedicationHistorySourceSystem | None = None
     profile_updates: ProfileUpdateIntents = field(default_factory=ProfileUpdateIntents)
     additional_notes: tuple[CategorizedNote, ...] = ()
 
@@ -773,6 +777,7 @@ class FollowUpRecord(Entity[FollowUpId]):
         "handbook_status": "お薬手帳確認",
         "residual_drug": "残薬確認",
         "information_sheet_provided": "情報提供文書有無",
+        "source_system": "記録由来システム",
         "profile_updates": "頭書き差分",
         "additional_notes": "追加記載メモ",
     }
@@ -908,7 +913,7 @@ class StatutoryRecordSource(ValueObject):
     pharmacist_names: tuple[StatutoryPharmacistName, ...]
     prescription_id: PrescriptionId
     prescription_issued_date: PrescriptionIssuedDate
-    prescriber_names: PersonNames
+    prescriber_names: PersonName | None
     medical_institution_name: MedicalInstitutionName
     medical_institution_address: MedicalInstitutionAddressLine | None
     inquiries: tuple[StatutoryInquiryRecord, ...]
@@ -1012,3 +1017,25 @@ class StatutoryRecordSufficiency(ValueObject):
         記載事項がそろっていても、妨げる要因が1つでも残っていれば代替にならない。
         """
         return not self.blockers and not self.missing_items
+
+
+@dataclass(frozen=True, kw_only=True)
+class BillingAddition(ValueObject):
+    """レセコンから連携された算定加算事実。
+
+    点数計算や算定判定はレセコン側の排他的責務であるが、
+    レセコンで算定された加算（特定薬剤管理指導加算、吸入薬指導加算等）の
+    客観的事実を受容し、薬歴における指導根拠・確認事項の前提として保持する。
+    """
+
+    code: BillingAdditionCode
+    name: BillingAdditionName
+    points: int | None = None
+    quantity: int | None = None
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "code": "算定加算コード",
+        "name": "算定加算名称",
+        "points": "算定点数",
+        "quantity": "算定数量",
+    }

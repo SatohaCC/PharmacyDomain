@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from app.application.access_control import CorporateAccessBoundary, Permission
 from app.application.common import UnitOfWork
+from app.application.common.optional_conversion import build_optional
 from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
 )
@@ -26,15 +27,14 @@ from app.domain.medication_history import (
     CounselorQualificationService,
     FollowUpId,
     FollowUpRecord,
-    HandbookStatus,
     MajorCategoryCode,
     MedicationHistoryRecordId,
     MedicationHistoryRepository,
+    MedicationHistorySourceSystem,
     MediumCategoryCode,
     PatientMedicalProfile,
     PatientMedicalProfileRepository,
     ProfileUpdateIntents,
-    ResidualDrugRecord,
     StatutoryCategory,
 )
 from app.domain.staff.primitives import StaffId
@@ -81,12 +81,12 @@ class AddFollowUpUseCase:
         handbook_status = (
             build_handbook_status(command.handbook_status)
             if command.handbook_status is not None
-            else HandbookStatus(presented=True)
+            else None
         )
         residual_drug = (
             build_residual_drug(command.residual_drug)
             if command.residual_drug is not None
-            else ResidualDrugRecord.none_remaining()
+            else None
         )
         profile_updates = (
             build_profile_updates(command.profile_updates)
@@ -109,11 +109,18 @@ class AddFollowUpUseCase:
             id=FollowUpId.generate(),
             counselor_id=counselor_id,
             followed_up_at=CounselingTimestamp(command.followed_up_at),
-            method=parse_enum(CounselingMethod, command.method, "フォローアップの方法"),
+            method=(
+                parse_enum(CounselingMethod, command.method, "フォローアップの方法")
+                if command.method is not None
+                else None
+            ),
             soap=build_soap(command.soap),
             handbook_status=handbook_status,
             residual_drug=residual_drug,
             information_sheet_provided=command.information_sheet_provided,
+            source_system=build_optional(
+                command.source_system, MedicationHistorySourceSystem
+            ),
             profile_updates=profile_updates,
             additional_notes=additional_notes,
         )

@@ -15,7 +15,11 @@ from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.medication_history import (
     AmendmentReason,
     AmendmentTimestamp,
+    BillingAddition,
+    BillingAdditionCode,
+    BillingAdditionName,
     CategorizedNote,
+    CounselingMethod,
     CounselingNote,
     FinalizationDateBeforeCounselingError,
     FinalizationDelayReason,
@@ -32,6 +36,7 @@ from app.domain.medication_history import (
     MedicationHistoryDomainError,
     MedicationHistoryNotFinalizedError,
     MedicationHistoryStatus,
+    MedicationHistoryUnassessedItemsError,
     MediumCategoryCode,
     ResidualDrugDetailNotAllowedError,
     ResidualDrugDetailRequiredError,
@@ -156,6 +161,53 @@ class Testお薬手帳:
 
 class TestSOAPと確定:
     """下書きの編集とSOAPを満たした確定を検証する。"""
+
+    def test_tc21_確認済み否定値と未記録を区別する(self) -> None:
+        """確認済みの否定値はNoneの未記録状態と異なる値で保持する。"""
+        assessed = create_record(information_sheet_provided=False)
+        unassessed = replace(
+            assessed,
+            method=None,
+            handbook_status=None,
+            residual_drug=None,
+            information_sheet_provided=None,
+        )
+
+        assert assessed.information_sheet_provided is False
+        assert assessed.residual_drug is not None
+        assert assessed.residual_drug.has_residual_drugs is False
+        assert unassessed.method is None
+        assert unassessed.handbook_status is None
+        assert unassessed.residual_drug is None
+        assert unassessed.information_sheet_provided is None
+
+    def test_tc22_必須事項が未確認の薬歴を確定できず確認後は確定できる(
+        self,
+    ) -> None:
+        """未確認項目を列挙して止め、下書きで確認後に確定できる。"""
+        unassessed = replace(
+            create_record(information_sheet_provided=None),
+            method=None,
+            handbook_status=None,
+            residual_drug=None,
+        )
+
+        with pytest.raises(MedicationHistoryUnassessedItemsError) as error:
+            unassessed.finalize()
+
+        assert error.value.missing_items == (
+            "服薬指導方法",
+            "お薬手帳の活用状況",
+            "残薬状況",
+            "情報提供文書の交付",
+        )
+        completed = unassessed.update_draft(
+            method=CounselingMethod.FACE_TO_FACE,
+            handbook_status=HandbookStatus(presented=True),
+            residual_drug=ResidualDrugRecord.none_remaining(),
+            information_sheet_provided=False,
+        )
+        assert completed.finalize().is_finalized
 
     def test_下書きでは_SOAPが空でも構築できる(self) -> None:
         """聞き取りながら書き足す運用を壊さない。"""
@@ -571,3 +623,61 @@ class Test確定真正性と遅延理由:
                 status=MedicationHistoryStatus.DRAFT,
                 finalized_at=finalized_at,
             )
+
+    def test_算定加算情報を保持でき既定値は空タプル(self) -> None:
+        """BillingAdditionを指定した記録が保持され、既定値は空になる。"""
+        addition = BillingAddition(
+            code=BillingAdditionCode("140000110"),
+            name=BillingAdditionName("特定薬剤管理指導加算２"),
+            points=100,
+            quantity=2,
+        )
+        record = create_record(billing_additions=(addition,))
+        assert len(record.billing_additions) == 1
+        assert record.billing_additions[0].code.value == "140000110"
+        assert record.billing_additions[0].name.value == "特定薬剤管理指導加算２"
+        assert record.billing_additions[0].points == 100
+        assert record.billing_additions[0].quantity == 2
+
+        default_record = create_record()
+        assert default_record.billing_additions == ()
+
+    def test_tc29_加算は下書きだけ更新でき確定後は拒否する(self) -> None:
+        """加算情報を下書きで置換でき、確定済み記録は凍結する。"""
+        original = BillingAddition(
+            code=BillingAdditionCode("140000110"),
+            name=BillingAdditionName("加算A"),
+            points=100,
+            quantity=1,
+        )
+        corrected = BillingAddition(
+            code=BillingAdditionCode("140000210"),
+            name=BillingAdditionName("加算B"),
+            points=200,
+            quantity=2,
+        )
+        updated = create_record(billing_additions=(original,)).update_draft(
+            billing_additions=(corrected,)
+        )
+
+        assert updated.billing_additions == (corrected,)
+        finalized = updated.finalize()
+        with pytest.raises(MedicationHistoryAlreadyFinalizedError):
+            finalized.update_draft(billing_additions=(original,))
+
+
+@pytest.mark.parametrize("value", ("", "   "))
+@pytest.mark.parametrize("primitive_name", ("code", "name"))
+def test_tc30_算定加算Primitiveの空値を拒否する(
+    value: str,
+    primitive_name: str,
+) -> None:
+    """コード・名称Primitiveで親の非空検証が保たれる。"""
+    from app.domain.medication_history import BillingAdditionCode, BillingAdditionName
+
+    primitive_type = (
+        BillingAdditionCode if primitive_name == "code" else BillingAdditionName
+    )
+
+    with pytest.raises(DomainValidationError):
+        primitive_type(value)

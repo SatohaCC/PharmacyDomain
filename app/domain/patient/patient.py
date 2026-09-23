@@ -15,7 +15,15 @@ from app.domain.patient.lifecycle import (
     PatientStatusChange,
     PatientStatusReason,
 )
-from app.domain.patient.primitives import PatientBirthDate, PatientId, PatientNumber
+from app.domain.patient.primitives import (
+    PatientAddress,
+    PatientBirthDate,
+    PatientGenderCode,
+    PatientId,
+    PatientNumber,
+    PatientPhoneNumber,
+    PatientPostalCode,
+)
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
 
@@ -29,6 +37,10 @@ class Patient(AggregateRoot[PatientId]):
     names: PersonNames
     patient_number: PatientNumber
     birth_date: PatientBirthDate | None = None
+    gender: PatientGenderCode | None = None
+    postal_code: PatientPostalCode | None = None
+    address: PatientAddress | None = None
+    phone_number: PatientPhoneNumber | None = None
     status: PatientStatus = PatientStatus.ACTIVE
     merged_into_id: PatientId | None = None
     status_history: tuple[PatientStatusChange, ...] = ()
@@ -60,6 +72,10 @@ class Patient(AggregateRoot[PatientId]):
         names: PersonNames,
         patient_number: PatientNumber,
         birth_date: PatientBirthDate | None = None,
+        gender: PatientGenderCode | None = None,
+        postal_code: PatientPostalCode | None = None,
+        address: PatientAddress | None = None,
+        phone_number: PatientPhoneNumber | None = None,
     ) -> Self:
         """新しい患者を生成する。"""
         return cls(
@@ -68,6 +84,10 @@ class Patient(AggregateRoot[PatientId]):
             names=names,
             patient_number=patient_number,
             birth_date=birth_date,
+            gender=gender,
+            postal_code=postal_code,
+            address=address,
+            phone_number=phone_number,
         )
 
     def change_names(self, names: PersonNames) -> Self:

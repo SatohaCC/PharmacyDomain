@@ -493,10 +493,11 @@ def _start_history_body(
         store_id=command.store_id,
         dispensing_id=command.dispensing_id,
         counselor_id=command.counselor_id,
-        method=command.method,
+        method=command.method or "face_to_face",
         soap=command.soap,
-        handbook_status=command.handbook_status,
-        residual_drug=command.residual_drug,
+        handbook_status=command.handbook_status or HandbookStatusInput(presented=True),
+        residual_drug=command.residual_drug
+        or ResidualDrugInput(has_residual_drugs=False),
         information_sheet_provided=command.information_sheet_provided,
         profile_updates=command.profile_updates,
     ).model_dump(mode="json")

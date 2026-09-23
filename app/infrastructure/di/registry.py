@@ -173,6 +173,8 @@ class PostgresUseCaseRegistry:
                 self._repositories,
                 self._corporate_access,
                 self.patient,
+                self.coverage,
+                self.reception,
                 self.prescription,
                 self.dispensing,
                 self.medication_history,

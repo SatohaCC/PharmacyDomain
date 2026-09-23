@@ -66,7 +66,7 @@ from app.domain.shared.medicine import (
     MedicineIdentifier,
     MedicineUnit,
 )
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import PersonName, PersonNameKana
 
 #: 使用期限の指定がない場合の実効日数。交付日を含めて4日間。
 #: 出典: 保険調剤の理解のために（令和8年度）「処方箋の使用期間は、交付の日を
@@ -83,7 +83,7 @@ class MedicalInstitutionInfo(ValueObject):
 
     code_type: MedicalInstitutionCodeType
     code: MedicalInstitutionCode
-    prefecture_code: MedicalInstitutionPrefectureCode
+    prefecture_code: MedicalInstitutionPrefectureCode | None
     name: MedicalInstitutionName
     postal_code: MedicalInstitutionPostalCode | None = None
     address: MedicalInstitutionAddressLine | None = None
@@ -112,7 +112,7 @@ class DepartmentInfo(ValueObject):
     """
 
     code_type: DepartmentCodeType
-    name: DepartmentName
+    name: DepartmentName | None
     code: DepartmentCode | None = None
 
     _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
@@ -138,11 +138,13 @@ class PrescriberInfo(ValueObject):
     出典: JAHIS レコードNo.5（医師レコード）。漢字氏名は必須。
     """
 
-    names: PersonNames
+    names: PersonName
+    names_kana: PersonNameKana | None = None
     code: PrescriberCode | None = None
 
     _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
         "names": "処方医氏名",
+        "names_kana": "処方医氏名カナ",
         "code": "処方医コード",
     }
 

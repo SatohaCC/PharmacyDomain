@@ -20,7 +20,7 @@ class MedicalInstitutionInput:
 
     code_type: str
     code: str
-    prefecture_code: str
+    prefecture_code: str | None
     name: str
     postal_code: str | None = None
     address: str | None = None
@@ -33,7 +33,7 @@ class DepartmentInput:
     """診療科の入力（JAHIS レコードNo.4）。"""
 
     code_type: str
-    name: str
+    name: str | None
     code: str | None = None
 
 
@@ -43,8 +43,8 @@ class PrescriberInput:
 
     last_name: str
     first_name: str
-    last_name_kana: str
-    first_name_kana: str
+    last_name_kana: str | None
+    first_name_kana: str | None
     code: str | None = None
 
 

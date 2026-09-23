@@ -9,6 +9,7 @@ from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
 )
 from app.application.medication_history.inputs import (
+    BillingAdditionInput,
     CategorizedNoteInput,
     HandbookStatusInput,
     ProfileUpdateInput,
@@ -26,6 +27,9 @@ from app.application.medication_history.support import (
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history import (
+    BillingAddition,
+    BillingAdditionCode,
+    BillingAdditionName,
     CounselingMethod,
     MedicationHistoryRecordId,
     MedicationHistoryRepository,
@@ -45,6 +49,7 @@ class UpdateMedicationHistoryDraftCommand:
     residual_drug: ResidualDrugInput | None = None
     information_sheet_provided: bool | None = None
     additional_notes: tuple[CategorizedNoteInput, ...] | None = None
+    billing_additions: tuple[BillingAdditionInput, ...] | None = None
 
 
 class UpdateMedicationHistoryDraftUseCase:
@@ -102,6 +107,19 @@ class UpdateMedicationHistoryDraftUseCase:
             if command.additional_notes is not None
             else None
         )
+        billing_additions = (
+            tuple(
+                BillingAddition(
+                    code=BillingAdditionCode(item.code),
+                    name=BillingAdditionName(item.name),
+                    points=item.points,
+                    quantity=item.quantity,
+                )
+                for item in command.billing_additions
+            )
+            if command.billing_additions is not None
+            else None
+        )
 
         record = record.update_draft(
             method=method,
@@ -111,6 +129,7 @@ class UpdateMedicationHistoryDraftUseCase:
             information_sheet_provided=command.information_sheet_provided,
             profile_updates=profile_updates,
             additional_notes=additional_notes,
+            billing_additions=billing_additions,
         )
         await self._repository.save(record)
         return MedicationHistoryDto.from_entity(record)

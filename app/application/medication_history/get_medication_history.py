@@ -9,6 +9,7 @@ from app.application.common.optional_conversion import unwrap
 from app.application.medication_history.support import load_record_or_raise
 from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history import (
+    BillingAddition,
     CategorizedNote,
     FollowUpRecord,
     HandbookStatus,
@@ -155,11 +156,12 @@ class FollowUpDto:
     id: str
     counselor_id: str
     followed_up_at: str
-    method: str
+    method: str | None
     soap: SoapDto
-    handbook_status: HandbookStatusDto
-    residual_drug: ResidualDrugDto
-    information_sheet_provided: bool
+    handbook_status: HandbookStatusDto | None
+    residual_drug: ResidualDrugDto | None
+    information_sheet_provided: bool | None
+    source_system: str | None
     additional_notes: tuple[CategorizedNoteDto, ...] = ()
     updates_profile: bool = False
 
@@ -170,11 +172,20 @@ class FollowUpDto:
             id=str(value.id.value),
             counselor_id=str(value.counselor_id.value),
             followed_up_at=value.followed_up_at.value.isoformat(),
-            method=value.method.value,
+            method=unwrap(value.method),
             soap=SoapDto.from_value(value.soap),
-            handbook_status=HandbookStatusDto.from_value(value.handbook_status),
-            residual_drug=ResidualDrugDto.from_value(value.residual_drug),
+            handbook_status=(
+                HandbookStatusDto.from_value(value.handbook_status)
+                if value.handbook_status is not None
+                else None
+            ),
+            residual_drug=(
+                ResidualDrugDto.from_value(value.residual_drug)
+                if value.residual_drug is not None
+                else None
+            ),
             information_sheet_provided=value.information_sheet_provided,
+            source_system=unwrap(value.source_system),
             additional_notes=tuple(
                 CategorizedNoteDto.from_value(note) for note in value.additional_notes
             ),
@@ -247,6 +258,26 @@ class TracingReportDto:
 
 
 @dataclass(frozen=True, kw_only=True)
+class BillingAdditionDto:
+    """算定加算1件の出力DTO。"""
+
+    code: str
+    name: str
+    points: int | None
+    quantity: int | None
+
+    @classmethod
+    def from_value(cls, value: BillingAddition) -> BillingAdditionDto:
+        """算定加算からDTOを生成する。"""
+        return cls(
+            code=value.code.value,
+            name=value.name.value,
+            points=value.points,
+            quantity=value.quantity,
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
 class MedicationHistoryDto:
     """薬歴取得ユースケースの出力DTO。"""
 
@@ -258,18 +289,20 @@ class MedicationHistoryDto:
     prescription_id: str
     counselor_id: str
     counseled_at: str
-    method: str
+    method: str | None
     status: str
     #: 交付時に記録したSOAP。追記があっても書き換わらない。
     soap: SoapDto
     #: 追記を反映した現時点で有効なSOAP。
     effective_soap: SoapDto
-    handbook_status: HandbookStatusDto
-    residual_drug: ResidualDrugDto
-    information_sheet_provided: bool
+    handbook_status: HandbookStatusDto | None
+    residual_drug: ResidualDrugDto | None
+    information_sheet_provided: bool | None
+    source_system: str | None
     amendments: tuple[AmendmentDto, ...]
     updates_profile: bool
     additional_notes: tuple[CategorizedNoteDto, ...] = ()
+    billing_additions: tuple[BillingAdditionDto, ...] = ()
     follow_ups: tuple[FollowUpDto, ...] = ()
     tracing_reports: tuple[TracingReportDto, ...] = ()
     finalized_at: str | None = None
@@ -288,19 +321,31 @@ class MedicationHistoryDto:
             prescription_id=str(record.prescription_id.value),
             counselor_id=str(record.counselor_id.value),
             counseled_at=record.counseled_at.value.isoformat(),
-            method=record.method.value,
+            method=unwrap(record.method),
             status=record.status.value,
             soap=SoapDto.from_value(record.soap),
             effective_soap=SoapDto.from_value(record.effective_soap),
-            handbook_status=HandbookStatusDto.from_value(record.handbook_status),
-            residual_drug=ResidualDrugDto.from_value(record.residual_drug),
+            handbook_status=(
+                HandbookStatusDto.from_value(record.handbook_status)
+                if record.handbook_status is not None
+                else None
+            ),
+            residual_drug=(
+                ResidualDrugDto.from_value(record.residual_drug)
+                if record.residual_drug is not None
+                else None
+            ),
             information_sheet_provided=record.information_sheet_provided,
+            source_system=unwrap(record.source_system),
             amendments=tuple(
                 AmendmentDto.from_value(item) for item in record.amendments
             ),
             updates_profile=record.updates_profile,
             additional_notes=tuple(
                 CategorizedNoteDto.from_value(note) for note in record.additional_notes
+            ),
+            billing_additions=tuple(
+                BillingAdditionDto.from_value(ba) for ba in record.billing_additions
             ),
             follow_ups=tuple(FollowUpDto.from_value(fu) for fu in record.follow_ups),
             tracing_reports=tuple(

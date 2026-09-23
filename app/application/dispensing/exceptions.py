@@ -55,3 +55,10 @@ class PrescriptionNotReadyForDispensingError(DispensingApplicationError):
         "（処方箋を調剤可能な状態にしてください）。"
     )
     default_code = "DISPENSING_PRESCRIPTION_NOT_READY"
+
+
+class DispensingDateRequiredError(DispensingApplicationError):
+    """調剤日が指定されていない場合の例外。"""
+
+    default_message = "調剤日が指定されていないため、調剤を開始できません。"
+    default_code = "DISPENSING_DATE_REQUIRED"
