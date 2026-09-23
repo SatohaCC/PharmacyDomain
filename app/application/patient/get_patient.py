@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.common.optional_conversion import unwrap
 from app.application.patient.support import load_patient_or_raise
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.patient import Patient
@@ -45,6 +46,10 @@ class PatientDto:
     last_name_kana: str
     first_name_kana: str
     birth_date: str | None
+    gender: str | None = None
+    postal_code: str | None = None
+    address: str | None = None
+    phone_number: str | None = None
     status: str = "active"
     merged_into_id: str | None = None
     status_history: tuple[PatientStatusChangeDto, ...] = ()
@@ -63,6 +68,10 @@ class PatientDto:
             birth_date=(
                 patient.birth_date.value.isoformat() if patient.birth_date else None
             ),
+            gender=unwrap(patient.gender),
+            postal_code=unwrap(patient.postal_code),
+            address=unwrap(patient.address),
+            phone_number=unwrap(patient.phone_number),
             status=patient.status.value,
             merged_into_id=str(patient.merged_into_id.value)
             if patient.merged_into_id

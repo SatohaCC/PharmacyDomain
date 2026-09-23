@@ -29,6 +29,7 @@ from app.domain.medication_history.exceptions import (
     MedicationHistoryAlreadyFinalizedError,
     MedicationHistoryDomainError,
     MedicationHistoryNotFinalizedError,
+    MedicationHistoryUnassessedItemsError,
     SoapContentRequiredError,
     TracingReportAlreadyRespondedError,
     TracingReportDateBeforeCounselingError,
@@ -46,10 +47,12 @@ from app.domain.medication_history.primitives import (
     FinalizationDelayReason,
     FinalizedTimestamp,
     MedicationHistoryRecordId,
+    MedicationHistorySourceSystem,
     MedicationHistoryStatus,
     TracingReportId,
 )
 from app.domain.medication_history.value_objects import (
+    BillingAddition,
     CategorizedNote,
     ExternalPrescriptionCorrection,
     FollowUpRecord,
@@ -80,15 +83,16 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     prescription_id: PrescriptionId
     counselor_id: StaffId
     counseled_at: CounselingTimestamp
-    method: CounselingMethod
+    method: CounselingMethod | None
     soap: SoapRecord
-    handbook_status: HandbookStatus
-    #: 法定記載事項ウ（ホ）が「残薬がないときは、その旨を記載すること」と定めるため必須。
-    residual_drug: ResidualDrugRecord
-    information_sheet_provided: bool = False
+    handbook_status: HandbookStatus | None
+    residual_drug: ResidualDrugRecord | None
+    information_sheet_provided: bool | None = None
     # 別モジュールの frozen dataclass なので ruff が不変性を追えない（RUF009）。
     profile_updates: ProfileUpdateIntents = field(default_factory=ProfileUpdateIntents)
     additional_notes: tuple[CategorizedNote, ...] = ()
+    billing_additions: tuple[BillingAddition, ...] = ()
+    source_system: MedicationHistorySourceSystem | None = None
     status: MedicationHistoryStatus = MedicationHistoryStatus.DRAFT
     amendments: tuple[MedicationHistoryAmendment, ...] = ()
     follow_ups: tuple[FollowUpRecord, ...] = ()
@@ -111,7 +115,25 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         """
         self._ensure_amendments_only_after_finalized()
         self._ensure_finalized_soap_is_complete()
+        self._ensure_finalized_items_are_assessed()
         self._ensure_finalization_metadata_is_valid()
+
+    def _ensure_finalized_items_are_assessed(self) -> None:
+        """確定前に確認が必要な項目が未記録でないことを検証する。"""
+        if not self.status.is_finalized:
+            return
+        missing_items = tuple(
+            label
+            for label, value in (
+                ("服薬指導方法", self.method),
+                ("お薬手帳の活用状況", self.handbook_status),
+                ("残薬状況", self.residual_drug),
+                ("情報提供文書の交付", self.information_sheet_provided),
+            )
+            if value is None
+        )
+        if missing_items:
+            raise MedicationHistoryUnassessedItemsError(missing_items=missing_items)
 
     def _ensure_amendments_only_after_finalized(self) -> None:
         """追記が確定済の薬歴にだけ付くことを検証する。"""
@@ -192,13 +214,15 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         prescription_id: PrescriptionId,
         counselor_id: StaffId,
         counseled_at: CounselingTimestamp,
-        method: CounselingMethod,
+        method: CounselingMethod | None,
         soap: SoapRecord,
-        handbook_status: HandbookStatus,
-        residual_drug: ResidualDrugRecord,
-        information_sheet_provided: bool = False,
+        handbook_status: HandbookStatus | None,
+        residual_drug: ResidualDrugRecord | None,
+        information_sheet_provided: bool | None = None,
         profile_updates: ProfileUpdateIntents | None = None,
         additional_notes: tuple[CategorizedNote, ...] = (),
+        billing_additions: tuple[BillingAddition, ...] = (),
+        source_system: MedicationHistorySourceSystem | None = None,
     ) -> Self:
         """服薬指導の記録を下書きとして起こす。"""
         return cls(
@@ -221,6 +245,8 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
                 else ProfileUpdateIntents()
             ),
             additional_notes=additional_notes,
+            billing_additions=billing_additions,
+            source_system=source_system,
             status=MedicationHistoryStatus.DRAFT,
         )
 
@@ -251,6 +277,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         information_sheet_provided: bool | None = None,
         profile_updates: ProfileUpdateIntents | None = None,
         additional_notes: tuple[CategorizedNote, ...] | None = None,
+        billing_additions: tuple[BillingAddition, ...] | None = None,
     ) -> Self:
         """下書きの全項目を差し替える。
 
@@ -276,6 +303,9 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             additional_notes=additional_notes
             if additional_notes is not None
             else self.additional_notes,
+            billing_additions=billing_additions
+            if billing_additions is not None
+            else self.billing_additions,
         )
 
     def finalize(

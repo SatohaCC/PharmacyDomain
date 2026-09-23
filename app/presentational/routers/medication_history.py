@@ -42,6 +42,7 @@ from app.application.medication_history import (
     UpdateMedicationHistoryDraftCommand,
     VerifyStatutoryRecordQuery,
 )
+from app.application.medication_history.inputs import BillingAdditionInput
 from app.presentational.dependencies import (
     MedicationHistoryUseCasesDep,
     get_actor_context,
@@ -72,8 +73,17 @@ class StartMedicationHistoryRequest(RequestModel):
     soap: SoapInput
     handbook_status: HandbookStatusInput
     residual_drug: ResidualDrugInput
-    information_sheet_provided: bool = False
+    information_sheet_provided: bool | None = None
     profile_updates: ProfileUpdateInput | None = None
+
+
+class BillingAdditionRequest(RequestModel):
+    """下書き編集で受け取る算定加算。"""
+
+    code: str
+    name: str
+    points: int | None = None
+    quantity: int | None = None
 
 
 class UpdateMedicationHistoryDraftRequest(RequestModel):
@@ -86,6 +96,7 @@ class UpdateMedicationHistoryDraftRequest(RequestModel):
     residual_drug: ResidualDrugInput | None = None
     information_sheet_provided: bool | None = None
     additional_notes: tuple[CategorizedNoteInput, ...] | None = None
+    billing_additions: tuple[BillingAdditionRequest, ...] | None = None
 
 
 class FinalizeMedicationHistoryRequest(RequestModel):
@@ -114,7 +125,7 @@ class AddFollowUpRequest(RequestModel):
     additional_notes: tuple[CategorizedNoteInput, ...] = ()
     handbook_status: HandbookStatusInput | None = None
     residual_drug: ResidualDrugInput | None = None
-    information_sheet_provided: bool = False
+    information_sheet_provided: bool | None = None
     profile_updates: ProfileUpdateInput | None = None
 
 
@@ -221,6 +232,19 @@ async def update_medication_history_draft(
             residual_drug=body.residual_drug,
             information_sheet_provided=body.information_sheet_provided,
             additional_notes=body.additional_notes,
+            billing_additions=(
+                tuple(
+                    BillingAdditionInput(
+                        code=item.code,
+                        name=item.name,
+                        points=item.points,
+                        quantity=item.quantity,
+                    )
+                    for item in body.billing_additions
+                )
+                if body.billing_additions is not None
+                else None
+            ),
         )
     )
 

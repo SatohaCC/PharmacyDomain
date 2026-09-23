@@ -151,6 +151,10 @@ class CounselingMethod(StrEnum):
         return labels[self]
 
 
+class MedicationHistorySourceSystem(BaseFreeText):
+    """薬歴またはフォローアップを起票した外部システム名。"""
+
+
 # --------------------------------------------------------------------------
 # 法定カテゴリ付きテキスト
 # --------------------------------------------------------------------------
@@ -575,3 +579,27 @@ class TracingReportResponseContent(BaseFreeText):
             raise DomainValidationError("返答内容は空にできません。")
         if len(self.value) > 2000:
             raise DomainValidationError("返答内容は2000文字以内で指定してください。")
+
+
+class BillingAdditionCode(BaseNormalizedString):
+    """算定加算コード（レセ電コード等の客観的符号）。"""
+
+    def validate(self) -> None:
+        super().validate()
+        if not self.value:
+            raise DomainValidationError("算定加算コードは空にできません。")
+        if len(self.value) > 30:
+            raise DomainValidationError(
+                "算定加算コードは30文字以内で指定してください。"
+            )
+
+
+class BillingAdditionName(BaseNormalizedString):
+    """算定加算名称（例: 特定薬剤管理指導加算２）。"""
+
+    def validate(self) -> None:
+        super().validate()
+        if not self.value:
+            raise DomainValidationError("算定加算名称は空にできません。")
+        if len(self.value) > 100:
+            raise DomainValidationError("算定加算名称は100文字以内で指定してください。")

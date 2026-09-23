@@ -26,6 +26,7 @@ from app.application.medication_history import (
     UpdateMedicationHistoryDraftUseCase,
     VerifyStatutoryRecordUseCase,
 )
+from app.application.medication_history.inputs import BillingAdditionInput
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.medication_history import (
@@ -273,6 +274,8 @@ def create_start_command(
     residual_drug: ResidualDrugInput | None = None,
     handbook_status: HandbookStatusInput | None = None,
     profile_updates: ProfileUpdateInput | None = None,
+    information_sheet_provided: bool | None = False,
+    billing_additions: tuple[BillingAdditionInput, ...] | None = None,
 ) -> StartMedicationHistoryCommand:
     """薬歴作成コマンドを組み立てる。"""
     return StartMedicationHistoryCommand(
@@ -296,5 +299,7 @@ def create_start_command(
             if residual_drug is not None
             else ResidualDrugInput(has_residual_drugs=False)
         ),
+        information_sheet_provided=information_sheet_provided,
         profile_updates=profile_updates,
+        billing_additions=billing_additions,
     )

@@ -138,6 +138,8 @@ class CoverageSelectionAdapter(CoverageSelectionBoundary, CoverageValidityBounda
         insurance = None
         if selected_insurance is not None:
             details = selected_insurance.details
+            if details.insured_type is None or details.benefit_ratio is None:
+                raise ReceptionCoverageSelectionError()
             insurance = SelectedInsuranceSource(
                 source_coverage_id=SourceCoverageId(
                     selected_insurance.source_coverage_id.value

@@ -108,7 +108,7 @@ from app.domain.shared.medicine import (
     RpNumber,
     SingleDoseAmount,
 )
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import PersonName, PersonNameKana
 from app.domain.shared.public_expense import PublicExpenseBurden
 
 __all__ = [
@@ -171,8 +171,10 @@ def build_medical_institution(
             MedicalInstitutionCodeType, source.code_type, "医療機関コード種別"
         ),
         code=MedicalInstitutionCode(required_text(source.code, "医療機関コード")),
-        prefecture_code=MedicalInstitutionPrefectureCode(
-            required_text(source.prefecture_code, "医療機関都道府県コード")
+        prefecture_code=(
+            MedicalInstitutionPrefectureCode(source.prefecture_code)
+            if source.prefecture_code is not None
+            else None
         ),
         name=MedicalInstitutionName(required_text(source.name, "医療機関名称")),
         postal_code=build_optional(source.postal_code, MedicalInstitutionPostalCode),
@@ -186,7 +188,7 @@ def build_department(source: DepartmentInput) -> DepartmentInfo:
     """診療科情報を構成する。"""
     return DepartmentInfo(
         code_type=parse_enum(DepartmentCodeType, source.code_type, "診療科コード種別"),
-        name=DepartmentName(required_text(source.name, "診療科名")),
+        name=DepartmentName(source.name) if source.name is not None else None,
         code=build_optional(source.code, DepartmentCode),
     )
 
@@ -194,11 +196,17 @@ def build_department(source: DepartmentInput) -> DepartmentInfo:
 def build_prescriber(source: PrescriberInput) -> PrescriberInfo:
     """処方医情報を構成する。"""
     return PrescriberInfo(
-        names=PersonNames.create(
+        names=PersonName.create(
             last_name=required_text(source.last_name, "処方医の姓"),
             first_name=required_text(source.first_name, "処方医の名"),
-            last_name_kana=required_text(source.last_name_kana, "処方医の姓カナ"),
-            first_name_kana=required_text(source.first_name_kana, "処方医の名カナ"),
+        ),
+        names_kana=(
+            PersonNameKana.create(
+                last_name=source.last_name_kana,
+                first_name=source.first_name_kana,
+            )
+            if source.last_name_kana is not None and source.first_name_kana is not None
+            else None
         ),
         code=build_optional(source.code, PrescriberCode),
     )

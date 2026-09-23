@@ -391,6 +391,19 @@ class Prescription(AggregateRoot[PrescriptionId]):
             coverage_selection_record_id=coverage_selection_record_id,
         )
 
+    def replace_rps(self, rps: tuple[PrescriptionRp, ...]) -> Self:
+        """調剤可能な処方内容を差し替える。
+
+        調剤工程や薬歴との整合を保てるかは集約単体では判定できないため、
+        呼び出し側がそれらの状態を確認したうえで使用する。
+        """
+        if self.status is not PrescriptionStatus.READY_FOR_DISPENSING:
+            raise PrescriptionStatusTransitionError(
+                current=self.status.label,
+                target="調剤可能な処方内容の差し替え",
+            )
+        return replace(self, rps=rps)
+
     # ------------------------------------------------------------------
     # 疑義照会
     # ------------------------------------------------------------------

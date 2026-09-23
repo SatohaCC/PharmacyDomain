@@ -6,10 +6,12 @@ from dataclasses import dataclass
 
 from app.application.access_control import CorporateAccessBoundary, Permission
 from app.application.common.clock import Clock
+from app.application.common.optional_conversion import build_optional
 from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
 )
 from app.application.medication_history.inputs import (
+    BillingAdditionInput,
     HandbookStatusInput,
     ProfileUpdateInput,
     ResidualDrugInput,
@@ -30,11 +32,15 @@ from app.application.medication_history.support import (
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.primitives import DispensingId
 from app.domain.medication_history import (
+    BillingAddition,
+    BillingAdditionCode,
+    BillingAdditionName,
     CounselingMethod,
     CounselingTimestamp,
     CounselorQualificationService,
     MedicationHistoryRecord,
     MedicationHistoryRepository,
+    MedicationHistorySourceSystem,
 )
 from app.domain.staff.primitives import StaffId
 from app.domain.store.primitives import StoreId
@@ -48,12 +54,14 @@ class StartMedicationHistoryCommand:
     store_id: str
     dispensing_id: str
     counselor_id: str
-    method: str
+    method: str | None
     soap: SoapInput
-    handbook_status: HandbookStatusInput
-    residual_drug: ResidualDrugInput
-    information_sheet_provided: bool = False
+    handbook_status: HandbookStatusInput | None
+    residual_drug: ResidualDrugInput | None
+    information_sheet_provided: bool | None = None
     profile_updates: ProfileUpdateInput | None = None
+    billing_additions: tuple[BillingAdditionInput, ...] | None = None
+    source_system: str | None = None
 
 
 class StartMedicationHistoryUseCase:
@@ -108,6 +116,16 @@ class StartMedicationHistoryUseCase:
         )
         self._counselor_service.ensure_pharmacist(qualifications)
 
+        additions = tuple(
+            BillingAddition(
+                code=BillingAdditionCode(item.code),
+                name=BillingAdditionName(item.name),
+                points=item.points,
+                quantity=item.quantity,
+            )
+            for item in (command.billing_additions or ())
+        )
+
         record = MedicationHistoryRecord.start(
             corporate_id=corporate_id,
             store_id=store_id,
@@ -116,12 +134,28 @@ class StartMedicationHistoryUseCase:
             prescription_id=dispensing.prescription_id,
             counselor_id=counselor_id,
             counseled_at=CounselingTimestamp(self._clock.now()),
-            method=parse_enum(CounselingMethod, command.method, "服薬指導の方法"),
+            method=(
+                parse_enum(CounselingMethod, command.method, "服薬指導の方法")
+                if command.method is not None
+                else None
+            ),
             soap=build_soap(command.soap),
-            handbook_status=build_handbook_status(command.handbook_status),
-            residual_drug=build_residual_drug(command.residual_drug),
+            handbook_status=(
+                build_handbook_status(command.handbook_status)
+                if command.handbook_status is not None
+                else None
+            ),
+            residual_drug=(
+                build_residual_drug(command.residual_drug)
+                if command.residual_drug is not None
+                else None
+            ),
             information_sheet_provided=command.information_sheet_provided,
             profile_updates=build_profile_updates(command.profile_updates),
+            billing_additions=additions,
+            source_system=build_optional(
+                command.source_system, MedicationHistorySourceSystem
+            ),
         )
         await self._repository.save(record)
         return MedicationHistoryDto.from_entity(record)

@@ -58,7 +58,7 @@ from app.domain.shared.medicine import (
     MedicineUnit,
     RpNumber,
 )
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import PersonName, PersonNameKana
 from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.staff.primitives import StaffId
 from app.domain.store.primitives import StoreId
@@ -98,12 +98,11 @@ def create_prescriber(
 ) -> PrescriberInfo:
     """処方医情報を組み立てる。"""
     return PrescriberInfo(
-        names=PersonNames.create(
-            last_name=last_name,
-            first_name=first_name,
-            last_name_kana=last_name_kana,
-            first_name_kana=first_name_kana,
-        )
+        names=PersonName.create(last_name=last_name, first_name=first_name),
+        names_kana=PersonNameKana.create(
+            last_name=last_name_kana,
+            first_name=first_name_kana,
+        ),
     )
 
 

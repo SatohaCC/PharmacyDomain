@@ -12,6 +12,20 @@ class MedicationHistoryDomainError(DomainError):
     default_code = "MEDICATION_HISTORY_DOMAIN_ERROR"
 
 
+class MedicationHistoryUnassessedItemsError(MedicationHistoryDomainError):
+    """確認されていない必須事項を含む薬歴を確定できない場合の例外。"""
+
+    default_message = "薬歴を確定する前に必須事項を確認してください。"
+    default_code = "MEDICATION_HISTORY_UNASSESSED_ITEMS"
+
+    def __init__(self, *, missing_items: tuple[str, ...]) -> None:
+        """不足している項目名だけを示して例外を生成する。"""
+        self.missing_items = missing_items
+        super().__init__(
+            f"{self.default_message}未確認の項目: {', '.join(missing_items)}。"
+        )
+
+
 # --------------------------------------------------------------------------
 # 法定記載事項
 # --------------------------------------------------------------------------

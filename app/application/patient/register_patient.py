@@ -6,9 +6,17 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.common.optional_conversion import build_optional
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.patient import Patient
-from app.domain.patient.primitives import PatientBirthDate, PatientId
+from app.domain.patient.primitives import (
+    PatientAddress,
+    PatientBirthDate,
+    PatientGenderCode,
+    PatientId,
+    PatientPhoneNumber,
+    PatientPostalCode,
+)
 from app.domain.patient.repository import PatientRepository
 from app.domain.shared.person_name import PersonNames
 
@@ -23,6 +31,10 @@ class RegisterPatientCommand:
     last_name_kana: str
     first_name_kana: str
     birth_date: date | None = None
+    gender: str | None = None
+    postal_code: str | None = None
+    address: str | None = None
+    phone_number: str | None = None
 
 
 class RegisterPatientUseCase:
@@ -59,6 +71,10 @@ class RegisterPatientUseCase:
             names=names,
             patient_number=patient_number,
             birth_date=birth_date,
+            gender=build_optional(command.gender, PatientGenderCode),
+            postal_code=build_optional(command.postal_code, PatientPostalCode),
+            address=build_optional(command.address, PatientAddress),
+            phone_number=build_optional(command.phone_number, PatientPhoneNumber),
         )
         await self._repository.save(patient)
         return patient.id

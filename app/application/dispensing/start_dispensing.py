@@ -8,6 +8,7 @@ from datetime import date
 from app.application.access_control import CorporateAccessBoundary, Permission
 from app.application.common.clock import Clock
 from app.application.dispensing.exceptions import (
+    DispensingDateRequiredError,
     PrescriptionNotReadyForDispensingError,
 )
 from app.application.dispensing.get_dispensing import DispensingProcessDto
@@ -49,7 +50,7 @@ class StartDispensingCommand:
     prescription_id: str
     dispenser_id: str
     iteration: int
-    dispensed_date: date
+    dispensed_date: date | None
     dispensed_rps: tuple[DispensedRpInput, ...]
     split_reason: str | None = None
     total_split_count: int | None = None
@@ -82,6 +83,8 @@ class StartDispensingUseCase:
 
     async def execute(self, command: StartDispensingCommand) -> DispensingProcessDto:
         """境界と集約外の不変条件を確認して調剤セッションを保存する。"""
+        if command.dispensed_date is None:
+            raise DispensingDateRequiredError()
         corporate_id = CorporateId.parse(command.corporate_id)
         await self._corporate_access.require_active(
             corporate_id=corporate_id,

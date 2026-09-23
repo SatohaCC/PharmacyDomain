@@ -42,7 +42,7 @@ class MedicalInstitutionDto:
 
     code_type: str
     code: str
-    prefecture_code: str
+    prefecture_code: str | None
     name: str
     postal_code: str | None
     address: str | None
@@ -55,7 +55,7 @@ class MedicalInstitutionDto:
         return cls(
             code_type=value.code_type.value,
             code=value.code.value,
-            prefecture_code=value.prefecture_code.value,
+            prefecture_code=unwrap(value.prefecture_code),
             name=value.name.value,
             postal_code=unwrap(value.postal_code),
             address=unwrap(value.address),
@@ -69,7 +69,7 @@ class DepartmentDto:
     """診療科の出力DTO。"""
 
     code_type: str
-    name: str
+    name: str | None
     code: str | None
 
     @classmethod
@@ -77,7 +77,7 @@ class DepartmentDto:
         """診療科情報からDTOを生成する。"""
         return cls(
             code_type=value.code_type.value,
-            name=value.name.value,
+            name=unwrap(value.name),
             code=unwrap(value.code),
         )
 
@@ -87,7 +87,7 @@ class PrescriberDto:
     """処方医の出力DTO。"""
 
     full_name: str
-    full_name_kana: str
+    full_name_kana: str | None
     code: str | None
 
     @classmethod
@@ -95,7 +95,9 @@ class PrescriberDto:
         """処方医情報からDTOを生成する。"""
         return cls(
             full_name=value.names.full_name,
-            full_name_kana=value.names.full_name_kana,
+            full_name_kana=(
+                value.names_kana.full_name if value.names_kana is not None else None
+            ),
             code=unwrap(value.code),
         )
 

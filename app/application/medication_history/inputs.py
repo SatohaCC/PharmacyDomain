@@ -208,13 +208,14 @@ class AddFollowUpCommand:
     record_id: str
     counselor_id: str
     followed_up_at: datetime
-    method: str
+    method: str | None
     soap: SoapInput = field(default_factory=SoapInput)
     handbook_status: HandbookStatusInput | None = None
     residual_drug: ResidualDrugInput | None = None
-    information_sheet_provided: bool = False
+    information_sheet_provided: bool | None = None
     profile_updates: ProfileUpdateInput | None = None
     additional_notes: tuple[CategorizedNoteInput, ...] = ()
+    source_system: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -246,3 +247,13 @@ class RecordTracingReportResponseCommand:
     action_type: str
     received_by: str
     acknowledged_physician_name: str | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class BillingAdditionInput:
+    """算定加算情報の入力データ。"""
+
+    code: str
+    name: str
+    points: int | None = None
+    quantity: int | None = None

@@ -3,6 +3,7 @@
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.primitives.primitives import (
     BaseDate,
+    BaseFreeText,
     BaseNormalizedString,
     BasePositiveInt,
     EntityUUID,
@@ -23,6 +24,22 @@ class PatientExternalIdentifierId(EntityUUID):
 
 class PatientNumber(BasePositiveInt):
     """法人内で表示・検索に使う患者番号。"""
+
+
+class PatientGenderCode(BaseFreeText):
+    """外部から受け取った性別コード。コード値を分類・変換しない。"""
+
+
+class PatientPostalCode(BaseFreeText):
+    """患者住所の郵便番号。先頭ゼロを保つ文字列。"""
+
+
+class PatientAddress(BaseFreeText):
+    """患者の住所本文。"""
+
+
+class PatientPhoneNumber(BaseFreeText):
+    """患者の電話番号。先頭ゼロを保つ文字列。"""
 
 
 class ExternalSystemName(BaseNormalizedString):

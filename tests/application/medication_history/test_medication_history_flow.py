@@ -22,6 +22,7 @@ from app.application.medication_history import (
     FinalizeMedicationHistoryCommand,
     GetMedicationHistoryQuery,
     GetPatientMedicalProfileQuery,
+    HandbookStatusInput,
     ListMedicationHistoriesQuery,
     MedicationHistoryDispensingNotFoundError,
     MedicationHistoryNotFoundError,
@@ -30,12 +31,14 @@ from app.application.medication_history import (
     PatientMedicalProfileNotFoundError,
     ProfileUpdateInput,
     RebuildPatientMedicalProfileCommand,
+    ResidualDrugInput,
     RetractAllergyIntentInput,
     SoapInput,
     StopConcurrentMedicationIntentInput,
     UpdateConditionStatusIntentInput,
     UpdateMedicationHistoryDraftCommand,
 )
+from app.application.medication_history.inputs import BillingAdditionInput
 from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history import (
     CounselorQualificationError,
@@ -133,7 +136,95 @@ class Test薬歴の作成:
         actual = await fixture.start.execute(create_start_command(fixture))
 
         # Assert
+        assert actual.residual_drug is not None
         assert actual.residual_drug.has_residual_drugs is False
+
+    async def test_tc21_確認済み否定値と未記録状態を取得時に区別する(self) -> None:
+        """手帳未提示・残薬なし・文書未交付を確認済み否定として保持する。"""
+        fixture = create_fixture()
+        known_negative = await fixture.start.execute(
+            create_start_command(
+                fixture,
+                handbook_status=HandbookStatusInput(
+                    presented=False,
+                    not_presented_reason="持参なし",
+                    guidance_provided=False,
+                ),
+                residual_drug=ResidualDrugInput(has_residual_drugs=False),
+                information_sheet_provided=False,
+            )
+        )
+        loaded_known = await fixture.get.execute(
+            GetMedicationHistoryQuery(
+                corporate_id=str(fixture.corporate_id.value),
+                record_id=known_negative.id,
+            )
+        )
+        assert loaded_known.handbook_status is not None
+        assert loaded_known.handbook_status.presented is False
+        assert loaded_known.handbook_status.guidance_provided is False
+        assert loaded_known.residual_drug is not None
+        assert loaded_known.residual_drug.has_residual_drugs is False
+        assert loaded_known.information_sheet_provided is False
+
+        unknown = await fixture.start.execute(
+            create_start_command(fixture, information_sheet_provided=None)
+        )
+        loaded_unknown = await fixture.get.execute(
+            GetMedicationHistoryQuery(
+                corporate_id=str(fixture.corporate_id.value),
+                record_id=unknown.id,
+            )
+        )
+        assert loaded_unknown.information_sheet_provided is None
+
+
+class Test算定加算訂正:
+    """下書き薬歴の加算情報を保持し、確定後は変更を拒否する。"""
+
+    async def test_tc29_下書き加算を置換し確定後の更新を拒否する(self) -> None:
+        fixture = create_fixture()
+        started = await fixture.start.execute(
+            create_start_command(
+                fixture,
+                billing_additions=(
+                    BillingAdditionInput(
+                        code="140000110",
+                        name="加算A",
+                        points=100,
+                        quantity=1,
+                    ),
+                ),
+            )
+        )
+        updated = await fixture.update_draft.execute(
+            UpdateMedicationHistoryDraftCommand(
+                corporate_id=str(fixture.corporate_id.value),
+                record_id=started.id,
+                billing_additions=(
+                    BillingAdditionInput(
+                        code="140000210",
+                        name="加算B",
+                        points=200,
+                        quantity=2,
+                    ),
+                ),
+            )
+        )
+
+        assert len(updated.billing_additions) == 1
+        assert updated.billing_additions[0].code == "140000210"
+        assert updated.billing_additions[0].points == 200
+        assert updated.billing_additions[0].quantity == 2
+        await _finalize(fixture, started.id)
+        with pytest.raises(MedicationHistoryAlreadyFinalizedError):
+            await fixture.update_draft.execute(
+                UpdateMedicationHistoryDraftCommand(
+                    corporate_id=str(fixture.corporate_id.value),
+                    record_id=started.id,
+                    billing_additions=(),
+                )
+            )
 
     async def test_下書きは_SOAPが空でも作れる(self) -> None:
         """聞き取りながら書き足す運用を壊さない。"""
@@ -753,8 +844,10 @@ class Test下書きの網羅的更新ユースケース:
 
         # Assert
         assert actual.soap.subjective[0].text == "下書き更新されたS"
+        assert actual.handbook_status is not None
         assert not actual.handbook_status.presented
         assert actual.handbook_status.not_presented_reason == "forgot"
+        assert actual.residual_drug is not None
         assert actual.residual_drug.has_residual_drugs
         assert actual.residual_drug.quantity == 14
         assert actual.information_sheet_provided is True

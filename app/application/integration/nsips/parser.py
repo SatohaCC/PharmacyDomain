@@ -9,7 +9,9 @@ from decimal import Decimal, InvalidOperation
 
 from app.application.integration.nsips.exceptions import NsipsParseError
 from app.application.integration.nsips.models import (
+    NsipsAdditionInfo,
     NsipsBundle,
+    NsipsInsuranceInfo,
     NsipsMedicineInfo,
     NsipsPatientInfo,
     NsipsPrescriptionInfo,
@@ -31,6 +33,9 @@ class NsipsParser:
         raw_prescription: dict[str, str] | None = None
         raw_patient: dict[str, str] | None = None
         raw_split: NsipsSplitInfo | None = None
+        raw_insurance: NsipsInsuranceInfo | None = None
+        dispensed_date: date | None = None
+        additions: list[NsipsAdditionInfo] = []
         rp_dict: dict[int, dict[str, object]] = {}
 
         for line_idx, row in enumerate(reader, start=1):
@@ -46,10 +51,23 @@ class NsipsParser:
                 raw_prescription = self._parse_prescription_record(cols, line_idx)
             elif record_type in ("2", "02"):
                 raw_patient = self._parse_patient_record(cols, line_idx)
-            elif record_type in ("5", "05", "4", "04"):
+            elif record_type in ("3", "03"):
+                raw_insurance = self._parse_insurance_record(cols, line_idx)
+            elif record_type in ("4", "04"):
+                if len(cols) >= 9:
+                    self._parse_rp_record(cols, line_idx, rp_dict)
+                else:
+                    dispensed_date = self._parse_dispensing_record(cols, line_idx)
+            elif record_type in ("5", "05"):
                 self._parse_rp_record(cols, line_idx, rp_dict)
             elif record_type in ("6", "06"):
                 raw_split = self._parse_split_record(cols, line_idx)
+            elif record_type in ("8", "08"):
+                additions.append(self._parse_addition_record(cols, line_idx))
+            else:
+                raise NsipsParseError(
+                    f"{line_idx}行目: 未対応のレコード種別です ({record_type})。"
+                )
 
         if raw_prescription is None:
             raise NsipsParseError("処方基本レコード(1)が存在しません。")
@@ -62,7 +80,7 @@ class NsipsParser:
             kanji_name=raw_patient["kanji_name"],
             kana_name=raw_patient["kana_name"],
             birth_date=self._parse_date(raw_patient["birth_date"], "患者生年月日"),
-            gender=raw_patient["gender"],
+            gender=raw_patient["gender"] or None,
             postal_code=raw_patient.get("postal_code") or None,
             address=raw_patient.get("address") or None,
             phone_number=raw_patient.get("phone_number") or None,
@@ -104,10 +122,70 @@ class NsipsParser:
         )
 
         return NsipsBundle(
-            header_version="1.0",
+            header_version="unverified",
             patient=patient,
             prescription=prescription,
+            dispensed_date=dispensed_date,
+            insurance=raw_insurance,
+            additions=tuple(additions),
         )
+
+    def _parse_insurance_record(
+        self, cols: list[str], line_idx: int
+    ) -> NsipsInsuranceInfo:
+        if len(cols) < 4:
+            raise NsipsParseError(
+                f"{line_idx}行目: 保険基本レコードの列数が不足しています。"
+            )
+        insurer_number = cols[1] if len(cols) > 1 else ""
+        insured_symbol = cols[2] if len(cols) > 2 else ""
+        insured_number = cols[3] if len(cols) > 3 else ""
+        branch_number = cols[4] if len(cols) > 4 and cols[4] else None
+        raw_type = cols[5] if len(cols) > 5 and cols[5] else None
+        insured_type = raw_type if raw_type in ("self", "family") else None
+        pub_payer_1 = cols[6] if len(cols) > 6 and cols[6] else None
+        pub_rec_1 = cols[7] if len(cols) > 7 and cols[7] else None
+        pub_payer_2 = cols[8] if len(cols) > 8 and cols[8] else None
+        pub_rec_2 = cols[9] if len(cols) > 9 and cols[9] else None
+
+        if not insurer_number:
+            raise NsipsParseError(f"{line_idx}行目: 保険者番号が指定されていません。")
+
+        return NsipsInsuranceInfo(
+            insurer_number=insurer_number,
+            insured_symbol=insured_symbol,
+            insured_number=insured_number,
+            branch_number=branch_number,
+            insured_type=insured_type,
+            public_payer_number_1=pub_payer_1,
+            public_recipient_number_1=pub_rec_1,
+            public_payer_number_2=pub_payer_2,
+            public_recipient_number_2=pub_rec_2,
+        )
+
+    def _parse_dispensing_record(self, cols: list[str], line_idx: int) -> date:
+        if len(cols) < 2 or not cols[1]:
+            raise NsipsParseError(f"{line_idx}行目: 調剤年月日が指定されていません。")
+        return self._parse_date(cols[1], "調剤年月日")
+
+    def _parse_addition_record(
+        self, cols: list[str], line_idx: int
+    ) -> NsipsAdditionInfo:
+        if len(cols) < 3:
+            raise NsipsParseError(
+                f"{line_idx}行目: 算定加算レコードの列数が不足しています。"
+            )
+        code = cols[1] if len(cols) > 1 else ""
+        name = cols[2] if len(cols) > 2 else ""
+        qty: int | None = None
+        if len(cols) > 3 and cols[3]:
+            try:
+                qty = int(cols[3])
+            except ValueError as exc:
+                raise NsipsParseError(
+                    f"{line_idx}行目: 算定加算数量が数値ではありません。"
+                ) from exc
+        return NsipsAdditionInfo(code=code, name=name, quantity=qty)
 
     def _parse_prescription_record(
         self, cols: list[str], line_idx: int
@@ -148,7 +226,7 @@ class NsipsParser:
         pat_id = cols[1] if len(cols) > 1 else ""
         kana_name = cols[2] if len(cols) > 2 else ""
         kanji_name = cols[3] if len(cols) > 3 else ""
-        gender = cols[4] if len(cols) > 4 else "0"
+        gender = cols[4] if len(cols) > 4 else ""
         birth_date = cols[5] if len(cols) > 5 else ""
 
         if not pat_id:
@@ -192,15 +270,19 @@ class NsipsParser:
         instructions = cols[3] if len(cols) > 3 else "用法指示なし"
         try:
             dispensing_qty = int(cols[4]) if len(cols) > 4 else 1
-        except ValueError:
-            dispensing_qty = 1
+        except ValueError as exc:
+            raise NsipsParseError(
+                f"{line_idx}行目: 調剤数量が数値ではありません。"
+            ) from exc
 
         med_code = cols[6] if len(cols) > 6 else ""
         med_name = cols[7] if len(cols) > 7 else ""
         try:
             dosage = Decimal(cols[8]) if len(cols) > 8 else Decimal("1")
-        except InvalidOperation, ValueError:
-            dosage = Decimal("1")
+        except (InvalidOperation, ValueError) as exc:
+            raise NsipsParseError(
+                f"{line_idx}行目: 薬品数量が数値ではありません。"
+            ) from exc
 
         unit = cols[9] if len(cols) > 9 else "錠"
         prep_flag = cols[10] if len(cols) > 10 else "0"

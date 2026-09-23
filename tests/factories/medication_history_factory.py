@@ -12,6 +12,7 @@ from app.domain.medication_history import (
     AllergenName,
     AllergyReaction,
     AllergySeverity,
+    BillingAddition,
     CategorizedNote,
     ConcurrentCategory,
     ConditionName,
@@ -248,11 +249,13 @@ def create_record(
     counselor_id: StaffId | None = None,
     counseled_at: datetime = COUNSELED_AT,
     method: CounselingMethod = CounselingMethod.FACE_TO_FACE,
+    information_sheet_provided: bool | None = False,
     soap: SoapRecord | None = None,
     handbook_status: HandbookStatus | None = None,
     residual_drug: ResidualDrugRecord | None = None,
     profile_updates: ProfileUpdateIntents | None = None,
     additional_notes: tuple[CategorizedNote, ...] = (),
+    billing_additions: tuple[BillingAddition, ...] = (),
 ) -> MedicationHistoryRecord:
     """薬歴を下書き状態で組み立てる。"""
     return MedicationHistoryRecord.start(
@@ -277,8 +280,10 @@ def create_record(
         residual_drug=residual_drug
         if residual_drug is not None
         else ResidualDrugRecord.none_remaining(),
+        information_sheet_provided=information_sheet_provided,
         profile_updates=profile_updates,
         additional_notes=additional_notes,
+        billing_additions=billing_additions,
     )
 
 
@@ -402,7 +407,7 @@ def create_statutory_source(
             first_name="一郎",
             last_name_kana="サトウ",
             first_name_kana="イチロウ",
-        ),
+        ).kanji,
         medical_institution_name=MedicalInstitutionName(institution_name),
         medical_institution_address=(
             MedicalInstitutionAddressLine(institution_address)
