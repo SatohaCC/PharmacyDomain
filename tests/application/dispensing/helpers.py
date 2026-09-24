@@ -5,28 +5,36 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from app.application.access_control import ActorContext, AuthorizationService
-from app.application.corporate import CorporateAccessService
-from app.application.dispensing import (
-    CompleteDispensingUseCase,
+from app.application.access_control.models import ActorContext
+from app.application.access_control.policy import AuthorizationService
+from app.application.corporate.corporate_access import CorporateAccessService
+from app.application.dispensing.complete_dispensing import CompleteDispensingUseCase
+from app.application.dispensing.get_dispensing import GetDispensingUseCase
+from app.application.dispensing.inputs import (
     DispensedMedicineInput,
     DispensedRpInput,
-    GetDispensingUseCase,
+    SubstitutionInput,
+)
+from app.application.dispensing.list_dispensings_by_prescription import (
     ListDispensingsByPrescriptionUseCase,
-    RecordAuditUseCase,
+)
+from app.application.dispensing.record_audit import RecordAuditUseCase
+from app.application.dispensing.record_dispensed_content import (
     RecordDispensedContentUseCase,
+)
+from app.application.dispensing.start_dispensing import (
     StartDispensingCommand,
     StartDispensingUseCase,
-    SubstitutionInput,
-    VerifyDispensingUseCase,
 )
+from app.application.dispensing.verify_dispensing import VerifyDispensingUseCase
 from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing import (
+from app.domain.dispensing.services import (
     DispensingConsistencyService,
     DispensingIterationUniquenessService,
     DispensingPharmacistService,
 )
-from app.domain.prescription import Prescription, PrescriptionStatus
+from app.domain.prescription.prescription import Prescription
+from app.domain.prescription.primitives import PrescriptionStatus
 from app.domain.shared.medicine import MedicineCodeType
 from app.domain.staff.primitives import (
     PharmacistLicenseNumber,

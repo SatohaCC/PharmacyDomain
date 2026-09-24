@@ -15,25 +15,27 @@ from datetime import date
 
 import pytest
 
-from app.application.composition import MedicineCatalogRestrictionAdapter
-from app.application.prescription import (
-    PrescriptionManagementInput,
+from app.application.composition.medicine_restriction_adapter import (
+    MedicineCatalogRestrictionAdapter,
+)
+from app.application.prescription.inputs import PrescriptionManagementInput
+from app.application.prescription.register_prescription import (
     RegisterPrescriptionCommand,
     RegisterPrescriptionUseCase,
 )
-from app.domain.medicine_catalog import (
-    Medicine,
-    MedicineCatalogRepository,
-    NarcoticCategory,
-)
-from app.domain.prescription import (
+from app.domain.medicine_catalog.medicine import Medicine
+from app.domain.medicine_catalog.primitives import NarcoticCategory
+from app.domain.medicine_catalog.repository import MedicineCatalogRepository
+from app.domain.prescription.exceptions import (
     MedicineClassificationMissingError,
     NarcoticPrescriptionDetailsRequiredError,
+    RefillNotAllowedError,
+)
+from app.domain.prescription.services import (
     NarcoticPrescriptionService,
     PrescriptionDocumentNumberUniquenessService,
     PublicExpenseBurdenService,
     RefillEligibilityService,
-    RefillNotAllowedError,
 )
 from tests.application.access_helpers import create_vendor_corporate_access_for
 from tests.application.prescription.helpers import (

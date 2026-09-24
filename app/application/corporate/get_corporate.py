@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Self
 
-from app.application.access_control import Permission
+from app.application.access_control.models import Permission
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.domain.corporate.corporate import Corporate
 from app.domain.corporate.primitives import CorporateId

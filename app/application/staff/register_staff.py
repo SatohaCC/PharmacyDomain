@@ -5,14 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from app.application.access_control import (
-    CorporateAccessBoundary,
-    Permission,
-)
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.staff.support import load_store_or_raise, to_optional_text
 from app.domain.corporate.primitives import CorporateId
 from app.domain.shared.person_name import PersonNames
-from app.domain.staff import (
+from app.domain.staff.primitives import (
     BaseQualificationProfile,
     DietitianProfile,
     DietitianRegistrationNumber,
@@ -23,17 +21,20 @@ from app.domain.staff import (
     PharmacistProfile,
     RegisteredSellerProfile,
     SellerRegistrationNumber,
-    Staff,
     StaffCode,
-    StaffCodeUniquenessService,
     StaffEmailAddress,
     StaffId,
     StaffPhoneNumber,
     StaffQualifications,
-    StaffRepository,
+)
+from app.domain.staff.repository import StaffRepository
+from app.domain.staff.services import (
+    StaffCodeUniquenessService,
     StaffStoreAssignmentService,
 )
-from app.domain.store import StoreId, StoreRepository
+from app.domain.staff.staff import Staff
+from app.domain.store.primitives import StoreId
+from app.domain.store.repository import StoreRepository
 
 
 @dataclass(frozen=True, kw_only=True)

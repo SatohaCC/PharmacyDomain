@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from app.application.access_control import CorporateAccessBoundary
+from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.common.clock import Clock
 from app.application.identity.accept_invitation import AcceptInvitationUseCase
 from app.application.identity.cancel_invitation import CancelInvitationUseCase
@@ -21,7 +21,9 @@ from app.application.identity.resolve_actor import ResolveActorUseCase
 from app.application.identity.support import IdentityRepositories
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.organization import PostgresOrganizationLock
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 
 
 @dataclass(frozen=True, slots=True)

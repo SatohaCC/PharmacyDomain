@@ -18,20 +18,23 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import TypeAdapter
 
-from app.application.medication_history import (
+from app.application.medication_history.inputs import (
     CategorizedNoteInput,
     HandbookStatusInput,
     ResidualDrugInput,
     SoapInput,
 )
-from app.domain.medication_history import StatutoryDispensingRecordItem
-from app.domain.prescription import InquiryNumber, InquiryResultType
-from app.infrastructure.di import (
+from app.domain.medication_history.primitives import StatutoryDispensingRecordItem
+from app.domain.prescription.primitives import (
+    InquiryNumber,
+    InquiryResultType,
+)
+from app.infrastructure.di.bundles.clinical import (
     DispensingUseCases,
     MedicationHistoryUseCases,
     PrescriptionUseCases,
 )
-from app.presentational import create_app
+from app.presentational.app_factory import create_app
 from app.presentational.dependencies import (
     get_dispensing_use_cases,
     get_medication_history_use_cases,

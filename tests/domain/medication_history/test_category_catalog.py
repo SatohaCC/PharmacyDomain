@@ -5,21 +5,27 @@ from __future__ import annotations
 import pytest
 
 from app.domain.corporate.primitives import CorporateId
-from app.domain.medication_history import (
+from app.domain.medication_history.category_catalog import (
+    MedicationHistoryCategoryCatalog,
+)
+from app.domain.medication_history.exceptions import (
     DuplicateMajorCategoryError,
     DuplicateMediumCategoryError,
-    MajorCategoryCode,
-    MajorCategoryDefinition,
-    MajorCategoryName,
     MajorCategoryNotFoundError,
-    MedicationHistoryCategoryCatalog,
-    MediumCategoryCode,
-    MediumCategoryDefinition,
-    MediumCategoryName,
     RequiredCategoryMissingError,
 )
-from app.domain.medication_history.primitives import CategoryCatalogId
-from app.domain.medication_history.value_objects import SoapRecord
+from app.domain.medication_history.primitives import (
+    CategoryCatalogId,
+    MajorCategoryCode,
+    MajorCategoryName,
+    MediumCategoryCode,
+    MediumCategoryName,
+)
+from app.domain.medication_history.value_objects import (
+    MajorCategoryDefinition,
+    MediumCategoryDefinition,
+    SoapRecord,
+)
 from tests.factories.medication_history_factory import (
     create_note,
     create_record,

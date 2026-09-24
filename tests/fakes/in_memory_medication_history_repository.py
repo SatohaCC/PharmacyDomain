@@ -6,11 +6,15 @@ import copy
 
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.primitives import DispensingId
-from app.domain.medication_history import (
+from app.domain.medication_history.category_catalog import (
     MedicationHistoryCategoryCatalog,
-    MedicationHistoryCategoryCatalogRepository,
+)
+from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
-    MedicationHistoryRecordId,
+)
+from app.domain.medication_history.primitives import MedicationHistoryRecordId
+from app.domain.medication_history.repository import (
+    MedicationHistoryCategoryCatalogRepository,
     MedicationHistoryRepository,
 )
 from app.domain.medication_history.services import MedicationHistoryUniquenessService

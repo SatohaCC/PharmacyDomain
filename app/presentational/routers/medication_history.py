@@ -16,33 +16,47 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from pydantic import Field
 
-from app.application.medication_history import (
-    AddFollowUpCommand,
+from app.application.medication_history.amend_medication_history import (
     AmendMedicationHistoryCommand,
-    CategorizedNoteInput,
-    CategoryCatalogDto,
+)
+from app.application.medication_history.category_catalog import CategoryCatalogDto
+from app.application.medication_history.finalize_medication_history import (
     FinalizeMedicationHistoryCommand,
+)
+from app.application.medication_history.get_medication_history import (
     GetMedicationHistoryQuery,
-    GetPatientMedicalProfileQuery,
-    HandbookStatusInput,
     ListMedicationHistoriesQuery,
-    MajorCategoryInput,
     MedicationHistoryDto,
-    MediumCategoryInput,
+)
+from app.application.medication_history.get_patient_medical_profile import (
+    GetPatientMedicalProfileQuery,
     PatientMedicalProfileDto,
-    ProfileUpdateInput,
     RebuildPatientMedicalProfileCommand,
+)
+from app.application.medication_history.inputs import (
+    AddFollowUpCommand,
+    BillingAdditionInput,
+    CategorizedNoteInput,
+    HandbookStatusInput,
+    MajorCategoryInput,
+    MediumCategoryInput,
+    ProfileUpdateInput,
     RecordTracingReportCommand,
     RecordTracingReportResponseCommand,
     ResidualDrugInput,
     SoapInput,
-    StartMedicationHistoryCommand,
-    StatutoryRecordSufficiencyDto,
     UpdateCategoryCatalogCommand,
+)
+from app.application.medication_history.start_medication_history import (
+    StartMedicationHistoryCommand,
+)
+from app.application.medication_history.update_medication_history_draft import (
     UpdateMedicationHistoryDraftCommand,
+)
+from app.application.medication_history.verify_statutory_record import (
+    StatutoryRecordSufficiencyDto,
     VerifyStatutoryRecordQuery,
 )
-from app.application.medication_history.inputs import BillingAdditionInput
 from app.presentational.dependencies import (
     MedicationHistoryUseCasesDep,
     get_actor_context,

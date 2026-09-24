@@ -61,6 +61,7 @@ READ_SCOPE_KINDS: Final[Mapping[str, ReadScopeKind]] = {
     "dispensing_processes": ReadScopeKind.STORE,
     "medication_history_records": ReadScopeKind.STORE,
     "coverage_selection_records": ReadScopeKind.STORE,
+    "receptions": ReadScopeKind.STORE,
     "store_manager_assignments": ReadScopeKind.STORE,
     "operation_audits": ReadScopeKind.STORE,
 }

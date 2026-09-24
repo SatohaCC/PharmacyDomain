@@ -9,9 +9,12 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.application.composition import MedicineCatalogRestrictionAdapter
-from app.domain.medicine_catalog import Medicine, NarcoticCategory
-from app.domain.prescription import MedicineRestrictionFlag
+from app.application.composition.medicine_restriction_adapter import (
+    MedicineCatalogRestrictionAdapter,
+)
+from app.domain.medicine_catalog.medicine import Medicine
+from app.domain.medicine_catalog.primitives import NarcoticCategory
+from app.domain.prescription.value_objects import MedicineRestrictionFlag
 from tests.factories.medicine_catalog_factory import (
     create_identifier,
     create_medicine,

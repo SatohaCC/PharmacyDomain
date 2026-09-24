@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import copy
 
-from app.domain.corporate import (
-    Corporate,
-    CorporateCatalogRepository,
+from app.domain.corporate.corporate import Corporate
+from app.domain.corporate.exceptions import CorporateNameAlreadyExistsError
+from app.domain.corporate.primitives import (
     CorporateId,
     CorporateName,
-    CorporateNameAlreadyExistsError,
+)
+from app.domain.corporate.repository import (
+    CorporateCatalogRepository,
     CorporateRepository,
 )
 from app.domain.corporate.search import CorporateSearch, CorporateSearchRepository

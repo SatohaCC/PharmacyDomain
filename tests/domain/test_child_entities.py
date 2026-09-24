@@ -11,9 +11,11 @@ from datetime import timedelta
 import app.domain
 from app.domain.foundation.entity import AggregateRoot, Entity
 from app.domain.foundation.value_object import ValueObject
-from app.domain.medication_history import (
-    FollowUpId,
+from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
+)
+from app.domain.medication_history.primitives import (
+    FollowUpId,
     TracingReportId,
 )
 from app.infrastructure.postgres.codec import decode_aggregate, encode_aggregate

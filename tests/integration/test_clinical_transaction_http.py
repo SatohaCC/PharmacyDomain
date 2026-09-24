@@ -31,8 +31,7 @@ from fastapi import FastAPI
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.access_control import ActorRole
-from app.application.access_control.models import ResolvedActorContext
+from app.application.access_control.models import ActorRole, ResolvedActorContext
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.primitives import DispensingProcessStatus
@@ -51,9 +50,11 @@ from app.domain.staff.primitives import (
     PharmacistProfile,
     StaffQualifications,
 )
-from app.infrastructure.di import PostgresCompositionRoot
+from app.infrastructure.di.root import PostgresCompositionRoot
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 from app.presentational.app_factory import create_app
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
 from tests.factories.dispensing_factory import create_dispensing, verify_passed

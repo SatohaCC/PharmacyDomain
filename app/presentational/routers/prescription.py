@@ -16,24 +16,28 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Depends
 
-from app.application.prescription import (
-    CancelPrescriptionCommand,
-    DepartmentInput,
-    GetPrescriptionQuery,
-    MedicalInstitutionInput,
-    PrescriberInput,
-    PrescriptionDto,
-    PrescriptionManagementInput,
-    ReadyForDispensingCommand,
-    RegisterPrescriptionCommand,
-    ResolveInquiryCommand,
-    RpInput,
-    StartInquiryCommand,
-)
 from app.application.prescription.audit_interactions import (
     AuditDrugInteractionsCommand,
     DrugInteractionAuditReportDto,
 )
+from app.application.prescription.cancel_prescription import CancelPrescriptionCommand
+from app.application.prescription.get_prescription import (
+    GetPrescriptionQuery,
+    PrescriptionDto,
+)
+from app.application.prescription.inputs import (
+    DepartmentInput,
+    MedicalInstitutionInput,
+    PrescriberInput,
+    PrescriptionManagementInput,
+    RpInput,
+)
+from app.application.prescription.ready_for_dispensing import ReadyForDispensingCommand
+from app.application.prescription.register_prescription import (
+    RegisterPrescriptionCommand,
+)
+from app.application.prescription.resolve_inquiry import ResolveInquiryCommand
+from app.application.prescription.start_inquiry import StartInquiryCommand
 from app.presentational.dependencies import (
     Actor,
     PrescriptionUseCasesDep,

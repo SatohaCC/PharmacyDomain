@@ -12,29 +12,33 @@ from __future__ import annotations
 
 import pytest
 
-from app.domain.prescription import (
+from app.domain.prescription.exceptions import (
     InquiryPharmacistQualificationError,
-    MedicineClassification,
     MedicineClassificationMissingError,
     MedicineClassificationUnknownError,
-    MedicineRestrictionFlag,
-    NarcoticLicenseNumber,
-    NarcoticPrescriptionDetails,
     NarcoticPrescriptionDetailsRequiredError,
+    PublicExpenseBurdenNotCoveredError,
+    RefillNotAllowedError,
+)
+from app.domain.prescription.prescription import Prescription
+from app.domain.prescription.primitives import (
+    NarcoticLicenseNumber,
     PatientAddressLine,
     PatientPhoneNumber,
-    Prescription,
-    PrescriptionManagementInfo,
-    PublicExpenseBurdenNotCoveredError,
     RefillCount,
-    RefillInstruction,
-    RefillNotAllowedError,
 )
 from app.domain.prescription.services import (
     InquiryPharmacistService,
     NarcoticPrescriptionService,
     PublicExpenseBurdenService,
     RefillEligibilityService,
+)
+from app.domain.prescription.value_objects import (
+    MedicineClassification,
+    MedicineRestrictionFlag,
+    NarcoticPrescriptionDetails,
+    PrescriptionManagementInfo,
+    RefillInstruction,
 )
 from app.domain.shared.medicine import (
     MedicineIdentifier,

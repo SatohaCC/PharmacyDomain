@@ -15,7 +15,9 @@ from app.domain.foundation.exceptions import DomainError
 from app.domain.store.lifecycle import StoreStatus
 from app.domain.store.manager_assignment import ManagerAbsenceConflictError
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 from tests.factories.dispensing_factory import create_dispensing
 from tests.factories.prescription_factory import create_prescription
 from tests.integration.organization_helpers import appoint_manager, setup_organization

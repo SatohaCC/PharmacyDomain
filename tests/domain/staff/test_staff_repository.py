@@ -6,8 +6,12 @@ from datetime import date
 
 import pytest
 
-from app.domain.corporate import CorporateId
-from app.domain.staff import StaffCode, StaffCodeAlreadyExistsError, StaffId
+from app.domain.corporate.primitives import CorporateId
+from app.domain.staff.exceptions import StaffCodeAlreadyExistsError
+from app.domain.staff.primitives import (
+    StaffCode,
+    StaffId,
+)
 from tests.factories.staff_factory import create_staff
 from tests.fakes.in_memory_staff_repository import InMemoryStaffRepository
 

@@ -7,36 +7,46 @@ from typing import cast
 from app.application.access_control.policy import AuthorizationService
 from app.application.common.clock import Clock
 from app.application.corporate.corporate_access import CorporateAccessService
-from app.infrastructure.di.bundles import (
-    CorporateUseCases,
-    CoverageUseCases,
+from app.infrastructure.di.bundles.clinical import (
     DispensingUseCases,
-    IntegrationUseCases,
     MedicationHistoryUseCases,
-    MedicineCatalogUseCases,
-    PatientUseCases,
     PrescriptionUseCases,
-    ReceptionUseCases,
-    StaffUseCases,
-    StoreUseCases,
-    build_corporate_use_cases,
-    build_coverage_use_cases,
     build_dispensing_use_cases,
-    build_integration_use_cases,
     build_medication_history_use_cases,
-    build_medicine_catalog_use_cases,
-    build_patient_use_cases,
     build_prescription_use_cases,
-    build_reception_use_cases,
-    build_staff_use_cases,
-    build_store_use_cases,
 )
 from app.infrastructure.di.bundles.identity import (
     IdentityUseCases,
     build_identity_use_cases,
 )
+from app.infrastructure.di.bundles.integration import (
+    IntegrationUseCases,
+    build_integration_use_cases,
+)
+from app.infrastructure.di.bundles.medicine_catalog import (
+    MedicineCatalogUseCases,
+    build_medicine_catalog_use_cases,
+)
+from app.infrastructure.di.bundles.organization import (
+    CorporateUseCases,
+    StaffUseCases,
+    StoreUseCases,
+    build_corporate_use_cases,
+    build_staff_use_cases,
+    build_store_use_cases,
+)
+from app.infrastructure.di.bundles.patient_care import (
+    CoverageUseCases,
+    PatientUseCases,
+    ReceptionUseCases,
+    build_coverage_use_cases,
+    build_patient_use_cases,
+    build_reception_use_cases,
+)
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 
 
 class PostgresUseCaseRegistry:

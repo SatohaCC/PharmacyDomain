@@ -5,12 +5,14 @@ from __future__ import annotations
 import pytest
 
 from app.application.corporate.exceptions import CorporateInactiveError
-from app.application.medication_history import (
+from app.application.medication_history.category_catalog import (
     GetCategoryCatalogUseCase,
+    UpdateCategoryCatalogUseCase,
+)
+from app.application.medication_history.inputs import (
     MajorCategoryInput,
     MediumCategoryInput,
     UpdateCategoryCatalogCommand,
-    UpdateCategoryCatalogUseCase,
 )
 from app.domain.corporate.primitives import CorporateId
 from tests.application.access_helpers import (

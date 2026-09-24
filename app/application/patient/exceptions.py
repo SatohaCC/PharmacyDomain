@@ -22,3 +22,10 @@ class PatientExternalIdentifierNotFoundError(PatientApplicationError):
 
     default_message = "指定された外部患者IDが見つかりません。"
     default_code = "PATIENT_EXTERNAL_IDENTIFIER_NOT_FOUND"
+
+
+class PatientStoreNotFoundError(PatientApplicationError):
+    """指定法人に店舗が存在しない場合の例外（HTTP 404相当）。"""
+
+    default_message = "指定された店舗が見つかりません。"
+    default_code = "PATIENT_STORE_NOT_FOUND"

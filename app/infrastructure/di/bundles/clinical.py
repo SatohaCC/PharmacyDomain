@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.application.access_control import AuthorizationService
+from app.application.access_control.policy import AuthorizationService
 from app.application.common.clock import Clock
 from app.application.composition.dispensing_references import (
     DispensingStaffQualificationAdapter,
@@ -109,7 +109,9 @@ from app.infrastructure.external.drug_interaction import (
     BlackBoxDrugInteractionDataSource,
 )
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 
 # --------------------------------------------------------------------------
 # 処方箋

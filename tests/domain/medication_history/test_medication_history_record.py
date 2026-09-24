@@ -12,40 +12,44 @@ from datetime import UTC, datetime
 import pytest
 
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.medication_history import (
-    AmendmentReason,
-    AmendmentTimestamp,
-    BillingAddition,
-    BillingAdditionCode,
-    BillingAdditionName,
-    CategorizedNote,
-    CounselingMethod,
-    CounselingNote,
+from app.domain.medication_history.exceptions import (
     FinalizationDateBeforeCounselingError,
-    FinalizationDelayReason,
     FinalizationDelayReasonRequiredError,
     FinalizationStaffRequiredError,
-    FinalizedTimestamp,
-    HandbookConsolidationReason,
     HandbookGuidanceRequiredError,
-    HandbookNotPresentedReason,
     HandbookReasonNotAllowedError,
-    HandbookStatus,
-    MajorCategoryCode,
     MedicationHistoryAlreadyFinalizedError,
     MedicationHistoryDomainError,
     MedicationHistoryNotFinalizedError,
-    MedicationHistoryStatus,
     MedicationHistoryUnassessedItemsError,
-    MediumCategoryCode,
     ResidualDrugDetailNotAllowedError,
     ResidualDrugDetailRequiredError,
+    SoapContentRequiredError,
+)
+from app.domain.medication_history.primitives import (
+    AmendmentReason,
+    AmendmentTimestamp,
+    BillingAdditionCode,
+    BillingAdditionName,
+    CounselingMethod,
+    CounselingNote,
+    FinalizationDelayReason,
+    FinalizedTimestamp,
+    HandbookConsolidationReason,
+    HandbookNotPresentedReason,
+    MajorCategoryCode,
+    MedicationHistoryStatus,
+    MediumCategoryCode,
     ResidualDrugQuantity,
     ResidualDrugReason,
-    ResidualDrugRecord,
-    SoapContentRequiredError,
-    SoapRecord,
     StatutoryCategory,
+)
+from app.domain.medication_history.value_objects import (
+    BillingAddition,
+    CategorizedNote,
+    HandbookStatus,
+    ResidualDrugRecord,
+    SoapRecord,
 )
 from app.domain.staff.primitives import StaffId
 from tests.factories.medication_history_factory import (
@@ -673,7 +677,10 @@ def test_tc30_算定加算Primitiveの空値を拒否する(
     primitive_name: str,
 ) -> None:
     """コード・名称Primitiveで親の非空検証が保たれる。"""
-    from app.domain.medication_history import BillingAdditionCode, BillingAdditionName
+    from app.domain.medication_history.primitives import (
+        BillingAdditionCode,
+        BillingAdditionName,
+    )
 
     primitive_type = (
         BillingAdditionCode if primitive_name == "code" else BillingAdditionName

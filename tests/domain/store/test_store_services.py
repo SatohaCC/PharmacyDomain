@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import pytest
 
-from app.domain.corporate import CorporateId
-from app.domain.store import (
-    StoreCode,
+from app.domain.corporate.primitives import CorporateId
+from app.domain.store.exceptions import (
     StoreCodeAlreadyExistsError,
-    StoreCodeUniquenessService,
-    StoreName,
     StoreNameAlreadyExistsError,
+)
+from app.domain.store.primitives import (
+    StoreCode,
+    StoreName,
+)
+from app.domain.store.services import (
+    StoreCodeUniquenessService,
     StoreNameUniquenessService,
 )
 from tests.factories.store_factory import create_store

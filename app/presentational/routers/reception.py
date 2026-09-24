@@ -13,10 +13,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
-from app.application.reception import (
-    CoverageSelectionRecordDto,
+from app.application.reception.get_coverage_selection import CoverageSelectionRecordDto
+from app.application.reception.get_last_coverage_selection import (
     GetLastCoverageSelectionQuery,
     LastCoverageSelectionCandidateDto,
+)
+from app.application.reception.record_coverage_selection import (
     RecordCoverageSelectionCommand,
 )
 from app.presentational.dependencies import ReceptionUseCasesDep, get_actor_context

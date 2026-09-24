@@ -7,15 +7,15 @@ from pathlib import Path
 
 import pytest
 
-from app.application.access_control import (
+from app.application.access_control.exceptions import TenantBoundaryNotFoundError
+from app.application.access_control.models import (
     ActorContext,
     ActorRole,
-    AuthorizationService,
     Permission,
-    TenantBoundaryNotFoundError,
 )
+from app.application.access_control.policy import AuthorizationService
 from app.application.common.exceptions import AuthorizationError
-from app.domain.corporate import CorporateId
+from app.domain.corporate.primitives import CorporateId
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 

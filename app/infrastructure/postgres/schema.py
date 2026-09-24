@@ -14,6 +14,7 @@ from sqlalchemy import (
     Index,
     Integer,
     MetaData,
+    PrimaryKeyConstraint,
     String,
     Table,
     UniqueConstraint,
@@ -367,6 +368,7 @@ patient_external_identifiers = Table(
     Column("id", UUID(as_uuid=True), primary_key=True, nullable=False),
     Column("corporate_id", UUID(as_uuid=True), nullable=False),
     Column("patient_id", UUID(as_uuid=True), nullable=False),
+    Column("store_id", UUID(as_uuid=True), nullable=True),
     Column("system_name", String(200), nullable=False),
     Column("external_patient_id", String(200), nullable=False),
     Column("is_active", Boolean, nullable=False),
@@ -386,15 +388,38 @@ patient_external_identifiers = Table(
 Index(
     "uq_patient_external_identifiers_active_source",
     patient_external_identifiers.c.corporate_id,
+    patient_external_identifiers.c.store_id,
     patient_external_identifiers.c.system_name,
     patient_external_identifiers.c.external_patient_id,
     unique=True,
-    postgresql_where=patient_external_identifiers.c.is_active,
+    postgresql_where=text("is_active AND store_id IS NOT NULL"),
+)
+Index(
+    "uq_patient_external_identifiers_active_legacy_source",
+    patient_external_identifiers.c.corporate_id,
+    patient_external_identifiers.c.system_name,
+    patient_external_identifiers.c.external_patient_id,
+    unique=True,
+    postgresql_where=text("is_active AND store_id IS NULL"),
 )
 
 # --------------------------------------------------------------------------
 # 資格と受付
 # --------------------------------------------------------------------------
+
+receptions = Table(
+    "receptions",
+    metadata,
+    Column("id", UUID(as_uuid=True), nullable=False),
+    Column("corporate_id", UUID(as_uuid=True), nullable=False),
+    Column("store_id", UUID(as_uuid=True), nullable=False),
+    Column("payload", JSONB, nullable=False),
+    Column("version", Integer, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    PrimaryKeyConstraint("corporate_id", "store_id", "id", name="pk_receptions"),
+    Index("ix_receptions_corporate_store", "corporate_id", "store_id"),
+)
 
 patient_coverages = Table(
     "patient_coverages",

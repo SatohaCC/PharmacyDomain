@@ -7,17 +7,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.common.optional_conversion import unwrap
 from app.application.dispensing.support import load_dispensing_or_raise
 from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing import (
+from app.domain.dispensing.dispensing_process import (
     DispensedMedicine,
     DispensedRp,
-    DispensingId,
-    DispensingPrescriptionAudit,
     DispensingProcess,
-    DispensingProcessRepository,
+)
+from app.domain.dispensing.primitives import DispensingId
+from app.domain.dispensing.repository import DispensingProcessRepository
+from app.domain.dispensing.value_objects import (
+    DispensingPrescriptionAudit,
     DispensingVerification,
     QuantityAdjustment,
     SubstitutionDetail,

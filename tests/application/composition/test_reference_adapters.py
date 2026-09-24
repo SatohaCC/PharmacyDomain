@@ -60,24 +60,26 @@ from app.application.reception.exceptions import (
     ReceptionPatientNotFoundError,
     ReceptionStoreNotFoundError,
 )
-from app.domain.claim import (
+from app.domain.claim.coverage_snapshot import PublicExpenseCoverageSnapshot
+from app.domain.claim.primitives import (
     ClaimCoveragePriority,
     ClaimPublicPayerNumber,
     ClaimPublicRecipientNumber,
-    PublicExpenseCoverageSnapshot,
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.primitives import DispensingId
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import PrescriptionId, PrescriptionStatus
-from app.domain.reception import (
+from app.domain.reception.coverage_selection import (
+    CoverageSelection,
+    SelectedPublicExpenseSource,
+)
+from app.domain.reception.coverage_selection_record import CoverageSelectionRecord
+from app.domain.reception.primitives import (
     CoverageAppliedOn,
     CoverageRecordedAt,
-    CoverageSelection,
-    CoverageSelectionRecord,
     CoverageSelectionRecordId,
     OperatorPrincipalId,
-    SelectedPublicExpenseSource,
     SourceCoverageId,
 )
 from app.domain.staff.primitives import StaffId

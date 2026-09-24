@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.reception.get_coverage_selection import CoverageSelectionRecordDto
 from app.application.reception.reference import (
     CoverageValidityBoundary,
@@ -14,7 +15,8 @@ from app.application.reception.reference import (
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientId
-from app.domain.reception import CoverageAppliedOn, CoverageSelectionRecordRepository
+from app.domain.reception.primitives import CoverageAppliedOn
+from app.domain.reception.repository import CoverageSelectionRecordRepository
 from app.domain.store.primitives import StoreId
 
 

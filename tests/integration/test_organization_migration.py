@@ -12,8 +12,10 @@ from app.domain.store.lifecycle import StoreStatus
 from app.infrastructure.postgres import schema
 from app.infrastructure.postgres.codec import encode_aggregate
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
 from app.infrastructure.postgres.repositories.corporate import CORPORATE_MAPPING
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 from app.infrastructure.postgres.repositories.store import STORE_MAPPING
 from tests.factories.store_factory import create_store
 from tests.infrastructure.postgres.helpers import create_corporate, ordered_migrations

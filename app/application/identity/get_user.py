@@ -1,6 +1,7 @@
 """法人の利用者権限を1件参照するユースケース。"""
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.common.exceptions import NotFoundError
 from app.application.identity.dto import MembershipViewDto
 from app.application.identity.support import IdentityRepositories

@@ -17,7 +17,7 @@ from app.application.identity.invite_user import InviteUserCommand, IssuedInvita
 from app.application.identity.resolve_actor import VerifiedSubject
 from app.domain.identity.primitives import AccountStatus, MembershipRole
 from app.domain.shared.person_name import PersonNames
-from app.infrastructure.di import PostgresCompositionRoot
+from app.infrastructure.di.root import PostgresCompositionRoot
 from app.presentational.dependencies import (
     Actor,
     IdentityUseCasesDep,

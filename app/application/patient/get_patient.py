@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.common.optional_conversion import unwrap
 from app.application.patient.support import load_patient_or_raise
 from app.domain.corporate.primitives import CorporateId
@@ -35,6 +36,33 @@ class PatientStatusChangeDto:
 
 
 @dataclass(frozen=True, kw_only=True)
+class PatientProfileSnapshotDto:
+    """受信したプロフィール値DTO。"""
+
+    last_name: str
+    first_name: str
+    last_name_kana: str
+    first_name_kana: str
+    birth_date: str
+    gender: str | None
+    postal_code: str | None
+    address: str | None
+    phone_number: str | None
+
+
+@dataclass(frozen=True, kw_only=True)
+class PatientProfileChangeDto:
+    """患者プロフィール変更履歴DTO。"""
+
+    reception_id: str
+    store_id: str
+    external_patient_id: str
+    recorded_at: str
+    changed_fields: tuple[str, ...]
+    received_profile: PatientProfileSnapshotDto
+
+
+@dataclass(frozen=True, kw_only=True)
 class PatientDto:
     """患者詳細の出力データ（DTO）。"""
 
@@ -53,6 +81,7 @@ class PatientDto:
     status: str = "active"
     merged_into_id: str | None = None
     status_history: tuple[PatientStatusChangeDto, ...] = ()
+    profile_history: tuple[PatientProfileChangeDto, ...] = ()
 
     @classmethod
     def from_entity(cls, patient: Patient) -> PatientDto:
@@ -89,6 +118,27 @@ class PatientDto:
                     else None,
                 )
                 for change in patient.status_history
+            ),
+            profile_history=tuple(
+                PatientProfileChangeDto(
+                    reception_id=str(change.reception_id.value),
+                    store_id=str(change.store_id.value),
+                    external_patient_id=change.external_patient_id.value,
+                    recorded_at=change.recorded_at.isoformat(),
+                    changed_fields=change.changed_fields,
+                    received_profile=PatientProfileSnapshotDto(
+                        last_name=change.received_profile.names.kanji.last_name.value,
+                        first_name=change.received_profile.names.kanji.first_name.value,
+                        last_name_kana=change.received_profile.names.kana.last_name.value,
+                        first_name_kana=change.received_profile.names.kana.first_name.value,
+                        birth_date=change.received_profile.birth_date.value.isoformat(),
+                        gender=unwrap(change.received_profile.gender),
+                        postal_code=unwrap(change.received_profile.postal_code),
+                        address=unwrap(change.received_profile.address),
+                        phone_number=unwrap(change.received_profile.phone_number),
+                    ),
+                )
+                for change in patient.profile_history
             ),
         )
 

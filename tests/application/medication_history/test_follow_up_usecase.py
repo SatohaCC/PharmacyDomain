@@ -5,19 +5,19 @@ from datetime import timedelta
 import pytest
 
 from app.application.corporate.exceptions import CorporateInactiveError
-from app.application.medication_history import (
+from app.application.medication_history.exceptions import MedicationHistoryNotFoundError
+from app.application.medication_history.finalize_medication_history import (
+    FinalizeMedicationHistoryCommand,
+)
+from app.application.medication_history.inputs import (
     AddFollowUpCommand,
     AllergyIntentInput,
-    FinalizeMedicationHistoryCommand,
-    MedicationHistoryNotFoundError,
     ProfileUpdateInput,
     SoapInput,
 )
 from app.domain.corporate.primitives import CorporateId
-from app.domain.medication_history import (
-    CounselorQualificationError,
-    MedicationHistoryRecordId,
-)
+from app.domain.medication_history.exceptions import CounselorQualificationError
+from app.domain.medication_history.primitives import MedicationHistoryRecordId
 from app.domain.staff.primitives import StaffId, StaffQualifications
 from tests.application.medication_history.helpers import (
     MedicationHistoryFixture,

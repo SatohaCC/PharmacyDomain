@@ -13,20 +13,32 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, Response
 
-from app.application.patient import (
+from app.application.patient.change_patient_birth_date import (
     ChangePatientBirthDateCommand,
-    ChangePatientNamesCommand,
-    DeactivatePatientCommand,
+)
+from app.application.patient.change_patient_names import ChangePatientNamesCommand
+from app.application.patient.deactivate_patient import DeactivatePatientCommand
+from app.application.patient.deactivate_patient_external_identifier import (
     DeactivatePatientExternalIdentifierCommand,
-    GetPatientExternalIdentifierQuery,
+)
+from app.application.patient.get_patient import (
     GetPatientQuery,
+    PatientDto,
+)
+from app.application.patient.get_patient_external_identifier import (
+    GetPatientExternalIdentifierQuery,
+)
+from app.application.patient.list_patient_external_identifiers import (
     ListPatientExternalIdentifiersQuery,
+)
+from app.application.patient.merge_patients import (
     MergePatientsCommand,
     MergePatientsResultDto,
-    PatientDto,
+)
+from app.application.patient.reactivate_patient import ReactivatePatientCommand
+from app.application.patient.register_patient import RegisterPatientCommand
+from app.application.patient.register_patient_external_identifier import (
     PatientExternalIdentifierDto,
-    ReactivatePatientCommand,
-    RegisterPatientCommand,
     RegisterPatientExternalIdentifierCommand,
 )
 from app.presentational.dependencies import PatientUseCasesDep, get_actor_context
@@ -95,6 +107,7 @@ class RegisterExternalIdentifierRequest(RequestModel):
 
     system_name: str
     external_patient_id: str
+    store_id: str | None = None
 
 
 @router.post(
@@ -266,6 +279,7 @@ async def register_external_identifier(
             patient_id=patient_id,
             system_name=body.system_name,
             external_patient_id=body.external_patient_id,
+            store_id=body.store_id,
         )
     )
 

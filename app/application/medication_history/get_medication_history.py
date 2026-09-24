@@ -4,20 +4,23 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.common.optional_conversion import unwrap
 from app.application.medication_history.support import load_record_or_raise
 from app.domain.corporate.primitives import CorporateId
-from app.domain.medication_history import (
+from app.domain.medication_history.medication_history_record import (
+    MedicationHistoryRecord,
+)
+from app.domain.medication_history.primitives import MedicationHistoryRecordId
+from app.domain.medication_history.repository import MedicationHistoryRepository
+from app.domain.medication_history.value_objects import (
     BillingAddition,
     CategorizedNote,
     FollowUpRecord,
     HandbookStatus,
     LabeledNote,
     MedicationHistoryAmendment,
-    MedicationHistoryRecord,
-    MedicationHistoryRecordId,
-    MedicationHistoryRepository,
     ResidualDrugRecord,
     SoapRecord,
     TracingReport,

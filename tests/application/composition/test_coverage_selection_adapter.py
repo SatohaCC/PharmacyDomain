@@ -15,7 +15,9 @@ from app.application.composition.coverage_selection_adapter import (
 )
 from app.application.reception.exceptions import ReceptionCoverageSelectionError
 from app.domain.corporate.primitives import CorporateId
-from app.domain.coverage import (
+from app.domain.coverage.combination import CoverageSelectionService
+from app.domain.coverage.patient_coverage import PatientCoverage
+from app.domain.coverage.primitives import (
     CoverageActivatedOn,
     CoverageActivation,
     CoverageBenefitRatio,
@@ -24,14 +26,12 @@ from app.domain.coverage import (
     CoverageInsuredType,
     CoveragePeriod,
     CoveragePriority,
-    CoverageSelectionService,
     CoverageSymbol,
     CoverageType,
     CoverageValidFrom,
     CoverageValidTo,
     InsuranceCoverageDetails,
     InsurerNumber,
-    PatientCoverage,
     PublicExpenseCoverageDetails,
     PublicPayerNumber,
     PublicRecipientNumber,

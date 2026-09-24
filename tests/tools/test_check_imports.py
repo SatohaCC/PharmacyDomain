@@ -47,6 +47,46 @@ def test_許可された接頭辞のimportは違反にならない() -> None:
     assert violations == ()
 
 
+def test_相互importするモジュールgraphは循環違反になる(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """明示的なimport循環を依存方向検査と同じCLIで失敗させる。"""
+    # Arrange
+    first = tmp_path / "app" / "alpha" / "first.py"
+    second = tmp_path / "app" / "beta" / "second.py"
+    first.parent.mkdir(parents=True)
+    second.parent.mkdir(parents=True)
+    (first.parent / "__init__.py").write_text("", encoding="utf-8")
+    (second.parent / "__init__.py").write_text("", encoding="utf-8")
+    first.write_text(
+        "from app.beta.second import Second\n\nclass First: ...\n",
+        encoding="utf-8",
+    )
+    second.write_text(
+        "from app.alpha.first import First\n\nclass Second: ...\n",
+        encoding="utf-8",
+    )
+    config_path = tmp_path / "pyproject.toml"
+    config_path.write_text(
+        """
+[tool.import_rules]
+root = "."
+paths = ["app"]
+""",
+        encoding="utf-8",
+    )
+
+    # Act
+    exit_code = main(["--config", str(config_path), "--fail-on-violation"])
+    report = capsys.readouterr().out
+
+    # Assert
+    assert exit_code == 1
+    assert "循環" in report
+    assert "app.alpha.first" in report
+    assert "app.beta.second" in report
+
+
 def test_規則の対象外パッケージは検査されない() -> None:
     # Arrange
     source = "from app.application.corporate import CorporateAccessService\n"

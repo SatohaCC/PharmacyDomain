@@ -18,7 +18,7 @@ from decimal import Decimal
 import app.application
 from app.application.common.optional_conversion import build_optional, unwrap
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.prescription import MedicalInstitutionPostalCode
+from app.domain.prescription.primitives import MedicalInstitutionPostalCode
 from app.domain.shared.medicine import DosageAmount
 
 #: 走査から除く実装。ヘルパー自身は定型そのものを持つ。

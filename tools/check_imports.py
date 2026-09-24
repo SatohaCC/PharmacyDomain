@@ -11,6 +11,7 @@ AGENTS.md の「依存の向き」「Applicationコンテキストの依存」�
 - `from app.application import store` のように親モジュールから名前を取り出す形も、
   `app.application.store` を import したものとして扱います。
 - 相対 import は絶対モジュール名へ解決します。解決できない場合は例外にします。
+- 解析対象内の `app` モジュール間に循環があれば、最初の循環経路を報告します。
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ import sys
 import tomllib
 from collections.abc import Sequence
 from dataclasses import dataclass
+from graphlib import CycleError, TopologicalSorter
 from pathlib import Path
 
 DEFAULT_ROOT = "."
@@ -256,6 +258,62 @@ def analyze_paths(
     return tuple(violations)
 
 
+def _known_imported_module(name: str, modules: set[str]) -> str | None:
+    """import名か、その親にあたる解析対象モジュールを返す。"""
+    parts = name.split(".")
+    for end in range(len(parts), 0, -1):
+        candidate = ".".join(parts[:end])
+        if candidate in modules:
+            return candidate
+    return None
+
+
+def find_import_cycles(
+    paths: Sequence[Path], *, root: Path
+) -> tuple[tuple[str, ...], ...]:
+    """解析対象のPythonモジュール間にある循環import経路を返す。"""
+    sources: list[tuple[Path, str, bool, ast.Module]] = []
+    graph: dict[str, set[str]] = {}
+    for source_file in collect_python_files(paths):
+        module_name, is_package = module_name_for(source_file, root)
+        source = source_file.read_text(encoding="utf-8")
+        try:
+            tree = ast.parse(source, filename=str(source_file))
+        except SyntaxError as error:
+            raise ImportAnalysisError(
+                f"Pythonの構文解析に失敗しました: {source_file}:"
+                f"{error.lineno}: {error.msg}"
+            ) from error
+        if module_name in graph:
+            raise ImportAnalysisError(
+                f"同じモジュール名が複数のファイルに割り当てられています: {module_name}"
+            )
+        graph[module_name] = set()
+        sources.append((source_file, module_name, is_package, tree))
+
+    modules = set(graph)
+    for source_file, module_name, is_package, tree in sources:
+        imports = _imported_modules(
+            tree,
+            module_name=module_name,
+            is_package=is_package,
+            source_file=source_file,
+        )
+        for imported_name, _ in imports:
+            target = _known_imported_module(imported_name, modules)
+            if target is not None:
+                graph[module_name].add(target)
+
+    try:
+        TopologicalSorter(graph).prepare()
+    except CycleError as error:
+        cycle = error.args[1] if len(error.args) > 1 else ()
+        if isinstance(cycle, (list, tuple)):
+            return (tuple(str(module) for module in cycle),)
+        raise ImportAnalysisError("循環importの経路を読み取れません。") from error
+    return ()
+
+
 def _string_tuple(value: object, *, key: str) -> tuple[str, ...]:
     if isinstance(value, str):
         return (value,)
@@ -341,18 +399,22 @@ def _violation_payload(violation: ImportViolation) -> dict[str, object]:
 def _print_report(
     violations: Sequence[ImportViolation],
     *,
+    cycles: Sequence[tuple[str, ...]],
     rules: Sequence[ImportRule],
     verbose: bool,
 ) -> int:
-    print(f"import方向チェック: {len(rules)}規則を評価、違反 {len(violations)}件")
+    count = len(violations) + len(cycles)
+    print(f"import方向チェック: {len(rules)}規則を評価、違反 {count}件")
     if verbose:
         for rule in rules:
             print(f"情報: {rule.package} → 禁止 {', '.join(rule.forbidden)}")
     for violation in violations:
         print(f"違反: {violation.describe()}")
-    if not violations:
-        print("import方向の違反はありません。")
-    return len(violations)
+    for cycle in cycles:
+        print(f"循環import: {' -> '.join(cycle)}")
+    if not count:
+        print("import方向の違反・循環はありません。")
+    return count
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -387,6 +449,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         paths = _resolved_paths(configured_paths, base_dir)
         root = _resolved_paths((config.root,), base_dir)[0]
         violations = analyze_paths(paths, root=root, rules=config.rules)
+        cycles = find_import_cycles(paths, root=root)
     except (ImportAnalysisError, OSError, ValueError) as error:
         print(f"import方向チェックに失敗しました: {error}", file=sys.stderr)
         return 2
@@ -394,14 +457,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.json:
         print(
             json.dumps(
-                [_violation_payload(violation) for violation in violations],
+                {
+                    "violations": [
+                        _violation_payload(violation) for violation in violations
+                    ],
+                    "import_cycles": [list(cycle) for cycle in cycles],
+                },
                 ensure_ascii=False,
                 indent=2,
             )
         )
-        count = len(violations)
+        count = len(violations) + len(cycles)
     else:
-        count = _print_report(violations, rules=config.rules, verbose=args.verbose)
+        count = _print_report(
+            violations, cycles=cycles, rules=config.rules, verbose=args.verbose
+        )
     return 1 if args.fail_on_violation and count else 0
 
 

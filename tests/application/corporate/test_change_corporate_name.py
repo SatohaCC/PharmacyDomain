@@ -6,10 +6,8 @@ from app.application.corporate.change_corporate_name import (
     ChangeCorporateNameCommand,
     ChangeCorporateNameUseCase,
 )
-from app.domain.corporate import (
-    CorporateNameAlreadyExistsError,
-    CorporateNameUniquenessService,
-)
+from app.domain.corporate.exceptions import CorporateNameAlreadyExistsError
+from app.domain.corporate.services import CorporateNameUniquenessService
 from tests.application.access_helpers import create_vendor_corporate_access_for
 from tests.application.corporate.helpers import save_corporate
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from app.application.access_control import ActorContext
+from app.application.access_control.models import ActorContext
 from app.application.identity.resolve_actor import VerifiedSubject
 from app.presentational.exceptions import AuthenticationError
 

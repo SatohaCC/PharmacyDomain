@@ -6,23 +6,29 @@ from typing import Any
 import pytest
 
 from app.domain.corporate.primitives import CorporateId
-from app.domain.medication_history import (
-    CategorizedNote,
-    ConditionStatus,
-    CounselingMethod,
-    CounselingNote,
+from app.domain.medication_history.exceptions import (
     DuplicatedFollowUpIdError,
     FollowUpDateBeforeCounselingError,
     FollowUpOnDraftError,
-    LabeledNote,
-    MajorCategoryCode,
-    MedicationHistoryRecord,
-    MediumCategoryCode,
-    PatientMedicalProfile,
     ProfilePatientMismatchError,
     SoapContentRequiredError,
-    SoapRecord,
+)
+from app.domain.medication_history.medication_history_record import (
+    MedicationHistoryRecord,
+)
+from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
+from app.domain.medication_history.primitives import (
+    ConditionStatus,
+    CounselingMethod,
+    CounselingNote,
+    MajorCategoryCode,
+    MediumCategoryCode,
     StatutoryCategory,
+)
+from app.domain.medication_history.value_objects import (
+    CategorizedNote,
+    LabeledNote,
+    SoapRecord,
 )
 from app.domain.patient.primitives import PatientId
 from app.domain.shared.medicine import MedicineName
@@ -160,7 +166,7 @@ class TestFollowUpPatientProfileProjection:
         counselor = StaffId.generate()
         follow_up_date = datetime(2026, 8, 28, 6, 0, tzinfo=UTC)
 
-        from app.domain.medication_history import ProfileUpdateIntents
+        from app.domain.medication_history.value_objects import ProfileUpdateIntents
 
         profile_updates = ProfileUpdateIntents(
             new_adverse_reactions=(
@@ -192,7 +198,7 @@ class TestFollowUpPatientProfileProjection:
     def test_apply_follow_up_updates_condition_status(self) -> None:
         """TC-PRF-02: フォローアップで既往症状態を更新し、頭書きに反映される。"""
         # 初回指導で緑内障を登録
-        from app.domain.medication_history import ProfileUpdateIntents
+        from app.domain.medication_history.value_objects import ProfileUpdateIntents
 
         initial_intents = ProfileUpdateIntents(
             new_conditions=(create_condition_intent(condition_name="緑内障"),)
@@ -227,7 +233,7 @@ class TestFollowUpPatientProfileProjection:
 
     def test_rebuild_profile_includes_follow_ups_in_chronological_order(self) -> None:
         """TC-PRF-03: rebuild_from が初回指導と各フォローアップを時系列順に畳み込んで頭書きを再現する。"""
-        from app.domain.medication_history import ProfileUpdateIntents
+        from app.domain.medication_history.value_objects import ProfileUpdateIntents
 
         corp_id = CorporateId.generate()
         pat_id = PatientId.generate()

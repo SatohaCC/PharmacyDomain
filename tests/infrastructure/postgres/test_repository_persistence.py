@@ -14,9 +14,13 @@ from app.infrastructure.postgres.codec import (
     PersistenceMappingError,
     encode_aggregate,
 )
-from app.infrastructure.postgres.repositories import (
+from app.infrastructure.postgres.repositories.corporate import (
     PostgresCorporateRepository,
+)
+from app.infrastructure.postgres.repositories.dispensing_process import (
     PostgresDispensingProcessRepository,
+)
+from app.infrastructure.postgres.repositories.prescription import (
     PostgresPrescriptionRepository,
 )
 from tests.factories.dispensing_factory import create_dispensing

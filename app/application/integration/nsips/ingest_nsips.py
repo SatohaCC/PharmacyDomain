@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import uuid
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields, is_dataclass, replace
+from datetime import date, datetime
+from decimal import Decimal
 
-from app.application.access_control import CorporateAccessBoundary, Permission
-from app.application.common import UnitOfWork
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.common.clock import Clock
 from app.application.common.optional_conversion import build_optional, unwrap
+from app.application.common.unit_of_work import UnitOfWork
 from app.application.coverage.register_patient_coverage import (
     RegisterPatientCoverageCommand,
     RegisterPatientCoverageUseCase,
@@ -51,37 +56,52 @@ from app.application.reception.record_coverage_selection import (
     RecordCoverageSelectionUseCase,
 )
 from app.domain.corporate.primitives import CorporateId
-from app.domain.coverage import PatientCoverage
+from app.domain.coverage.patient_coverage import PatientCoverage
 from app.domain.coverage.repository import PatientCoverageRepository
-from app.domain.dispensing import DispensingProcess
-from app.domain.dispensing.primitives import DispensingProcessStatus
+from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.primitives import DispensingId, DispensingProcessStatus
 from app.domain.dispensing.repository import DispensingProcessRepository
-from app.domain.medication_history import (
-    ExternalCorrectionTimestamp,
-    ExternalPrescriptionCorrection,
+from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
-    MedicationHistoryRepository,
 )
+from app.domain.medication_history.primitives import (
+    ExternalCorrectionTimestamp,
+    MedicationHistoryRecordId,
+)
+from app.domain.medication_history.repository import MedicationHistoryRepository
+from app.domain.medication_history.value_objects import ExternalPrescriptionCorrection
 from app.domain.patient.primitives import (
     ExternalPatientId,
     ExternalSystemName,
     PatientAddress,
+    PatientBirthDate,
     PatientGenderCode,
     PatientId,
     PatientPhoneNumber,
     PatientPostalCode,
 )
+from app.domain.patient.profile_history import (
+    PatientProfileChange,
+    PatientProfileSnapshot,
+)
 from app.domain.patient.repository import (
     PatientExternalIdentifierRepository,
     PatientRepository,
 )
-from app.domain.prescription import (
+from app.domain.prescription.prescription import (
     Prescription,
-    PrescriptionDocumentNumber,
-    PrescriptionRepository,
     PrescriptionRp,
 )
-from app.domain.prescription.primitives import PrescriptionStatus
+from app.domain.prescription.primitives import PrescriptionId, PrescriptionStatus
+from app.domain.prescription.repository import PrescriptionRepository
+from app.domain.reception.primitives import (
+    ReceptionFieldPath,
+    ReceptionFingerprint,
+    ReceptionId,
+)
+from app.domain.reception.reception import Reception, ReceptionCorrection
+from app.domain.reception.repository import ReceptionRepository
 from app.domain.shared.person_name import PersonNames
 from app.domain.store.primitives import StoreId
 
@@ -95,6 +115,7 @@ class IngestNsipsCommand:
     corporate_id: str
     store_id: str
     operator_staff_id: str
+    reception_id: str | None = None
     raw_nsips_text: str | None = None
     structured_bundle: NsipsBundle | None = None
 
@@ -150,6 +171,7 @@ class IngestNsipsUseCase:
         register_coverage_use_case: RegisterPatientCoverageUseCase | None = None,
         record_coverage_selection_use_case: RecordCoverageSelectionUseCase
         | None = None,
+        reception_repo: ReceptionRepository,
         parser: NsipsParser | None = None,
         mapper: NsipsDataMapper | None = None,
         clock: Clock,
@@ -166,6 +188,7 @@ class IngestNsipsUseCase:
         self._patient_coverage_repo = patient_coverage_repo
         self._register_coverage_use_case = register_coverage_use_case
         self._record_coverage_selection_use_case = record_coverage_selection_use_case
+        self._reception_repo = reception_repo
         self._register_patient_use_case = register_patient_use_case
         self._register_patient_external_id_use_case = (
             register_patient_external_id_use_case
@@ -180,12 +203,160 @@ class IngestNsipsUseCase:
         self._mapper = mapper or NsipsDataMapper()
         self._clock = clock
 
+    @staticmethod
+    def _parse_reception_id(raw: str | None) -> ReceptionId:
+        """受付呼出元が発行したUUIDv7を検証する。"""
+        if raw is None:
+            raise NsipsParseError("受付IDが必要です。")
+        try:
+            return ReceptionId.parse(raw)
+        except DomainValidationError as error:
+            raise NsipsParseError("受付IDはUUIDv7で指定してください。") from error
+
+    @staticmethod
+    def _fingerprint_bundle(
+        bundle: NsipsBundle,
+    ) -> tuple[tuple[ReceptionFieldPath, ReceptionFingerprint], ...]:
+        """形式メタデータを除くBundleの全業務フィールドを個別に指紋化する。"""
+        values: dict[str, object] = {}
+
+        def visit(value: object, path: str) -> None:
+            if value is None:
+                values[path] = None
+                return
+            if is_dataclass(value) and not isinstance(value, type):
+                for item in fields(value):
+                    if not path and item.name == "header_version":
+                        continue
+                    child_path = f"{path}.{item.name}" if path else item.name
+                    visit(getattr(value, item.name), child_path)
+                return
+            if isinstance(value, tuple):
+                values[path] = len(value)
+                for index, item in enumerate(value):
+                    visit(item, f"{path}[{index}]")
+                return
+            values[path] = value
+
+        visit(bundle, "")
+        fingerprinted = []
+        for path, value in values.items():
+            if isinstance(value, datetime):
+                canonical: object = value.isoformat()
+            elif isinstance(value, date):
+                canonical = value.isoformat()
+            elif isinstance(value, Decimal):
+                canonical = str(value)
+            else:
+                canonical = value
+            encoded = json.dumps(
+                canonical,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            fingerprinted.append(
+                (
+                    ReceptionFieldPath(path),
+                    ReceptionFingerprint(hashlib.sha256(encoded).hexdigest()),
+                )
+            )
+        return tuple(sorted(fingerprinted, key=lambda item: item[0].value))
+
+    @staticmethod
+    def _combined_fingerprint(
+        field_fingerprints: tuple[tuple[ReceptionFieldPath, ReceptionFingerprint], ...],
+    ) -> ReceptionFingerprint:
+        """フィールド別指紋を順序に依存しない受付指紋へまとめる。"""
+        encoded = json.dumps(
+            [
+                (path.value, fingerprint.value)
+                for path, fingerprint in field_fingerprints
+            ],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return ReceptionFingerprint(hashlib.sha256(encoded).hexdigest())
+
+    @staticmethod
+    def _changed_fields(
+        *,
+        previous: tuple[tuple[ReceptionFieldPath, ReceptionFingerprint], ...],
+        incoming: tuple[tuple[ReceptionFieldPath, ReceptionFingerprint], ...],
+    ) -> tuple[ReceptionFieldPath, ...]:
+        """フィールドの追加・変更・欠落を名前順で返す。"""
+        previous_by_name = {
+            path.value: fingerprint.value for path, fingerprint in previous
+        }
+        incoming_by_name = {
+            path.value: fingerprint.value for path, fingerprint in incoming
+        }
+        return tuple(
+            ReceptionFieldPath(name)
+            for name in sorted(previous_by_name.keys() | incoming_by_name.keys())
+            if previous_by_name.get(name) != incoming_by_name.get(name)
+            or (name in previous_by_name) != (name in incoming_by_name)
+        )
+
+    async def _record_patient_profile_change(
+        self,
+        *,
+        corporate_id: CorporateId,
+        patient_id: PatientId,
+        reception_id: ReceptionId,
+        store_id: StoreId,
+        bundle: NsipsBundle,
+        changed_fields: tuple[str, ...],
+    ) -> None:
+        """Patientマスターを変えず、受付で受信したプロフィール差分を保存する。"""
+        if not changed_fields:
+            return
+        patient = await self._patient_repo.get(
+            corporate_id=corporate_id,
+            patient_id=patient_id,
+        )
+        if patient is None:
+            return
+        patient_command = self._mapper.to_patient_command(
+            bundle,
+            str(corporate_id.value),
+        )
+        names = PersonNames.create(
+            last_name=patient_command.last_name,
+            first_name=patient_command.first_name,
+            last_name_kana=patient_command.last_name_kana,
+            first_name_kana=patient_command.first_name_kana,
+        )
+        profile = PatientProfileSnapshot(
+            names=names,
+            birth_date=PatientBirthDate(bundle.patient.birth_date),
+            gender=build_optional(bundle.patient.gender, PatientGenderCode),
+            postal_code=build_optional(bundle.patient.postal_code, PatientPostalCode),
+            address=build_optional(bundle.patient.address, PatientAddress),
+            phone_number=build_optional(
+                bundle.patient.phone_number,
+                PatientPhoneNumber,
+            ),
+        )
+        change = PatientProfileChange(
+            reception_id=reception_id,
+            store_id=store_id,
+            external_patient_id=ExternalPatientId(bundle.patient.external_patient_id),
+            recorded_at=self._clock.now(),
+            changed_fields=tuple(f"patient.{name}" for name in changed_fields),
+            received_profile=profile,
+        )
+        updated = patient.record_profile_change(change)
+        if updated is not patient:
+            await self._patient_repo.save(updated)
+
     async def execute(self, command: IngestNsipsCommand) -> IngestNsipsResultDto:
         """NSIPS取込を一括実行する。"""
         self._unit_of_work.ensure_active()
 
         corporate_id = CorporateId.parse(command.corporate_id)
-        StoreId.parse(command.store_id)
+        store_id = StoreId.parse(command.store_id)
+        reception_id = self._parse_reception_id(command.reception_id)
 
         # 権限・有効法人・店舗の事前確認
         await self._corporate_access.require_active(
@@ -215,46 +386,127 @@ class IngestNsipsUseCase:
             raise DispensingDateRequiredError()
         coverage_review_reason = self._coverage_review_reason(bundle)
 
-        # 2. 冪等性および処方訂正（Uファイル）チェック
-        doc_num = bundle.prescription.document_number
-        existing_prescription = await self._prescription_repo.get_by_document_number(
+        # 2. 安定受付IDで受付と関連集約を照合する。
+        incoming_fingerprints = self._fingerprint_bundle(bundle)
+        incoming_fingerprint = self._combined_fingerprint(incoming_fingerprints)
+        existing_reception = await self._reception_repo.get(
             corporate_id=corporate_id,
-            document_number=PrescriptionDocumentNumber(doc_num),
+            store_id=store_id,
+            reception_id=reception_id,
         )
-        if existing_prescription is not None:
-            patient_attribute_conflicts = await self._patient_attribute_conflicts(
-                corporate_id=corporate_id,
-                patient_id=existing_prescription.patient_id,
-                bundle=bundle,
-            )
-            diff_summary = await self._detect_bundle_differences(
-                corporate_id=corporate_id,
-                existing=existing_prescription,
-                bundle=bundle,
-                patient_attribute_conflicts=patient_attribute_conflicts,
-            )
-            if diff_summary is None:
+        doc_num = bundle.prescription.document_number
+        existing_prescription: Prescription | None = None
+        if existing_reception is not None:
+            if (
+                existing_reception.field_fingerprints
+                and existing_reception.latest_fingerprint == incoming_fingerprint
+            ):
                 return IngestNsipsResultDto(
                     corporate_id=command.corporate_id,
                     store_id=command.store_id,
-                    patient_id=str(existing_prescription.patient_id.value),
-                    prescription_id=str(existing_prescription.id.value),
+                    patient_id=str(existing_reception.patient_id.value),
+                    prescription_id=(
+                        str(existing_reception.prescription_id.value)
+                        if existing_reception.prescription_id is not None
+                        else None
+                    ),
+                    dispensing_id=(
+                        str(existing_reception.dispensing_id.value)
+                        if existing_reception.dispensing_id is not None
+                        else None
+                    ),
+                    medication_history_id=(
+                        str(existing_reception.medication_history_id.value)
+                        if existing_reception.medication_history_id is not None
+                        else None
+                    ),
                     document_number=doc_num,
                     patient_name=bundle.patient.kanji_name,
                     is_new_patient=False,
                     is_duplicate=True,
-                    is_follow_up_only=False,
                     has_pending_correction_review=False,
                     coverage_review_required=coverage_review_reason is not None,
                     coverage_review_reason=coverage_review_reason,
                 )
 
-            # 差分あり: Uファイル（処方訂正）
-            has_pending_review = True
-            matching_history_id_str: str | None = None
-            matching_dispensing_id_str: str | None = None
+            if existing_reception.prescription_id is not None:
+                existing_prescription = await self._prescription_repo.get(
+                    corporate_id=corporate_id,
+                    prescription_id=existing_reception.prescription_id,
+                )
+                if existing_prescription is None:
+                    raise NsipsParseError("受付に関連付いた処方箋を取得できません。")
 
-            if self._medication_history_repo is not None:
+            patient_attribute_conflicts = await self._patient_attribute_conflicts(
+                corporate_id=corporate_id,
+                store_id=store_id,
+                patient_id=existing_reception.patient_id,
+                bundle=bundle,
+            )
+            changed_fields = self._changed_fields(
+                previous=existing_reception.field_fingerprints,
+                incoming=incoming_fingerprints,
+            )
+            if not existing_reception.field_fingerprints:
+                changed_fields = tuple(name for name, _ in incoming_fingerprints)
+            if not changed_fields:
+                return IngestNsipsResultDto(
+                    corporate_id=command.corporate_id,
+                    store_id=command.store_id,
+                    patient_id=str(existing_reception.patient_id.value),
+                    prescription_id=(
+                        str(existing_reception.prescription_id.value)
+                        if existing_reception.prescription_id is not None
+                        else None
+                    ),
+                    document_number=doc_num,
+                    patient_name=bundle.patient.kanji_name,
+                    is_new_patient=False,
+                    is_duplicate=True,
+                    has_pending_correction_review=False,
+                    coverage_review_required=coverage_review_reason is not None,
+                    coverage_review_reason=coverage_review_reason,
+                )
+
+            diff_summary: str | None = None
+            if existing_prescription is not None:
+                diff_summary = await self._detect_bundle_differences(
+                    corporate_id=corporate_id,
+                    existing=existing_prescription,
+                    bundle=bundle,
+                    patient_attribute_conflicts=patient_attribute_conflicts,
+                )
+            if diff_summary is None:
+                diff_summary = "受信項目変更: " + ", ".join(
+                    field.value for field in changed_fields
+                )
+
+            await self._record_patient_profile_change(
+                corporate_id=corporate_id,
+                patient_id=existing_reception.patient_id,
+                reception_id=reception_id,
+                store_id=store_id,
+                bundle=bundle,
+                changed_fields=patient_attribute_conflicts,
+            )
+
+            # 差分あり: 関連集約は安全に訂正できる数量だけ更新し、他は要確認にする。
+            has_pending_review = True
+            matching_history_id_str = (
+                str(existing_reception.medication_history_id.value)
+                if existing_reception.medication_history_id is not None
+                else None
+            )
+            matching_dispensing_id_str = (
+                str(existing_reception.dispensing_id.value)
+                if existing_reception.dispensing_id is not None
+                else None
+            )
+
+            if (
+                existing_prescription is not None
+                and self._medication_history_repo is not None
+            ):
                 records = await self._medication_history_repo.list_by_patient(
                     corporate_id=corporate_id,
                     patient_id=existing_prescription.patient_id,
@@ -294,11 +546,32 @@ class IngestNsipsUseCase:
                         )
                         await self._medication_history_repo.save(updated_history)
 
+            reception_correction = ReceptionCorrection(
+                fingerprint=incoming_fingerprint,
+                changed_fields=changed_fields,
+                received_at=self._clock.now(),
+            )
+            await self._reception_repo.save(
+                replace(
+                    existing_reception,
+                    latest_fingerprint=incoming_fingerprint,
+                    field_fingerprints=incoming_fingerprints,
+                    correction_history=(
+                        *existing_reception.correction_history,
+                        reception_correction,
+                    ),
+                )
+            )
+
             return IngestNsipsResultDto(
                 corporate_id=command.corporate_id,
                 store_id=command.store_id,
-                patient_id=str(existing_prescription.patient_id.value),
-                prescription_id=str(existing_prescription.id.value),
+                patient_id=str(existing_reception.patient_id.value),
+                prescription_id=(
+                    str(existing_prescription.id.value)
+                    if existing_prescription is not None
+                    else None
+                ),
                 dispensing_id=matching_dispensing_id_str,
                 medication_history_id=matching_history_id_str,
                 document_number=doc_num,
@@ -312,10 +585,11 @@ class IngestNsipsUseCase:
                 coverage_review_reason=coverage_review_reason,
             )
 
-        # 3. 患者の解決（照合または新規登録）
+        # 3. 患者の解決（法人・店舗・連携先・外部患者IDで照合）
         ext_patient_id = bundle.patient.external_patient_id
         active_link = await self._patient_external_id_repo.get_active_by_source(
             corporate_id=corporate_id,
+            store_id=store_id,
             system_name=ExternalSystemName("recept"),
             external_patient_id=ExternalPatientId(ext_patient_id),
         )
@@ -325,8 +599,17 @@ class IngestNsipsUseCase:
             is_new_patient = False
             patient_attribute_conflicts = await self._patient_attribute_conflicts(
                 corporate_id=corporate_id,
+                store_id=store_id,
                 patient_id=active_link.patient_id,
                 bundle=bundle,
+            )
+            await self._record_patient_profile_change(
+                corporate_id=corporate_id,
+                patient_id=active_link.patient_id,
+                reception_id=reception_id,
+                store_id=store_id,
+                bundle=bundle,
+                changed_fields=patient_attribute_conflicts,
             )
         else:
             # 新規患者登録
@@ -341,6 +624,7 @@ class IngestNsipsUseCase:
                     patient_id=patient_id_str,
                     system_name="recept",
                     external_patient_id=ext_patient_id,
+                    store_id=command.store_id,
                 )
             )
             is_new_patient = True
@@ -442,6 +726,20 @@ class IngestNsipsUseCase:
             disp_date_str = bundle.dispensed_date.isoformat()
             addition_names = tuple(add.name for add in bundle.additions)
 
+            await self._reception_repo.save(
+                Reception(
+                    id=reception_id,
+                    corporate_id=corporate_id,
+                    store_id=store_id,
+                    patient_id=PatientId.parse(patient_id_str),
+                    prescription_id=PrescriptionId.parse(presc_dto.id),
+                    dispensing_id=DispensingId.parse(disp_dto.id),
+                    medication_history_id=MedicationHistoryRecordId.parse(hist_dto.id),
+                    latest_fingerprint=incoming_fingerprint,
+                    field_fingerprints=incoming_fingerprints,
+                )
+            )
+
             return IngestNsipsResultDto(
                 corporate_id=command.corporate_id,
                 store_id=command.store_id,
@@ -489,6 +787,24 @@ class IngestNsipsUseCase:
                 updated_history = await self._add_follow_up_use_case.execute(fu_cmd)
                 if updated_history.follow_ups:
                     follow_up_id = updated_history.follow_ups[-1].id
+
+        await self._reception_repo.save(
+            Reception(
+                id=reception_id,
+                corporate_id=corporate_id,
+                store_id=store_id,
+                patient_id=PatientId.parse(patient_id_str),
+                prescription_id=None,
+                dispensing_id=None,
+                medication_history_id=(
+                    MedicationHistoryRecordId.parse(record_id)
+                    if record_id is not None
+                    else None
+                ),
+                latest_fingerprint=incoming_fingerprint,
+                field_fingerprints=incoming_fingerprints,
+            )
+        )
 
         return IngestNsipsResultDto(
             corporate_id=command.corporate_id,
@@ -691,6 +1007,7 @@ class IngestNsipsUseCase:
         self,
         *,
         corporate_id: CorporateId,
+        store_id: StoreId,
         patient_id: PatientId,
         bundle: NsipsBundle,
     ) -> tuple[str, ...]:
@@ -720,6 +1037,7 @@ class IngestNsipsUseCase:
         expected_external_id = ExternalPatientId(bundle.patient.external_patient_id)
         if not any(
             identifier.is_active
+            and identifier.store_id == store_id
             and identifier.system_name == ExternalSystemName("recept")
             and identifier.external_patient_id == expected_external_id
             for identifier in external_identifiers

@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.common.clock import Clock
 from app.application.dispensing.exceptions import (
     DispensingDateRequiredError,
@@ -24,17 +25,19 @@ from app.application.dispensing.support import (
     to_optional_text,
 )
 from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing import (
+from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.primitives import (
     DispensedDate,
-    DispensingConsistencyService,
     DispensingIteration,
-    DispensingIterationUniquenessService,
-    DispensingPharmacistService,
-    DispensingProcess,
-    DispensingProcessRepository,
     DispensingSplitReason,
     DispensingTimestamp,
     TotalSplitCount,
+)
+from app.domain.dispensing.repository import DispensingProcessRepository
+from app.domain.dispensing.services import (
+    DispensingConsistencyService,
+    DispensingIterationUniquenessService,
+    DispensingPharmacistService,
 )
 from app.domain.prescription.primitives import PrescriptionId, PrescriptionStatus
 from app.domain.staff.primitives import StaffId

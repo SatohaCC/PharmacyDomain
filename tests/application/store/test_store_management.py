@@ -5,9 +5,9 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from app.application.access_control import ActorRole, AuthorizationService
-from app.application.access_control.models import ResolvedActorContext
-from app.application.corporate import CorporateAccessService
+from app.application.access_control.models import ActorRole, ResolvedActorContext
+from app.application.access_control.policy import AuthorizationService
+from app.application.corporate.corporate_access import CorporateAccessService
 from app.application.store.management import (
     ChangeStoreStatusCommand,
     ChangeStoreStatusUseCase,

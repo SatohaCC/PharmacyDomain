@@ -12,21 +12,24 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from app.application.access_control import AuthorizationService, Permission
+from app.application.access_control.models import Permission
+from app.application.access_control.policy import AuthorizationService
 from app.application.medicine_catalog.get_medicine import MedicineDto
 from app.application.medicine_catalog.support import parse_enum, required_text
-from app.domain.medicine_catalog import (
-    GenericCategory,
+from app.domain.medicine_catalog.medicine import (
     Medicine,
-    MedicineCatalogRepository,
+    MedicineEffectivePeriod,
+)
+from app.domain.medicine_catalog.primitives import (
+    GenericCategory,
     MedicineCatalogVersion,
     MedicineDosageForm,
-    MedicineEffectivePeriod,
-    MedicineEffectivePeriodConflictService,
     MedicineListedOn,
     MedicineWithdrawnOn,
     NarcoticCategory,
 )
+from app.domain.medicine_catalog.repository import MedicineCatalogRepository
+from app.domain.medicine_catalog.services import MedicineEffectivePeriodConflictService
 from app.domain.shared.medicine import (
     MedicineCode,
     MedicineCodeType,

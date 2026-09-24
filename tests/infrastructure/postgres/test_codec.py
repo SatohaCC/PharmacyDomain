@@ -15,34 +15,56 @@ import pytest
 
 import app.domain
 from app.domain.corporate.corporate import Corporate
-from app.domain.dispensing import (
+from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.exceptions import VerificationStatusMismatchError
+from app.domain.dispensing.primitives import (
     DispensingCancellationReason,
     DispensingCompletionType,
-    DispensingProcess,
     DispensingProcessStatus,
     VerificationResult,
-    VerificationStatusMismatchError,
     VerificationTimestamp,
 )
 from app.domain.foundation.exceptions import DomainError
 from app.domain.foundation.primitives.base import DomainPrimitive
-from app.domain.medication_history import (
+from app.domain.medication_history.medication_history_record import (
+    MedicationHistoryRecord,
+)
+from app.domain.medication_history.primitives import (
     FinalizationDelayReason,
     FinalizedTimestamp,
-    MedicationHistoryRecord,
     MedicationHistorySourceSystem,
     MedicationHistoryStatus,
 )
 from app.domain.patient.lifecycle import PatientStatus
 from app.domain.patient.patient import Patient
-from app.domain.prescription import (
+from app.domain.patient.primitives import (
+    ExternalPatientId,
+    PatientAddress,
+    PatientBirthDate,
+    PatientGenderCode,
+    PatientPhoneNumber,
+    PatientPostalCode,
+)
+from app.domain.patient.profile_history import (
+    PatientProfileChange,
+    PatientProfileSnapshot,
+)
+from app.domain.prescription.exceptions import (
     BlockingInquiryExistsError,
-    InquiryNumber,
-    InquiryResultType,
     OpenInquiryExistsError,
-    PrescriptionStatus,
 )
 from app.domain.prescription.prescription import Prescription
+from app.domain.prescription.primitives import (
+    InquiryNumber,
+    InquiryResultType,
+    PrescriptionStatus,
+)
+from app.domain.reception.primitives import (
+    ReceptionFieldPath,
+    ReceptionFingerprint,
+    ReceptionId,
+)
+from app.domain.reception.reception import Reception, ReceptionCorrection
 from app.domain.staff.primitives import (
     BaseQualificationProfile,
     DietitianProfile,
@@ -64,6 +86,7 @@ from app.domain.store.business_hours import (
     StoreOpeningState,
     WeekdayBusinessHours,
 )
+from app.domain.store.primitives import StoreId
 from app.domain.store.store import Store
 from app.infrastructure.postgres.codec import (
     QUALIFICATION_PROFILE_TAGS,
@@ -140,6 +163,34 @@ def test_調剤セッションが_JSONBを経由して往復できる() -> None:
 
     # Assert
     assert encode_aggregate(restored) == encode_aggregate(process)
+
+
+def test_受付の全体指紋と項目指紋が_JSONBを経由して往復できる() -> None:
+    """受付訂正履歴の型付き差分情報を保持して復元する。"""
+    corporate = create_corporate()
+    patient = create_patient(corporate_id=corporate.id)
+    store = create_store(corporate_id=corporate.id)
+    fingerprint = ReceptionFingerprint("a" * 64)
+    field_path = ReceptionFieldPath("prescription.document_number")
+    reception = Reception(
+        id=ReceptionId.generate(),
+        corporate_id=corporate.id,
+        store_id=store.id,
+        patient_id=patient.id,
+        latest_fingerprint=fingerprint,
+        field_fingerprints=((field_path, ReceptionFingerprint("b" * 64)),),
+        correction_history=(
+            ReceptionCorrection(
+                fingerprint=fingerprint,
+                changed_fields=(field_path,),
+                received_at=datetime(2026, 9, 23, tzinfo=UTC),
+            ),
+        ),
+    )
+
+    restored = decode_aggregate(encode_aggregate(reception), Reception)
+
+    assert encode_aggregate(restored) == encode_aggregate(reception)
 
 
 @pytest.mark.parametrize(
@@ -479,6 +530,38 @@ def test_TC31_患者集約_後方互換復元() -> None:
     assert restored.status == PatientStatus.ACTIVE
     assert restored.merged_into_id is None
     assert restored.status_history == ()
+
+
+def test_tc71_患者プロフィール受信履歴のcodec往復と旧payload互換() -> None:
+    """プロフィール履歴を往復し、履歴項目がない旧Patientも復元する。"""
+    patient = create_patient()
+    change = PatientProfileChange(
+        reception_id=ReceptionId.generate(),
+        store_id=StoreId.generate(),
+        external_patient_id=ExternalPatientId("RECEIPT-42"),
+        recorded_at=datetime(2026, 9, 23, 1, 2, 3, tzinfo=UTC),
+        changed_fields=("patient.address", "patient.phone_number"),
+        received_profile=PatientProfileSnapshot(
+            names=patient.names,
+            birth_date=PatientBirthDate(date(1980, 1, 2)),
+            gender=PatientGenderCode("1"),
+            postal_code=PatientPostalCode("1000001"),
+            address=PatientAddress("東京都千代田区"),
+            phone_number=PatientPhoneNumber("03-0000-0000"),
+        ),
+    )
+    patient_with_history = dataclasses.replace(
+        patient,
+        profile_history=(change,),
+    )
+
+    restored = decode_aggregate(encode_aggregate(patient_with_history), Patient)
+
+    assert restored.profile_history == (change,)
+    old_payload = encode_aggregate(patient)
+    old_payload.pop("profile_history", None)
+    restored_old = decode_aggregate(old_payload, Patient)
+    assert restored_old.profile_history == ()
 
 
 def test_TC24_薬歴集約のcodec往復と後方互換復元() -> None:

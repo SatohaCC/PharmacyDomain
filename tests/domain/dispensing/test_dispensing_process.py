@@ -12,38 +12,42 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.domain.dispensing import (
-    AuditTimestamp,
+from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.exceptions import (
     CancellationReasonMismatchError,
     DispensedMedicineRequiredError,
     DispensedRpRequiredError,
-    DispensingCancellationReason,
-    DispensingCompletionType,
     DispensingIterationOutOfRangeError,
-    DispensingProcess,
-    DispensingProcessStatus,
-    DispensingSplitReason,
     DispensingStatusTransitionError,
-    DispensingVerification,
     DuplicatedDispensedLineNumberError,
     DuplicatedDispensedRpNumberError,
     DuplicatedPreparationMethodError,
     InquiryReferenceRequiredError,
-    NextDispensingDate,
     NextDispensingDateMismatchError,
-    PreparationMethod,
-    QuantityAdjustment,
     QuantityAdjustmentInvalidError,
-    QuantityAdjustmentReason,
-    SubstitutionCategory,
-    SubstitutionDetail,
     SubstitutionWithoutChangeError,
-    TotalSplitCount,
     TotalSplitCountMismatchError,
     VerificationNotPassedError,
-    VerificationResult,
     VerificationStatusMismatchError,
+)
+from app.domain.dispensing.primitives import (
+    AuditTimestamp,
+    DispensingCancellationReason,
+    DispensingCompletionType,
+    DispensingProcessStatus,
+    DispensingSplitReason,
+    NextDispensingDate,
+    PreparationMethod,
+    QuantityAdjustmentReason,
+    SubstitutionCategory,
+    TotalSplitCount,
+    VerificationResult,
     VerificationTimestamp,
+)
+from app.domain.dispensing.value_objects import (
+    DispensingVerification,
+    QuantityAdjustment,
+    SubstitutionDetail,
 )
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.prescription.primitives import InquiryNumber

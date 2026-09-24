@@ -3,9 +3,9 @@
 from dataclasses import replace
 from hashlib import sha256
 
-from app.application.common import UnitOfWork
 from app.application.common.clock import Clock
 from app.application.common.organization_lock import OrganizationLock
+from app.application.common.unit_of_work import UnitOfWork
 from app.application.identity.dto import AccountDto
 from app.application.identity.resolve_actor import VerifiedSubject
 from app.application.identity.support import (

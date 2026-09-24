@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import date
 from decimal import Decimal
 from http import HTTPStatus
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Response
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 
 from app.application.integration.nsips.ingest_nsips import (
     IngestNsipsCommand,
@@ -140,8 +141,21 @@ class IngestNsipsRequest(RequestModel):
     """NSIPS取込リクエストボディ。"""
 
     operator_staff_id: str
+    reception_id: str
     raw_nsips_text: str | None = None
     structured_bundle: NsipsBundleRequest | None = None
+
+    @field_validator("reception_id")
+    @classmethod
+    def require_uuid7_reception_id(cls, value: str) -> str:
+        """受付呼出元が発行するUUIDv7を要求する。"""
+        try:
+            parsed = uuid.UUID(value)
+        except (ValueError, AttributeError, TypeError) as error:
+            raise ValueError("reception_idはUUIDv7で指定してください。") from error
+        if parsed.version != 7:
+            raise ValueError("reception_idはUUIDv7で指定してください。")
+        return value
 
     @model_validator(mode="after")
     def require_exactly_one_input(self) -> IngestNsipsRequest:
@@ -263,6 +277,7 @@ async def ingest_nsips(
             corporate_id=corporate_id,
             store_id=store_id,
             operator_staff_id=body.operator_staff_id,
+            reception_id=body.reception_id,
             raw_nsips_text=body.raw_nsips_text,
             structured_bundle=bundle,
         )

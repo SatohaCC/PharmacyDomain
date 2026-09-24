@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from app.domain.claim import (
+from app.domain.claim.coverage_snapshot import (
+    CoverageSnapshot,
+    InsuranceCoverageSnapshot,
+    PublicExpenseCoverageSnapshot,
+)
+from app.domain.claim.exceptions import CoverageCombinationInvalidError
+from app.domain.claim.primitives import (
     ClaimCoverageBenefitRatio,
     ClaimCoverageBranchNumber,
     ClaimCoverageCode,
@@ -14,10 +20,6 @@ from app.domain.claim import (
     ClaimInsurerNumber,
     ClaimPublicPayerNumber,
     ClaimPublicRecipientNumber,
-    CoverageCombinationInvalidError,
-    CoverageSnapshot,
-    InsuranceCoverageSnapshot,
-    PublicExpenseCoverageSnapshot,
 )
 from app.domain.foundation.exceptions import DomainValidationError
 

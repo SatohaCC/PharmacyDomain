@@ -14,41 +14,53 @@ from datetime import date, timedelta
 import pytest
 
 from app.application.corporate.exceptions import CorporateInactiveError
-from app.application.medication_history import (
-    AllergyIntentInput,
+from app.application.medication_history.amend_medication_history import (
     AmendMedicationHistoryCommand,
-    ConcurrentMedicationIntentInput,
-    ConditionIntentInput,
-    FinalizeMedicationHistoryCommand,
-    GetMedicationHistoryQuery,
-    GetPatientMedicalProfileQuery,
-    HandbookStatusInput,
-    ListMedicationHistoriesQuery,
+)
+from app.application.medication_history.exceptions import (
     MedicationHistoryDispensingNotFoundError,
     MedicationHistoryNotFoundError,
     MedicationHistoryStaffNotFoundError,
     MedicationHistoryStoreNotFoundError,
     PatientMedicalProfileNotFoundError,
-    ProfileUpdateInput,
+)
+from app.application.medication_history.finalize_medication_history import (
+    FinalizeMedicationHistoryCommand,
+)
+from app.application.medication_history.get_medication_history import (
+    GetMedicationHistoryQuery,
+    ListMedicationHistoriesQuery,
+)
+from app.application.medication_history.get_patient_medical_profile import (
+    GetPatientMedicalProfileQuery,
     RebuildPatientMedicalProfileCommand,
+)
+from app.application.medication_history.inputs import (
+    AllergyIntentInput,
+    BillingAdditionInput,
+    ConcurrentMedicationIntentInput,
+    ConditionIntentInput,
+    HandbookStatusInput,
+    ProfileUpdateInput,
     ResidualDrugInput,
     RetractAllergyIntentInput,
     SoapInput,
     StopConcurrentMedicationIntentInput,
     UpdateConditionStatusIntentInput,
+)
+from app.application.medication_history.update_medication_history_draft import (
     UpdateMedicationHistoryDraftCommand,
 )
-from app.application.medication_history.inputs import BillingAdditionInput
 from app.domain.corporate.primitives import CorporateId
-from app.domain.medication_history import (
+from app.domain.medication_history.exceptions import (
     CounselorQualificationError,
     FinalizationDelayReasonRequiredError,
     MedicationHistoryAlreadyExistsError,
     MedicationHistoryAlreadyFinalizedError,
     MedicationHistoryNotFinalizedError,
-    MedicationHistoryStatus,
     SoapContentRequiredError,
 )
+from app.domain.medication_history.primitives import MedicationHistoryStatus
 from app.domain.staff.primitives import StaffId, StaffQualifications
 from tests.application.medication_history.helpers import (
     MedicationHistoryFixture,

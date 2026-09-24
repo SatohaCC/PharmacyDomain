@@ -2,13 +2,13 @@
 
 from datetime import UTC, date, datetime
 
-from app.domain.medication_history import (
+from app.domain.medication_history.primitives import (
     AmendmentReason,
     AmendmentTimestamp,
     ExternalCorrectionTimestamp,
-    ExternalPrescriptionCorrection,
     FinalizedTimestamp,
 )
+from app.domain.medication_history.value_objects import ExternalPrescriptionCorrection
 from app.domain.shared.preservation import (
     PreservationPolicyCatalog,
 )

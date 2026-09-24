@@ -20,12 +20,14 @@ from fastapi import FastAPI
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.access_control import ActorRole
+from app.application.access_control.models import ActorRole
 from app.application.identity.resolve_actor import VerifiedSubject
 from app.domain.store.lifecycle import StoreStatus, StoreStatusReason
-from app.infrastructure.di import PostgresCompositionRoot
+from app.infrastructure.di.root import PostgresCompositionRoot
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 from app.presentational.app_factory import create_app
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
 from app.presentational.dev_main import build_actor_provider

@@ -4,12 +4,11 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.domain.medicine_catalog import (
+from app.domain.medicine_catalog.medicine import Medicine, MedicineEffectivePeriod
+from app.domain.medicine_catalog.primitives import (
     GenericCategory,
-    Medicine,
     MedicineCatalogVersion,
     MedicineDosageForm,
-    MedicineEffectivePeriod,
     MedicineListedOn,
     MedicineWithdrawnOn,
     NarcoticCategory,

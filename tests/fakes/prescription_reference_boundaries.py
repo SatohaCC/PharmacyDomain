@@ -27,9 +27,7 @@ from app.application.prescription.reference import (
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientId
-from app.domain.prescription import (
-    MedicineClassification,
-)
+from app.domain.prescription.value_objects import MedicineClassification
 from app.domain.reception.primitives import CoverageSelectionRecordId
 from app.domain.shared.medicine import (
     MedicineIdentifier,

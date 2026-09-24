@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
+from app.application.patient.reference import PatientStoreReferenceBoundary
 from app.application.patient.support import load_patient_or_raise
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.exceptions import PatientExternalIdentifierAlreadyExistsError
@@ -18,6 +20,7 @@ from app.domain.patient.repository import (
     PatientExternalIdentifierRepository,
     PatientRepository,
 )
+from app.domain.store.primitives import StoreId
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -28,6 +31,7 @@ class RegisterPatientExternalIdentifierCommand:
     patient_id: str
     system_name: str
     external_patient_id: str
+    store_id: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -39,6 +43,7 @@ class PatientExternalIdentifierDto:
     patient_id: str
     system_name: str
     external_patient_id: str
+    store_id: str | None
     is_active: bool
 
     @classmethod
@@ -53,6 +58,9 @@ class PatientExternalIdentifierDto:
             patient_id=str(identifier.patient_id.value),
             system_name=identifier.system_name.value,
             external_patient_id=identifier.external_patient_id.value,
+            store_id=str(identifier.store_id.value)
+            if identifier.store_id is not None
+            else None,
             is_active=identifier.is_active,
         )
 
@@ -65,10 +73,12 @@ class RegisterPatientExternalIdentifierUseCase:
         patient_repository: PatientRepository,
         identifier_repository: PatientExternalIdentifierRepository,
         corporate_access: CorporateAccessBoundary,
+        store_reference: PatientStoreReferenceBoundary | None = None,
     ) -> None:
         self._patient_repository = patient_repository
         self._identifier_repository = identifier_repository
         self._corporate_access = corporate_access
+        self._store_reference = store_reference
 
     async def execute(
         self,
@@ -88,8 +98,15 @@ class RegisterPatientExternalIdentifierUseCase:
         )
         system_name = ExternalSystemName(command.system_name)
         external_patient_id = ExternalPatientId(command.external_patient_id)
+        store_id = StoreId.parse(command.store_id) if command.store_id else None
+        if store_id is not None and self._store_reference is not None:
+            await self._store_reference.require_exists(
+                corporate_id=corporate_id,
+                store_id=store_id,
+            )
         existing = await self._identifier_repository.get_active_by_source(
             corporate_id=corporate_id,
+            store_id=store_id,
             system_name=system_name,
             external_patient_id=external_patient_id,
         )
@@ -104,6 +121,7 @@ class RegisterPatientExternalIdentifierUseCase:
             patient_id=patient_id,
             system_name=system_name,
             external_patient_id=external_patient_id,
+            store_id=store_id,
         )
         await self._identifier_repository.save(identifier)
         return PatientExternalIdentifierDto.from_entity(identifier)

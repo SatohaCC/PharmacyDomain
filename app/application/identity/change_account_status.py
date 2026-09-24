@@ -1,13 +1,11 @@
 """個人アカウント全体の停止・再開ユースケース。"""
 
-from app.application.access_control import (
-    AuthorizationService,
-    CorporateAccessBoundary,
-    Permission,
-)
-from app.application.common import UnitOfWork
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
+from app.application.access_control.policy import AuthorizationService
 from app.application.common.exceptions import NotFoundError
 from app.application.common.organization_lock import OrganizationLock
+from app.application.common.unit_of_work import UnitOfWork
 from app.application.identity.dto import AccountDto
 from app.application.identity.support import (
     IdentityRepositories,

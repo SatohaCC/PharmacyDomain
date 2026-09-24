@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 import pytest
@@ -20,7 +21,7 @@ import pytest
 _ROOT = Path(__file__).resolve().parents[2]
 
 # 1st party のパッケージルート。ここから下は全ディレクトリがパッケージである。
-PACKAGE_ROOTS = ("app", "tests", "tools")
+PACKAGE_ROOTS = ("app", "tests", "tools", "migrations")
 
 
 def _package_directories(root: Path) -> list[Path]:
@@ -58,3 +59,34 @@ def test_パッケージ_探索が1件以上のディレクトリを見つける
 
     # Assert
     assert directories, f"{package_root} 配下にPythonモジュールが1件も無い"
+
+
+@pytest.mark.parametrize("package_root", PACKAGE_ROOTS)
+def test_パッケージ初期化子はドキュメント文字列以外を持たない(
+    package_root: str,
+) -> None:
+    """package rootはモジュールを先読みせず、循環importの起点にならない。"""
+    # Arrange
+    root = _ROOT / package_root
+    initializer_paths = sorted(root.rglob("__init__.py"))
+    assert initializer_paths, f"{package_root} 配下に `__init__.py` が無い"
+
+    # Act
+    violations: list[str] = []
+    for path in initializer_paths:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        body = list(tree.body)
+        if (
+            body
+            and isinstance(body[0], ast.Expr)
+            and isinstance(body[0].value, ast.Constant)
+            and isinstance(body[0].value.value, str)
+        ):
+            body.pop(0)
+        if body:
+            violations.append(path.relative_to(_ROOT).as_posix())
+
+    # Assert
+    assert not violations, (
+        f"`__init__.py` に再エクスポート等の実行文がある: {violations}"
+    )

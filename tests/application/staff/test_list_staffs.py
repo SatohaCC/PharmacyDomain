@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.staff import ListStaffsQuery, ListStaffsUseCase
-from app.domain.corporate import CorporateId
+from app.application.staff.list_staffs import (
+    ListStaffsQuery,
+    ListStaffsUseCase,
+)
+from app.domain.corporate.primitives import CorporateId
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.factories.staff_factory import create_staff
 from tests.fakes.in_memory_staff_repository import InMemoryStaffRepository

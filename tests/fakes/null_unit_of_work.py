@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.application.common import UnitOfWork
+from app.application.common.unit_of_work import UnitOfWork
 
 
 class NullUnitOfWork(UnitOfWork):

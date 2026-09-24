@@ -14,6 +14,9 @@ from app.application.composition.coverage_references import (
 from app.application.composition.coverage_selection_adapter import (
     CoverageSelectionAdapter,
 )
+from app.application.composition.patient_references import (
+    PatientStoreReferenceAdapter,
+)
 from app.application.composition.reception_references import (
     ReceptionPatientReferenceAdapter,
     ReceptionStoreReferenceAdapter,
@@ -59,7 +62,9 @@ from app.application.reception.record_coverage_selection import (
 )
 from app.domain.coverage.combination import CoverageSelectionService
 from app.domain.coverage.services import PatientCoverageConflictService
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 
 # --------------------------------------------------------------------------
 # 患者
@@ -106,7 +111,10 @@ def build_patient_use_cases(
         ),
         merge=MergePatientsUseCase(patient_repository, corporate_access, clock),
         register_external_identifier=RegisterPatientExternalIdentifierUseCase(
-            patient_repository, identifier_repository, corporate_access
+            patient_repository,
+            identifier_repository,
+            corporate_access,
+            store_reference=PatientStoreReferenceAdapter(repositories.store),
         ),
         get_external_identifier=GetPatientExternalIdentifierUseCase(
             identifier_repository, corporate_access

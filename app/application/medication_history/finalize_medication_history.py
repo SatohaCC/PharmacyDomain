@@ -5,9 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from app.application.access_control import CorporateAccessBoundary, Permission
-from app.application.common import UnitOfWork
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.common.clock import Clock
+from app.application.common.unit_of_work import UnitOfWork
 from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
 )
@@ -16,17 +17,21 @@ from app.application.medication_history.reference import (
 )
 from app.application.medication_history.support import load_record_or_raise
 from app.domain.corporate.primitives import CorporateId
-from app.domain.medication_history import (
-    CounselorQualificationService,
+from app.domain.medication_history.medication_history_record import (
+    MedicationHistoryRecord,
+)
+from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
+from app.domain.medication_history.primitives import (
     FinalizationDelayReason,
     FinalizedTimestamp,
-    MedicationHistoryCategoryCatalogRepository,
-    MedicationHistoryRecord,
     MedicationHistoryRecordId,
+)
+from app.domain.medication_history.repository import (
+    MedicationHistoryCategoryCatalogRepository,
     MedicationHistoryRepository,
-    PatientMedicalProfile,
     PatientMedicalProfileRepository,
 )
+from app.domain.medication_history.services import CounselorQualificationService
 from app.domain.staff.primitives import StaffId
 
 

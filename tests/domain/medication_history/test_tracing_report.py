@@ -6,24 +6,28 @@ from typing import Any
 import pytest
 
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.medication_history import (
+from app.domain.medication_history.exceptions import (
     DuplicatedTracingReportIdError,
-    FollowUpId,
     FollowUpNotFoundError,
-    MedicationHistoryRecord,
-    PhysicianName,
-    PrescriberActionType,
     TracingReportAlreadyRespondedError,
-    TracingReportCategory,
-    TracingReportContent,
     TracingReportDateBeforeCounselingError,
     TracingReportDateBeforeFollowUpError,
-    TracingReportDeliveryMethod,
-    TracingReportFeeCategory,
     TracingReportNotFoundError,
     TracingReportOnDraftError,
-    TracingReportResponseContent,
     TracingReportResponseDateBeforeProvidedError,
+)
+from app.domain.medication_history.medication_history_record import (
+    MedicationHistoryRecord,
+)
+from app.domain.medication_history.primitives import (
+    FollowUpId,
+    PhysicianName,
+    PrescriberActionType,
+    TracingReportCategory,
+    TracingReportContent,
+    TracingReportDeliveryMethod,
+    TracingReportFeeCategory,
+    TracingReportResponseContent,
 )
 from tests.factories.medication_history_factory import (
     COUNSELED_AT,

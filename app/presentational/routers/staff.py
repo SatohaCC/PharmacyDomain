@@ -13,21 +13,27 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response
 
-from app.application.staff import (
-    ActivateStaffCommand,
+from app.application.staff.activate_staff import ActivateStaffCommand
+from app.application.staff.assign_concurrent_store import (
     AssignStaffConcurrentStoreCommand,
-    ChangeStaffJobTitleCommand,
-    ChangeStaffNamesCommand,
-    DeactivateStaffCommand,
-    GetStaffQuery,
-    ListStaffsQuery,
-    RegisterStaffCommand,
-    RemoveStaffConcurrentStoreCommand,
-    StaffDto,
-    StaffSummaryDto,
-    TransferStaffHomeStoreCommand,
-    UpdateStaffQualificationsCommand,
 )
+from app.application.staff.change_staff_job_title import ChangeStaffJobTitleCommand
+from app.application.staff.change_staff_names import ChangeStaffNamesCommand
+from app.application.staff.deactivate_staff import DeactivateStaffCommand
+from app.application.staff.get_staff import (
+    GetStaffQuery,
+    StaffDto,
+)
+from app.application.staff.list_staffs import (
+    ListStaffsQuery,
+    StaffSummaryDto,
+)
+from app.application.staff.register_staff import RegisterStaffCommand
+from app.application.staff.remove_concurrent_store import (
+    RemoveStaffConcurrentStoreCommand,
+)
+from app.application.staff.transfer_home_store import TransferStaffHomeStoreCommand
+from app.application.staff.update_qualifications import UpdateStaffQualificationsCommand
 from app.presentational.dependencies import StaffUseCasesDep, get_actor_context
 from app.presentational.errors import error_responses
 from app.presentational.schemas import RegisteredIdResponse, RequestModel

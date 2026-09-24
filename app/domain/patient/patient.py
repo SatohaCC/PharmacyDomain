@@ -24,6 +24,7 @@ from app.domain.patient.primitives import (
     PatientPhoneNumber,
     PatientPostalCode,
 )
+from app.domain.patient.profile_history import PatientProfileChange
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
 
@@ -44,6 +45,7 @@ class Patient(AggregateRoot[PatientId]):
     status: PatientStatus = PatientStatus.ACTIVE
     merged_into_id: PatientId | None = None
     status_history: tuple[PatientStatusChange, ...] = ()
+    profile_history: tuple[PatientProfileChange, ...] = ()
 
     def validate(self) -> None:
         """患者集約の不変条件を検証する。"""
@@ -101,6 +103,21 @@ class Patient(AggregateRoot[PatientId]):
         if self.status == PatientStatus.MERGED:
             raise PatientStateConflictError("統合済みの患者の情報は変更できません。")
         return replace(self, birth_date=birth_date)
+
+    def record_profile_change(self, change: PatientProfileChange) -> Self:
+        """外部受付で受信したプロフィール差分を追記する。"""
+        if self.status == PatientStatus.MERGED:
+            raise PatientStateConflictError(
+                "統合済みの患者へ受信履歴は追加できません。"
+            )
+        if any(
+            item.reception_id == change.reception_id
+            and item.changed_fields == change.changed_fields
+            and item.received_profile == change.received_profile
+            for item in self.profile_history
+        ):
+            return self
+        return replace(self, profile_history=(*self.profile_history, change))
 
     def deactivate(
         self,

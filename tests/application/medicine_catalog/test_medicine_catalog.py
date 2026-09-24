@@ -10,25 +10,25 @@ from datetime import date
 
 import pytest
 
-from app.application.access_control import (
+from app.application.access_control.models import (
     ActorContext,
-    AuthorizationService,
     Permission,
 )
+from app.application.access_control.policy import AuthorizationService
 from app.application.common.exceptions import AuthorizationError
-from app.application.medicine_catalog import (
+from app.application.medicine_catalog.exceptions import MedicineNotFoundError
+from app.application.medicine_catalog.get_medicine import (
     GetEffectiveMedicineQuery,
     GetEffectiveMedicineUseCase,
-    MedicineNotFoundError,
+)
+from app.application.medicine_catalog.register_medicine import (
     RegisterMedicineCommand,
     RegisterMedicineUseCase,
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.medicine_catalog import (
-    MedicineEffectivePeriodConflictError,
-    MedicineEffectivePeriodConflictService,
-)
+from app.domain.medicine_catalog.exceptions import MedicineEffectivePeriodConflictError
+from app.domain.medicine_catalog.services import MedicineEffectivePeriodConflictService
 from tests.fakes.in_memory_medicine_catalog_repository import (
     InMemoryMedicineCatalogRepository,
 )

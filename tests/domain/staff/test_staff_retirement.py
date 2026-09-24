@@ -14,15 +14,17 @@ from datetime import date
 
 import pytest
 
-from app.domain.corporate import CorporateId
-from app.domain.staff import (
+from app.domain.corporate.primitives import CorporateId
+from app.domain.staff.exceptions import (
     AffiliationDateConflictError,
-    AffiliationPeriod,
     InactiveStaffAssignmentError,
-    Staff,
-    StaffStoreAssignmentService,
+)
+from app.domain.staff.primitives import (
+    AffiliationPeriod,
     StoreAffiliation,
 )
+from app.domain.staff.services import StaffStoreAssignmentService
+from app.domain.staff.staff import Staff
 from app.domain.store.primitives import StoreId
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store

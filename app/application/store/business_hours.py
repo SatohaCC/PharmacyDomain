@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, time
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.common.clock import BUSINESS_TIMEZONE, Clock, business_now
 from app.application.common.input_normalization import to_optional_text
 from app.application.store.support import load_store_or_raise

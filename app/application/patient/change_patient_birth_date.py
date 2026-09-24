@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.patient.support import load_patient_or_raise
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientBirthDate, PatientId

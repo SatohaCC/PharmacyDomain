@@ -1,6 +1,7 @@
 """店舗の操作境界を法人確認・店舗Repository・管理薬剤師の任命へ接続する。"""
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.access_control.store_access import (
     MANAGER_REQUIRED_BY_KIND,
     STORE_OPERATION_KINDS,

@@ -6,16 +6,20 @@ from datetime import date
 
 import pytest
 
-from app.application.staff import (
+from app.application.staff.activate_staff import (
     ActivateStaffCommand,
     ActivateStaffUseCase,
+)
+from app.application.staff.deactivate_staff import (
     DeactivateStaffCommand,
     DeactivateStaffUseCase,
+)
+from app.application.staff.transfer_home_store import (
     TransferStaffHomeStoreCommand,
     TransferStaffHomeStoreUseCase,
 )
-from app.domain.corporate import CorporateId
-from app.domain.staff import StaffStoreAssignmentService
+from app.domain.corporate.primitives import CorporateId
+from app.domain.staff.services import StaffStoreAssignmentService
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.application.staff.access_revocation_helpers import (
     create_access_revocation,

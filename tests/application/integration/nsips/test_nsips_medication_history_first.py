@@ -28,8 +28,8 @@ from app.application.reception.exceptions import ReceptionCoverageSelectionError
 from app.domain.coverage.exceptions import CoveragePeriodConflictError
 from app.domain.dispensing.exceptions import DispensingOutsidePrescriptionPeriodError
 from app.domain.dispensing.primitives import DispensingId
-from app.domain.medication_history import MedicationHistoryRecordId
-from app.domain.patient import PatientId
+from app.domain.medication_history.primitives import MedicationHistoryRecordId
+from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import PrescriptionId
 from app.domain.reception.primitives import CoverageSelectionRecordId
 from tests.application.access_helpers import create_vendor_corporate_access_for

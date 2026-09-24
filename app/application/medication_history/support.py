@@ -24,44 +24,48 @@ from app.application.medication_history.inputs import (
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.medication_history import (
+from app.domain.medication_history.medication_history_record import (
+    MedicationHistoryRecord,
+)
+from app.domain.medication_history.primitives import (
     AdverseReactionSymptom,
     AllergenName,
     AllergyReaction,
     AllergySeverity,
-    CategorizedNote,
     ConcurrentCategory,
     ConditionName,
     ConditionStatus,
     CounselingNote,
-    FamilyPharmacistIntent,
-    GenericPreferenceIntent,
     GenericPreferenceType,
     HandbookConsolidationReason,
     HandbookNotPresentedReason,
+    LifestyleNote,
+    MajorCategoryCode,
+    MedicationHistoryRecordId,
+    MediumCategoryCode,
+    ResidualDrugQuantity,
+    ResidualDrugReason,
+    RetractionReason,
+    StatutoryCategory,
+)
+from app.domain.medication_history.repository import MedicationHistoryRepository
+from app.domain.medication_history.value_objects import (
+    CategorizedNote,
+    FamilyPharmacistIntent,
+    GenericPreferenceIntent,
     HandbookStatus,
     LabeledNote,
-    LifestyleNote,
     LifestyleUpdateIntent,
-    MajorCategoryCode,
-    MedicationHistoryRecord,
-    MedicationHistoryRecordId,
-    MedicationHistoryRepository,
-    MediumCategoryCode,
     NewAdverseReactionIntent,
     NewAllergyIntent,
     NewConcurrentMedicationIntent,
     NewConditionIntent,
     ProfileUpdateIntents,
-    ResidualDrugQuantity,
-    ResidualDrugReason,
     ResidualDrugRecord,
     RetractAdverseReactionIntent,
     RetractAllergyIntent,
     RetractConditionIntent,
-    RetractionReason,
     SoapRecord,
-    StatutoryCategory,
     StopConcurrentMedicationIntent,
     UpdateConditionStatusIntent,
 )

@@ -14,6 +14,7 @@ from app.domain.patient.primitives import (
     PatientId,
     PatientNumber,
 )
+from app.domain.store.primitives import StoreId
 
 
 class PatientRepository(Protocol):
@@ -60,10 +61,11 @@ class PatientExternalIdentifierRepository(Protocol):
         self,
         *,
         corporate_id: CorporateId,
+        store_id: StoreId | None = None,
         system_name: ExternalSystemName,
         external_patient_id: ExternalPatientId,
     ) -> PatientExternalIdentifier | None:
-        """連携先と外部患者IDの組に一致する有効な対応付けだけを取得する。"""
+        """店舗・連携先・外部患者IDに一致する有効な対応付けを取得する。"""
         ...
 
     async def list_by_patient(
@@ -78,7 +80,7 @@ class PatientExternalIdentifierRepository(Protocol):
     async def save(self, identifier: PatientExternalIdentifier) -> None:
         """外部識別子を原子的な有効行一意性の下で保存する。
 
-        同一法人・連携先・外部患者IDの有効行は1件だけとし、同じ集約IDの
+        同一法人・店舗・連携先・外部患者IDの有効行は1件だけとし、同じ集約IDの
         現在行は競合候補から除外する。競合時は
         ``PatientExternalIdentifierAlreadyExistsError`` を送出する。
         """

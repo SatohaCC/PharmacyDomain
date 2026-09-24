@@ -1,4 +1,4 @@
-from app.domain.corporate import CorporateStatus
+from app.domain.corporate.primitives import CorporateStatus
 from tests.application.corporate.helpers import create_corporate
 
 

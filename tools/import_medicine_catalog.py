@@ -14,8 +14,9 @@ from collections.abc import Mapping
 from datetime import date
 from pathlib import Path
 
-from app.application.access_control import ActorContext, AuthorizationService
-from app.application.medicine_catalog import (
+from app.application.access_control.models import ActorContext
+from app.application.access_control.policy import AuthorizationService
+from app.application.medicine_catalog.import_yj_catalog import (
     ImportYjCatalogCommand,
     ImportYjCatalogUseCase,
 )
@@ -25,7 +26,9 @@ from app.infrastructure.postgres.connection import (
     create_async_engine_from_settings,
     create_session_factory,
 )
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 
 DEFAULT_CSV_PATH = (
     Path("docs") / "references" / "個別医薬品コード(YJコード)リスト_202608_20260815.csv"

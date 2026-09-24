@@ -32,8 +32,11 @@ from typing import assert_never
 
 from fastapi import FastAPI
 
-from app.application.access_control import ActorContext, ActorRole
-from app.application.access_control.models import ResolvedActorContext
+from app.application.access_control.models import (
+    ActorContext,
+    ActorRole,
+    ResolvedActorContext,
+)
 from app.domain.corporate.primitives import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.identity.primitives import AccountPersonId, UserAccountId

@@ -1,6 +1,7 @@
 """法人の利用者権限を一覧するユースケース。"""
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.common.exceptions import NotFoundError
 from app.application.common.pagination import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Page
 from app.application.identity.dto import MembershipViewDto

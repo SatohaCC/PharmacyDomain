@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from app.application.access_control import CorporateAccessBoundary, Permission
-from app.application.common import UnitOfWork
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.common.optional_conversion import build_optional
+from app.application.common.unit_of_work import UnitOfWork
 from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
 )
@@ -19,23 +20,27 @@ from app.application.medication_history.support import (
     parse_enum,
 )
 from app.domain.corporate.primitives import CorporateId
-from app.domain.medication_history import (
-    CategorizedNote,
+from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
+from app.domain.medication_history.primitives import (
     CounselingMethod,
     CounselingNote,
     CounselingTimestamp,
-    CounselorQualificationService,
     FollowUpId,
-    FollowUpRecord,
     MajorCategoryCode,
     MedicationHistoryRecordId,
-    MedicationHistoryRepository,
     MedicationHistorySourceSystem,
     MediumCategoryCode,
-    PatientMedicalProfile,
-    PatientMedicalProfileRepository,
-    ProfileUpdateIntents,
     StatutoryCategory,
+)
+from app.domain.medication_history.repository import (
+    MedicationHistoryRepository,
+    PatientMedicalProfileRepository,
+)
+from app.domain.medication_history.services import CounselorQualificationService
+from app.domain.medication_history.value_objects import (
+    CategorizedNote,
+    FollowUpRecord,
+    ProfileUpdateIntents,
 )
 from app.domain.staff.primitives import StaffId
 

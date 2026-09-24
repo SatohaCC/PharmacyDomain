@@ -11,7 +11,8 @@ from dataclasses import replace
 
 import pytest
 
-from app.application.access_control import ActorContext, AuthorizationService
+from app.application.access_control.models import ActorContext
+from app.application.access_control.policy import AuthorizationService
 from app.application.access_control.store_access import (
     StoreOperation,
     StoreOperationBoundary,

@@ -17,13 +17,15 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
-from app.application.medicine_catalog import (
+from app.application.medicine_catalog.get_medicine import (
     GetEffectiveMedicineQuery,
+    MedicineDto,
+)
+from app.application.medicine_catalog.import_yj_catalog import (
     ImportYjCatalogCommand,
     ImportYjCatalogResultDto,
-    MedicineDto,
-    RegisterMedicineCommand,
 )
+from app.application.medicine_catalog.register_medicine import RegisterMedicineCommand
 from app.presentational.dependencies import (
     MedicineCatalogUseCasesDep,
     get_actor_context,

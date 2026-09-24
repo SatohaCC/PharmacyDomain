@@ -7,7 +7,12 @@ from datetime import date, datetime
 import pytest
 
 from app.domain.corporate.primitives import CorporateId
-from app.domain.coverage import (
+from app.domain.coverage.exceptions import (
+    CoveragePeriodConflictError,
+    InsuranceCoveragePriorityError,
+)
+from app.domain.coverage.patient_coverage import PatientCoverage
+from app.domain.coverage.primitives import (
     CoverageActivatedOn,
     CoverageActivation,
     CoverageBenefitRatio,
@@ -16,21 +21,18 @@ from app.domain.coverage import (
     CoverageDeactivatedOn,
     CoverageInsuredType,
     CoveragePeriod,
-    CoveragePeriodConflictError,
     CoveragePriority,
     CoverageSymbol,
     CoverageType,
     CoverageValidFrom,
     CoverageValidTo,
     InsuranceCoverageDetails,
-    InsuranceCoveragePriorityError,
     InsurerNumber,
-    PatientCoverage,
-    PatientCoverageConflictService,
     PublicExpenseCoverageDetails,
     PublicPayerNumber,
     PublicRecipientNumber,
 )
+from app.domain.coverage.services import PatientCoverageConflictService
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.patient.primitives import PatientId
 from tests.fakes.in_memory_patient_coverage_repository import (

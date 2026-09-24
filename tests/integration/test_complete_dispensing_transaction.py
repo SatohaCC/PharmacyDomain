@@ -19,8 +19,8 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.access_control import ActorRole, AuthorizationService
-from app.application.access_control.models import ResolvedActorContext
+from app.application.access_control.models import ActorRole, ResolvedActorContext
+from app.application.access_control.policy import AuthorizationService
 from app.application.dispensing.complete_dispensing import CompleteDispensingCommand
 from app.application.dispensing.exceptions import (
     DispensingPrescriptionNotFoundError,
@@ -35,11 +35,15 @@ from app.domain.identity.primitives import UserAccountId
 from app.domain.identity.user_account import UserAccount
 from app.domain.prescription.prescription import Prescription
 from app.domain.prescription.primitives import PrescriptionStatus
-from app.infrastructure.di import PostgresCompositionRoot
+from app.infrastructure.di.root import PostgresCompositionRoot
 from app.infrastructure.postgres.connection import PostgresSettings, PostgresUnitOfWork
-from app.infrastructure.postgres.repositories import (
+from app.infrastructure.postgres.repositories.dispensing_process import (
     PostgresDispensingProcessRepository,
+)
+from app.infrastructure.postgres.repositories.prescription import (
     PostgresPrescriptionRepository,
+)
+from app.infrastructure.postgres.repositories.repository_set import (
     PostgresRepositorySet,
 )
 from tests.factories.dispensing_factory import create_dispensing, verify_passed
@@ -91,7 +95,7 @@ async def _save_corporate_and_dispensing(
     process = replace(process, store_id=store.id)
     unit_of_work = PostgresUnitOfWork(session_factory)
     async with unit_of_work:
-        from app.infrastructure.postgres.repositories import (
+        from app.infrastructure.postgres.repositories.corporate import (
             PostgresCorporateRepository,
         )
 

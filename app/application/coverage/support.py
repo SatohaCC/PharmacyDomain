@@ -8,7 +8,8 @@ from app.application.common.input_normalization import to_optional_text
 from app.application.common.optional_conversion import build_optional
 from app.application.coverage.exceptions import PatientCoverageNotFoundError
 from app.domain.corporate.primitives import CorporateId
-from app.domain.coverage import (
+from app.domain.coverage.patient_coverage import PatientCoverage
+from app.domain.coverage.primitives import (
     CoverageActivatedOn,
     CoverageActivation,
     CoverageBenefitRatio,
@@ -23,12 +24,11 @@ from app.domain.coverage import (
     CoverageValidTo,
     InsuranceCoverageDetails,
     InsurerNumber,
-    PatientCoverage,
+    PatientCoverageId,
     PublicExpenseCoverageDetails,
     PublicPayerNumber,
     PublicRecipientNumber,
 )
-from app.domain.coverage.primitives import PatientCoverageId
 from app.domain.coverage.repository import PatientCoverageRepository
 from app.domain.foundation.exceptions import DomainValidationError
 

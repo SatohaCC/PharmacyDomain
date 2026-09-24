@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.store import ChangeStoreAddressCommand, ChangeStoreAddressUseCase
+from app.application.store.change_store_address import (
+    ChangeStoreAddressCommand,
+    ChangeStoreAddressUseCase,
+)
 from app.application.store.exceptions import StoreNotFoundError
-from app.domain.corporate import CorporateId
+from app.domain.corporate.primitives import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.application.store.helpers import save_store

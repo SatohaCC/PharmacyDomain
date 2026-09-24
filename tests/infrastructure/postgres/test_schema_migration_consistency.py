@@ -37,6 +37,12 @@ from app.domain.identity.user_account import UserAccount
 from app.domain.medication_history.category_catalog import (
     MedicationHistoryCategoryCatalog,
 )
+from app.domain.reception.primitives import (
+    ReceptionFieldPath,
+    ReceptionFingerprint,
+    ReceptionId,
+)
+from app.domain.reception.reception import Reception
 from app.domain.shared.person_name import PersonNames
 from app.domain.store.manager_assignment import (
     ManagerAssignmentPeriod,
@@ -75,6 +81,7 @@ from app.infrastructure.postgres.repositories.patient_medical_profile import (
     PATIENT_MEDICAL_PROFILE_MAPPING,
 )
 from app.infrastructure.postgres.repositories.prescription import PRESCRIPTION_MAPPING
+from app.infrastructure.postgres.repositories.reception import RECEPTION_MAPPING
 from app.infrastructure.postgres.repositories.staff import STAFF_MAPPING
 from app.infrastructure.postgres.repositories.staff_person_link import (
     STAFF_PERSON_LINK_MAPPING,
@@ -136,6 +143,8 @@ def _row_value_cases() -> list[tuple[AggregateMapping[Any], Mapping[str, object]
     )
     account = UserAccount(id=UserAccountId.generate(), person_id=person.id)
     store = create_store()
+    patient = create_patient()
+    reception_store = create_store(corporate_id=patient.corporate_id)
     staff = create_staff()
     return [
         _case(ACCOUNT_PERSON_MAPPING, person),
@@ -186,6 +195,22 @@ def _row_value_cases() -> list[tuple[AggregateMapping[Any], Mapping[str, object]
         _case(PATIENT_EXTERNAL_IDENTIFIER_MAPPING, create_external_identifier()),
         _case(PATIENT_COVERAGE_MAPPING, create_coverage()),
         _case(COVERAGE_SELECTION_RECORD_MAPPING, create_selection_record()),
+        _case(
+            RECEPTION_MAPPING,
+            Reception(
+                id=ReceptionId.generate(),
+                corporate_id=patient.corporate_id,
+                store_id=reception_store.id,
+                patient_id=patient.id,
+                latest_fingerprint=ReceptionFingerprint("a" * 64),
+                field_fingerprints=(
+                    (
+                        ReceptionFieldPath("patient.address"),
+                        ReceptionFingerprint("b" * 64),
+                    ),
+                ),
+            ),
+        ),
         _case(PRESCRIPTION_MAPPING, create_prescription()),
         _case(DISPENSING_PROCESS_MAPPING, create_dispensing()),
         _case(MEDICATION_HISTORY_RECORD_MAPPING, create_record()),
@@ -293,6 +318,19 @@ _IGNORED_MIGRATION_PREFIXES = ("CREATE EXTENSION", "UPDATE ", "INSERT ", "DELETE
 #: 突き合わせの対象にするDDLの形。
 _COMPARED_DDL_PREFIXES = ("CREATE TABLE", "CREATE INDEX", "CREATE UNIQUE INDEX")
 
+#: 既存テーブルの最終形を変換する、今回許可した前進DDL。
+_PATIENT_EXTERNAL_ID_TRANSFORM_PREFIXES = (
+    "ALTER TABLE patient_external_identifiers ADD COLUMN store_id UUID",
+    "DROP INDEX uq_patient_external_identifiers_active_source",
+)
+
+# Receptionの初回migration後に、受付IDの一意範囲を店舗単位へ変更する前進DDL。
+_RECEPTION_PRIMARY_KEY_TRANSFORM_PREFIXES = (
+    "ALTER TABLE receptions DROP CONSTRAINT pk_receptions",
+    "ALTER TABLE receptions ADD CONSTRAINT pk_receptions PRIMARY KEY "
+    "(corporate_id, store_id, id)",
+)
+
 
 def _split_statements(sql: str) -> list[str]:
     """``$$`` で囲まれた本体の中の ``;`` で切らずに文へ分ける。
@@ -330,12 +368,30 @@ def _upgrade_statements() -> list[str]:
 
 
 def _migration_ddl() -> set[str]:
-    """マイグレーションが作る表と索引のDDLを集める。"""
-    return {
-        statement
-        for statement in _upgrade_statements()
-        if statement.startswith(_COMPARED_DDL_PREFIXES)
-    }
+    """マイグレーション後に残る表と索引のDDLを集める。"""
+    statements: set[str] = set()
+    for statement in _upgrade_statements():
+        if not statement.startswith(_COMPARED_DDL_PREFIXES):
+            continue
+        if statement.startswith("CREATE TABLE patient_external_identifiers "):
+            open_index = statement.find("(")
+            close_index = statement.rfind(")")
+            assert open_index != -1 and close_index > open_index
+            statement = _normalized_statement(
+                statement[:close_index] + ", store_id UUID" + statement[close_index:]
+            )
+        elif statement.startswith("CREATE TABLE receptions "):
+            statement = statement.replace(
+                "CONSTRAINT pk_receptions PRIMARY KEY (id)",
+                "CONSTRAINT pk_receptions PRIMARY KEY (corporate_id, store_id, id)",
+            )
+        elif statement.startswith(
+            "CREATE UNIQUE INDEX uq_patient_external_identifiers_active_source "
+            "ON patient_external_identifiers (corporate_id, system_name, external_patient_id)"
+        ):
+            continue
+        statements.add(statement)
+    return statements
 
 
 def _schema_ddl() -> set[str]:
@@ -370,11 +426,67 @@ def test_マイグレーションの全DDLが_検査の対象になっている(
         for statement in _upgrade_statements()
         if not statement.startswith(_IGNORED_MIGRATION_PREFIXES)
         and not statement.startswith(_COMPARED_DDL_PREFIXES)
+        and not statement.startswith(_PATIENT_EXTERNAL_ID_TRANSFORM_PREFIXES)
+        and not statement.startswith(_RECEPTION_PRIMARY_KEY_TRANSFORM_PREFIXES)
         and statement not in routines
     ]
 
     # Assert
     assert not unclassified, f"検査の対象になっていないDDL: {unclassified}"
+
+
+def test_患者外部IDの店舗スコープ変更が_前進マイグレーションにある() -> None:
+    """既存DBでも店舗列追加と旧一意索引の差替えが実行される。"""
+    statements = _upgrade_statements()
+
+    assert (
+        sum(
+            statement.startswith(_PATIENT_EXTERNAL_ID_TRANSFORM_PREFIXES[0])
+            for statement in statements
+        )
+        == 1
+    )
+    assert (
+        sum(
+            statement.startswith(_PATIENT_EXTERNAL_ID_TRANSFORM_PREFIXES[1])
+            for statement in statements
+        )
+        == 1
+    )
+    assert any(
+        statement.startswith(
+            "CREATE UNIQUE INDEX uq_patient_external_identifiers_active_source "
+            "ON patient_external_identifiers (corporate_id, store_id, system_name, external_patient_id)"
+        )
+        for statement in statements
+    )
+    assert any(
+        statement.startswith(
+            "CREATE UNIQUE INDEX uq_patient_external_identifiers_active_legacy_source "
+            "ON patient_external_identifiers (corporate_id, system_name, external_patient_id)"
+        )
+        for statement in statements
+    )
+
+
+def test_Receptionの受付IDを店舗スコープにする_前進マイグレーションがある() -> None:
+    """既存Receptionを保ちながら主キーを複合キーへ移行する。"""
+    statements = _upgrade_statements()
+
+    assert (
+        sum(
+            statement.startswith(_RECEPTION_PRIMARY_KEY_TRANSFORM_PREFIXES[0])
+            for statement in statements
+        )
+        == 1
+    )
+    assert (
+        sum(
+            statement.startswith(_RECEPTION_PRIMARY_KEY_TRANSFORM_PREFIXES[1])
+            for statement in statements
+        )
+        == 1
+    )
 
 
 def test_スキーマ定義の関数とトリガが_マイグレーションと一致する() -> None:

@@ -12,13 +12,17 @@ from __future__ import annotations
 import importlib
 import pkgutil
 from dataclasses import fields
-from typing import Any, get_type_hints
+from typing import get_type_hints
 
 import pytest
 
 import app.application
-from app.application.access_control import ActorContext, AuthorizationService
-from app.application.access_control.models import ActorRole, ResolvedActorContext
+from app.application.access_control.models import (
+    ActorContext,
+    ActorRole,
+    ResolvedActorContext,
+)
+from app.application.access_control.policy import AuthorizationService
 from app.application.composition.clinical_store_guard import ClinicalStoreWriteGuard
 from app.application.composition.resolved_actor_guard import (
     CompositeWriteGuard,
@@ -27,10 +31,26 @@ from app.application.composition.resolved_actor_guard import (
 from app.application.composition.staff_integrity import StaffAssignmentWriteGuard
 from app.application.identity.resolve_actor import UnavailableIdentityError
 from app.domain.identity.primitives import AccountPersonId, UserAccountId
-from app.infrastructure.di import (
-    PostgresRequestScope,
-    PostgresUseCaseRegistry,
+from app.infrastructure.di.bundles.clinical import (
+    DispensingUseCases,
+    MedicationHistoryUseCases,
+    PrescriptionUseCases,
 )
+from app.infrastructure.di.bundles.identity import IdentityUseCases
+from app.infrastructure.di.bundles.integration import IntegrationUseCases
+from app.infrastructure.di.bundles.medicine_catalog import MedicineCatalogUseCases
+from app.infrastructure.di.bundles.organization import (
+    CorporateUseCases,
+    StaffUseCases,
+    StoreUseCases,
+)
+from app.infrastructure.di.bundles.patient_care import (
+    CoverageUseCases,
+    PatientUseCases,
+    ReceptionUseCases,
+)
+from app.infrastructure.di.registry import PostgresUseCaseRegistry
+from app.infrastructure.di.root import PostgresRequestScope
 from tests.fakes.fake_clock import FakeClock
 from tests.fakes.recording_async_session import RecordingAsyncSession
 from tests.infrastructure.postgres.helpers import create_corporate, create_unit_of_work
@@ -205,17 +225,23 @@ def test_ユースケース束の一覧が_登録簿の項目と一致する() -
     """束を作っても登録簿へ足し忘れると、そのコンテキストは実行できない。"""
     # Arrange
     registry_bundles = set(get_type_hints(PostgresUseCaseRegistry).values())
-
-    # Act
-    module = importlib.import_module("app.infrastructure.di")
-    exported: set[Any] = {
-        getattr(module, name)
-        for name in module.__all__
-        if name.endswith("UseCases") and isinstance(getattr(module, name), type)
+    declared_bundles: set[type[object]] = {
+        CorporateUseCases,
+        CoverageUseCases,
+        DispensingUseCases,
+        IdentityUseCases,
+        IntegrationUseCases,
+        MedicationHistoryUseCases,
+        MedicineCatalogUseCases,
+        PatientUseCases,
+        PrescriptionUseCases,
+        ReceptionUseCases,
+        StaffUseCases,
+        StoreUseCases,
     }
 
     # Assert
-    assert exported == registry_bundles
+    assert declared_bundles == registry_bundles
 
 
 # --------------------------------------------------------------------------

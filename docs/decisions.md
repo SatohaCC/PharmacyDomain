@@ -3,6 +3,16 @@
 プロジェクトの重要な設計判断と、その採用理由・却下理由を時系列で残します。
 現在の型と振る舞いはコード、保証範囲はテストと静的チェッカを正とします。
 
+## 2026-09-24
+
+### ADR-59: package initializerから再エクスポートせず、定義元moduleを直接importする
+
+- **背景**: `__init__.py` が型や集約を先読みすると、プリミティブだけをimportした経路でも隣接コンテキストのRepositoryや集約が初期化され、cold-start時に循環importが起きる。先行テストのimport順によって循環が隠れるため、通常のpytest成功だけでは検出しにくい。
+- **決定**: `app/`・`tests/`・`tools/`・`migrations/` の全 `__init__.py` は空またはモジュールドキュメント文字列だけにする。公開名は再エクスポートせず、利用側は定義元moduleから直接importする。循環importは `tools/check_imports.py` がASTから構築したmodule graphへ `graphlib.TopologicalSorter` を適用して検出し、既存のarchitecture品質ゲートで失敗させる。
+- **理由**: package initializerに実行文を置かなければ、パッケージ名だけのimportが子モジュール群を暗黙に読み込む経路を作らない。利用側から定義元までの依存がimport文に現れ、単一の標準ライブラリ解析で循環を検出できる。循環検出と個別のcold-start入口テストを既存ゲートへ接続し、CI jobを増やさない。
+- **適用**: 新しいクラス・関数・Protocolは通常moduleで定義し、`__init__.py` の `__all__` へ登録しない。`UnitOfWork` と `PostgresRepositorySet` も専用moduleからimportする。
+- **限界**: 静的graphは構文上のimportを対象とし、`importlib` 等で組み立てる動的importは列挙しない。通常の依存は直接importで表し、重要な実行入口は別processのcold-startテストで確認する。
+
 ## 2026-09-21
 
 ### ADR-58: 電子薬歴を中心とするコアドメインの確立と、レセコン（請求・会計・算定判定）との責務境界の確定

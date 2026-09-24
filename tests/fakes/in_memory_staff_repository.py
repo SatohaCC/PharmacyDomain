@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import copy
 
-from app.domain.corporate import CorporateId
-from app.domain.staff import (
-    Staff,
-    StaffCatalogRepository,
+from app.domain.corporate.primitives import CorporateId
+from app.domain.staff.exceptions import StaffCodeAlreadyExistsError
+from app.domain.staff.primitives import (
     StaffCode,
-    StaffCodeAlreadyExistsError,
     StaffId,
+)
+from app.domain.staff.repository import (
+    StaffCatalogRepository,
     StaffRepository,
 )
+from app.domain.staff.staff import Staff
 
 
 class InMemoryStaffRepository(StaffRepository, StaffCatalogRepository):

@@ -20,6 +20,7 @@ from app.domain.patient.primitives import (
     PatientId,
 )
 from app.domain.patient.repository import PatientExternalIdentifierRepository
+from app.domain.store.primitives import StoreId
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,
@@ -35,6 +36,9 @@ def _external_identifier_columns(
         "id": identifier.id.value,
         "corporate_id": identifier.corporate_id.value,
         "patient_id": identifier.patient_id.value,
+        "store_id": (
+            identifier.store_id.value if identifier.store_id is not None else None
+        ),
         "system_name": identifier.system_name.value,
         "external_patient_id": identifier.external_patient_id.value,
         "is_active": identifier.is_active,
@@ -71,6 +75,7 @@ class PostgresPatientExternalIdentifierRepository(
         self,
         *,
         corporate_id: CorporateId,
+        store_id: StoreId | None = None,
         system_name: ExternalSystemName,
         external_patient_id: ExternalPatientId,
     ) -> PatientExternalIdentifier | None:
@@ -79,10 +84,16 @@ class PostgresPatientExternalIdentifierRepository(
         無効化済みは返さない。誤った患者へ紐付けた外部IDを無効化してから正しい
         患者へ付け替えられるよう、一意とみなすのは有効な行だけである。
         """
+        scope = (
+            patient_external_identifiers.c.store_id.is_(None)
+            if store_id is None
+            else patient_external_identifiers.c.store_id == store_id.value
+        )
         return await self.find_one(
             PATIENT_EXTERNAL_IDENTIFIER_MAPPING,
             select(patient_external_identifiers).where(
                 patient_external_identifiers.c.corporate_id == corporate_id.value,
+                scope,
                 patient_external_identifiers.c.system_name == system_name.value,
                 patient_external_identifiers.c.external_patient_id
                 == external_patient_id.value,
@@ -114,5 +125,6 @@ class PostgresPatientExternalIdentifierRepository(
             identifier,
             conflicts={
                 "uq_patient_external_identifiers_active_source": PatientExternalIdentifierAlreadyExistsError,
+                "uq_patient_external_identifiers_active_legacy_source": PatientExternalIdentifierAlreadyExistsError,
             },
         )

@@ -13,18 +13,6 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response
 
 from app.application.common.pagination import Page
-from app.application.store import (
-    ChangeInsurancePharmacyNumberCommand,
-    ChangeStoreAddressCommand,
-    ChangeStoreCodeCommand,
-    ChangeStoreContactInfoCommand,
-    ChangeStoreNamesCommand,
-    GetStoreQuery,
-    ListStoresQuery,
-    RegisterStoreCommand,
-    StoreDto,
-    StoreSummaryDto,
-)
 from app.application.store.business_hours import (
     BusinessDayExceptionInput,
     BusinessHoursDto,
@@ -33,7 +21,24 @@ from app.application.store.business_hours import (
     StoreOpeningStatusQuery,
     WeekdayBusinessHoursInput,
 )
-from app.application.store.get_store import StoreStatusChangeDto
+from app.application.store.change_insurance_pharmacy_number import (
+    ChangeInsurancePharmacyNumberCommand,
+)
+from app.application.store.change_store_address import ChangeStoreAddressCommand
+from app.application.store.change_store_code import ChangeStoreCodeCommand
+from app.application.store.change_store_contact_info import (
+    ChangeStoreContactInfoCommand,
+)
+from app.application.store.change_store_name import ChangeStoreNamesCommand
+from app.application.store.get_store import (
+    GetStoreQuery,
+    StoreDto,
+    StoreStatusChangeDto,
+)
+from app.application.store.list_stores import (
+    ListStoresQuery,
+    StoreSummaryDto,
+)
 from app.application.store.management import (
     ChangeStoreStatusCommand,
     ManagerAction,
@@ -41,6 +46,7 @@ from app.application.store.management import (
     ManageStoreManagerCommand,
     RevokeStoreClosureCommand,
 )
+from app.application.store.register_store import RegisterStoreCommand
 from app.domain.store.lifecycle import StoreStatus
 from app.presentational.dependencies import StoreUseCasesDep, get_actor_context
 from app.presentational.errors import error_responses

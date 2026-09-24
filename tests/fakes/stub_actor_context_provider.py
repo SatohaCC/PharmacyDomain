@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.application.access_control import ActorContext
+from app.application.access_control.models import ActorContext
 from app.presentational.authentication import ActorContextProvider
 from app.presentational.exceptions import AuthenticationError
 

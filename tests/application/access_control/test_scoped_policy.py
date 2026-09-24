@@ -2,13 +2,13 @@
 
 import pytest
 
-from app.application.access_control import (
+from app.application.access_control.exceptions import TenantBoundaryNotFoundError
+from app.application.access_control.models import (
     ActorRole,
-    AuthorizationService,
     Permission,
-    TenantBoundaryNotFoundError,
+    ResolvedActorContext,
 )
-from app.application.access_control.models import ResolvedActorContext
+from app.application.access_control.policy import AuthorizationService
 from app.application.common.exceptions import AuthorizationError
 from app.domain.corporate.primitives import CorporateId
 from app.domain.identity.primitives import (

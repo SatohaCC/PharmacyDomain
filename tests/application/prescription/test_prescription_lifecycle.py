@@ -8,21 +8,23 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.prescription import (
-    CancelPrescriptionCommand,
+from app.application.prescription.cancel_prescription import CancelPrescriptionCommand
+from app.application.prescription.exceptions import PrescriptionNotFoundError
+from app.application.prescription.get_prescription import (
     GetPrescriptionQuery,
     PrescriptionDto,
-    PrescriptionNotFoundError,
-    ReadyForDispensingCommand,
-    ResolveInquiryCommand,
-    StartInquiryCommand,
 )
+from app.application.prescription.ready_for_dispensing import ReadyForDispensingCommand
+from app.application.prescription.resolve_inquiry import ResolveInquiryCommand
+from app.application.prescription.start_inquiry import StartInquiryCommand
 from app.domain.corporate.primitives import CorporateId
-from app.domain.prescription import (
+from app.domain.prescription.exceptions import (
     OpenInquiryExistsError,
+    PrescriptionStatusTransitionError,
+)
+from app.domain.prescription.primitives import (
     PrescriptionId,
     PrescriptionStatus,
-    PrescriptionStatusTransitionError,
 )
 from tests.application.prescription.helpers import (
     PrescriptionFixture,

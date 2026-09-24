@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from app.domain.corporate import CorporateId
+from app.domain.corporate.primitives import CorporateId
 from app.domain.shared.person_name import PersonNames
-from app.domain.staff import (
+from app.domain.staff.primitives import (
     JobTitle,
-    Staff,
     StaffCode,
     StaffQualifications,
 )
+from app.domain.staff.staff import Staff
 
 
 def create_person_names(

@@ -8,7 +8,7 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
-from app.presentational import create_app
+from app.presentational.app_factory import create_app
 from tests.fakes.stub_actor_context_provider import StubActorContextProvider
 from tests.presentational.conftest import AUTHORIZED_HEADERS, Api
 from tests.presentational.helpers import vendor_admin

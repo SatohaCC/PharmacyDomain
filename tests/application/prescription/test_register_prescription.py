@@ -14,29 +14,33 @@ from decimal import Decimal
 
 import pytest
 
-from app.application.access_control import TenantBoundaryNotFoundError
+from app.application.access_control.exceptions import TenantBoundaryNotFoundError
 from app.application.corporate.exceptions import CorporateInactiveError
-from app.application.prescription import (
+from app.application.prescription.exceptions import (
     PrescriptionCoverageSelectionNotFoundError,
-    PrescriptionManagementInput,
     PrescriptionPatientNotFoundError,
     PrescriptionStoreNotFoundError,
+)
+from app.application.prescription.inputs import (
+    PrescriptionManagementInput,
     PublicExpenseBurdenInput,
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientId
-from app.domain.prescription import (
+from app.domain.prescription.exceptions import (
     MedicineClassificationMissingError,
     MedicineClassificationUnknownError,
     MedicineCodeTypeNotAllowedError,
-    MedicineRestrictionFlag,
     NarcoticPrescriptionDetailsRequiredError,
     PrescriptionDocumentNumberAlreadyExistsError,
-    PrescriptionId,
-    PrescriptionStatus,
     PublicExpenseBurdenNotCoveredError,
     RefillNotAllowedError,
 )
+from app.domain.prescription.primitives import (
+    PrescriptionId,
+    PrescriptionStatus,
+)
+from app.domain.prescription.value_objects import MedicineRestrictionFlag
 from app.domain.reception.primitives import CoverageSelectionRecordId
 from app.domain.shared.medicine import (
     MedicineCodeType,

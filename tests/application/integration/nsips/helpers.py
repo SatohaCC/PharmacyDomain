@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, replace
 from datetime import date
 
@@ -26,9 +27,7 @@ from app.application.composition.prescription_references import (
 from app.application.coverage.register_patient_coverage import (
     RegisterPatientCoverageUseCase,
 )
-from app.application.dispensing import (
-    StartDispensingUseCase,
-)
+from app.application.dispensing.start_dispensing import StartDispensingUseCase
 from app.application.integration.nsips.ingest_nsips import (
     IngestNsipsCommand,
     IngestNsipsResultDto,
@@ -36,46 +35,49 @@ from app.application.integration.nsips.ingest_nsips import (
 )
 from app.application.integration.nsips.mapper import NsipsDataMapper
 from app.application.integration.nsips.parser import NsipsParser
-from app.application.medication_history import (
-    AddFollowUpUseCase,
+from app.application.medication_history.add_follow_up import AddFollowUpUseCase
+from app.application.medication_history.get_medication_history import (
     ListMedicationHistoriesByPatientUseCase,
+)
+from app.application.medication_history.start_medication_history import (
     StartMedicationHistoryUseCase,
 )
-from app.application.patient import (
+from app.application.patient.register_patient import RegisterPatientUseCase
+from app.application.patient.register_patient_external_identifier import (
     RegisterPatientExternalIdentifierUseCase,
-    RegisterPatientUseCase,
 )
-from app.application.prescription import (
-    ReadyForDispensingUseCase,
+from app.application.prescription.ready_for_dispensing import ReadyForDispensingUseCase
+from app.application.prescription.register_prescription import (
     RegisterPrescriptionUseCase,
 )
 from app.application.reception.record_coverage_selection import (
     RecordCoverageSelectionUseCase,
 )
-from app.domain.corporate import CorporateId
-from app.domain.coverage import CoverageSelectionService, PatientCoverageConflictService
-from app.domain.dispensing import (
+from app.domain.corporate.primitives import CorporateId
+from app.domain.coverage.combination import CoverageSelectionService
+from app.domain.coverage.services import PatientCoverageConflictService
+from app.domain.dispensing.services import (
     DispensingConsistencyService,
     DispensingIterationUniquenessService,
     DispensingPharmacistService,
 )
-from app.domain.medication_history import (
-    CounselorQualificationService,
-)
-from app.domain.prescription import (
-    MedicineClassification,
-    MedicineRestrictionFlag,
+from app.domain.medication_history.services import CounselorQualificationService
+from app.domain.prescription.services import (
     NarcoticPrescriptionService,
     PrescriptionDocumentNumberUniquenessService,
     PublicExpenseBurdenService,
     RefillEligibilityService,
+)
+from app.domain.prescription.value_objects import (
+    MedicineClassification,
+    MedicineRestrictionFlag,
 )
 from app.domain.shared.medicine import (
     MedicineCode,
     MedicineCodeType,
     MedicineIdentifier,
 )
-from app.domain.staff import (
+from app.domain.staff.primitives import (
     AffiliationPeriod,
     PharmacistLicenseNumber,
     PharmacistProfile,
@@ -83,7 +85,7 @@ from app.domain.staff import (
     StaffQualifications,
     StoreAffiliation,
 )
-from app.domain.store import StoreId
+from app.domain.store.primitives import StoreId
 from tests.application.access_helpers import (
     AutoProvisioningCorporateRepository,
     create_vendor_corporate_access_for,
@@ -113,6 +115,7 @@ from tests.fakes.in_memory_patient_repository import (
 from tests.fakes.in_memory_prescription_repository import (
     InMemoryPrescriptionRepository,
 )
+from tests.fakes.in_memory_reception_repository import InMemoryReceptionRepository
 from tests.fakes.in_memory_staff_repository import (
     InMemoryStaffRepository,
 )
@@ -154,6 +157,7 @@ class NsipsFixture:
     clock: FakeClock
     patient_coverage_repo: InMemoryPatientCoverageRepository
     coverage_selection_repo: InMemoryCoverageSelectionRecordRepository
+    reception_repo: InMemoryReceptionRepository
 
 
 async def execute_structured_test_command(
@@ -165,6 +169,10 @@ async def execute_structured_test_command(
     合成Fixtureで検証するときは、パーサーを通した結果を明示的な構造化入力として
     渡し、raw形式の受入れをテストしたように見せない。
     """
+    if command.reception_id is None:
+        # このHelperを呼ぶ側を受付呼出元として扱い、同じCommandの再送では
+        # 初回送信時に割り当てた受付IDを再利用する。
+        object.__setattr__(command, "reception_id", str(uuid.uuid7()))
     if command.structured_bundle is not None:
         return await fixture.use_case.execute(command)
     if command.raw_nsips_text is None:
@@ -242,6 +250,7 @@ async def create_fixture() -> NsipsFixture:
 
     patient_coverage_repo = InMemoryPatientCoverageRepository()
     coverage_selection_repo = InMemoryCoverageSelectionRecordRepository()
+    reception_repo = InMemoryReceptionRepository()
     conflict_service = PatientCoverageConflictService()
 
     # ユースケース組み立て
@@ -332,6 +341,7 @@ async def create_fixture() -> NsipsFixture:
         patient_coverage_repo=patient_coverage_repo,
         register_coverage_use_case=register_coverage,
         record_coverage_selection_use_case=record_coverage_selection,
+        reception_repo=reception_repo,
         register_patient_use_case=register_patient,
         register_patient_external_id_use_case=register_patient_ext,
         register_prescription_use_case=register_prescription,
@@ -364,4 +374,5 @@ async def create_fixture() -> NsipsFixture:
         clock=clock,
         patient_coverage_repo=patient_coverage_repo,
         coverage_selection_repo=coverage_selection_repo,
+        reception_repo=reception_repo,
     )

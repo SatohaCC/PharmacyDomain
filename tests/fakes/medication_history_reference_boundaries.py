@@ -24,7 +24,7 @@ from app.application.medication_history.reference import (
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.primitives import DispensingId
-from app.domain.medication_history import (
+from app.domain.medication_history.value_objects import (
     StatutoryPharmacistName,
     StatutoryRecordSource,
 )

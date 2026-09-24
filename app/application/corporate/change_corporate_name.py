@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from app.application.access_control import Permission
+from app.application.access_control.models import Permission
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.domain.corporate.primitives import CorporateId, CorporateName
 from app.domain.corporate.repository import CorporateRepository

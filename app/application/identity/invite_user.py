@@ -5,11 +5,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from hashlib import sha256
 
-from app.application.access_control import CorporateAccessBoundary, Permission
-from app.application.common import UnitOfWork
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.common.clock import Clock
 from app.application.common.exceptions import NotFoundError
 from app.application.common.organization_lock import OrganizationLock
+from app.application.common.unit_of_work import UnitOfWork
 from app.application.identity.support import (
     IdentityRepositories,
     validate_membership_target,

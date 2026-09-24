@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from app.application.access_control import CorporateAccessBoundary, Permission
-from app.application.access_control.models import ResolvedActorContext
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission, ResolvedActorContext
 from app.application.common.clock import Clock
 from app.application.common.exceptions import AuthorizationError
 from app.application.patient.support import load_patient_or_raise

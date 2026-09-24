@@ -11,7 +11,7 @@ from collections.abc import Iterator
 
 import pytest
 
-from app.presentational import UnconfiguredActorContextProvider
+from app.presentational.authentication import UnconfiguredActorContextProvider
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
 from app.presentational.oidc import OidcConfigurationError, OidcVerifiedSubjectProvider
 from tests.factories.oidc_factory import AUDIENCE, ISSUER

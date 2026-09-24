@@ -56,6 +56,7 @@ LIFECYCLE_DIALECTS: dict[str, str] = {
     # 「疑義照会中」は状態にせず ``has_open_inquiry`` から導出しているので、
     # 方言は ``status_enum`` 1つに収まる。
     "Prescription": "status_enum",
+    "Reception": "none",
     "Staff": "active_flag",
     "Store": "status_enum",
     "StoreManagerAssignment": "status_enum",
