@@ -87,6 +87,7 @@ def _prepared(
         else complete_dispensing(create_dispensing())
     )
     record = create_record_for(process, soap=soap, finalized=finalized)
+    assert record.counselor_id is not None
     overrides: dict[str, object] = {}
     if patient_birth_date != "keep":
         overrides["patient_birth_date"] = patient_birth_date
@@ -260,6 +261,7 @@ class Test薬剤師の氏名:
         # Arrange
         dispensing = complete_dispensing(create_dispensing())
         record = create_record_for(dispensing)
+        assert record.counselor_id is not None
         source = create_statutory_source(
             patient_id=record.patient_id,
             prescription_id=dispensing.prescription_id,
@@ -648,6 +650,7 @@ class Test取り違えの拒否:
         """
         # Arrange
         record, dispensing, _ = _prepared()
+        assert record.counselor_id is not None
         other_patient_source = create_statutory_source(
             patient_id=PatientId.generate(),
             prescription_id=dispensing.prescription_id,
@@ -661,6 +664,7 @@ class Test取り違えの拒否:
     def test_別の処方箋から作ったスナップショットは_拒否される(self) -> None:
         # Arrange
         record, dispensing, _ = _prepared()
+        assert record.counselor_id is not None
         other_source = create_statutory_source(
             patient_id=record.patient_id,
             prescription_id=PrescriptionId.generate(),

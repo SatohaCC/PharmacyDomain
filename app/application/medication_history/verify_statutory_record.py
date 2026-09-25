@@ -156,11 +156,14 @@ class VerifyStatutoryRecordUseCase:
             corporate_id=corporate_id,
             dispensing_id=record.dispensing_id,
         )
+        staff_ids = {dispensing.dispenser_id}
+        if record.counselor_id is not None:
+            staff_ids.add(record.counselor_id)
         source = await self._statutory_source.build(
             corporate_id=corporate_id,
             patient_id=record.patient_id,
             prescription_id=record.prescription_id,
-            staff_ids=frozenset({dispensing.dispenser_id, record.counselor_id}),
+            staff_ids=frozenset(staff_ids),
         )
         return StatutoryRecordSufficiencyDto.from_value(
             self._service.verify(record, dispensing, source),

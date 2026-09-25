@@ -489,7 +489,7 @@ medication_history_records = Table(
     Column("dispensing_id", UUID(as_uuid=True), nullable=False),
     Column("prescription_id", UUID(as_uuid=True), nullable=False),
     Column("status", String(32), nullable=False),
-    Column("counseled_at", DateTime(timezone=True), nullable=False),
+    Column("counseled_at", DateTime(timezone=True), nullable=True),
     Column("payload", JSONB, nullable=False),
     Column("version", Integer, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),

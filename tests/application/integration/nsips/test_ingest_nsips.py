@@ -24,6 +24,7 @@ from app.domain.dispensing.exceptions import DispensingPharmacistQualificationEr
 from app.domain.dispensing.primitives import DispensingId
 from app.domain.medication_history.primitives import (
     CounselingMethod,
+    CounselingTimestamp,
     MedicationHistoryRecordId,
 )
 from app.domain.medication_history.value_objects import (
@@ -624,7 +625,11 @@ async def test_薬品0件のフォローアップ単独受付が直近薬歴に�
         handbook_status=HandbookStatus(presented=True),
         residual_drug=ResidualDrugRecord.none_remaining(),
         information_sheet_provided=False,
-    ).finalize()
+    ).finalize(
+        counselor_id=fixture.pharmacist_id,
+        counseled_at=CounselingTimestamp(fixture.clock.now()),
+        finalized_by=fixture.pharmacist_id,
+    )
     await fixture.medication_history_repo.save(finalized_record)
 
     # 2. 薬品0件のNSIPSを受信（フォローアップ受付）

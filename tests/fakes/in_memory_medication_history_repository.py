@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+from datetime import UTC, datetime
 
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.primitives import DispensingId
@@ -61,13 +62,22 @@ class InMemoryMedicationHistoryRepository(MedicationHistoryRepository):
         corporate_id: CorporateId,
         patient_id: PatientId,
     ) -> list[MedicationHistoryRecord]:
-        """指定法人・患者の薬歴を ``counseled_at`` 降順で返す。"""
+        """指導日時降順とID降順で患者の薬歴を返し、時刻未確定は末尾へ送る。"""
         matched = [
             copy.deepcopy(item)
             for item in self.items.values()
             if item.corporate_id == corporate_id and item.patient_id == patient_id
         ]
-        return sorted(matched, key=lambda item: item.counseled_at.value, reverse=True)
+        matched.sort(key=lambda item: item.id.value, reverse=True)
+        return sorted(
+            matched,
+            key=lambda item: (
+                item.counseled_at.value
+                if item.counseled_at is not None
+                else datetime.min.replace(tzinfo=UTC)
+            ),
+            reverse=True,
+        )
 
     async def save(self, record: MedicationHistoryRecord) -> None:
         """同一調剤セッションの確定済薬歴の重複を原子的に拒否して保存する。

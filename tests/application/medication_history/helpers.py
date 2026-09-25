@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
+from app.application.access_control.models import (
+    ActorContext,
+    ActorRole,
+    ResolvedActorContext,
+)
+from app.application.access_control.policy import AuthorizationService
+from app.application.corporate.corporate_access import CorporateAccessService
 from app.application.medication_history.add_follow_up import AddFollowUpUseCase
 from app.application.medication_history.amend_medication_history import (
     AmendMedicationHistoryUseCase,
@@ -49,6 +56,7 @@ from app.application.medication_history.verify_statutory_record import (
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.identity.primitives import AccountPersonId, UserAccountId
 from app.domain.medication_history.services import (
     CounselorQualificationService,
     StatutoryDispensingRecordService,
@@ -63,7 +71,6 @@ from app.domain.staff.primitives import (
 from app.domain.store.primitives import StoreId
 from tests.application.access_helpers import (
     AutoProvisioningCorporateRepository,
-    create_vendor_corporate_access_for,
 )
 from tests.factories.dispensing_factory import complete_dispensing, create_dispensing
 from tests.factories.medication_history_factory import create_statutory_source
@@ -131,6 +138,7 @@ class MedicationHistoryFixture:
     profile_repository: InMemoryPatientMedicalProfileRepository
     category_catalog_repository: InMemoryMedicationHistoryCategoryCatalogRepository
     corporate_repository: AutoProvisioningCorporateRepository
+    actor: ActorContext
     store_reference: FakeMedicationHistoryStoreReference
     dispensing_source: FakeDispensingSource
     staff_qualification: FakeCounselorQualificationSource
@@ -143,7 +151,18 @@ class MedicationHistoryFixture:
     dispensing: DispensingProcess
 
 
-def create_fixture() -> MedicationHistoryFixture:
+def create_resolved_actor(*, staff_id: StaffId | None) -> ResolvedActorContext:
+    """信頼済みのテストActorをスタッフ解決状態つきで生成する。"""
+    return ResolvedActorContext(
+        principal_id="test-pharmacist-actor",
+        roles=frozenset({ActorRole.VENDOR_SYSTEM_ADMIN}),
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+        staff_id=staff_id,
+    )
+
+
+def create_fixture(*, actor: ActorContext | None = None) -> MedicationHistoryFixture:
     """既定の依存を配線した Fixture を生成する。"""
     corporate_id = CorporateId.generate()
     store_id = StoreId.generate()
@@ -179,7 +198,10 @@ def create_fixture() -> MedicationHistoryFixture:
     )
     clock = FakeClock()
     corporate_repository = AutoProvisioningCorporateRepository()
-    corporate_access = create_vendor_corporate_access_for(corporate_repository)
+    resolved_actor = actor or create_resolved_actor(staff_id=counselor_id)
+    corporate_access = CorporateAccessService(
+        corporate_repository, AuthorizationService(resolved_actor)
+    )
 
     return MedicationHistoryFixture(
         start=StartMedicationHistoryUseCase(
@@ -256,6 +278,7 @@ def create_fixture() -> MedicationHistoryFixture:
         profile_repository=profile_repository,
         category_catalog_repository=category_catalog_repository,
         corporate_repository=corporate_repository,
+        actor=resolved_actor,
         store_reference=store_reference,
         dispensing_source=dispensing_source,
         staff_qualification=staff_qualification,
@@ -288,7 +311,6 @@ def register_another_dispensing(
 def create_start_command(
     fixture: MedicationHistoryFixture,
     *,
-    counselor_id: StaffId | None = None,
     dispensing: DispensingProcess | None = None,
     soap: SoapInput | None = None,
     residual_drug: ResidualDrugInput | None = None,
@@ -296,6 +318,7 @@ def create_start_command(
     profile_updates: ProfileUpdateInput | None = None,
     information_sheet_provided: bool | None = False,
     billing_additions: tuple[BillingAdditionInput, ...] | None = None,
+    source_system: str | None = None,
 ) -> StartMedicationHistoryCommand:
     """薬歴作成コマンドを組み立てる。"""
     return StartMedicationHistoryCommand(
@@ -303,9 +326,6 @@ def create_start_command(
         store_id=str(fixture.store_id.value),
         dispensing_id=str(
             (dispensing if dispensing is not None else fixture.dispensing).id.value
-        ),
-        counselor_id=str(
-            (counselor_id if counselor_id is not None else fixture.counselor_id).value
         ),
         method="face_to_face",
         soap=soap if soap is not None else create_soap_input(),
@@ -322,4 +342,12 @@ def create_start_command(
         information_sheet_provided=information_sheet_provided,
         profile_updates=profile_updates,
         billing_additions=billing_additions,
+        source_system=source_system,
     )
+
+
+def create_nsips_start_command(
+    fixture: MedicationHistoryFixture,
+) -> StartMedicationHistoryCommand:
+    """NSIPS由来の初回薬歴コマンドを作る。"""
+    return replace(create_start_command(fixture), source_system="NSIPS")

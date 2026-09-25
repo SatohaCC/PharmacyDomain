@@ -290,8 +290,8 @@ class MedicationHistoryDto:
     patient_id: str
     dispensing_id: str
     prescription_id: str
-    counselor_id: str
-    counseled_at: str
+    counselor_id: str | None
+    counseled_at: str | None
     method: str | None
     status: str
     #: 交付時に記録したSOAP。追記があっても書き換わらない。
@@ -302,6 +302,7 @@ class MedicationHistoryDto:
     residual_drug: ResidualDrugDto | None
     information_sheet_provided: bool | None
     source_system: str | None
+    imported_at: str | None
     amendments: tuple[AmendmentDto, ...]
     updates_profile: bool
     additional_notes: tuple[CategorizedNoteDto, ...] = ()
@@ -322,8 +323,16 @@ class MedicationHistoryDto:
             patient_id=str(record.patient_id.value),
             dispensing_id=str(record.dispensing_id.value),
             prescription_id=str(record.prescription_id.value),
-            counselor_id=str(record.counselor_id.value),
-            counseled_at=record.counseled_at.value.isoformat(),
+            counselor_id=(
+                str(record.counselor_id.value)
+                if record.counselor_id is not None
+                else None
+            ),
+            counseled_at=(
+                record.counseled_at.value.isoformat()
+                if record.counseled_at is not None
+                else None
+            ),
             method=unwrap(record.method),
             status=record.status.value,
             soap=SoapDto.from_value(record.soap),
@@ -340,6 +349,11 @@ class MedicationHistoryDto:
             ),
             information_sheet_provided=record.information_sheet_provided,
             source_system=unwrap(record.source_system),
+            imported_at=(
+                record.imported_at.value.isoformat()
+                if record.imported_at is not None
+                else None
+            ),
             amendments=tuple(
                 AmendmentDto.from_value(item) for item in record.amendments
             ),

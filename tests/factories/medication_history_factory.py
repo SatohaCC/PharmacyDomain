@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, date, datetime
 
 from app.domain.corporate.primitives import CorporateId
@@ -25,6 +26,8 @@ from app.domain.medication_history.primitives import (
     GenericPreferenceType,
     HandbookNotPresentedReason,
     LifestyleNote,
+    MedicationHistoryImportTimestamp,
+    MedicationHistorySourceSystem,
     PhysicianName,
     PrescriberActionType,
     RetractionReason,
@@ -288,6 +291,46 @@ def create_record(
         profile_updates=profile_updates,
         additional_notes=additional_notes,
         billing_additions=billing_additions,
+    )
+
+
+def create_nsips_draft_record(
+    *,
+    imported_at: datetime = datetime(2026, 8, 24, 4, 0, tzinfo=UTC),
+    ready_to_finalize: bool = False,
+    corporate_id: CorporateId | None = None,
+    store_id: StoreId | None = None,
+    patient_id: PatientId | None = None,
+    dispensing_id: DispensingId | None = None,
+    prescription_id: PrescriptionId | None = None,
+) -> MedicationHistoryRecord:
+    """実指導情報のない、NSIPS取込由来の下書きを組み立てる。"""
+    existing = create_record(
+        corporate_id=corporate_id,
+        store_id=store_id,
+        patient_id=patient_id,
+        dispensing_id=dispensing_id,
+        prescription_id=prescription_id,
+    )
+    imported_record = replace(
+        existing,
+        counselor_id=None,
+        counseled_at=None,
+        method=None,
+        handbook_status=None,
+        residual_drug=None,
+        information_sheet_provided=None,
+        source_system=MedicationHistorySourceSystem("NSIPS"),
+        imported_at=MedicationHistoryImportTimestamp(imported_at),
+    )
+    if not ready_to_finalize:
+        return imported_record
+    return replace(
+        imported_record,
+        method=existing.method,
+        handbook_status=existing.handbook_status,
+        residual_drug=existing.residual_drug,
+        information_sheet_provided=existing.information_sheet_provided,
     )
 
 

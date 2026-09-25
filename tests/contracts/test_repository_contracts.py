@@ -800,7 +800,13 @@ async def test_薬歴一覧_指導日時の降順で返る(
     )
 
     # Assert
-    assert [item.counseled_at.value.day for item in actual] == [20, 10, 1]
+    counseled_timestamps = [item.counseled_at for item in actual]
+    assert all(timestamp is not None for timestamp in counseled_timestamps)
+    assert [
+        timestamp.value.day
+        for timestamp in counseled_timestamps
+        if timestamp is not None
+    ] == [20, 10, 1]
 
 
 @pytest.mark.parametrize(

@@ -46,6 +46,7 @@ from app.domain.medication_history.primitives import (
     ExternalCorrectionTimestamp,
     FinalizationDelayReason,
     FinalizedTimestamp,
+    MedicationHistoryImportTimestamp,
     MedicationHistoryRecordId,
     MedicationHistorySourceSystem,
     MedicationHistoryStatus,
@@ -81,8 +82,8 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     patient_id: PatientId
     dispensing_id: DispensingId
     prescription_id: PrescriptionId
-    counselor_id: StaffId
-    counseled_at: CounselingTimestamp
+    counselor_id: StaffId | None
+    counseled_at: CounselingTimestamp | None
     method: CounselingMethod | None
     soap: SoapRecord
     handbook_status: HandbookStatus | None
@@ -93,6 +94,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     additional_notes: tuple[CategorizedNote, ...] = ()
     billing_additions: tuple[BillingAddition, ...] = ()
     source_system: MedicationHistorySourceSystem | None = None
+    imported_at: MedicationHistoryImportTimestamp | None = None
     status: MedicationHistoryStatus = MedicationHistoryStatus.DRAFT
     amendments: tuple[MedicationHistoryAmendment, ...] = ()
     follow_ups: tuple[FollowUpRecord, ...] = ()
@@ -113,6 +115,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         SOAP の充足は**確定済のときだけ**課す。下書きの途中で
         全セクションを要求すると、聞き取りながら書き足す運用ができない。
         """
+        self._ensure_counseling_provenance_is_valid()
         self._ensure_amendments_only_after_finalized()
         self._ensure_finalized_soap_is_complete()
         self._ensure_finalized_items_are_assessed()
@@ -158,6 +161,10 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         if self.status.is_finalized:
             if self.finalized_at is None or self.finalized_by is None:
                 raise FinalizationStaffRequiredError()
+            if self.counseled_at is None or self.counselor_id is None:
+                raise MedicationHistoryDomainError(
+                    "確定済の薬歴には実際の指導者と指導日時が必要です。"
+                )
             if self.finalized_at.value < self.counseled_at.value:
                 raise FinalizationDateBeforeCounselingError()
             if (
@@ -174,6 +181,25 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
                 raise MedicationHistoryDomainError(
                     "下書き状態の薬歴に確定メタデータは設定できません。"
                 )
+
+    def _ensure_counseling_provenance_is_valid(self) -> None:
+        """指導実績の組とNSIPS取込だけの下書きを検証する。"""
+        has_counselor = self.counselor_id is not None
+        has_counseled_at = self.counseled_at is not None
+        if has_counselor != has_counseled_at:
+            raise MedicationHistoryDomainError(
+                "指導者と指導日時は両方設定するか、両方未設定にしてください。"
+            )
+        if has_counselor:
+            return
+        if (
+            self.status is not MedicationHistoryStatus.DRAFT
+            or self.source_system != MedicationHistorySourceSystem("NSIPS")
+            or self.imported_at is None
+        ):
+            raise MedicationHistoryDomainError(
+                "指導実績のない下書きにはNSIPS取込時刻が必要です。"
+            )
 
     # ------------------------------------------------------------------
     # 導出プロパティ
@@ -212,8 +238,8 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         patient_id: PatientId,
         dispensing_id: DispensingId,
         prescription_id: PrescriptionId,
-        counselor_id: StaffId,
-        counseled_at: CounselingTimestamp,
+        counselor_id: StaffId | None,
+        counseled_at: CounselingTimestamp | None,
         method: CounselingMethod | None,
         soap: SoapRecord,
         handbook_status: HandbookStatus | None,
@@ -223,6 +249,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         additional_notes: tuple[CategorizedNote, ...] = (),
         billing_additions: tuple[BillingAddition, ...] = (),
         source_system: MedicationHistorySourceSystem | None = None,
+        imported_at: MedicationHistoryImportTimestamp | None = None,
     ) -> Self:
         """服薬指導の記録を下書きとして起こす。"""
         return cls(
@@ -247,6 +274,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             additional_notes=additional_notes,
             billing_additions=billing_additions,
             source_system=source_system,
+            imported_at=imported_at,
             status=MedicationHistoryStatus.DRAFT,
         )
 
@@ -311,26 +339,58 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     def finalize(
         self,
         *,
+        counselor_id: StaffId | None = None,
+        counseled_at: CounselingTimestamp | None = None,
         finalized_at: FinalizedTimestamp | None = None,
         finalized_by: StaffId | None = None,
         delay_reason: FinalizationDelayReason | None = None,
     ) -> Self:
         """薬歴を確定する。
 
-        確定日時・確定者の指定を必須とする。引数省略時は既存テスト互換のため、
-        指導日時の当日確定（指導者と同一薬剤師）として自動補填する。
+        確定日時の省略時は指導日時、確定者の省略時は指導者を使う。
+        指導実績のない取込下書きは、実際の指導者と指導日時を渡さなければ確定できない。
         """
         self._ensure_not_finalized()
+        supplied_counselor = counselor_id is not None
+        supplied_counseled_at = counseled_at is not None
+        if supplied_counselor != supplied_counseled_at:
+            raise MedicationHistoryDomainError(
+                "指導者と指導日時は両方指定してください。"
+            )
+        actual_counselor_id: StaffId | None = self.counselor_id
+        actual_counseled_at: CounselingTimestamp | None = self.counseled_at
+        if supplied_counselor:
+            if counselor_id is None or counseled_at is None:
+                raise MedicationHistoryDomainError(
+                    "指導者と指導日時は両方指定してください。"
+                )
+            if (
+                self.counselor_id is not None and self.counselor_id != counselor_id
+            ) or (self.counseled_at is not None and self.counseled_at != counseled_at):
+                raise MedicationHistoryDomainError(
+                    "記録済みの指導者または指導日時は確定時に変更できません。"
+                )
+            actual_counselor_id = counselor_id
+            actual_counseled_at = counseled_at
+        if actual_counselor_id is None or actual_counseled_at is None:
+            raise MedicationHistoryDomainError(
+                "薬歴を確定するには実際の指導者と指導日時が必要です。"
+            )
         actual_finalized_at = (
             finalized_at
             if finalized_at is not None
-            else FinalizedTimestamp(self.counseled_at.value)
+            else FinalizedTimestamp(actual_counseled_at.value)
         )
         actual_finalized_by = (
-            finalized_by if finalized_by is not None else self.counselor_id
+            finalized_by if finalized_by is not None else actual_counselor_id
+        )
+        with_counseling = replace(
+            self,
+            counselor_id=actual_counselor_id,
+            counseled_at=actual_counseled_at,
         )
         return replace(
-            self,
+            with_counseling,
             status=MedicationHistoryStatus.FINALIZED,
             finalized_at=actual_finalized_at,
             finalized_by=actual_finalized_by,
@@ -380,6 +440,8 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         """
         if not self.is_finalized:
             raise FollowUpOnDraftError()
+        if self.counseled_at is None:
+            raise MedicationHistoryDomainError("確定済の薬歴に指導日時がありません。")
         if follow_up.followed_up_at.value < self.counseled_at.value:
             raise FollowUpDateBeforeCounselingError()
         if any(existing.id == follow_up.id for existing in self.follow_ups):
@@ -398,6 +460,8 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         """
         if not self.is_finalized:
             raise TracingReportOnDraftError()
+        if self.counseled_at is None:
+            raise MedicationHistoryDomainError("確定済の薬歴に指導日時がありません。")
         if report.provided_at.value < self.counseled_at.value:
             raise TracingReportDateBeforeCounselingError()
         if report.follow_up_id is not None:
@@ -486,6 +550,10 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         self, catalog: PreservationPolicyCatalog
     ) -> Self:
         """保存期間ポリシーに基づいて法定保存満了日を設定する。"""
+        if self.counseled_at is None:
+            raise MedicationHistoryDomainError(
+                "保存期間の起算には実際の指導日時が必要です。"
+            )
         base_date = self.counseled_at.value.date()
         expiry_date = catalog.calculate_expiry_date(base_date)
         return replace(self, retention_expiry_date=expiry_date)

@@ -86,7 +86,6 @@ class StartMedicationHistoryRequest(RequestModel):
 
     store_id: str
     dispensing_id: str
-    counselor_id: str
     method: str
     soap: SoapInput
     handbook_status: HandbookStatusInput
@@ -120,6 +119,7 @@ class UpdateMedicationHistoryDraftRequest(RequestModel):
 class FinalizeMedicationHistoryRequest(RequestModel):
     """薬歴確定の入力。"""
 
+    counseled_at: datetime | None = None
     finalized_by: str | None = None
     finalized_at: datetime | None = None
     delay_reason: str | None = None
@@ -201,7 +201,6 @@ async def start_medication_history(
             corporate_id=corporate_id,
             store_id=body.store_id,
             dispensing_id=body.dispensing_id,
-            counselor_id=body.counselor_id,
             method=body.method,
             soap=body.soap,
             handbook_status=body.handbook_status,
@@ -301,6 +300,7 @@ async def finalize_medication_history(
         FinalizeMedicationHistoryCommand(
             corporate_id=corporate_id,
             record_id=record_id,
+            counseled_at=body.counseled_at if body is not None else None,
             finalized_by=body.finalized_by if body is not None else None,
             finalized_at=body.finalized_at if body is not None else None,
             delay_reason=body.delay_reason if body is not None else None,

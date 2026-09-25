@@ -99,7 +99,10 @@ from app.infrastructure.postgres.codec import (
     encode_aggregate,
 )
 from tests.factories.dispensing_factory import create_dispensing, verify_passed
-from tests.factories.medication_history_factory import create_record
+from tests.factories.medication_history_factory import (
+    create_nsips_draft_record,
+    create_record,
+)
 from tests.factories.persistence_factory import create_patient
 from tests.factories.prescription_factory import (
     create_prescription,
@@ -685,3 +688,21 @@ def test_TC23_薬歴の未記録状態をcodec往復し旧payloadも復元する
     assert restored.information_sheet_provided is None
     assert restored.source_system is not None
     assert restored.source_system.value == "NSIPS"
+
+
+def test_tc21_取込下書きをcodec往復し旧payloadも読み込める() -> None:
+    imported = create_nsips_draft_record()
+
+    restored = decode_aggregate(encode_aggregate(imported), MedicationHistoryRecord)
+
+    assert restored.counselor_id is None
+    assert restored.counseled_at is None
+    assert restored.imported_at == imported.imported_at
+
+    legacy_payload = encode_aggregate(create_record())
+    legacy_payload.pop("imported_at", None)
+    legacy = decode_aggregate(legacy_payload, MedicationHistoryRecord)
+
+    assert legacy.imported_at is None
+    assert legacy.counselor_id is not None
+    assert legacy.counseled_at is not None

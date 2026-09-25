@@ -282,7 +282,6 @@ def test_加算はSOAP臨床記載と分けて薬歴Commandへ写す() -> None:
         corporate_id="corp-1",
         store_id="store-1",
         dispensing_id="disp-1",
-        counselor_id="counselor-1",
     )
     assert hist_cmd.billing_additions is not None
     assert len(hist_cmd.billing_additions) == 1
@@ -310,7 +309,7 @@ def test_加算はSOAP臨床記載と分けて薬歴Commandへ写す() -> None:
 
 
 @pytest.mark.asyncio
-async def test_合成入力による受付取込が複数集約を起票する() -> None:
+async def test_tc12_合成入力による受付取込は取込時刻だけを薬歴へ記録する() -> None:
     """合成Fixtureの既存経路を確認する。NSIPS版の適合を示すケースではない。"""
     fixture = await create_fixture()
     text = (
@@ -367,6 +366,11 @@ async def test_合成入力による受付取込が複数集約を起票する()
     assert len(history.billing_additions) == 1
     assert history.billing_additions[0].code.value == "140000110"
     assert history.billing_additions[0].name.value == "特定薬剤管理指導加算２"
+    assert history.imported_at is not None
+    assert history.imported_at.value == fixture.clock.now()
+    assert history.counselor_id is None
+    assert history.counseled_at is None
+    assert not hasattr(history, "importer_staff_id")
 
 
 @pytest.mark.asyncio

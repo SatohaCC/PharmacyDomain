@@ -116,6 +116,7 @@ def test_amend_after_external_correction() -> None:
     with_corr = record.record_external_correction(correction)
 
     # 薬剤師が処方変更に伴う指導追補を記載
+    assert record.counselor_id is not None
     amended = with_corr.amend(
         amended_soap=create_soap(
             subjective="処方日数短縮（5日分）について患者へ再説明完了。"

@@ -26,6 +26,9 @@ from app.domain.medication_history.exceptions import (
     ResidualDrugDetailRequiredError,
     SoapContentRequiredError,
 )
+from app.domain.medication_history.medication_history_record import (
+    MedicationHistoryRecord,
+)
 from app.domain.medication_history.primitives import (
     AmendmentReason,
     AmendmentTimestamp,
@@ -33,6 +36,7 @@ from app.domain.medication_history.primitives import (
     BillingAdditionName,
     CounselingMethod,
     CounselingNote,
+    CounselingTimestamp,
     FinalizationDelayReason,
     FinalizedTimestamp,
     HandbookConsolidationReason,
@@ -54,12 +58,90 @@ from app.domain.medication_history.value_objects import (
 from app.domain.staff.primitives import StaffId
 from tests.factories.medication_history_factory import (
     create_note,
+    create_nsips_draft_record,
     create_record,
     create_soap,
 )
 
 _AMENDED_AT = AmendmentTimestamp(datetime(2026, 8, 25, 1, 0, tzinfo=UTC))
 _REASON = AmendmentReason("記載漏れがあったため追記した。")
+
+
+def _record_counseled_at(record: MedicationHistoryRecord) -> CounselingTimestamp:
+    """通常のテストレコードが持つ指導日時を返す。"""
+    assert record.counseled_at is not None
+    return record.counseled_at
+
+
+def _record_counselor_id(record: MedicationHistoryRecord) -> StaffId:
+    """通常のテストレコードが持つ指導者を返す。"""
+    assert record.counselor_id is not None
+    return record.counselor_id
+
+
+class TestNSIPS取込と服薬指導実績:
+    """取込メタデータと実際の服薬指導を別の事実として保持する。"""
+
+    def test_tc01_NSIPS取込下書きは_取込時刻だけで構築できる(self) -> None:
+        imported_at = datetime(2026, 8, 24, 4, 0, tzinfo=UTC)
+
+        actual = create_nsips_draft_record(imported_at=imported_at)
+
+        assert actual.status == MedicationHistoryStatus.DRAFT
+        assert actual.counselor_id is None
+        assert actual.counseled_at is None
+        assert actual.imported_at is not None
+        assert actual.imported_at.value == imported_at
+
+    @pytest.mark.parametrize(
+        "field_name",
+        ("counselor", "counseled_at"),
+    )
+    def test_tc02_指導者と指導日時は_片方だけ設定できない(
+        self, field_name: str
+    ) -> None:
+        record = create_nsips_draft_record()
+
+        with pytest.raises(MedicationHistoryDomainError):
+            if field_name == "counselor":
+                replace(record, counselor_id=StaffId.generate())
+            else:
+                replace(
+                    record,
+                    counseled_at=CounselingTimestamp(
+                        datetime(2026, 8, 24, 4, 0, tzinfo=UTC)
+                    ),
+                )
+
+    def test_tc03_指導実績も取込時刻もない下書きは_構築できない(self) -> None:
+        record = create_nsips_draft_record()
+
+        with pytest.raises(MedicationHistoryDomainError):
+            replace(record, imported_at=None)
+
+    def test_tc04_取込時刻だけの下書きは_指導情報なしで確定できない(self) -> None:
+        record = create_nsips_draft_record()
+
+        with pytest.raises(MedicationHistoryDomainError):
+            record.finalize()
+
+    def test_tc05_実指導情報を設定して確定しても_取込時刻を維持する(self) -> None:
+        imported_at = datetime(2026, 8, 24, 4, 0, tzinfo=UTC)
+        counseled_at = datetime(2026, 8, 24, 5, 0, tzinfo=UTC)
+        counselor_id = StaffId.generate()
+        record = create_nsips_draft_record(
+            imported_at=imported_at, ready_to_finalize=True
+        )
+
+        finalized = record.finalize(
+            counselor_id=counselor_id,
+            counseled_at=CounselingTimestamp(counseled_at),
+        )
+
+        assert finalized.counselor_id == counselor_id
+        assert finalized.counseled_at == CounselingTimestamp(counseled_at)
+        assert finalized.imported_at is not None
+        assert finalized.imported_at.value == imported_at
 
 
 class Test残薬状況:
@@ -517,8 +599,8 @@ class Test下書き更新:
         # Arrange
         record = create_record()
         finalized = record.finalize(
-            finalized_at=FinalizedTimestamp(record.counseled_at.value),
-            finalized_by=record.counselor_id,
+            finalized_at=FinalizedTimestamp(_record_counseled_at(record).value),
+            finalized_by=_record_counselor_id(record),
         )
 
         # Act / Assert
@@ -532,7 +614,7 @@ class Test確定真正性と遅延理由:
     def test_tc08_当日確定で確定日時と確定者が記録される(self) -> None:
         # Arrange
         record = create_record()
-        finalized_at = FinalizedTimestamp(record.counseled_at.value)
+        finalized_at = FinalizedTimestamp(_record_counseled_at(record).value)
         finalized_by = StaffId.generate()
 
         # Act
@@ -550,9 +632,8 @@ class Test確定真正性と遅延理由:
     def test_tc09_翌日確定で遅延理由を指定して確定できる(self) -> None:
         # Arrange
         record = create_record()
-        next_day = record.counseled_at.value.replace(
-            day=record.counseled_at.value.day + 1
-        )
+        counseled_at = _record_counseled_at(record).value
+        next_day = counseled_at.replace(day=counseled_at.day + 1)
         finalized_at = FinalizedTimestamp(next_day)
         finalized_by = StaffId.generate()
         delay_reason = FinalizationDelayReason("疑義照会の回答待ちのため翌日記載")
@@ -571,9 +652,8 @@ class Test確定真正性と遅延理由:
     def test_tc10_翌日確定で遅延理由が無いと拒否される(self) -> None:
         # Arrange
         record = create_record()
-        next_day = record.counseled_at.value.replace(
-            day=record.counseled_at.value.day + 1
-        )
+        counseled_at = _record_counseled_at(record).value
+        next_day = counseled_at.replace(day=counseled_at.day + 1)
         finalized_at = FinalizedTimestamp(next_day)
         finalized_by = StaffId.generate()
 
@@ -588,9 +668,8 @@ class Test確定真正性と遅延理由:
     def test_tc11_指導日時より過去の確定日時は拒否される(self) -> None:
         # Arrange
         record = create_record()
-        past = record.counseled_at.value.replace(
-            year=record.counseled_at.value.year - 1
-        )
+        counseled_at = _record_counseled_at(record).value
+        past = counseled_at.replace(year=counseled_at.year - 1)
         finalized_at = FinalizedTimestamp(past)
         finalized_by = StaffId.generate()
 
@@ -604,7 +683,7 @@ class Test確定真正性と遅延理由:
     def test_tc13_確定状態で確定者が欠落していると不変条件違反(self) -> None:
         # Arrange
         record = create_record()
-        finalized_at = FinalizedTimestamp(record.counseled_at.value)
+        finalized_at = FinalizedTimestamp(_record_counseled_at(record).value)
 
         # Act / Assert
         with pytest.raises(FinalizationStaffRequiredError):
@@ -618,7 +697,7 @@ class Test確定真正性と遅延理由:
     def test_tc14_下書き状態で確定日時が設定されていると不変条件違反(self) -> None:
         # Arrange
         record = create_record()
-        finalized_at = FinalizedTimestamp(record.counseled_at.value)
+        finalized_at = FinalizedTimestamp(_record_counseled_at(record).value)
 
         # Act / Assert
         with pytest.raises(MedicationHistoryDomainError):
