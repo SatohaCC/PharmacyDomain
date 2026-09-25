@@ -22,7 +22,9 @@ from app.domain.identity.primitives import (
 )
 from app.domain.identity.user_account import UserAccount
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 from app.presentational.app_factory import create_app
 from app.presentational.authentication import UnconfiguredActorContextProvider
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState

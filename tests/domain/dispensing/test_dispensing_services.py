@@ -14,41 +14,45 @@ from typing import cast
 
 import pytest
 
-from app.domain.dispensing import (
+from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.exceptions import (
     DispensedMedicineNotInPrescriptionError,
     DispensedRpNotInPrescriptionError,
-    DispensingCompletionType,
     DispensingOutsidePrescriptionPeriodError,
     DispensingScheduleOutOfRangeError,
-    DispensingSplitReason,
     InquiryNotAgreedError,
     InquiryReferenceNotInPrescriptionError,
     IterationExceedsInstructionError,
-    NextDispensingDate,
     PreviousDispensingCompletedError,
     PreviousDispensingUnknownError,
-    QuantityAdjustmentReason,
     SplitInstructionMissingError,
-    SubstitutionCategory,
     SubstitutionNotAllowedError,
 )
-from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.primitives import (
+    DispensingCompletionType,
+    DispensingSplitReason,
+    NextDispensingDate,
+    QuantityAdjustmentReason,
+    SubstitutionCategory,
+)
 from app.domain.dispensing.services import (
     REFILL_SCHEDULE_TOLERANCE_DAYS,
     DispensingConsistencyService,
     verify_substitution_restriction_table,
 )
-from app.domain.prescription import (
+from app.domain.prescription.prescription import Prescription
+from app.domain.prescription.primitives import (
     GenericSubstitutionRestrictionType,
     InquiryNumber,
     InquiryResultType,
-    Prescription,
-    PrescriptionManagementInfo,
     RefillCount,
-    RefillInstruction,
     SplitCount,
-    SplitInstruction,
     SplitIteration,
+)
+from app.domain.prescription.value_objects import (
+    PrescriptionManagementInfo,
+    RefillInstruction,
+    SplitInstruction,
 )
 from tests.factories.dispensing_factory import (
     DISPENSED_ON,

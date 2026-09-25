@@ -2,9 +2,9 @@
 
 from typing import Never
 
-from app.application.access_control import (
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import (
     ActorContext,
-    CorporateAccessBoundary,
     Permission,
 )
 from app.application.common.exceptions import AuthorizationError

@@ -16,41 +16,39 @@ from decimal import Decimal
 
 import pytest
 
-from app.application.access_control import TenantBoundaryNotFoundError
+from app.application.access_control.exceptions import TenantBoundaryNotFoundError
 from app.application.composition.dispensing_references import PrescriptionSourceAdapter
 from app.application.corporate.exceptions import CorporateInactiveError
-from app.application.dispensing import (
-    CompleteDispensingCommand,
+from app.application.dispensing.complete_dispensing import CompleteDispensingCommand
+from app.application.dispensing.exceptions import (
     DispensingNotFoundError,
     DispensingPrescriptionNotFoundError,
     DispensingStaffNotFoundError,
     DispensingStoreNotFoundError,
+    PrescriptionNotReadyForDispensingError,
+)
+from app.application.dispensing.get_dispensing import (
     GetDispensingQuery,
     GetDispensingUseCase,
+)
+from app.application.dispensing.list_dispensings_by_prescription import (
     ListDispensingsByPrescriptionQuery,
-    PrescriptionNotReadyForDispensingError,
-    RecordAuditCommand,
+)
+from app.application.dispensing.record_audit import RecordAuditCommand
+from app.application.dispensing.record_dispensed_content import (
     RecordDispensedContentCommand,
-    StartDispensingUseCase,
-    VerifyDispensingCommand,
 )
-from app.application.prescription import (
-    ReadyForDispensingCommand,
-    ResolveInquiryCommand,
-    StartInquiryCommand,
-)
+from app.application.dispensing.start_dispensing import StartDispensingUseCase
+from app.application.dispensing.verify_dispensing import VerifyDispensingCommand
+from app.application.prescription.ready_for_dispensing import ReadyForDispensingCommand
+from app.application.prescription.resolve_inquiry import ResolveInquiryCommand
+from app.application.prescription.start_inquiry import StartInquiryCommand
 from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing import (
+from app.domain.dispensing.exceptions import (
     DispensedRpNotInPrescriptionError,
     DispensingAlreadyExistsError,
-    DispensingConsistencyService,
-    DispensingId,
-    DispensingIterationUniquenessService,
     DispensingOutsidePrescriptionPeriodError,
     DispensingPharmacistQualificationError,
-    DispensingPharmacistService,
-    DispensingProcessStatus,
-    DispensingSplitReason,
     InquiryNotAgreedError,
     InquiryReferenceNotInPrescriptionError,
     IterationExceedsInstructionError,
@@ -58,13 +56,25 @@ from app.domain.dispensing import (
     SubstitutionNotAllowedError,
     VerificationNotPassedError,
 )
-from app.domain.prescription import (
+from app.domain.dispensing.primitives import (
+    DispensingId,
+    DispensingProcessStatus,
+    DispensingSplitReason,
+)
+from app.domain.dispensing.services import (
+    DispensingConsistencyService,
+    DispensingIterationUniquenessService,
+    DispensingPharmacistService,
+)
+from app.domain.prescription.primitives import (
     GenericSubstitutionRestrictionType,
     InquiryNumber,
     InquiryResultType,
-    PrescriptionManagementInfo,
     PrescriptionStatus,
     RefillCount,
+)
+from app.domain.prescription.value_objects import (
+    PrescriptionManagementInfo,
     RefillInstruction,
 )
 from app.domain.staff.primitives import StaffId, StaffQualifications

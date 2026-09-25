@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.dispensing.get_dispensing import DispensingProcessDto
 from app.application.dispensing.inputs import DispensedRpInput
 from app.application.dispensing.reference import PrescriptionReferenceBoundary
@@ -13,12 +14,10 @@ from app.application.dispensing.support import (
     load_dispensing_or_raise,
 )
 from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing import (
-    DispensingConsistencyService,
-    DispensingId,
-    DispensingProcess,
-    DispensingProcessRepository,
-)
+from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.primitives import DispensingId
+from app.domain.dispensing.repository import DispensingProcessRepository
+from app.domain.dispensing.services import DispensingConsistencyService
 
 
 @dataclass(frozen=True, kw_only=True)

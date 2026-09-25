@@ -78,7 +78,9 @@ from app.infrastructure.postgres.connection import (
     create_async_engine_from_settings,
     create_session_factory,
 )
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 
 # --------------------------------------------------------------------------
 # 固定値

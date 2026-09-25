@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.corporate import CorporateNotFoundError
+from app.application.corporate.exceptions import CorporateNotFoundError
 from app.application.store.exceptions import StoreNotFoundError
 from app.domain.corporate.exceptions import CorporateNameAlreadyExistsError
 from app.domain.foundation.exceptions import DomainError, DomainValidationError

@@ -6,13 +6,15 @@ from datetime import date
 
 import pytest
 
-from app.domain.corporate import CorporateId
-from app.domain.staff import (
+from app.domain.corporate.primitives import CorporateId
+from app.domain.staff.exceptions import (
     AffiliationDateConflictError,
     ConcurrentStoreConflictError,
     InvalidCorporateAssignmentError,
-    StaffCode,
     StaffCodeAlreadyExistsError,
+)
+from app.domain.staff.primitives import StaffCode
+from app.domain.staff.services import (
     StaffCodeUniquenessService,
     StaffStoreAssignmentService,
 )

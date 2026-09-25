@@ -8,11 +8,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.common.optional_conversion import unwrap
 from app.application.prescription.support import load_prescription_or_raise
 from app.domain.corporate.primitives import CorporateId
-from app.domain.prescription import (
+from app.domain.prescription.prescription import (
+    Prescription,
+    PrescriptionInquiry,
+    PrescriptionMedicine,
+    PrescriptionRp,
+)
+from app.domain.prescription.primitives import PrescriptionId
+from app.domain.prescription.repository import PrescriptionRepository
+from app.domain.prescription.value_objects import (
     DepartmentInfo,
     DosageSupplement,
     GenericSubstitutionRestriction,
@@ -20,14 +29,8 @@ from app.domain.prescription import (
     MedicineSupplement,
     PrescriberInfo,
     PrescriberResponse,
-    Prescription,
-    PrescriptionId,
-    PrescriptionInquiry,
     PrescriptionManagementInfo,
-    PrescriptionMedicine,
     PrescriptionPeriod,
-    PrescriptionRepository,
-    PrescriptionRp,
     UnitConversion,
 )
 from app.domain.shared.dosage import (

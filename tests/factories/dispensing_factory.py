@@ -11,25 +11,29 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing import (
-    DispensedDate,
+from app.domain.dispensing.dispensing_process import (
     DispensedMedicine,
     DispensedRp,
+    DispensingProcess,
+)
+from app.domain.dispensing.primitives import (
+    DispensedDate,
     DispensingCancellationReason,
     DispensingCompletionType,
     DispensingIteration,
-    DispensingProcess,
     DispensingSplitReason,
     DispensingTimestamp,
     PreparationMethod,
-    QuantityAdjustment,
     QuantityAdjustmentReason,
     SubstitutionCategory,
-    SubstitutionDetail,
     SubstitutionReason,
     TotalSplitCount,
     VerificationResult,
     VerificationTimestamp,
+)
+from app.domain.dispensing.value_objects import (
+    QuantityAdjustment,
+    SubstitutionDetail,
 )
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import InquiryNumber, PrescriptionId

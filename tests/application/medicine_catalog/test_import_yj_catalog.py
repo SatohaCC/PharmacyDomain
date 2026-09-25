@@ -7,9 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from app.application.access_control import ActorContext, AuthorizationService
+from app.application.access_control.models import ActorContext
+from app.application.access_control.policy import AuthorizationService
 from app.application.common.exceptions import AuthorizationError
-from app.application.medicine_catalog import (
+from app.application.medicine_catalog.import_yj_catalog import (
     ImportYjCatalogCommand,
     ImportYjCatalogUseCase,
     YjCatalogCsvParser,

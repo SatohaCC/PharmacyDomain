@@ -4,22 +4,28 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.medication_history import (
+from app.application.medication_history.finalize_medication_history import (
     FinalizeMedicationHistoryCommand,
     FinalizeMedicationHistoryUseCase,
+)
+from app.application.medication_history.inputs import (
     LabeledNoteInput,
     SoapInput,
 )
-from app.domain.medication_history import (
+from app.domain.medication_history.category_catalog import (
+    MedicationHistoryCategoryCatalog,
+)
+from app.domain.medication_history.exceptions import RequiredCategoryMissingError
+from app.domain.medication_history.primitives import (
     CategoryCatalogId,
     MajorCategoryCode,
-    MajorCategoryDefinition,
     MajorCategoryName,
-    MedicationHistoryCategoryCatalog,
     MediumCategoryCode,
-    MediumCategoryDefinition,
     MediumCategoryName,
-    RequiredCategoryMissingError,
+)
+from app.domain.medication_history.value_objects import (
+    MajorCategoryDefinition,
+    MediumCategoryDefinition,
 )
 from tests.application.medication_history.helpers import (
     create_fixture,

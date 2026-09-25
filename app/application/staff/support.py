@@ -4,7 +4,9 @@ from app.application.common.input_normalization import to_optional_text
 from app.application.staff.exceptions import StaffNotFoundError
 from app.application.store.support import load_store_or_raise
 from app.domain.corporate.primitives import CorporateId
-from app.domain.staff import Staff, StaffId, StaffRepository
+from app.domain.staff.primitives import StaffId
+from app.domain.staff.repository import StaffRepository
+from app.domain.staff.staff import Staff
 
 __all__ = ["load_staff_or_raise", "load_store_or_raise", "to_optional_text"]
 

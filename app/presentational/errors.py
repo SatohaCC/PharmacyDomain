@@ -56,6 +56,7 @@ from app.application.medicine_catalog.exceptions import MedicineNotFoundError
 from app.application.patient.exceptions import (
     PatientExternalIdentifierNotFoundError,
     PatientNotFoundError,
+    PatientStoreNotFoundError,
 )
 from app.application.prescription.exceptions import (
     PrescriptionCoverageSelectionNotFoundError,
@@ -207,6 +208,7 @@ _STATUS_BY_EXCEPTION: Final[Mapping[type[BaseException], HTTPStatus]] = {
     MedicineNotFoundError: HTTPStatus.NOT_FOUND,
     PatientExternalIdentifierNotFoundError: HTTPStatus.NOT_FOUND,
     PatientNotFoundError: HTTPStatus.NOT_FOUND,
+    PatientStoreNotFoundError: HTTPStatus.NOT_FOUND,
     PrescriptionCoverageSelectionNotFoundError: HTTPStatus.NOT_FOUND,
     PrescriptionNotFoundError: HTTPStatus.NOT_FOUND,
     PrescriptionPatientNotFoundError: HTTPStatus.NOT_FOUND,

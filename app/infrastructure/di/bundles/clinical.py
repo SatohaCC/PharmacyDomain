@@ -7,12 +7,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.application.access_control import AuthorizationService
+from app.application.access_control.policy import AuthorizationService
 from app.application.common.clock import Clock
 from app.application.composition.dispensing_references import (
     DispensingStaffQualificationAdapter,
     DispensingStoreReferenceAdapter,
     PrescriptionSourceAdapter,
+)
+from app.application.composition.medication_history_patient_profile import (
+    MedicationHistoryPatientProfileAdapter,
 )
 from app.application.composition.medication_history_references import (
     CounselorQualificationAdapter,
@@ -57,6 +60,9 @@ from app.application.medication_history.finalize_medication_history import (
 from app.application.medication_history.get_medication_history import (
     GetMedicationHistoryUseCase,
     ListMedicationHistoriesByPatientUseCase,
+)
+from app.application.medication_history.get_medication_history_view import (
+    GetMedicationHistoryViewUseCase,
 )
 from app.application.medication_history.get_patient_medical_profile import (
     GetPatientMedicalProfileUseCase,
@@ -109,7 +115,9 @@ from app.infrastructure.external.drug_interaction import (
     BlackBoxDrugInteractionDataSource,
 )
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 
 # --------------------------------------------------------------------------
 # 処方箋
@@ -263,6 +271,7 @@ class MedicationHistoryUseCases:
     add_follow_up: AddFollowUpUseCase
     record_tracing_report: RecordTracingReportUseCase
     record_tracing_report_response: RecordTracingReportResponseUseCase
+    get_view: GetMedicationHistoryViewUseCase
 
 
 def build_medication_history_use_cases(
@@ -357,6 +366,11 @@ def build_medication_history_use_cases(
         ),
         record_tracing_report_response=RecordTracingReportResponseUseCase(
             record_repository,
+            corporate_access,
+        ),
+        get_view=GetMedicationHistoryViewUseCase(
+            record_repository,
+            MedicationHistoryPatientProfileAdapter(repositories.patient),
             corporate_access,
         ),
     )

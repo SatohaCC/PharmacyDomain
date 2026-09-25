@@ -12,34 +12,38 @@ from decimal import Decimal
 
 import pytest
 
-from app.domain.prescription import (
+from app.domain.prescription.exceptions import (
     BlockingInquiryExistsError,
-    DosageSupplement,
-    DosageSupplementText,
-    DosageSupplementType,
-    GenericSubstitutionRestriction,
-    GenericSubstitutionRestrictionType,
     InquiryAlreadyResolvedError,
     InquiryNotFoundError,
-    InquiryNumber,
-    InquiryResultType,
     MedicineCodeTypeNotAllowedError,
     MedicineLineNumberSequenceError,
-    MedicineSupplement,
-    MedicineSupplementText,
-    MedicineSupplementType,
     OpenInquiryExistsError,
-    Prescription,
     PrescriptionMedicineRequiredError,
     PrescriptionRpRequiredError,
-    PrescriptionSourceType,
-    PrescriptionStatus,
     PrescriptionStatusTransitionError,
     RpNumberSequenceError,
-    UnequalDosageInstruction,
     UnequalDosageTotalMismatchError,
 )
-from app.domain.prescription.primitives import verify_supplement_code_partition
+from app.domain.prescription.prescription import Prescription
+from app.domain.prescription.primitives import (
+    DosageSupplementText,
+    DosageSupplementType,
+    GenericSubstitutionRestrictionType,
+    InquiryNumber,
+    InquiryResultType,
+    MedicineSupplementText,
+    MedicineSupplementType,
+    PrescriptionSourceType,
+    PrescriptionStatus,
+    verify_supplement_code_partition,
+)
+from app.domain.prescription.value_objects import (
+    DosageSupplement,
+    GenericSubstitutionRestriction,
+    MedicineSupplement,
+    UnequalDosageInstruction,
+)
 from app.domain.shared.medicine import (
     DosageAmount,
     MedicineCodeType,

@@ -1,18 +1,19 @@
 from __future__ import annotations
 
-import importlib
 import uuid
 
 import pytest
 
-from app.domain.corporate import (
-    Corporate,
-    CorporateCatalogRepository,
+from app.domain.corporate.corporate import Corporate
+from app.domain.corporate.exceptions import CorporateNameAlreadyExistsError
+from app.domain.corporate.primitives import (
     CorporateId,
     CorporateName,
-    CorporateNameAlreadyExistsError,
-    CorporateRepository,
     CorporateRepresentativeName,
+)
+from app.domain.corporate.repository import (
+    CorporateCatalogRepository,
+    CorporateRepository,
 )
 from app.domain.foundation.exceptions import DomainValidationError
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository
@@ -137,21 +138,6 @@ def test_corporate_id_rejects_other_uuid_versions() -> None:
     # Act / Assert
     with pytest.raises(DomainValidationError):
         CorporateId.parse(str(uuid4))
-
-
-def test_public_package_exports() -> None:
-    # Arrange
-    public_api = {
-        CorporateRepresentativeName,
-        CorporateCatalogRepository,
-    }
-
-    # Act
-    module = importlib.import_module("app.domain.corporate")
-    exported_names = set(getattr(module, "__all__", []))
-
-    # Assert
-    assert {item.__name__ for item in public_api} <= exported_names
 
 
 @pytest.mark.asyncio

@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.domain.corporate import CorporateId
-from app.domain.staff import (
+from app.domain.corporate.primitives import CorporateId
+from app.domain.staff.primitives import (
     InsurancePharmacistRegistration,
     InsurancePharmacistRegistrationNumber,
     PharmacistLicenseNumber,
     PharmacistProfile,
     StaffQualifications,
-    StaffStoreAssignmentService,
 )
+from app.domain.staff.services import StaffStoreAssignmentService
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store
 

@@ -9,7 +9,9 @@ from app.application.medicine_catalog.get_medicine import GetEffectiveMedicineUs
 from app.application.medicine_catalog.import_yj_catalog import ImportYjCatalogUseCase
 from app.application.medicine_catalog.register_medicine import RegisterMedicineUseCase
 from app.domain.medicine_catalog.services import MedicineEffectivePeriodConflictService
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 
 
 @dataclass(frozen=True, slots=True)

@@ -5,7 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission, ResolvedActorContext
+from app.application.common.clock import Clock
+from app.application.common.exceptions import AuthorizationError
+from app.application.patient.profile_history import record_manual_profile_change
 from app.application.patient.support import load_patient_or_raise
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientBirthDate, PatientId
@@ -28,12 +32,14 @@ class ChangePatientBirthDateUseCase:
         self,
         repository: PatientRepository,
         corporate_access: CorporateAccessBoundary,
+        clock: Clock,
     ) -> None:
         self._repository = repository
         self._corporate_access = corporate_access
+        self._clock = clock
 
     async def execute(self, command: ChangePatientBirthDateCommand) -> None:
-        """法人境界を確認して患者の生年月日を変更する。"""
+        """法人境界を確認して生年月日の変更と履歴を保存する。"""
         corporate_id = CorporateId.parse(command.corporate_id)
         await self._corporate_access.require_active(
             corporate_id=corporate_id,
@@ -48,4 +54,17 @@ class ChangePatientBirthDateUseCase:
         birth_date = (
             PatientBirthDate(command.birth_date) if command.birth_date else None
         )
-        await self._repository.save(patient.change_birth_date(birth_date))
+        updated = patient.change_birth_date(birth_date)
+        if patient.birth_date == birth_date:
+            return
+        actor = self._corporate_access.actor
+        if not isinstance(actor, ResolvedActorContext):
+            raise AuthorizationError("患者プロフィールの変更には本人特定が必要です。")
+        updated = record_manual_profile_change(
+            before=patient,
+            after=updated,
+            changed_fields=("patient.birth_date",),
+            actor=actor,
+            recorded_at=self._clock.now(),
+        )
+        await self._repository.save(updated)

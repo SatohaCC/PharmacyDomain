@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.store import ChangeStoreNamesCommand, ChangeStoreNamesUseCase
-from app.application.store.exceptions import StoreNotFoundError
-from app.domain.corporate import CorporateId
-from app.domain.store import (
-    StoreNameAlreadyExistsError,
-    StoreNameUniquenessService,
+from app.application.store.change_store_name import (
+    ChangeStoreNamesCommand,
+    ChangeStoreNamesUseCase,
 )
+from app.application.store.exceptions import StoreNotFoundError
+from app.domain.corporate.primitives import CorporateId
+from app.domain.store.exceptions import StoreNameAlreadyExistsError
+from app.domain.store.services import StoreNameUniquenessService
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.application.store.helpers import save_store
 from tests.fakes.in_memory_store_repository import InMemoryStoreRepository

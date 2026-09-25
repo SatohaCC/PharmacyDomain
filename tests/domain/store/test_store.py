@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from app.domain.corporate import CorporateId
-from app.domain.store import Store, StoreCode, StoreId
+from app.domain.corporate.primitives import CorporateId
+from app.domain.store.primitives import (
+    StoreCode,
+    StoreId,
+)
+from app.domain.store.store import Store
 from tests.factories.store_factory import (
     VALID_INSURANCE_NUMBER,
     create_contact_info,

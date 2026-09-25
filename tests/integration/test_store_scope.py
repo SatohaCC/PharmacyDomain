@@ -7,12 +7,15 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.application.access_control.models import ActorRole, ResolvedActorContext
 from app.application.access_control.policy import AuthorizationService
-from app.application.store import GetStoreQuery, ListStoresQuery
 from app.application.store.exceptions import StoreNotFoundError
+from app.application.store.get_store import GetStoreQuery
+from app.application.store.list_stores import ListStoresQuery
 from app.domain.identity.primitives import AccountPersonId, UserAccountId
 from app.infrastructure.di.root import PostgresCompositionRoot
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 from tests.factories.store_factory import create_store
 from tests.fakes.fake_clock import FakeClock
 from tests.infrastructure.postgres.helpers import create_corporate

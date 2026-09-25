@@ -6,14 +6,14 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from app.application.access_control import (
+from app.application.access_control.models import (
     ActorContext,
     ActorRole,
-    AuthorizationService,
+    ResolvedActorContext,
 )
-from app.application.access_control.models import ResolvedActorContext
+from app.application.access_control.policy import AuthorizationService
 from app.application.common.exceptions import AuthorizationError
-from app.application.corporate import CorporateAccessService
+from app.application.corporate.corporate_access import CorporateAccessService
 from app.application.patient.change_patient_birth_date import (
     ChangePatientBirthDateCommand,
     ChangePatientBirthDateUseCase,
@@ -337,7 +337,7 @@ async def test_TC29_統合済み患者の属性変更ユースケース_拒否()
         )
     )
 
-    change_names_uc = ChangePatientNamesUseCase(repository, access)
+    change_names_uc = ChangePatientNamesUseCase(repository, access, clock)
     with pytest.raises(
         PatientStateConflictError, match="統合済みの患者の情報は変更できません"
     ):
@@ -352,7 +352,7 @@ async def test_TC29_統合済み患者の属性変更ユースケース_拒否()
             )
         )
 
-    change_birth_uc = ChangePatientBirthDateUseCase(repository, access)
+    change_birth_uc = ChangePatientBirthDateUseCase(repository, access, clock)
     with pytest.raises(
         PatientStateConflictError, match="統合済みの患者の情報は変更できません"
     ):

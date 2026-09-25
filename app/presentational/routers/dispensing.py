@@ -12,17 +12,21 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Depends
 
-from app.application.dispensing import (
-    CompleteDispensingCommand,
-    DispensedRpInput,
+from app.application.dispensing.complete_dispensing import CompleteDispensingCommand
+from app.application.dispensing.get_dispensing import (
     DispensingProcessDto,
     GetDispensingQuery,
-    ListDispensingsByPrescriptionQuery,
-    RecordAuditCommand,
-    RecordDispensedContentCommand,
-    StartDispensingCommand,
-    VerifyDispensingCommand,
 )
+from app.application.dispensing.inputs import DispensedRpInput
+from app.application.dispensing.list_dispensings_by_prescription import (
+    ListDispensingsByPrescriptionQuery,
+)
+from app.application.dispensing.record_audit import RecordAuditCommand
+from app.application.dispensing.record_dispensed_content import (
+    RecordDispensedContentCommand,
+)
+from app.application.dispensing.start_dispensing import StartDispensingCommand
+from app.application.dispensing.verify_dispensing import VerifyDispensingCommand
 from app.presentational.dependencies import DispensingUseCasesDep, get_actor_context
 from app.presentational.errors import error_responses
 from app.presentational.schemas import RequestModel

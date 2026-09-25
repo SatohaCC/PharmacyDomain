@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.domain.dispensing import (
+from app.domain.dispensing.primitives import (
     AuditTimestamp,
     DispensingCompletionType,
     DispensingIteration,

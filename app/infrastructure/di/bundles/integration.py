@@ -18,7 +18,9 @@ from app.infrastructure.di.bundles.patient_care import (
     ReceptionUseCases,
 )
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +53,7 @@ def build_integration_use_cases(
         patient_coverage_repo=repositories.patient_coverage,
         register_coverage_use_case=coverage_use_cases.register,
         record_coverage_selection_use_case=reception_use_cases.record_coverage_selection,
+        reception_repo=repositories.reception,
         register_patient_use_case=patient_use_cases.register,
         register_patient_external_id_use_case=patient_use_cases.register_external_identifier,
         register_prescription_use_case=prescription_use_cases.register,

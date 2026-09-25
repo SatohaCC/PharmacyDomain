@@ -1,6 +1,7 @@
 """招待の状態を参照するユースケース。"""
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.common.exceptions import NotFoundError
 from app.application.identity.dto import InvitationViewDto
 from app.domain.corporate.primitives import CorporateId

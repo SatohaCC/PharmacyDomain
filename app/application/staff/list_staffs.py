@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.application.access_control import (
-    CorporateAccessBoundary,
-    Permission,
-)
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.domain.corporate.primitives import CorporateId
 from app.domain.staff.repository import StaffCatalogRepository
 from app.domain.staff.staff import Staff

@@ -29,7 +29,9 @@ from app.domain.store.manager_assignment import StoreManagerAssignment
 from app.domain.store.store import Store
 from app.infrastructure.di.root import PostgresCompositionRoot
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_manager_assignment, create_store
 from tests.fakes.fake_clock import FakeClock

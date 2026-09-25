@@ -15,21 +15,23 @@ from datetime import UTC, date, datetime
 import pytest
 
 from app.domain.corporate.primitives import CorporateId
-from app.domain.medication_history import (
+from app.domain.medication_history.exceptions import (
     AdverseReactionNotFoundError,
     AllergyNotFoundError,
     ConcurrentMedicationNotFoundError,
-    ConditionStatus,
-    GenericPreferenceType,
     MedicalConditionNotFoundError,
-    PatientMedicalProfile,
     ProfilePatientMismatchError,
-    ProfileUpdateIntents,
     UnfinalizedRecordProjectionError,
 )
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
+from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
+from app.domain.medication_history.primitives import (
+    ConditionStatus,
+    GenericPreferenceType,
+)
+from app.domain.medication_history.value_objects import ProfileUpdateIntents
 from app.domain.patient.primitives import PatientId
 from tests.factories.medication_history_factory import (
     create_adverse_reaction_intent,

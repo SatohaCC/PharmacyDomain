@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.common.optional_conversion import unwrap
 from app.application.patient.support import load_patient_or_raise
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.patient import Patient
 from app.domain.patient.primitives import PatientId
+from app.domain.patient.profile_history import (
+    PatientProfileChange,
+    PatientProfileSnapshot,
+)
 from app.domain.patient.repository import PatientRepository
 
 
@@ -35,6 +40,99 @@ class PatientStatusChangeDto:
 
 
 @dataclass(frozen=True, kw_only=True)
+class PatientProfileSnapshotDto:
+    """患者プロフィールのある時点の値DTO。"""
+
+    last_name: str
+    first_name: str
+    last_name_kana: str
+    first_name_kana: str
+    birth_date: str | None
+    gender: str | None
+    postal_code: str | None
+    address: str | None
+    phone_number: str | None
+
+    @classmethod
+    def from_entity(
+        cls,
+        profile: PatientProfileSnapshot,
+    ) -> PatientProfileSnapshotDto:
+        """プロフィール履歴SnapshotをDTOへ変換する。"""
+        return cls(
+            last_name=profile.names.kanji.last_name.value,
+            first_name=profile.names.kanji.first_name.value,
+            last_name_kana=profile.names.kana.last_name.value,
+            first_name_kana=profile.names.kana.first_name.value,
+            birth_date=(
+                profile.birth_date.value.isoformat()
+                if profile.birth_date is not None
+                else None
+            ),
+            gender=unwrap(profile.gender),
+            postal_code=unwrap(profile.postal_code),
+            address=unwrap(profile.address),
+            phone_number=unwrap(profile.phone_number),
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
+class PatientProfileChangeDto:
+    """患者プロフィール変更履歴DTO。"""
+
+    recorded_at: str
+    changed_fields: tuple[str, ...]
+    source: str = "nsips"
+    reception_id: str | None = None
+    store_id: str | None = None
+    external_patient_id: str | None = None
+    received_profile: PatientProfileSnapshotDto | None = None
+    before_profile: PatientProfileSnapshotDto | None = None
+    applied_profile: PatientProfileSnapshotDto | None = None
+    person_id: str | None = None
+    account_id: str | None = None
+
+    @classmethod
+    def from_entity(cls, change: PatientProfileChange) -> PatientProfileChangeDto:
+        """プロフィール変更履歴をDTOへ変換する。"""
+        return cls(
+            recorded_at=change.recorded_at.isoformat(),
+            changed_fields=change.changed_fields,
+            source=change.source.value,
+            reception_id=(
+                str(change.reception_id.value)
+                if change.reception_id is not None
+                else None
+            ),
+            store_id=str(change.store_id.value)
+            if change.store_id is not None
+            else None,
+            external_patient_id=unwrap(change.external_patient_id),
+            received_profile=(
+                PatientProfileSnapshotDto.from_entity(change.received_profile)
+                if change.received_profile is not None
+                else None
+            ),
+            before_profile=(
+                PatientProfileSnapshotDto.from_entity(change.before_profile)
+                if change.before_profile is not None
+                else None
+            ),
+            applied_profile=(
+                PatientProfileSnapshotDto.from_entity(change.applied_profile)
+                if change.applied_profile is not None
+                else None
+            ),
+            person_id=str(change.person_id.value)
+            if change.person_id is not None
+            else None,
+            account_id=str(change.account_id.value)
+            if change.account_id is not None
+            else None,
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
 class PatientDto:
     """患者詳細の出力データ（DTO）。"""
 
@@ -53,6 +151,7 @@ class PatientDto:
     status: str = "active"
     merged_into_id: str | None = None
     status_history: tuple[PatientStatusChangeDto, ...] = ()
+    profile_history: tuple[PatientProfileChangeDto, ...] = ()
 
     @classmethod
     def from_entity(cls, patient: Patient) -> PatientDto:
@@ -89,6 +188,10 @@ class PatientDto:
                     else None,
                 )
                 for change in patient.status_history
+            ),
+            profile_history=tuple(
+                PatientProfileChangeDto.from_entity(change)
+                for change in patient.profile_history
             ),
         )
 

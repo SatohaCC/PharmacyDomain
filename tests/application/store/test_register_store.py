@@ -4,16 +4,21 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.corporate import CorporateInactiveError
-from app.application.store import RegisterStoreCommand, RegisterStoreUseCase
-from app.domain.corporate import CorporateId
+from app.application.corporate.exceptions import CorporateInactiveError
+from app.application.store.register_store import (
+    RegisterStoreCommand,
+    RegisterStoreUseCase,
+)
+from app.domain.corporate.primitives import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.store import (
+from app.domain.store.exceptions import (
     InsurancePharmacyNumberAlreadyExistsError,
-    InsurancePharmacyNumberUniquenessService,
     StoreCodeAlreadyExistsError,
-    StoreCodeUniquenessService,
     StoreNameAlreadyExistsError,
+)
+from app.domain.store.services import (
+    InsurancePharmacyNumberUniquenessService,
+    StoreCodeUniquenessService,
     StoreNameUniquenessService,
 )
 from tests.application.access_helpers import (

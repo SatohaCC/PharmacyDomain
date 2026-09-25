@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.staff import GetStaffQuery, GetStaffUseCase, StaffNotFoundError
-from app.domain.corporate import CorporateId
+from app.application.staff.exceptions import StaffNotFoundError
+from app.application.staff.get_staff import (
+    GetStaffQuery,
+    GetStaffUseCase,
+)
+from app.domain.corporate.primitives import CorporateId
 from app.domain.staff.primitives import StaffId
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.factories.staff_factory import create_staff

@@ -14,24 +14,31 @@ from typing import Annotated, Final
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.application.access_control import ActorContext, AuthorizationService
+from app.application.access_control.models import ActorContext
+from app.application.access_control.policy import AuthorizationService
 from app.application.identity.resolve_actor import VerifiedSubject
-from app.infrastructure.di import (
-    CorporateUseCases,
-    CoverageUseCases,
+from app.infrastructure.di.bundles.clinical import (
     DispensingUseCases,
-    IntegrationUseCases,
     MedicationHistoryUseCases,
-    MedicineCatalogUseCases,
-    PatientUseCases,
-    PostgresCompositionRoot,
-    PostgresRequestScope,
     PrescriptionUseCases,
-    ReceptionUseCases,
+)
+from app.infrastructure.di.bundles.identity import IdentityUseCases
+from app.infrastructure.di.bundles.integration import IntegrationUseCases
+from app.infrastructure.di.bundles.medicine_catalog import MedicineCatalogUseCases
+from app.infrastructure.di.bundles.organization import (
+    CorporateUseCases,
     StaffUseCases,
     StoreUseCases,
 )
-from app.infrastructure.di.bundles.identity import IdentityUseCases
+from app.infrastructure.di.bundles.patient_care import (
+    CoverageUseCases,
+    PatientUseCases,
+    ReceptionUseCases,
+)
+from app.infrastructure.di.root import (
+    PostgresCompositionRoot,
+    PostgresRequestScope,
+)
 from app.presentational.authentication import (
     ActorContextProvider,
     UnconfiguredVerifiedSubjectProvider,

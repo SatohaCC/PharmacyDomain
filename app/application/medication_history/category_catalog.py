@@ -4,19 +4,26 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.medication_history.inputs import UpdateCategoryCatalogCommand
 from app.domain.corporate.primitives import CorporateId
-from app.domain.medication_history import (
+from app.domain.medication_history.category_catalog import (
+    MedicationHistoryCategoryCatalog,
+)
+from app.domain.medication_history.primitives import (
     CategoryCatalogId,
     MajorCategoryCode,
-    MajorCategoryDefinition,
     MajorCategoryName,
-    MedicationHistoryCategoryCatalog,
-    MedicationHistoryCategoryCatalogRepository,
     MediumCategoryCode,
-    MediumCategoryDefinition,
     MediumCategoryName,
+)
+from app.domain.medication_history.repository import (
+    MedicationHistoryCategoryCatalogRepository,
+)
+from app.domain.medication_history.value_objects import (
+    MajorCategoryDefinition,
+    MediumCategoryDefinition,
 )
 
 

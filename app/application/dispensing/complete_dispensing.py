@@ -5,18 +5,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from app.application.access_control import CorporateAccessBoundary, Permission
-from app.application.common import UnitOfWork
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
+from app.application.common.unit_of_work import UnitOfWork
 from app.application.dispensing.get_dispensing import DispensingProcessDto
 from app.application.dispensing.reference import PrescriptionCompletionBoundary
 from app.application.dispensing.support import load_dispensing_or_raise, parse_enum
 from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing import (
+from app.domain.dispensing.primitives import (
     DispensingCompletionType,
     DispensingId,
-    DispensingProcessRepository,
     NextDispensingDate,
 )
+from app.domain.dispensing.repository import DispensingProcessRepository
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -6,7 +6,7 @@
 
 from fastapi import FastAPI
 
-from app.presentational import create_app
+from app.presentational.app_factory import create_app
 from app.presentational.oidc import build_verified_subject_provider
 
 app: FastAPI = create_app(identity_provider=build_verified_subject_provider())

@@ -40,7 +40,9 @@ from app.infrastructure.postgres.connection import (
 from app.infrastructure.postgres.operation_audit import append_pending_audits
 from app.infrastructure.postgres.organization import PostgresOrganizationLock
 from app.infrastructure.postgres.read_scope import RepositoryReadScope
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 
 # --------------------------------------------------------------------------
 # 1リクエスト分の実行文脈

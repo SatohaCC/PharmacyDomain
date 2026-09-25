@@ -18,21 +18,25 @@ import pytest
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.foundation.exceptions import DomainError
-from app.domain.medication_history import (
-    SoapRecord,
-    StatutoryDispensingRecordItem,
-    StatutoryDispensingRecordService,
-    StatutoryItemAssessment,
-    StatutoryItemState,
-    StatutoryRecordBlocker,
-    StatutoryRecordSource,
-    StatutoryRecordSourceMismatchError,
-    StatutoryRecordSufficiency,
-)
+from app.domain.medication_history.exceptions import StatutoryRecordSourceMismatchError
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
-from app.domain.medication_history.services import STATUTORY_ITEM_RESOLVERS
+from app.domain.medication_history.primitives import (
+    StatutoryDispensingRecordItem,
+    StatutoryItemState,
+    StatutoryRecordBlocker,
+)
+from app.domain.medication_history.services import (
+    STATUTORY_ITEM_RESOLVERS,
+    StatutoryDispensingRecordService,
+)
+from app.domain.medication_history.value_objects import (
+    SoapRecord,
+    StatutoryItemAssessment,
+    StatutoryRecordSource,
+    StatutoryRecordSufficiency,
+)
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import PrescriptionId
 from app.domain.staff.primitives import StaffId

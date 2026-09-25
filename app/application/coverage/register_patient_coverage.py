@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.coverage.get_patient_coverage import PatientCoverageDto
 from app.application.coverage.reference import PatientReferenceBoundary
 from app.application.coverage.support import (
@@ -17,12 +18,10 @@ from app.application.coverage.support import (
     parse_coverage_type,
 )
 from app.domain.corporate.primitives import CorporateId
-from app.domain.coverage import (
-    CoverageType,
-    PatientCoverage,
-    PatientCoverageConflictService,
-)
+from app.domain.coverage.patient_coverage import PatientCoverage
+from app.domain.coverage.primitives import CoverageType
 from app.domain.coverage.repository import PatientCoverageRepository
+from app.domain.coverage.services import PatientCoverageConflictService
 from app.domain.patient.primitives import PatientId
 
 

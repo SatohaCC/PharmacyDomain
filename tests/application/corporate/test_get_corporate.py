@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.corporate import CorporateNotFoundError
+from app.application.corporate.exceptions import CorporateNotFoundError
 from app.application.corporate.get_corporate import (
     CorporateResponseDto,
     GetCorporateUseCase,

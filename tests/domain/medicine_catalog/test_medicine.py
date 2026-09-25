@@ -14,16 +14,17 @@ from datetime import date, timedelta
 
 import pytest
 
-from app.domain.medicine_catalog import (
-    Medicine,
+from app.domain.medicine_catalog.exceptions import (
     MedicineCodeRequiredError,
-    MedicineDosageForm,
     MedicineEffectivePeriodInvertedError,
+)
+from app.domain.medicine_catalog.medicine import Medicine, MedicineEffectivePeriod
+from app.domain.medicine_catalog.primitives import (
+    MedicineDosageForm,
     MedicineListedOn,
     MedicineWithdrawnOn,
     NarcoticCategory,
 )
-from app.domain.medicine_catalog.medicine import MedicineEffectivePeriod
 from app.domain.shared.medicine import MedicineCodeType, MedicineIdentifier
 from tests.factories.medicine_catalog_factory import (
     LISTED_ON,

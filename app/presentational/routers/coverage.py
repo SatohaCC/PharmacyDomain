@@ -12,12 +12,18 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Depends
 
-from app.application.coverage import (
+from app.application.coverage.change_patient_coverage_period import (
     ChangePatientCoveragePeriodCommand,
+)
+from app.application.coverage.deactivate_patient_coverage import (
     DeactivatePatientCoverageCommand,
+)
+from app.application.coverage.get_patient_coverage import (
     GetPatientCoverageQuery,
-    ListPatientCoveragesQuery,
     PatientCoverageDto,
+)
+from app.application.coverage.list_patient_coverages import ListPatientCoveragesQuery
+from app.application.coverage.register_patient_coverage import (
     RegisterPatientCoverageCommand,
 )
 from app.presentational.dependencies import CoverageUseCasesDep, get_actor_context

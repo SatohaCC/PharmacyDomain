@@ -12,11 +12,14 @@ from decimal import Decimal
 
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientId
-from app.domain.prescription import (
+from app.domain.prescription.prescription import (
+    Prescription,
+    PrescriptionMedicine,
+    PrescriptionRp,
+)
+from app.domain.prescription.primitives import (
     DepartmentCodeType,
-    DepartmentInfo,
     DepartmentName,
-    GenericSubstitutionRestriction,
     GenericSubstitutionRestrictionType,
     InquiryCategory,
     InquiryContent,
@@ -25,21 +28,22 @@ from app.domain.prescription import (
     InquiryTimestamp,
     MedicalInstitutionCode,
     MedicalInstitutionCodeType,
-    MedicalInstitutionInfo,
     MedicalInstitutionName,
     MedicalInstitutionPrefectureCode,
-    PrescriberInfo,
     PrescriberName,
-    PrescriberResponse,
-    Prescription,
     PrescriptionDocumentNumber,
     PrescriptionIssuedDate,
-    PrescriptionManagementInfo,
-    PrescriptionMedicine,
-    PrescriptionPeriod,
-    PrescriptionRp,
     PrescriptionSourceType,
     PrescriptionValidTo,
+)
+from app.domain.prescription.value_objects import (
+    DepartmentInfo,
+    GenericSubstitutionRestriction,
+    MedicalInstitutionInfo,
+    PrescriberInfo,
+    PrescriberResponse,
+    PrescriptionManagementInfo,
+    PrescriptionPeriod,
 )
 from app.domain.shared.dosage import (
     DosageCodeType,

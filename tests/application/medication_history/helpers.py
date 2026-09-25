@@ -4,32 +4,52 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.application.medication_history import (
-    AddFollowUpUseCase,
+from app.application.medication_history.add_follow_up import AddFollowUpUseCase
+from app.application.medication_history.amend_medication_history import (
     AmendMedicationHistoryUseCase,
-    FinalizeMedicationHistoryUseCase,
+)
+from app.application.medication_history.category_catalog import (
     GetCategoryCatalogUseCase,
+    UpdateCategoryCatalogUseCase,
+)
+from app.application.medication_history.finalize_medication_history import (
+    FinalizeMedicationHistoryUseCase,
+)
+from app.application.medication_history.get_medication_history import (
     GetMedicationHistoryUseCase,
+    ListMedicationHistoriesByPatientUseCase,
+)
+from app.application.medication_history.get_patient_medical_profile import (
     GetPatientMedicalProfileUseCase,
+    RebuildPatientMedicalProfileUseCase,
+)
+from app.application.medication_history.inputs import (
+    BillingAdditionInput,
     HandbookStatusInput,
     LabeledNoteInput,
-    ListMedicationHistoriesByPatientUseCase,
     ProfileUpdateInput,
-    RebuildPatientMedicalProfileUseCase,
-    RecordTracingReportResponseUseCase,
-    RecordTracingReportUseCase,
     ResidualDrugInput,
     SoapInput,
+)
+from app.application.medication_history.record_tracing_report import (
+    RecordTracingReportUseCase,
+)
+from app.application.medication_history.record_tracing_report_response import (
+    RecordTracingReportResponseUseCase,
+)
+from app.application.medication_history.start_medication_history import (
     StartMedicationHistoryCommand,
     StartMedicationHistoryUseCase,
-    UpdateCategoryCatalogUseCase,
+)
+from app.application.medication_history.update_medication_history_draft import (
     UpdateMedicationHistoryDraftUseCase,
+)
+from app.application.medication_history.verify_statutory_record import (
     VerifyStatutoryRecordUseCase,
 )
-from app.application.medication_history.inputs import BillingAdditionInput
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
-from app.domain.medication_history import (
+from app.domain.medication_history.services import (
     CounselorQualificationService,
     StatutoryDispensingRecordService,
 )

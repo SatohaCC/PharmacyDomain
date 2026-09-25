@@ -5,19 +5,23 @@ from datetime import timedelta
 import pytest
 
 from app.application.corporate.exceptions import CorporateInactiveError
-from app.application.medication_history import (
-    AddFollowUpCommand,
+from app.application.medication_history.exceptions import MedicationHistoryNotFoundError
+from app.application.medication_history.finalize_medication_history import (
     FinalizeMedicationHistoryCommand,
-    MedicationHistoryNotFoundError,
+)
+from app.application.medication_history.inputs import (
+    AddFollowUpCommand,
     RecordTracingReportCommand,
     RecordTracingReportResponseCommand,
 )
-from app.domain.medication_history import (
+from app.domain.medication_history.exceptions import (
     CounselorQualificationError,
-    MedicationHistoryRecordId,
     TracingReportAlreadyRespondedError,
-    TracingReportId,
     TracingReportNotFoundError,
+)
+from app.domain.medication_history.primitives import (
+    MedicationHistoryRecordId,
+    TracingReportId,
 )
 from app.domain.staff.primitives import StaffId, StaffQualifications
 from tests.application.medication_history.helpers import (

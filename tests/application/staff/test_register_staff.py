@@ -6,11 +6,14 @@ from datetime import date
 
 import pytest
 
-from app.application.corporate import CorporateInactiveError
-from app.application.staff import RegisterStaffCommand, RegisterStaffUseCase
-from app.domain.corporate import CorporateId
-from app.domain.staff import (
-    StaffCodeAlreadyExistsError,
+from app.application.corporate.exceptions import CorporateInactiveError
+from app.application.staff.register_staff import (
+    RegisterStaffCommand,
+    RegisterStaffUseCase,
+)
+from app.domain.corporate.primitives import CorporateId
+from app.domain.staff.exceptions import StaffCodeAlreadyExistsError
+from app.domain.staff.services import (
     StaffCodeUniquenessService,
     StaffStoreAssignmentService,
 )

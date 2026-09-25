@@ -11,8 +11,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.infrastructure.di import PostgresCompositionRoot
-from app.infrastructure.postgres import PostgresSettings
+from app.infrastructure.di.root import PostgresCompositionRoot
+from app.infrastructure.postgres.connection import PostgresSettings
 from app.presentational.access_logging import log_access
 from app.presentational.authentication import (
     ActorContextProvider,

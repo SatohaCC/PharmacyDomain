@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.common.clock import Clock
 from app.application.common.optional_conversion import build_optional
 from app.application.dispensing.get_dispensing import DispensingProcessDto
@@ -14,14 +15,14 @@ from app.application.dispensing.support import (
     parse_enum,
 )
 from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing import (
+from app.domain.dispensing.primitives import (
     DispensingId,
-    DispensingPharmacistService,
-    DispensingProcessRepository,
     VerificationNotes,
     VerificationResult,
     VerificationTimestamp,
 )
+from app.domain.dispensing.repository import DispensingProcessRepository
+from app.domain.dispensing.services import DispensingPharmacistService
 from app.domain.staff.primitives import StaffId
 
 

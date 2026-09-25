@@ -13,6 +13,7 @@ from app.domain.patient.primitives import (
     PatientExternalIdentifierId,
     PatientId,
 )
+from app.domain.store.primitives import StoreId
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)
@@ -24,6 +25,7 @@ class PatientExternalIdentifier(AggregateRoot[PatientExternalIdentifierId]):
     patient_id: PatientId
     system_name: ExternalSystemName
     external_patient_id: ExternalPatientId
+    store_id: StoreId | None = None
     is_active: bool = True
 
     @classmethod
@@ -34,6 +36,7 @@ class PatientExternalIdentifier(AggregateRoot[PatientExternalIdentifierId]):
         patient_id: PatientId,
         system_name: ExternalSystemName,
         external_patient_id: ExternalPatientId,
+        store_id: StoreId | None = None,
     ) -> Self:
         """外部患者IDの対応付けを生成する。"""
         return cls(
@@ -42,6 +45,7 @@ class PatientExternalIdentifier(AggregateRoot[PatientExternalIdentifierId]):
             patient_id=patient_id,
             system_name=system_name,
             external_patient_id=external_patient_id,
+            store_id=store_id,
         )
 
     def deactivate(self) -> Self:

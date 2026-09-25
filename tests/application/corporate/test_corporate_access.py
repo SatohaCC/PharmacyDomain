@@ -2,21 +2,24 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.access_control import (
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.exceptions import TenantBoundaryNotFoundError
+from app.application.access_control.models import (
     ActorContext,
-    AuthorizationService,
-    CorporateAccessBoundary,
     Permission,
-    TenantBoundaryNotFoundError,
 )
+from app.application.access_control.policy import AuthorizationService
 from app.application.common.exceptions import AuthorizationError, NotFoundError
-from app.application.corporate import (
-    CorporateAccessService,
+from app.application.corporate.corporate_access import CorporateAccessService
+from app.application.corporate.exceptions import (
     CorporateApplicationError,
     CorporateInactiveError,
     CorporateNotFoundError,
 )
-from app.domain.corporate import CorporateId, CorporateStatus
+from app.domain.corporate.primitives import (
+    CorporateId,
+    CorporateStatus,
+)
 from tests.application.corporate.helpers import save_corporate
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository
 

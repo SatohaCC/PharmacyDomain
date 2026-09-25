@@ -7,7 +7,8 @@ from typing import Protocol
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientId
 from app.domain.reception.coverage_selection_record import CoverageSelectionRecord
-from app.domain.reception.primitives import CoverageSelectionRecordId
+from app.domain.reception.primitives import CoverageSelectionRecordId, ReceptionId
+from app.domain.reception.reception import Reception
 from app.domain.store.primitives import StoreId
 
 
@@ -39,4 +40,22 @@ class CoverageSelectionRecordRepository(Protocol):
         patient_id: PatientId,
     ) -> CoverageSelectionRecord | None:
         """``(recorded_at, id)`` の降順で最新の履歴を取得する。"""
+        ...
+
+
+class ReceptionRepository(Protocol):
+    """受付の受信基準と訂正履歴を永続化する境界。"""
+
+    async def get(
+        self,
+        *,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+        reception_id: ReceptionId,
+    ) -> Reception | None:
+        """法人・店舗境界を含めて受付を取得する。"""
+        ...
+
+    async def save(self, reception: Reception) -> None:
+        """受付の受信記録を保存する。"""
         ...

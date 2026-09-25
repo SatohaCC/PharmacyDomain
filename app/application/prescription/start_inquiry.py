@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.common.clock import Clock
 from app.application.prescription.get_prescription import PrescriptionDto
 from app.application.prescription.reference import StaffQualificationBoundary
@@ -14,14 +15,14 @@ from app.application.prescription.support import (
     required_text,
 )
 from app.domain.corporate.primitives import CorporateId
-from app.domain.prescription import (
+from app.domain.prescription.primitives import (
     InquiryCategory,
     InquiryContent,
-    InquiryPharmacistService,
     InquiryTimestamp,
     PrescriptionId,
-    PrescriptionRepository,
 )
+from app.domain.prescription.repository import PrescriptionRepository
+from app.domain.prescription.services import InquiryPharmacistService
 from app.domain.staff.primitives import StaffId
 
 

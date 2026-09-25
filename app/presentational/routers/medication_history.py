@@ -16,33 +16,51 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from pydantic import Field
 
-from app.application.medication_history import (
-    AddFollowUpCommand,
+from app.application.medication_history.amend_medication_history import (
     AmendMedicationHistoryCommand,
-    CategorizedNoteInput,
-    CategoryCatalogDto,
+)
+from app.application.medication_history.category_catalog import CategoryCatalogDto
+from app.application.medication_history.finalize_medication_history import (
     FinalizeMedicationHistoryCommand,
+)
+from app.application.medication_history.get_medication_history import (
     GetMedicationHistoryQuery,
-    GetPatientMedicalProfileQuery,
-    HandbookStatusInput,
     ListMedicationHistoriesQuery,
-    MajorCategoryInput,
     MedicationHistoryDto,
-    MediumCategoryInput,
+)
+from app.application.medication_history.get_medication_history_view import (
+    GetMedicationHistoryViewQuery,
+    MedicationHistoryViewDto,
+)
+from app.application.medication_history.get_patient_medical_profile import (
+    GetPatientMedicalProfileQuery,
     PatientMedicalProfileDto,
-    ProfileUpdateInput,
     RebuildPatientMedicalProfileCommand,
+)
+from app.application.medication_history.inputs import (
+    AddFollowUpCommand,
+    BillingAdditionInput,
+    CategorizedNoteInput,
+    HandbookStatusInput,
+    MajorCategoryInput,
+    MediumCategoryInput,
+    ProfileUpdateInput,
     RecordTracingReportCommand,
     RecordTracingReportResponseCommand,
     ResidualDrugInput,
     SoapInput,
-    StartMedicationHistoryCommand,
-    StatutoryRecordSufficiencyDto,
     UpdateCategoryCatalogCommand,
+)
+from app.application.medication_history.start_medication_history import (
+    StartMedicationHistoryCommand,
+)
+from app.application.medication_history.update_medication_history_draft import (
     UpdateMedicationHistoryDraftCommand,
+)
+from app.application.medication_history.verify_statutory_record import (
+    StatutoryRecordSufficiencyDto,
     VerifyStatutoryRecordQuery,
 )
-from app.application.medication_history.inputs import BillingAdditionInput
 from app.presentational.dependencies import (
     MedicationHistoryUseCasesDep,
     get_actor_context,
@@ -206,6 +224,24 @@ async def get_medication_history(
     """薬歴を1件取得する。"""
     return await use_cases.get.execute(
         GetMedicationHistoryQuery(corporate_id=corporate_id, record_id=record_id)
+    )
+
+
+@router.get(
+    "/medication-histories/{record_id}/view",
+    response_model=MedicationHistoryViewDto,
+)
+async def get_medication_history_view(
+    corporate_id: str,
+    record_id: str,
+    use_cases: MedicationHistoryUseCasesDep,
+) -> MedicationHistoryViewDto:
+    """薬歴本文と読取時点の患者プロフィールを返す。"""
+    return await use_cases.get_view.execute(
+        GetMedicationHistoryViewQuery(
+            corporate_id=corporate_id,
+            record_id=record_id,
+        )
     )
 
 

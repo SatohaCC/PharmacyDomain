@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.common.optional_conversion import build_optional
 from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
@@ -14,13 +15,10 @@ from app.application.medication_history.support import (
     parse_enum,
 )
 from app.domain.corporate.primitives import CorporateId
-from app.domain.medication_history import (
-    CounselorQualificationService,
+from app.domain.medication_history.primitives import (
     FollowUpId,
     MedicationHistoryRecordId,
-    MedicationHistoryRepository,
     PhysicianName,
-    TracingReport,
     TracingReportCategory,
     TracingReportContent,
     TracingReportDeliveryMethod,
@@ -28,7 +26,10 @@ from app.domain.medication_history import (
     TracingReportId,
     TracingReportTimestamp,
 )
-from app.domain.prescription import MedicalInstitutionName
+from app.domain.medication_history.repository import MedicationHistoryRepository
+from app.domain.medication_history.services import CounselorQualificationService
+from app.domain.medication_history.value_objects import TracingReport
+from app.domain.prescription.primitives import MedicalInstitutionName
 from app.domain.staff.primitives import StaffId
 
 

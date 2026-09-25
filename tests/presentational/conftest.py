@@ -18,7 +18,7 @@ from dataclasses import dataclass
 import pytest
 from fastapi.testclient import TestClient
 
-from app.presentational import create_app
+from app.presentational.app_factory import create_app
 from app.presentational.dependencies import (
     get_corporate_use_cases,
     get_coverage_use_cases,

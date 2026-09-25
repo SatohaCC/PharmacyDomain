@@ -7,12 +7,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.application.access_control import AuthorizationService
+from app.application.access_control.policy import AuthorizationService
 from app.application.common.clock import Clock
-from app.application.composition import StaffPersonAdapter
 from app.application.composition.staff_integrity import (
     StaffAccessRevocationService,
 )
+from app.application.composition.staff_person_adapter import StaffPersonAdapter
 from app.application.corporate.change_corporate_name import ChangeCorporateNameUseCase
 from app.application.corporate.change_corporate_status import (
     ChangeCorporateStatusUseCase,
@@ -73,7 +73,9 @@ from app.infrastructure.postgres.organization import (
     PostgresOrganizationLock,
     PostgresStoreWorkBoundary,
 )
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 
 # --------------------------------------------------------------------------
 # 法人

@@ -18,7 +18,9 @@ from app.domain.identity.primitives import UserAccountId
 from app.domain.identity.user_account import UserAccount
 from app.infrastructure.di.root import PostgresCompositionRoot
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 from tests.fakes.fake_clock import FakeClock
 from tests.integration.test_identity_persistence import _person
 

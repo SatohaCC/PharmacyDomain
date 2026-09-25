@@ -19,18 +19,22 @@ from app.application.dispensing.inputs import (
     SubstitutionInput,
 )
 from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing import (
+from app.domain.dispensing.dispensing_process import (
     DispensedMedicine,
     DispensedRp,
-    DispensingId,
     DispensingProcess,
-    DispensingProcessRepository,
+)
+from app.domain.dispensing.primitives import (
+    DispensingId,
     PreparationMethod,
-    QuantityAdjustment,
     QuantityAdjustmentReason,
     SubstitutionCategory,
-    SubstitutionDetail,
     SubstitutionReason,
+)
+from app.domain.dispensing.repository import DispensingProcessRepository
+from app.domain.dispensing.value_objects import (
+    QuantityAdjustment,
+    SubstitutionDetail,
 )
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.prescription.primitives import InquiryNumber

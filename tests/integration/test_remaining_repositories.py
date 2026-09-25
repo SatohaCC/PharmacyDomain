@@ -47,20 +47,30 @@ from app.domain.store.exceptions import (
 )
 from app.domain.store.primitives import StoreName
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories import (
+from app.infrastructure.postgres.repositories.corporate import (
     PostgresCorporateRepository,
+)
+from app.infrastructure.postgres.repositories.coverage_selection_record import (
     PostgresCoverageSelectionRecordRepository,
+)
+from app.infrastructure.postgres.repositories.medication_history import (
     PostgresMedicationHistoryRepository,
-    PostgresPatientCoverageRepository,
-    PostgresPatientExternalIdentifierRepository,
-    PostgresPatientMedicalProfileRepository,
-    PostgresPatientRepository,
-    PostgresStaffRepository,
-    PostgresStoreRepository,
 )
 from app.infrastructure.postgres.repositories.medicine_catalog import (
     PostgresMedicineCatalogRepository,
 )
+from app.infrastructure.postgres.repositories.patient import PostgresPatientRepository
+from app.infrastructure.postgres.repositories.patient_coverage import (
+    PostgresPatientCoverageRepository,
+)
+from app.infrastructure.postgres.repositories.patient_external_identifier import (
+    PostgresPatientExternalIdentifierRepository,
+)
+from app.infrastructure.postgres.repositories.patient_medical_profile import (
+    PostgresPatientMedicalProfileRepository,
+)
+from app.infrastructure.postgres.repositories.staff import PostgresStaffRepository
+from app.infrastructure.postgres.repositories.store import PostgresStoreRepository
 from tests.factories.medication_history_factory import create_record
 from tests.factories.medicine_catalog_factory import create_identifier, create_medicine
 from tests.factories.persistence_factory import (

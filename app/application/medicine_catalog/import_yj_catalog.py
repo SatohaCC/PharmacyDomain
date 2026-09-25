@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from app.application.access_control import AuthorizationService, Permission
+from app.application.access_control.models import Permission
+from app.application.access_control.policy import AuthorizationService
 from app.application.common.exceptions import ApplicationError
 from app.domain.medicine_catalog.medicine import Medicine, MedicineEffectivePeriod
 from app.domain.medicine_catalog.primitives import (

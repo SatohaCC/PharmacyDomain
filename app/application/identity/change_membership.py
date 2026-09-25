@@ -2,10 +2,11 @@
 
 from dataclasses import replace
 
-from app.application.access_control import CorporateAccessBoundary, Permission
-from app.application.common import UnitOfWork
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.common.exceptions import NotFoundError
 from app.application.common.organization_lock import OrganizationLock
+from app.application.common.unit_of_work import UnitOfWork
 from app.application.identity.dto import MembershipDto
 from app.application.identity.support import (
     IdentityRepositories,

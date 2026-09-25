@@ -5,11 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.coverage.get_patient_coverage import PatientCoverageDto
 from app.application.coverage.support import load_coverage_or_raise
 from app.domain.corporate.primitives import CorporateId
-from app.domain.coverage import CoverageDeactivatedOn, PatientCoverageId
+from app.domain.coverage.primitives import (
+    CoverageDeactivatedOn,
+    PatientCoverageId,
+)
 from app.domain.coverage.repository import PatientCoverageRepository
 
 

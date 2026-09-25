@@ -24,6 +24,10 @@ from app.domain.patient.primitives import (
     PatientPhoneNumber,
     PatientPostalCode,
 )
+from app.domain.patient.profile_history import (
+    PatientProfileChange,
+    PatientProfileSnapshot,
+)
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
 
@@ -44,6 +48,7 @@ class Patient(AggregateRoot[PatientId]):
     status: PatientStatus = PatientStatus.ACTIVE
     merged_into_id: PatientId | None = None
     status_history: tuple[PatientStatusChange, ...] = ()
+    profile_history: tuple[PatientProfileChange, ...] = ()
 
     def validate(self) -> None:
         """患者集約の不変条件を検証する。"""
@@ -101,6 +106,39 @@ class Patient(AggregateRoot[PatientId]):
         if self.status == PatientStatus.MERGED:
             raise PatientStateConflictError("統合済みの患者の情報は変更できません。")
         return replace(self, birth_date=birth_date)
+
+    def profile_snapshot(self) -> PatientProfileSnapshot:
+        """現在のプロフィールを履歴に保存できる値へ写す。"""
+        return PatientProfileSnapshot(
+            names=self.names,
+            birth_date=self.birth_date,
+            gender=self.gender,
+            postal_code=self.postal_code,
+            address=self.address,
+            phone_number=self.phone_number,
+        )
+
+    def change_profile(self, profile: PatientProfileSnapshot) -> Self:
+        """プロフィール全体を変更する。Noneは項目解除を表す。"""
+        if self.status == PatientStatus.MERGED:
+            raise PatientStateConflictError("統合済みの患者の情報は変更できません。")
+        return replace(
+            self,
+            names=profile.names,
+            birth_date=profile.birth_date,
+            gender=profile.gender,
+            postal_code=profile.postal_code,
+            address=profile.address,
+            phone_number=profile.phone_number,
+        )
+
+    def record_profile_change(self, change: PatientProfileChange) -> Self:
+        """プロフィール変更証跡を受信順に追記する。"""
+        if self.status == PatientStatus.MERGED:
+            raise PatientStateConflictError(
+                "統合済みの患者へプロフィール履歴は追加できません。"
+            )
+        return replace(self, profile_history=(*self.profile_history, change))
 
     def deactivate(
         self,

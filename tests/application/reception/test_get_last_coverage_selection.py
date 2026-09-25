@@ -7,29 +7,33 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
-from app.application.reception import (
-    GetLastCoverageSelectionQuery,
-    GetLastCoverageSelectionUseCase,
+from app.application.reception.exceptions import (
     ReceptionPatientNotFoundError,
     ReceptionStoreNotFoundError,
 )
-from app.domain.claim import (
+from app.application.reception.get_last_coverage_selection import (
+    GetLastCoverageSelectionQuery,
+    GetLastCoverageSelectionUseCase,
+)
+from app.domain.claim.coverage_snapshot import InsuranceCoverageSnapshot
+from app.domain.claim.primitives import (
     ClaimCoverageBenefitRatio,
     ClaimCoverageCode,
     ClaimCoverageInsuredType,
     ClaimCoverageSymbol,
     ClaimInsurerNumber,
-    InsuranceCoverageSnapshot,
 )
-from app.domain.corporate import CorporateId
+from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientId
-from app.domain.reception import (
+from app.domain.reception.coverage_selection import (
+    CoverageSelection,
+    SelectedInsuranceSource,
+)
+from app.domain.reception.coverage_selection_record import CoverageSelectionRecord
+from app.domain.reception.primitives import (
     CoverageAppliedOn,
     CoverageRecordedAt,
-    CoverageSelection,
-    CoverageSelectionRecord,
     OperatorPrincipalId,
-    SelectedInsuranceSource,
     SourceCoverageId,
 )
 from app.domain.store.primitives import StoreId

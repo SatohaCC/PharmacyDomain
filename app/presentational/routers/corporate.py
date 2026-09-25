@@ -12,17 +12,17 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response
 
-from app.application.corporate import (
-    ChangeCorporateNameCommand,
+from app.application.corporate.change_corporate_name import ChangeCorporateNameCommand
+from app.application.corporate.change_corporate_status import (
     ChangeCorporateStatusCommand,
-    ChangeRepresentativeCommand,
-    CorporateResponseDto,
-    RegisterCorporateCommand,
 )
+from app.application.corporate.change_representative import ChangeRepresentativeCommand
+from app.application.corporate.get_corporate import CorporateResponseDto
 from app.application.corporate.list_corporates import (
     CorporatePageDto,
     ListCorporatesQuery,
 )
+from app.application.corporate.register_corporate import RegisterCorporateCommand
 from app.presentational.dependencies import CorporateUseCasesDep, get_actor_context
 from app.presentational.errors import error_responses
 from app.presentational.schemas import RegisteredIdResponse, RequestModel

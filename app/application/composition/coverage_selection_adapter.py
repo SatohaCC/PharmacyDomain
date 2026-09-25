@@ -7,7 +7,11 @@ from app.application.reception.reference import (
     CoverageSelectionBoundary,
     CoverageValidityBoundary,
 )
-from app.domain.claim import (
+from app.domain.claim.coverage_snapshot import (
+    InsuranceCoverageSnapshot,
+    PublicExpenseCoverageSnapshot,
+)
+from app.domain.claim.primitives import (
     ClaimCoverageBenefitRatio,
     ClaimCoverageBranchNumber,
     ClaimCoverageCode,
@@ -17,16 +21,14 @@ from app.domain.claim import (
     ClaimInsurerNumber,
     ClaimPublicPayerNumber,
     ClaimPublicRecipientNumber,
-    InsuranceCoverageSnapshot,
-    PublicExpenseCoverageSnapshot,
 )
 from app.domain.corporate.primitives import CorporateId
-from app.domain.coverage import (
+from app.domain.coverage.combination import (
     CoverageCombination,
     CoverageSelectionService,
-    PatientCoverageId,
-    PatientCoverageRepository,
 )
+from app.domain.coverage.primitives import PatientCoverageId
+from app.domain.coverage.repository import PatientCoverageRepository
 from app.domain.foundation.exceptions import DomainError
 from app.domain.patient.primitives import PatientId
 from app.domain.reception.coverage_selection import (

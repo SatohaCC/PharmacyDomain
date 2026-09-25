@@ -14,9 +14,9 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.application.access_control import ActorRole
-from app.application.access_control.models import ResolvedActorContext
-from app.presentational import UnconfiguredActorContextProvider, create_app
+from app.application.access_control.models import ActorRole, ResolvedActorContext
+from app.presentational.app_factory import create_app
+from app.presentational.authentication import UnconfiguredActorContextProvider
 from app.presentational.dependencies import (
     STATE_ATTRIBUTE,
     PresentationState,

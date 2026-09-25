@@ -4,7 +4,7 @@ from dataclasses import replace
 
 import pytest
 
-from app.application.access_control import ActorRole
+from app.application.access_control.models import ActorRole
 from app.application.identity.resolve_actor import (
     ResolveActorUseCase,
     UnavailableIdentityError,

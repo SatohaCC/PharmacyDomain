@@ -19,6 +19,7 @@ from app.domain.patient.repository import (
     PatientExternalIdentifierRepository,
     PatientRepository,
 )
+from app.domain.store.primitives import StoreId
 
 
 class InMemoryPatientRepository(PatientRepository):
@@ -76,6 +77,7 @@ class InMemoryPatientExternalIdentifierRepository(PatientExternalIdentifierRepos
         self,
         *,
         corporate_id: CorporateId,
+        store_id: StoreId | None = None,
         system_name: ExternalSystemName,
         external_patient_id: ExternalPatientId,
     ) -> PatientExternalIdentifier | None:
@@ -88,6 +90,7 @@ class InMemoryPatientExternalIdentifierRepository(PatientExternalIdentifierRepos
             if (
                 item.is_active
                 and item.corporate_id == corporate_id
+                and item.store_id == store_id
                 and item.system_name == system_name
                 and item.external_patient_id == external_patient_id
             ):
@@ -110,7 +113,7 @@ class InMemoryPatientExternalIdentifierRepository(PatientExternalIdentifierRepos
     async def save(self, identifier: PatientExternalIdentifier) -> None:
         """有効行の一意性を原子的に拒否して外部識別子を保存する。
 
-        同一法人・連携先・外部患者IDの有効行は1件だけとする。無効化済みの行は
+        同一法人・店舗・連携先・外部患者IDの有効行は1件だけとする。無効化済みの行は
         衝突扱いにしないため、誤った患者へ紐付けた外部IDを無効化してから正しい
         患者へ付け替えられる。Applicationの事前readは早期エラー用であり
         原子性の代替ではないため、保存の直前にも同じ判定を行う。
@@ -119,6 +122,7 @@ class InMemoryPatientExternalIdentifierRepository(PatientExternalIdentifierRepos
             item.is_active
             and item.id != identifier.id
             and item.corporate_id == identifier.corporate_id
+            and item.store_id == identifier.store_id
             and item.system_name == identifier.system_name
             and item.external_patient_id == identifier.external_patient_id
             for item in self.items.values()

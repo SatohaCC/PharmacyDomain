@@ -10,38 +10,41 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from app.application.access_control import ActorContext, AuthorizationService
-from app.application.corporate import CorporateAccessService
-from app.application.prescription import (
-    AuditDrugInteractionsUseCase,
-    CancelPrescriptionUseCase,
+from app.application.access_control.models import ActorContext
+from app.application.access_control.policy import AuthorizationService
+from app.application.corporate.corporate_access import CorporateAccessService
+from app.application.prescription.audit_interactions import AuditDrugInteractionsUseCase
+from app.application.prescription.cancel_prescription import CancelPrescriptionUseCase
+from app.application.prescription.get_prescription import GetPrescriptionUseCase
+from app.application.prescription.inputs import (
     DepartmentInput,
-    GetPrescriptionUseCase,
+    DosageInstructionInput,
     MedicalInstitutionInput,
     MedicineInput,
     PrescriberInput,
     PrescriptionManagementInput,
-    ReadyForDispensingUseCase,
+    PublicExpenseBurdenInput,
+    RpInput,
+)
+from app.application.prescription.ready_for_dispensing import ReadyForDispensingUseCase
+from app.application.prescription.register_prescription import (
     RegisterPrescriptionCommand,
     RegisterPrescriptionUseCase,
-    ResolveInquiryUseCase,
-    RpInput,
-    StartInquiryUseCase,
 )
-from app.application.prescription.inputs import (
-    DosageInstructionInput,
-    PublicExpenseBurdenInput,
-)
+from app.application.prescription.resolve_inquiry import ResolveInquiryUseCase
+from app.application.prescription.start_inquiry import StartInquiryUseCase
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientId
-from app.domain.prescription import (
+from app.domain.prescription.services import (
     InquiryPharmacistService,
-    MedicineClassification,
-    MedicineRestrictionFlag,
     NarcoticPrescriptionService,
     PrescriptionDocumentNumberUniquenessService,
     PublicExpenseBurdenService,
     RefillEligibilityService,
+)
+from app.domain.prescription.value_objects import (
+    MedicineClassification,
+    MedicineRestrictionFlag,
 )
 from app.domain.shared.medicine import (
     MedicineCode,

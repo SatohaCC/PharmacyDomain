@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.application.access_control import CorporateAccessBoundary, Permission
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
 from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
 )
@@ -26,14 +27,14 @@ from app.application.medication_history.support import (
     parse_enum,
 )
 from app.domain.corporate.primitives import CorporateId
-from app.domain.medication_history import (
-    BillingAddition,
+from app.domain.medication_history.primitives import (
     BillingAdditionCode,
     BillingAdditionName,
     CounselingMethod,
     MedicationHistoryRecordId,
-    MedicationHistoryRepository,
 )
+from app.domain.medication_history.repository import MedicationHistoryRepository
+from app.domain.medication_history.value_objects import BillingAddition
 
 
 @dataclass(frozen=True, kw_only=True)

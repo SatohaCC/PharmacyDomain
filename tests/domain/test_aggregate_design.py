@@ -16,7 +16,7 @@ import app.domain
 from app.domain.foundation.entity import AggregateRoot, Entity
 from app.domain.foundation.primitives.base import DomainPrimitive
 
-#: 承認された全具象集約ルートの一覧（12コンテキスト・19集約）。
+#: 承認された全具象集約ルートの一覧（12コンテキスト・20集約）。
 EXPECTED_AGGREGATE_ROOTS: frozenset[str] = frozenset(
     {
         "Corporate",
@@ -30,6 +30,7 @@ EXPECTED_AGGREGATE_ROOTS: frozenset[str] = frozenset(
         "PatientExternalIdentifier",
         "PatientMedicalProfile",
         "Prescription",
+        "Reception",
         "Staff",
         "StaffPersonLink",
         "Store",
@@ -95,7 +96,7 @@ def _extract_referenced_entity_types(annotation: Any) -> set[type[object]]:
 
 
 def test_全集約ルートが網羅的に検出される() -> None:
-    """TC-01: 定義されている全19集約ルートが漏れなく検出され、許可表と一致する。"""
+    """TC-01: 定義されている全20集約ルートが漏れなく検出され、許可表と一致する。"""
     roots = _all_concrete_aggregate_roots()
     actual_names = {cls.__name__ for cls in roots}
 

@@ -13,7 +13,9 @@ from app.application.staff.deactivate_staff import DeactivateStaffCommand
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.primitives import AccountStatus, MembershipRole
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 from tests.integration.organization_helpers import setup_organization
 from tests.integration.test_identity_persistence import _person
 

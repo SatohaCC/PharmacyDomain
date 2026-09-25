@@ -130,6 +130,8 @@ class AggregateMapping[AggregateT]:
     aggregate_type: type[AggregateT]
     label: str
     search_columns: Callable[[AggregateT], dict[str, object]]
+    unit_of_work_identity: Callable[[Mapping[str, object]], uuid.UUID] | None = None
+    conflict_columns: tuple[str, ...] = ("id",)
 
     def row_values(self, aggregate: AggregateT) -> dict[str, object]:
         """1行に書く値（検索列と payload）を組み立てる。"""
@@ -139,7 +141,14 @@ class AggregateMapping[AggregateT]:
         }
 
     def identity(self, values: Mapping[str, object]) -> uuid.UUID:
-        """行の値から集約IDを取り出す。"""
+        """行の値から楽観ロックと保存競合に使う識別UUIDを取り出す。"""
+        if self.unit_of_work_identity is not None:
+            identity = self.unit_of_work_identity(values)
+            if not isinstance(identity, uuid.UUID):
+                raise PersistenceMappingError(
+                    f"{self.label}のUnitOfWork識別子がUUIDではありません。"
+                )
+            return identity
         aggregate_id = values.get("id")
         if not isinstance(aggregate_id, uuid.UUID):
             raise PersistenceMappingError(
@@ -238,18 +247,25 @@ class PostgresRepositoryBase:
                 制約をどの業務例外へ写像するかは呼び出し側のRepositoryが決める。
         """
         values = mapping.row_values(aggregate)
+        aggregate_id = mapping.identity(values)
+        raw_resource_id = values.get("id")
+        resource_id = (
+            raw_resource_id if isinstance(raw_resource_id, uuid.UUID) else aggregate_id
+        )
         if self._unit_of_work.before_save is not None:
             is_new = (
                 self._unit_of_work.loaded_version(
-                    mapping.identity(values), namespace=mapping.table.name
+                    aggregate_id, namespace=mapping.table.name
                 )
                 is None
             )
             await self._unit_of_work.before_save(aggregate, is_new)
         await self._upsert(
             mapping.table,
-            aggregate_id=mapping.identity(values),
+            aggregate_id=aggregate_id,
+            resource_id=resource_id,
             values=values,
+            conflict_columns=mapping.conflict_columns,
         )
 
     async def get_by_id[AggregateT](
@@ -300,20 +316,27 @@ class PostgresRepositoryBase:
         row: Mapping[str, object],
     ) -> AggregateT:
         """行の世代を記録してから集約へ復元する。"""
-        self._remember_version(row, namespace=mapping.table.name)
+        self._remember_version(
+            row,
+            aggregate_id=mapping.identity(row),
+            namespace=mapping.table.name,
+        )
         return mapping.decode(row)
 
-    def _remember_version(self, row: Mapping[str, object], *, namespace: str) -> None:
+    def _remember_version(
+        self,
+        row: Mapping[str, object],
+        *,
+        aggregate_id: uuid.UUID,
+        namespace: str,
+    ) -> None:
         """読み込んだ行の世代を、保存時の期待値として記録する。
 
         ``namespace`` は同じ UUID を持つ別テーブルの集約と世代を分離する。
         """
-        aggregate_id = row.get("id")
         version = row.get("version")
-        if not isinstance(aggregate_id, uuid.UUID) or not isinstance(version, int):
-            raise PersistenceMappingError(
-                "永続化された行に id と version がありません。"
-            )
+        if not isinstance(version, int):
+            raise PersistenceMappingError("永続化された行に version がありません。")
         self._unit_of_work.remember_loaded_version(
             aggregate_id,
             version,
@@ -325,7 +348,9 @@ class PostgresRepositoryBase:
         table: Table,
         *,
         aggregate_id: uuid.UUID,
+        resource_id: uuid.UUID,
         values: Mapping[str, object],
+        conflict_columns: tuple[str, ...],
     ) -> None:
         """1行を原子的に登録または更新する。
 
@@ -348,12 +373,15 @@ class PostgresRepositoryBase:
         next_version = 1 if expected_version is None else expected_version + 1
         assignments = {**values, "version": next_version, "updated_at": now}
 
+        conflict_elements = [table.c[name] for name in conflict_columns]
         statement = postgres_insert(table).values(**assignments, created_at=now)
         if expected_version is None:
-            statement = statement.on_conflict_do_nothing(index_elements=[table.c.id])
+            statement = statement.on_conflict_do_nothing(
+                index_elements=conflict_elements
+            )
         else:
             statement = statement.on_conflict_do_update(
-                index_elements=[table.c.id],
+                index_elements=conflict_elements,
                 set_=assignments,
                 where=table.c.version == expected_version,
             )
@@ -371,7 +399,7 @@ class PostgresRepositoryBase:
         self._unit_of_work.pending_changes.append(
             (
                 f"{namespace}.{'create' if expected_version is None else 'update'}",
-                aggregate_id,
+                resource_id,
                 corporate_id
                 if isinstance(corporate_id, uuid.UUID)
                 else (aggregate_id if namespace == "corporates" else None),

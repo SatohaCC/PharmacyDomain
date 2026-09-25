@@ -5,11 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from app.application.access_control import (
-    CorporateAccessBoundary,
-    Permission,
-)
-from app.application.access_control.models import ActorRole
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import ActorRole, Permission
 from app.application.common.clock import Clock
 from app.application.staff.list_staffs import StaffSummaryDto
 from app.application.staff.support import load_staff_or_raise

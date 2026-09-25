@@ -8,7 +8,11 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
-from app.domain.claim import (
+from app.domain.claim.coverage_snapshot import (
+    InsuranceCoverageSnapshot,
+    PublicExpenseCoverageSnapshot,
+)
+from app.domain.claim.primitives import (
     ClaimCoverageBenefitRatio,
     ClaimCoverageCode,
     ClaimCoverageInsuredType,
@@ -17,8 +21,6 @@ from app.domain.claim import (
     ClaimInsurerNumber,
     ClaimPublicPayerNumber,
     ClaimPublicRecipientNumber,
-    InsuranceCoverageSnapshot,
-    PublicExpenseCoverageSnapshot,
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.coverage.patient_coverage import PatientCoverage
@@ -44,14 +46,16 @@ from app.domain.patient.primitives import (
     PatientId,
     PatientNumber,
 )
-from app.domain.reception import (
-    CoverageAppliedOn,
-    CoverageRecordedAt,
+from app.domain.reception.coverage_selection import (
     CoverageSelection,
-    CoverageSelectionRecord,
-    OperatorPrincipalId,
     SelectedInsuranceSource,
     SelectedPublicExpenseSource,
+)
+from app.domain.reception.coverage_selection_record import CoverageSelectionRecord
+from app.domain.reception.primitives import (
+    CoverageAppliedOn,
+    CoverageRecordedAt,
+    OperatorPrincipalId,
     SourceCoverageId,
 )
 from app.domain.store.primitives import StoreId

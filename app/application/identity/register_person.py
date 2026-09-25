@@ -1,11 +1,9 @@
 """本人記録の新規作成ユースケース。"""
 
-from app.application.access_control import (
-    AuthorizationService,
-    CorporateAccessBoundary,
-    Permission,
-)
-from app.application.common import UnitOfWork
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission
+from app.application.access_control.policy import AuthorizationService
+from app.application.common.unit_of_work import UnitOfWork
 from app.application.identity.dto import PersonDto
 from app.domain.corporate.primitives import CorporateId
 from app.domain.identity.account_person import AccountPerson

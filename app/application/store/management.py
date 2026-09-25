@@ -5,10 +5,9 @@ from datetime import date, timedelta
 from enum import StrEnum
 from typing import Protocol
 
-from app.application.access_control import CorporateAccessBoundary, Permission
-from app.application.access_control.models import ResolvedActorContext
+from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.models import Permission, ResolvedActorContext
 from app.application.access_control.policy import AuthorizationService
-from app.application.common import UnitOfWork
 from app.application.common.clock import BUSINESS_TIMEZONE, Clock, business_date
 from app.application.common.exceptions import AuthorizationError, NotFoundError
 from app.application.common.organization_lock import OrganizationLock
@@ -17,6 +16,7 @@ from app.application.common.pagination import (
     MAX_PAGE_SIZE,
     Page,
 )
+from app.application.common.unit_of_work import UnitOfWork
 from app.application.store.get_store import StoreDto
 from app.application.store.support import load_store_or_raise
 from app.domain.corporate.primitives import CorporateId

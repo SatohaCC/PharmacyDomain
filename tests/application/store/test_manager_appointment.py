@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from app.application.composition import StaffPersonAdapter
+from app.application.composition.staff_person_adapter import StaffPersonAdapter
 from app.application.store.management import (
     ManagerAction,
     ManageStoreManagerCommand,
