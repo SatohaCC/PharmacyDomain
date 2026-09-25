@@ -10,6 +10,7 @@ from __future__ import annotations
 from http import HTTPStatus
 from typing import Any
 
+from tests.fakes.fake_clock import DEFAULT_NOW
 from tests.presentational.conftest import AUTHORIZED_HEADERS, Api
 
 _CORPORATE_BODY = {
@@ -266,6 +267,74 @@ def test_患者を登録して取得できる(api: Api) -> None:
     assert body["last_name"] == "佐藤"
     assert body["birth_date"] == "1980-05-06"
     assert body["patient_number"] >= 1
+
+
+def test_tc81_受付外の患者プロフィール変更を履歴化し省略とnullを区別する(
+    api: Api,
+) -> None:
+    """手動変更を履歴へ残し、省略項目を保持してnullだけを解除する。"""
+    corporate_id = _corporate(api)
+    patient_id = _patient(api, corporate_id)
+    path = f"/corporates/{corporate_id}/patients/{patient_id}/profile"
+
+    updated = api.client.patch(
+        path,
+        json={
+            "gender": "2",
+            "postal_code": "0098765",
+            "address": "東京都中央区三丁目4番地",
+            "phone_number": "03-9876-5432",
+        },
+        headers=AUTHORIZED_HEADERS,
+    )
+    assert updated.status_code == HTTPStatus.NO_CONTENT, updated.text
+
+    detail = api.client.get(
+        f"/corporates/{corporate_id}/patients/{patient_id}",
+        headers=AUTHORIZED_HEADERS,
+    )
+    assert detail.status_code == HTTPStatus.OK, detail.text
+    first = detail.json()
+    assert first["gender"] == "2"
+    assert first["postal_code"] == "0098765"
+    assert first["address"] == "東京都中央区三丁目4番地"
+    assert first["phone_number"] == "03-9876-5432"
+    assert len(first["profile_history"]) == 1
+    first_change = first["profile_history"][0]
+    assert first_change["source"] == "manual"
+    assert first_change["reception_id"] is None
+    assert first_change["store_id"] is None
+    assert first_change["external_patient_id"] is None
+    assert first_change["person_id"]
+    assert first_change["account_id"]
+    assert first_change["recorded_at"] == DEFAULT_NOW.isoformat()
+    assert first_change["before_profile"]["address"] is None
+    assert first_change["applied_profile"]["address"] == "東京都中央区三丁目4番地"
+
+    cleared = api.client.patch(
+        path,
+        json={"address": None},
+        headers=AUTHORIZED_HEADERS,
+    )
+    assert cleared.status_code == HTTPStatus.NO_CONTENT, cleared.text
+    repeated = api.client.patch(
+        path,
+        json={"address": None},
+        headers=AUTHORIZED_HEADERS,
+    )
+    assert repeated.status_code == HTTPStatus.NO_CONTENT, repeated.text
+
+    final_detail = api.client.get(
+        f"/corporates/{corporate_id}/patients/{patient_id}",
+        headers=AUTHORIZED_HEADERS,
+    )
+    assert final_detail.status_code == HTTPStatus.OK, final_detail.text
+    final = final_detail.json()
+    assert final["address"] is None
+    assert final["gender"] == "2"
+    assert final["postal_code"] == "0098765"
+    assert final["phone_number"] == "03-9876-5432"
+    assert len(final["profile_history"]) == 2
 
 
 def test_外部患者IDは_無効化してから別患者へ付け替えられる(api: Api) -> None:

@@ -28,6 +28,10 @@ from app.application.medication_history.get_medication_history import (
     ListMedicationHistoriesQuery,
     MedicationHistoryDto,
 )
+from app.application.medication_history.get_medication_history_view import (
+    GetMedicationHistoryViewQuery,
+    MedicationHistoryViewDto,
+)
 from app.application.medication_history.get_patient_medical_profile import (
     GetPatientMedicalProfileQuery,
     PatientMedicalProfileDto,
@@ -220,6 +224,24 @@ async def get_medication_history(
     """薬歴を1件取得する。"""
     return await use_cases.get.execute(
         GetMedicationHistoryQuery(corporate_id=corporate_id, record_id=record_id)
+    )
+
+
+@router.get(
+    "/medication-histories/{record_id}/view",
+    response_model=MedicationHistoryViewDto,
+)
+async def get_medication_history_view(
+    corporate_id: str,
+    record_id: str,
+    use_cases: MedicationHistoryUseCasesDep,
+) -> MedicationHistoryViewDto:
+    """薬歴本文と読取時点の患者プロフィールを返す。"""
+    return await use_cases.get_view.execute(
+        GetMedicationHistoryViewQuery(
+            corporate_id=corporate_id,
+            record_id=record_id,
+        )
     )
 
 

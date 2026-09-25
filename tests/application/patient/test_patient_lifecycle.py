@@ -337,7 +337,7 @@ async def test_TC29_統合済み患者の属性変更ユースケース_拒否()
         )
     )
 
-    change_names_uc = ChangePatientNamesUseCase(repository, access)
+    change_names_uc = ChangePatientNamesUseCase(repository, access, clock)
     with pytest.raises(
         PatientStateConflictError, match="統合済みの患者の情報は変更できません"
     ):
@@ -352,7 +352,7 @@ async def test_TC29_統合済み患者の属性変更ユースケース_拒否()
             )
         )
 
-    change_birth_uc = ChangePatientBirthDateUseCase(repository, access)
+    change_birth_uc = ChangePatientBirthDateUseCase(repository, access, clock)
     with pytest.raises(
         PatientStateConflictError, match="統合済みの患者の情報は変更できません"
     ):

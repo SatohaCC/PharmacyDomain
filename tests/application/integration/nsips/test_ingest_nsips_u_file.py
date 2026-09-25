@@ -34,6 +34,7 @@ from app.domain.medication_history.value_objects import (
 from app.domain.patient.primitives import (
     ExternalPatientId,
     ExternalSystemName,
+    PatientAddress,
     PatientId,
 )
 from app.domain.prescription.primitives import PrescriptionDocumentNumber
@@ -884,55 +885,107 @@ async def test_tc66_別受付で変わった患者プロフィールを受信履
     profile_change = patient.profile_history[0]
     assert field_name in profile_change.changed_fields
     assert profile_change.store_id == fixture.store_id
+    assert profile_change.external_patient_id is not None
     assert (
         profile_change.external_patient_id.value == original.patient.external_patient_id
     )
     assert profile_change.recorded_at == fixture.clock.now()
-    assert profile_change.received_profile.address is not None
-    assert profile_change.received_profile.address.value == changed.patient.address
+    received_profile = profile_change.received_profile
+    assert received_profile is not None
+    assert received_profile.address is not None
+    assert received_profile.address.value == changed.patient.address
     assert (
-        profile_change.received_profile.birth_date.value == changed.patient.birth_date
+        received_profile.birth_date is not None
+        and received_profile.birth_date.value == changed.patient.birth_date
     )
-    assert patient.names.kanji.full_name == original.patient.kanji_name
+    before_profile = profile_change.before_profile
+    applied_profile = profile_change.applied_profile
+    assert before_profile is not None
+    assert applied_profile is not None
+    if field_name == "patient.kanji_name":
+        assert before_profile.names.kanji.full_name == original.patient.kanji_name
+        assert applied_profile.names.kanji.full_name == changed.patient.kanji_name
+        assert patient.names.kanji.full_name == changed.patient.kanji_name
+    elif field_name == "patient.kana_name":
+        assert before_profile.names.kana.full_name == original.patient.kana_name
+        assert applied_profile.names.kana.full_name == changed.patient.kana_name
+        assert patient.names.kana.full_name == changed.patient.kana_name
+    elif field_name == "patient.birth_date":
+        assert before_profile.birth_date is not None
+        assert before_profile.birth_date.value == original.patient.birth_date
+        assert applied_profile.birth_date is not None
+        assert applied_profile.birth_date.value == changed.patient.birth_date
+        assert patient.birth_date is not None
+        assert patient.birth_date.value == changed.patient.birth_date
+    elif field_name == "patient.gender":
+        assert before_profile.gender is not None
+        assert before_profile.gender.value == original.patient.gender
+        assert applied_profile.gender is not None
+        assert applied_profile.gender.value == changed.patient.gender
+        assert patient.gender is not None
+        assert patient.gender.value == changed.patient.gender
+    elif field_name == "patient.postal_code":
+        assert before_profile.postal_code is not None
+        assert before_profile.postal_code.value == original.patient.postal_code
+        assert applied_profile.postal_code is not None
+        assert applied_profile.postal_code.value == changed.patient.postal_code
+        assert patient.postal_code is not None
+        assert patient.postal_code.value == changed.patient.postal_code
+    elif field_name == "patient.address":
+        assert before_profile.address is not None
+        assert before_profile.address.value == original.patient.address
+        assert applied_profile.address is not None
+        assert applied_profile.address.value == changed.patient.address
+        assert patient.address is not None
+        assert patient.address.value == changed.patient.address
+    elif field_name == "patient.phone_number":
+        assert before_profile.phone_number is not None
+        assert before_profile.phone_number.value == original.patient.phone_number
+        assert applied_profile.phone_number is not None
+        assert applied_profile.phone_number.value == changed.patient.phone_number
+        assert patient.phone_number is not None
+        assert patient.phone_number.value == changed.patient.phone_number
+    assert getattr(second, "patient_profile_updated_fields", ()) == (field_name,)
+    assert second.patient_attribute_conflicts == ()
+    assert second.has_pending_correction_review is False
 
 
 @pytest.mark.asyncio
-async def test_tc67_同じ受付の患者訂正再送は一件で別受付は別履歴になる() -> None:
-    """同一受付の訂正再送は重ねず、別受付で同じ受信値なら追記する。"""
+async def test_tc67_AからB1_C_B2へ戻る訂正を履歴化し完全再送だけを冪等にする() -> None:
+    """受付受信順を履歴へ残し、同じ値の再登場を過去履歴で抑止しない。"""
     fixture = await create_fixture()
-    first_reception_id = ReceptionId.generate()
+    reception_id = ReceptionId.generate()
     original = _bundle_with_all_business_sections(document_number="DOC-TC67-SAME")
-    corrected = replace(
+    profile_b = replace(
         original,
         patient=replace(original.patient, address="東京都新宿区一丁目"),
     )
+    profile_c = replace(
+        profile_b,
+        patient=replace(profile_b.patient, address="東京都渋谷区二丁目"),
+    )
+    profile_b2 = replace(
+        profile_c,
+        patient=replace(profile_c.patient, address="東京都新宿区一丁目"),
+    )
     await execute_structured_test_command(
-        fixture, _command_for_reception(fixture, first_reception_id, original)
+        fixture, _command_for_reception(fixture, reception_id, original)
     )
-    corrected_command = _command_for_reception(
-        fixture,
-        first_reception_id,
-        corrected,
-    )
+    for incoming in (profile_b, profile_c, profile_b2):
+        result = await execute_structured_test_command(
+            fixture, _command_for_reception(fixture, reception_id, incoming)
+        )
+        assert result.is_duplicate is False
+        assert result.patient_attribute_conflicts == ()
+        assert result.has_pending_correction_review is False
+        assert getattr(result, "patient_profile_updated_fields", ()) == (
+            "patient.address",
+        )
 
-    await execute_structured_test_command(fixture, corrected_command)
-    await execute_structured_test_command(fixture, corrected_command)
-    second_reception_id = ReceptionId.generate()
-    second_reception = replace(
-        corrected,
-        prescription=replace(
-            corrected.prescription,
-            document_number="DOC-TC67-OTHER-RECEPTION",
-        ),
+    replay = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, profile_b2)
     )
-    await execute_structured_test_command(
-        fixture,
-        _command_for_reception(
-            fixture,
-            second_reception_id,
-            second_reception,
-        ),
-    )
+    assert replay.is_duplicate is True
 
     identifier = await fixture.patient_external_id_repo.get_active_by_source(
         corporate_id=fixture.corporate_id,
@@ -946,11 +999,48 @@ async def test_tc67_同じ受付の患者訂正再送は一件で別受付は別
         patient_id=identifier.patient_id,
     )
     assert patient is not None
-    assert len(patient.profile_history) == 2
-    assert [item.reception_id for item in patient.profile_history] == [
-        first_reception_id,
-        second_reception_id,
+    changes = [
+        change
+        for change in patient.profile_history
+        if "patient.address" in change.changed_fields
     ]
+    addresses: list[str] = []
+    for change in changes:
+        assert change.received_profile is not None
+        assert change.received_profile.address is not None
+        addresses.append(change.received_profile.address.value)
+    assert addresses == [
+        "東京都新宿区一丁目",
+        "東京都渋谷区二丁目",
+        "東京都新宿区一丁目",
+    ]
+    assert patient.address is not None
+    assert patient.address.value == "東京都新宿区一丁目"
+
+    # Patientマスターが受付値から後で手動更新された状態で、患者項目を変えず
+    # 処方だけを訂正する。古い受信値でマスターを戻してはならない。
+    await fixture.patient_repo.save(
+        replace(patient, address=PatientAddress("東京都品川区三丁目"))
+    )
+    prescription_only = replace(
+        profile_b2,
+        prescription=replace(
+            profile_b2.prescription,
+            doctor_name="訂正された処方医",
+        ),
+    )
+    result = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, prescription_only)
+    )
+    assert result.patient_attribute_conflicts == ()
+    assert getattr(result, "patient_profile_updated_fields", ()) == ()
+    patient = await fixture.patient_repo.get(
+        corporate_id=fixture.corporate_id,
+        patient_id=identifier.patient_id,
+    )
+    assert patient is not None
+    assert patient.address is not None
+    assert patient.address.value == "東京都品川区三丁目"
 
 
 @pytest.mark.asyncio
@@ -975,12 +1065,21 @@ async def test_tc68_外部患者ID訂正は受付患者と既存リンクを維�
         patient=replace(original.patient, external_patient_id="P-TC68-CHANGED"),
     )
 
-    result = await execute_structured_test_command(
-        fixture,
-        _command_for_reception(fixture, reception_id, changed),
+    corrected = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, changed)
+    )
+    corrected_again = replace(
+        changed,
+        patient=replace(changed.patient, external_patient_id="P-TC68-CHANGED-AGAIN"),
+    )
+    second_correction = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, corrected_again)
     )
 
-    assert result.patient_id == str(original_patient_id.value)
+    assert corrected.patient_id == str(original_patient_id.value)
+    assert second_correction.patient_id == str(original_patient_id.value)
+    assert corrected.has_pending_correction_review is True
+    assert second_correction.has_pending_correction_review is True
     assert len(fixture.patient_repo.items) == 1
     current_links = await fixture.patient_external_id_repo.list_by_patient(
         corporate_id=fixture.corporate_id,
@@ -992,24 +1091,32 @@ async def test_tc68_外部患者ID訂正は受付患者と既存リンクを維�
         patient_id=original_patient_id,
     )
     assert patient is not None
-    assert len(patient.profile_history) == 1
-    assert "patient.external_patient_id" in patient.profile_history[0].changed_fields
-    assert (
-        patient.profile_history[0].received_profile.names.kanji.full_name
-        == original.patient.kanji_name
-    )
+    id_changes = [
+        item
+        for item in patient.profile_history
+        if "patient.external_patient_id" in item.changed_fields
+    ]
+    received_external_ids: list[str] = []
+    for item in id_changes:
+        assert item.external_patient_id is not None
+        received_external_ids.append(item.external_patient_id.value)
+    assert received_external_ids == [
+        "P-TC68-CHANGED",
+        "P-TC68-CHANGED-AGAIN",
+    ]
 
 
 @pytest.mark.asyncio
 async def test_tc69_患者プロフィール受信Noneで既存値や履歴を消さない() -> None:
     """患者情報の受信欠損をマスターからの削除指示として扱わない。"""
     fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
     original = _bundle_with_all_business_sections(
         document_number="DOC-TC69-NONE-INITIAL",
     )
     first = await execute_structured_test_command(
         fixture,
-        _command_for_reception(fixture, ReceptionId.generate(), original),
+        _command_for_reception(fixture, reception_id, original),
     )
     received_none = replace(
         original,
@@ -1027,8 +1134,10 @@ async def test_tc69_患者プロフィール受信Noneで既存値や履歴を�
     )
 
     second = await execute_structured_test_command(
-        fixture,
-        _command_for_reception(fixture, ReceptionId.generate(), received_none),
+        fixture, _command_for_reception(fixture, reception_id, received_none)
+    )
+    replay = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, received_none)
     )
 
     assert second.patient_id == first.patient_id
@@ -1052,6 +1161,39 @@ async def test_tc69_患者プロフィール受信Noneで既存値や履歴を�
         patient.phone_number is not None
         and patient.phone_number.value == original.patient.phone_number
     )
+    assert getattr(second, "patient_profile_updated_fields", ()) == ()
+    assert second.patient_attribute_conflicts == (
+        "gender",
+        "postal_code",
+        "address",
+        "phone_number",
+    )
+    assert second.has_pending_correction_review is True
+    assert replay.is_duplicate is True
+    none_changes = [
+        change
+        for change in patient.profile_history
+        if any(
+            field in change.changed_fields
+            for field in (
+                "patient.gender",
+                "patient.postal_code",
+                "patient.address",
+                "patient.phone_number",
+            )
+        )
+    ]
+    assert len(none_changes) == 1
+    received_none_profile = none_changes[0].received_profile
+    assert received_none_profile is not None
+    assert received_none_profile.gender is None
+    assert received_none_profile.postal_code is None
+    assert received_none_profile.address is None
+    assert received_none_profile.phone_number is None
+    assert none_changes[0].before_profile is not None
+    assert none_changes[0].applied_profile is not None
+    assert none_changes[0].applied_profile.address is not None
+    assert none_changes[0].applied_profile.address.value == original.patient.address
 
 
 def _bundle_with_patient_difference(
@@ -1134,10 +1276,10 @@ def _bundle_with_prescription_metadata_difference(
     "field_name",
     ("external_patient_id", "kanji_name", "kana_name", "birth_date"),
 )
-async def test_tc46_患者の識別属性差分は要確認として記録し既存値を維持する(
+async def test_tc46_患者プロフィール差分を反映し外部ID変更だけ要確認にする(
     field_name: str,
 ) -> None:
-    """患者識別・属性差分を重複扱いせず、既存患者と対応付けを保持する。"""
+    """プロフィール値は更新し、外部患者IDの対応付けは要確認に残す。"""
     fixture = await create_fixture()
     reception_id = ReceptionId.generate()
     original_bundle = _structured_bundle_for_non_prescription_correction(
@@ -1179,24 +1321,42 @@ async def test_tc46_患者の識別属性差分は要確認として記録し既
     )
 
     assert corrected.is_duplicate is False
-    assert corrected.has_pending_correction_review is True
     history_id = MedicationHistoryRecordId.parse(corrected.medication_history_id or "")
     corrected_history = await fixture.medication_history_repo.get(
         corporate_id=fixture.corporate_id,
         record_id=history_id,
     )
     assert corrected_history is not None
-    assert len(corrected_history.external_corrections) == 1
-    correction = corrected_history.external_corrections[0]
-    assert field_name in (correction.details or "")
-
-    unchanged_patient = await fixture.patient_repo.get(
+    updated_patient = await fixture.patient_repo.get(
         corporate_id=fixture.corporate_id,
         patient_id=patient_id,
     )
-    assert unchanged_patient is not None
-    assert unchanged_patient.names == original_patient.names
-    assert unchanged_patient.birth_date == original_patient.birth_date
+    assert updated_patient is not None
+    if field_name == "external_patient_id":
+        assert corrected.has_pending_correction_review is True
+        assert corrected.patient_attribute_conflicts == ("external_patient_id",)
+        assert corrected_history.external_corrections
+        assert field_name in (corrected_history.external_corrections[0].details or "")
+        assert updated_patient.names == original_patient.names
+        assert updated_patient.birth_date == original_patient.birth_date
+    else:
+        assert corrected.has_pending_correction_review is False
+        assert corrected.patient_attribute_conflicts == ()
+        assert corrected_history.external_corrections == ()
+        assert getattr(corrected, "patient_profile_updated_fields", ()) == (
+            f"patient.{field_name}",
+        )
+        if field_name == "kanji_name":
+            assert updated_patient.names.kanji.full_name == "変更 花子"
+        elif field_name == "kana_name":
+            assert updated_patient.names.kana.full_name == "ヘンコウ ハナコ"
+        elif field_name == "birth_date":
+            assert updated_patient.birth_date is not None
+            assert updated_patient.birth_date.value == date(1985, 5, 6)
+        assert updated_patient.profile_history[-1].changed_fields == (
+            f"patient.{field_name}",
+        )
+
     unchanged_links = await fixture.patient_external_id_repo.list_by_patient(
         corporate_id=fixture.corporate_id,
         patient_id=patient_id,
@@ -1555,3 +1715,67 @@ async def test_tc36_下書き薬歴への未対応加算訂正を重複成功に
         assert history.billing_additions[0].code.value == "140000110"
     else:
         assert history.billing_additions[0].code.value == "140000210"
+
+
+@pytest.mark.asyncio
+async def test_tc59_剤数量と保険欠落が同時に変わる場合は自動訂正しない() -> None:
+    """数量以外のBundle差分があれば処方・調剤を保ち要確認にする。"""
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    initial_bundle = _bundle_with_all_business_sections(
+        document_number="DOC-TC59-COMBINED-DIFFERENCE",
+    )
+    initial = await execute_structured_test_command(
+        fixture,
+        _command_for_reception(fixture, reception_id, initial_bundle),
+    )
+    assert initial.medication_history_id is not None
+    history_id = MedicationHistoryRecordId.parse(initial.medication_history_id)
+    initial_history = await fixture.medication_history_repo.get(
+        corporate_id=fixture.corporate_id,
+        record_id=history_id,
+    )
+    assert initial_history is not None
+    original_prescription = await fixture.prescription_repo.get(
+        corporate_id=fixture.corporate_id,
+        prescription_id=initial_history.prescription_id,
+    )
+    assert original_prescription is not None
+
+    original_rp = initial_bundle.prescription.rps[0]
+    corrected_bundle = replace(
+        initial_bundle,
+        prescription=replace(
+            initial_bundle.prescription,
+            rps=(replace(original_rp, dispensing_quantity=8),),
+        ),
+        insurance=None,
+    )
+
+    corrected = await execute_structured_test_command(
+        fixture,
+        _command_for_reception(fixture, reception_id, corrected_bundle),
+    )
+
+    assert corrected.is_duplicate is False
+    assert corrected.has_pending_correction_review is True
+    reloaded_prescription = await fixture.prescription_repo.get(
+        corporate_id=fixture.corporate_id,
+        prescription_id=initial_history.prescription_id,
+    )
+    assert reloaded_prescription == original_prescription
+    reloaded_history = await fixture.medication_history_repo.get(
+        corporate_id=fixture.corporate_id,
+        record_id=history_id,
+    )
+    assert reloaded_history is not None
+    assert reloaded_history.external_corrections
+    reception = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=reception_id,
+    )
+    assert reception is not None
+    assert {
+        field.value for field in reception.correction_history[-1].changed_fields
+    } >= {"insurance", "prescription.rps[0].dispensing_quantity"}

@@ -24,7 +24,10 @@ from app.domain.patient.primitives import (
     PatientPhoneNumber,
     PatientPostalCode,
 )
-from app.domain.patient.profile_history import PatientProfileChange
+from app.domain.patient.profile_history import (
+    PatientProfileChange,
+    PatientProfileSnapshot,
+)
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
 
@@ -104,19 +107,37 @@ class Patient(AggregateRoot[PatientId]):
             raise PatientStateConflictError("統合済みの患者の情報は変更できません。")
         return replace(self, birth_date=birth_date)
 
+    def profile_snapshot(self) -> PatientProfileSnapshot:
+        """現在のプロフィールを履歴に保存できる値へ写す。"""
+        return PatientProfileSnapshot(
+            names=self.names,
+            birth_date=self.birth_date,
+            gender=self.gender,
+            postal_code=self.postal_code,
+            address=self.address,
+            phone_number=self.phone_number,
+        )
+
+    def change_profile(self, profile: PatientProfileSnapshot) -> Self:
+        """プロフィール全体を変更する。Noneは項目解除を表す。"""
+        if self.status == PatientStatus.MERGED:
+            raise PatientStateConflictError("統合済みの患者の情報は変更できません。")
+        return replace(
+            self,
+            names=profile.names,
+            birth_date=profile.birth_date,
+            gender=profile.gender,
+            postal_code=profile.postal_code,
+            address=profile.address,
+            phone_number=profile.phone_number,
+        )
+
     def record_profile_change(self, change: PatientProfileChange) -> Self:
-        """外部受付で受信したプロフィール差分を追記する。"""
+        """プロフィール変更証跡を受信順に追記する。"""
         if self.status == PatientStatus.MERGED:
             raise PatientStateConflictError(
-                "統合済みの患者へ受信履歴は追加できません。"
+                "統合済みの患者へプロフィール履歴は追加できません。"
             )
-        if any(
-            item.reception_id == change.reception_id
-            and item.changed_fields == change.changed_fields
-            and item.received_profile == change.received_profile
-            for item in self.profile_history
-        ):
-            return self
         return replace(self, profile_history=(*self.profile_history, change))
 
     def deactivate(

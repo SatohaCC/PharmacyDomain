@@ -37,6 +37,7 @@ from app.application.patient.change_patient_birth_date import (
     ChangePatientBirthDateUseCase,
 )
 from app.application.patient.change_patient_names import ChangePatientNamesUseCase
+from app.application.patient.change_patient_profile import ChangePatientProfileUseCase
 from app.application.patient.deactivate_patient import DeactivatePatientUseCase
 from app.application.patient.deactivate_patient_external_identifier import (
     DeactivatePatientExternalIdentifierUseCase,
@@ -86,6 +87,7 @@ class PatientUseCases:
     get_external_identifier: GetPatientExternalIdentifierUseCase
     list_external_identifiers: ListPatientExternalIdentifiersUseCase
     deactivate_external_identifier: DeactivatePatientExternalIdentifierUseCase
+    change_profile: ChangePatientProfileUseCase
 
 
 def build_patient_use_cases(
@@ -99,9 +101,15 @@ def build_patient_use_cases(
     return PatientUseCases(
         register=RegisterPatientUseCase(patient_repository, corporate_access),
         get=GetPatientUseCase(patient_repository, corporate_access),
-        change_names=ChangePatientNamesUseCase(patient_repository, corporate_access),
+        change_names=ChangePatientNamesUseCase(
+            patient_repository,
+            corporate_access,
+            clock,
+        ),
         change_birth_date=ChangePatientBirthDateUseCase(
-            patient_repository, corporate_access
+            patient_repository,
+            corporate_access,
+            clock,
         ),
         deactivate=DeactivatePatientUseCase(
             patient_repository, corporate_access, clock
@@ -124,6 +132,11 @@ def build_patient_use_cases(
         ),
         deactivate_external_identifier=DeactivatePatientExternalIdentifierUseCase(
             identifier_repository, corporate_access
+        ),
+        change_profile=ChangePatientProfileUseCase(
+            patient_repository,
+            corporate_access,
+            clock,
         ),
     )
 

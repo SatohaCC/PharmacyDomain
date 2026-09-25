@@ -26,6 +26,7 @@ from app.domain.dispensing.primitives import (
 )
 from app.domain.foundation.exceptions import DomainError
 from app.domain.foundation.primitives.base import DomainPrimitive
+from app.domain.identity.primitives import AccountPersonId, UserAccountId
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
@@ -47,6 +48,7 @@ from app.domain.patient.primitives import (
 )
 from app.domain.patient.profile_history import (
     PatientProfileChange,
+    PatientProfileChangeSource,
     PatientProfileSnapshot,
 )
 from app.domain.prescription.exceptions import (
@@ -533,31 +535,84 @@ def test_TC31_患者集約_後方互換復元() -> None:
 
 
 def test_tc71_患者プロフィール受信履歴のcodec往復と旧payload互換() -> None:
-    """プロフィール履歴を往復し、履歴項目がない旧Patientも復元する。"""
+    """受信/手動履歴の前後Snapshotと旧受信payloadを往復する。"""
     patient = create_patient()
+    received = PatientProfileSnapshot(
+        names=patient.names,
+        birth_date=PatientBirthDate(date(1980, 1, 2)),
+        gender=PatientGenderCode("1"),
+        postal_code=PatientPostalCode("1000001"),
+        address=PatientAddress("東京都千代田区新住所"),
+        phone_number=PatientPhoneNumber("03-0000-0000"),
+    )
+    before = PatientProfileSnapshot(
+        names=patient.names,
+        birth_date=patient.birth_date,
+        gender=None,
+        postal_code=None,
+        address=PatientAddress("東京都千代田区旧住所"),
+        phone_number=None,
+    )
     change = PatientProfileChange(
         reception_id=ReceptionId.generate(),
         store_id=StoreId.generate(),
         external_patient_id=ExternalPatientId("RECEIPT-42"),
         recorded_at=datetime(2026, 9, 23, 1, 2, 3, tzinfo=UTC),
         changed_fields=("patient.address", "patient.phone_number"),
-        received_profile=PatientProfileSnapshot(
-            names=patient.names,
-            birth_date=PatientBirthDate(date(1980, 1, 2)),
-            gender=PatientGenderCode("1"),
-            postal_code=PatientPostalCode("1000001"),
-            address=PatientAddress("東京都千代田区"),
-            phone_number=PatientPhoneNumber("03-0000-0000"),
-        ),
+        source=PatientProfileChangeSource.NSIPS,
+        received_profile=received,
+        before_profile=before,
+        applied_profile=received,
+    )
+    manual_change = PatientProfileChange(
+        source=PatientProfileChangeSource.MANUAL,
+        recorded_at=datetime(2026, 9, 24, 1, 2, 3, tzinfo=UTC),
+        changed_fields=("patient.address",),
+        before_profile=received,
+        applied_profile=before,
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
     )
     patient_with_history = dataclasses.replace(
         patient,
-        profile_history=(change,),
+        profile_history=(change, manual_change),
     )
 
     restored = decode_aggregate(encode_aggregate(patient_with_history), Patient)
 
-    assert restored.profile_history == (change,)
+    assert restored.profile_history == (change, manual_change)
+    assert restored.profile_history[0].source == PatientProfileChangeSource.NSIPS
+    assert restored.profile_history[0].before_profile == before
+    assert restored.profile_history[0].applied_profile == received
+    assert restored.profile_history[1].source == PatientProfileChangeSource.MANUAL
+    assert restored.profile_history[1].reception_id is None
+    assert restored.profile_history[1].store_id is None
+    assert restored.profile_history[1].external_patient_id is None
+    assert restored.profile_history[1].person_id == manual_change.person_id
+    assert restored.profile_history[1].account_id == manual_change.account_id
+
+    old_event_payload = encode_aggregate(patient_with_history)
+    serialized_events = old_event_payload["profile_history"]
+    assert isinstance(serialized_events, list)
+    legacy_serialized_event = serialized_events[0]
+    assert isinstance(legacy_serialized_event, dict)
+    serialized_events[:] = [legacy_serialized_event]
+    for field_name in (
+        "source",
+        "before_profile",
+        "applied_profile",
+        "person_id",
+        "account_id",
+    ):
+        legacy_serialized_event.pop(field_name, None)
+    restored_legacy_event = decode_aggregate(old_event_payload, Patient)
+    assert restored_legacy_event.profile_history[0].source == (
+        PatientProfileChangeSource.NSIPS
+    )
+    assert restored_legacy_event.profile_history[0].received_profile == received
+    assert restored_legacy_event.profile_history[0].before_profile is None
+    assert restored_legacy_event.profile_history[0].applied_profile is None
+
     old_payload = encode_aggregate(patient)
     old_payload.pop("profile_history", None)
     restored_old = decode_aggregate(old_payload, Patient)

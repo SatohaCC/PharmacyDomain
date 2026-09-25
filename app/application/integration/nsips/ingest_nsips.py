@@ -38,6 +38,7 @@ from app.application.patient.register_patient_external_identifier import (
     RegisterPatientExternalIdentifierCommand,
     RegisterPatientExternalIdentifierUseCase,
 )
+from app.application.patient.support import load_patient_or_raise
 from app.application.prescription.ready_for_dispensing import (
     ReadyForDispensingCommand,
     ReadyForDispensingUseCase,
@@ -107,6 +108,39 @@ from app.domain.store.primitives import StoreId
 
 _SUPPORTED_RAW_NSIPS_VERSIONS: frozenset[str] = frozenset()
 
+_PATIENT_PROFILE_FIELD_PATHS = (
+    "patient.kanji_name",
+    "patient.kana_name",
+    "patient.birth_date",
+    "patient.gender",
+    "patient.postal_code",
+    "patient.address",
+    "patient.phone_number",
+)
+_OPTIONAL_PATIENT_PROFILE_FIELD_PATHS = frozenset(
+    {
+        "patient.gender",
+        "patient.postal_code",
+        "patient.address",
+        "patient.phone_number",
+    }
+)
+_PATIENT_PROFILE_CONFLICT_NAMES = {
+    "patient.gender": "gender",
+    "patient.postal_code": "postal_code",
+    "patient.address": "address",
+    "patient.phone_number": "phone_number",
+}
+_EXTERNAL_PATIENT_ID_FIELD_PATH = "patient.external_patient_id"
+
+
+@dataclass(frozen=True, kw_only=True)
+class _PatientProfileApplication:
+    """今回の受信で記録した項目と実際に更新した項目。"""
+
+    conflicts: tuple[str, ...] = ()
+    updated_fields: tuple[str, ...] = ()
+
 
 @dataclass(frozen=True, kw_only=True)
 class IngestNsipsCommand:
@@ -138,6 +172,7 @@ class IngestNsipsResultDto:
     is_follow_up_only: bool = False
     has_pending_correction_review: bool = False
     patient_attribute_conflicts: tuple[str, ...] = ()
+    patient_profile_updated_fields: tuple[str, ...] = ()
     coverage_review_required: bool = False
     coverage_review_reason: str | None = None
     coverage_selection_record_id: str | None = None
@@ -306,29 +341,26 @@ class IngestNsipsUseCase:
         reception_id: ReceptionId,
         store_id: StoreId,
         bundle: NsipsBundle,
-        changed_fields: tuple[str, ...],
-    ) -> None:
-        """Patientマスターを変えず、受付で受信したプロフィール差分を保存する。"""
-        if not changed_fields:
-            return
-        patient = await self._patient_repo.get(
+        changed_fields: tuple[str, ...] | None,
+        missing_values_require_review: bool = False,
+    ) -> _PatientProfileApplication:
+        """Reception直前値との差を履歴化し、非欠損値をPatientへ反映する。"""
+        patient = await load_patient_or_raise(
+            self._patient_repo,
             corporate_id=corporate_id,
             patient_id=patient_id,
         )
-        if patient is None:
-            return
         patient_command = self._mapper.to_patient_command(
             bundle,
             str(corporate_id.value),
         )
-        names = PersonNames.create(
-            last_name=patient_command.last_name,
-            first_name=patient_command.first_name,
-            last_name_kana=patient_command.last_name_kana,
-            first_name_kana=patient_command.first_name_kana,
-        )
-        profile = PatientProfileSnapshot(
-            names=names,
+        received_profile = PatientProfileSnapshot(
+            names=PersonNames.create(
+                last_name=patient_command.last_name,
+                first_name=patient_command.first_name,
+                last_name_kana=patient_command.last_name_kana,
+                first_name_kana=patient_command.first_name_kana,
+            ),
             birth_date=PatientBirthDate(bundle.patient.birth_date),
             gender=build_optional(bundle.patient.gender, PatientGenderCode),
             postal_code=build_optional(bundle.patient.postal_code, PatientPostalCode),
@@ -338,17 +370,130 @@ class IngestNsipsUseCase:
                 PatientPhoneNumber,
             ),
         )
+        before_profile = patient.profile_snapshot()
+        incoming_values = self._profile_values(received_profile)
+        current_values = self._profile_values(before_profile)
+        if changed_fields is None:
+            event_fields = tuple(
+                field
+                for field in _PATIENT_PROFILE_FIELD_PATHS
+                if incoming_values[field] is not None
+                and incoming_values[field] != current_values[field]
+            )
+        else:
+            event_fields = tuple(
+                field
+                for field in changed_fields
+                if field in _PATIENT_PROFILE_FIELD_PATHS
+                or field == _EXTERNAL_PATIENT_ID_FIELD_PATH
+            )
+
+        conflicts: list[str] = []
+        if (
+            _EXTERNAL_PATIENT_ID_FIELD_PATH in event_fields
+            and changed_fields is not None
+        ):
+            conflicts.append("external_patient_id")
+        for field in _OPTIONAL_PATIENT_PROFILE_FIELD_PATHS:
+            if (
+                field in event_fields
+                and incoming_values[field] is None
+                and missing_values_require_review
+            ):
+                conflicts.append(_PATIENT_PROFILE_CONFLICT_NAMES[field])
+
+        applied_profile = before_profile
+        updated_fields: list[str] = []
+        for field in _PATIENT_PROFILE_FIELD_PATHS:
+            if field not in event_fields:
+                continue
+            incoming_value = incoming_values[field]
+            if incoming_value is None or incoming_value == current_values[field]:
+                continue
+            if field == "patient.kanji_name":
+                applied_profile = replace(
+                    applied_profile,
+                    names=replace(
+                        applied_profile.names,
+                        kanji=received_profile.names.kanji,
+                    ),
+                )
+            elif field == "patient.kana_name":
+                applied_profile = replace(
+                    applied_profile,
+                    names=replace(
+                        applied_profile.names,
+                        kana=received_profile.names.kana,
+                    ),
+                )
+            elif field == "patient.birth_date":
+                applied_profile = replace(
+                    applied_profile,
+                    birth_date=received_profile.birth_date,
+                )
+            elif field == "patient.gender":
+                applied_profile = replace(
+                    applied_profile,
+                    gender=received_profile.gender,
+                )
+            elif field == "patient.postal_code":
+                applied_profile = replace(
+                    applied_profile,
+                    postal_code=received_profile.postal_code,
+                )
+            elif field == "patient.address":
+                applied_profile = replace(
+                    applied_profile,
+                    address=received_profile.address,
+                )
+            elif field == "patient.phone_number":
+                applied_profile = replace(
+                    applied_profile,
+                    phone_number=received_profile.phone_number,
+                )
+            updated_fields.append(field)
+
+        if not event_fields:
+            return _PatientProfileApplication(conflicts=tuple(conflicts))
         change = PatientProfileChange(
             reception_id=reception_id,
             store_id=store_id,
             external_patient_id=ExternalPatientId(bundle.patient.external_patient_id),
             recorded_at=self._clock.now(),
-            changed_fields=tuple(f"patient.{name}" for name in changed_fields),
-            received_profile=profile,
+            changed_fields=event_fields,
+            received_profile=received_profile,
+            before_profile=before_profile,
+            applied_profile=applied_profile,
         )
-        updated = patient.record_profile_change(change)
-        if updated is not patient:
-            await self._patient_repo.save(updated)
+        updated = patient.change_profile(applied_profile).record_profile_change(change)
+        await self._patient_repo.save(updated)
+        return _PatientProfileApplication(
+            conflicts=tuple(
+                field
+                for field in (
+                    "external_patient_id",
+                    "gender",
+                    "postal_code",
+                    "address",
+                    "phone_number",
+                )
+                if field in conflicts
+            ),
+            updated_fields=tuple(updated_fields),
+        )
+
+    @staticmethod
+    def _profile_values(profile: PatientProfileSnapshot) -> dict[str, object | None]:
+        """SnapshotからNSIPSの患者属性項目を安定したキーで取り出す。"""
+        return {
+            "patient.kanji_name": profile.names.kanji,
+            "patient.kana_name": profile.names.kana,
+            "patient.birth_date": profile.birth_date,
+            "patient.gender": profile.gender,
+            "patient.postal_code": profile.postal_code,
+            "patient.address": profile.address,
+            "patient.phone_number": profile.phone_number,
+        }
 
     async def execute(self, command: IngestNsipsCommand) -> IngestNsipsResultDto:
         """NSIPS取込を一括実行する。"""
@@ -396,6 +541,7 @@ class IngestNsipsUseCase:
         )
         doc_num = bundle.prescription.document_number
         existing_prescription: Prescription | None = None
+        patient_profile_updated_fields: tuple[str, ...] = ()
         if existing_reception is not None:
             if (
                 existing_reception.field_fingerprints
@@ -437,12 +583,6 @@ class IngestNsipsUseCase:
                 if existing_prescription is None:
                     raise NsipsParseError("受付に関連付いた処方箋を取得できません。")
 
-            patient_attribute_conflicts = await self._patient_attribute_conflicts(
-                corporate_id=corporate_id,
-                store_id=store_id,
-                patient_id=existing_reception.patient_id,
-                bundle=bundle,
-            )
             changed_fields = self._changed_fields(
                 previous=existing_reception.field_fingerprints,
                 incoming=incoming_fingerprints,
@@ -468,6 +608,23 @@ class IngestNsipsUseCase:
                     coverage_review_reason=coverage_review_reason,
                 )
 
+            has_previous_fingerprint = bool(existing_reception.field_fingerprints)
+            profile_application = await self._record_patient_profile_change(
+                corporate_id=corporate_id,
+                patient_id=existing_reception.patient_id,
+                reception_id=reception_id,
+                store_id=store_id,
+                bundle=bundle,
+                changed_fields=(
+                    tuple(field.value for field in changed_fields)
+                    if has_previous_fingerprint
+                    else None
+                ),
+                missing_values_require_review=has_previous_fingerprint,
+            )
+            patient_attribute_conflicts = profile_application.conflicts
+            patient_profile_updated_fields = profile_application.updated_fields
+
             diff_summary: str | None = None
             if existing_prescription is not None:
                 diff_summary = await self._detect_bundle_differences(
@@ -481,17 +638,12 @@ class IngestNsipsUseCase:
                     field.value for field in changed_fields
                 )
 
-            await self._record_patient_profile_change(
-                corporate_id=corporate_id,
-                patient_id=existing_reception.patient_id,
-                reception_id=reception_id,
-                store_id=store_id,
-                bundle=bundle,
-                changed_fields=patient_attribute_conflicts,
+            # 患者プロフィールの自動反映分だけなら要確認にしない。
+            has_reviewable_change = bool(patient_attribute_conflicts) or any(
+                field.value not in _PATIENT_PROFILE_FIELD_PATHS
+                for field in changed_fields
             )
-
-            # 差分あり: 関連集約は安全に訂正できる数量だけ更新し、他は要確認にする。
-            has_pending_review = True
+            has_pending_review = has_reviewable_change
             matching_history_id_str = (
                 str(existing_reception.medication_history_id.value)
                 if existing_reception.medication_history_id is not None
@@ -503,8 +655,17 @@ class IngestNsipsUseCase:
                 else None
             )
 
+            only_safe_profile_or_quantity_fields = (
+                not patient_attribute_conflicts
+                and all(
+                    field.value in _PATIENT_PROFILE_FIELD_PATHS
+                    or self._is_draft_quantity_field_path(field.value)
+                    for field in changed_fields
+                )
+            )
             if (
-                existing_prescription is not None
+                has_reviewable_change
+                and existing_prescription is not None
                 and self._medication_history_repo is not None
             ):
                 records = await self._medication_history_repo.list_by_patient(
@@ -524,14 +685,17 @@ class IngestNsipsUseCase:
                     matching_dispensing_id_str = str(
                         matching_record.dispensing_id.value
                     )
-                    has_pending_review = (
-                        not await self._try_apply_draft_quantity_correction(
-                            existing=existing_prescription,
-                            record=matching_record,
-                            bundle=bundle,
-                            diff_summary=diff_summary,
+                    quantity_correction_applied = False
+                    if only_safe_profile_or_quantity_fields:
+                        quantity_correction_applied = (
+                            await self._try_apply_draft_quantity_correction(
+                                existing=existing_prescription,
+                                record=matching_record,
+                                bundle=bundle,
+                                diff_summary=diff_summary,
+                            )
                         )
-                    )
+                    has_pending_review = not quantity_correction_applied
                     if has_pending_review:
                         now_utc = self._clock.now()
                         correction = ExternalPrescriptionCorrection(
@@ -581,6 +745,7 @@ class IngestNsipsUseCase:
                 is_follow_up_only=False,
                 has_pending_correction_review=has_pending_review,
                 patient_attribute_conflicts=patient_attribute_conflicts,
+                patient_profile_updated_fields=patient_profile_updated_fields,
                 coverage_review_required=coverage_review_reason is not None,
                 coverage_review_reason=coverage_review_reason,
             )
@@ -597,20 +762,16 @@ class IngestNsipsUseCase:
         if active_link is not None:
             patient_id_str = str(active_link.patient_id.value)
             is_new_patient = False
-            patient_attribute_conflicts = await self._patient_attribute_conflicts(
-                corporate_id=corporate_id,
-                store_id=store_id,
-                patient_id=active_link.patient_id,
-                bundle=bundle,
-            )
-            await self._record_patient_profile_change(
+            profile_application = await self._record_patient_profile_change(
                 corporate_id=corporate_id,
                 patient_id=active_link.patient_id,
                 reception_id=reception_id,
                 store_id=store_id,
                 bundle=bundle,
-                changed_fields=patient_attribute_conflicts,
+                changed_fields=None,
             )
+            patient_attribute_conflicts = profile_application.conflicts
+            patient_profile_updated_fields = profile_application.updated_fields
         else:
             # 新規患者登録
             patient_cmd = self._mapper.to_patient_command(bundle, command.corporate_id)
@@ -629,6 +790,7 @@ class IngestNsipsUseCase:
             )
             is_new_patient = True
             patient_attribute_conflicts = ()
+            patient_profile_updated_fields = ()
 
         # 4. 通常処方（薬品あり） vs フォローアップ単独受付（薬品0件）
         if bundle.prescription.rps:
@@ -753,6 +915,7 @@ class IngestNsipsUseCase:
                 is_duplicate=False,
                 is_follow_up_only=False,
                 patient_attribute_conflicts=patient_attribute_conflicts,
+                patient_profile_updated_fields=patient_profile_updated_fields,
                 coverage_review_required=coverage_review_reason is not None,
                 coverage_review_reason=coverage_review_reason,
                 coverage_selection_record_id=coverage_selection_record_id,
@@ -820,9 +983,20 @@ class IngestNsipsUseCase:
             is_duplicate=False,
             is_follow_up_only=True,
             patient_attribute_conflicts=patient_attribute_conflicts,
+            patient_profile_updated_fields=patient_profile_updated_fields,
             coverage_review_required=coverage_review_reason is not None,
             coverage_review_reason=coverage_review_reason,
         )
+
+    @staticmethod
+    def _is_draft_quantity_field_path(path: str) -> bool:
+        """Bundle差分がRpの調剤数量フィールドだけを指すか判定する。"""
+        prefix = "prescription.rps["
+        suffix = "].dispensing_quantity"
+        if not path.startswith(prefix) or not path.endswith(suffix):
+            return False
+        rp_index = path[len(prefix) : -len(suffix)]
+        return rp_index.isdigit()
 
     @staticmethod
     def _is_quantity_only_correction(
@@ -1002,86 +1176,6 @@ class IngestNsipsUseCase:
         if any(bool(payer) != bool(recipient) for payer, recipient in public_pairs):
             reasons.append("public_expense_incomplete")
         return reasons[0] if reasons else None
-
-    async def _patient_attribute_conflicts(
-        self,
-        *,
-        corporate_id: CorporateId,
-        store_id: StoreId,
-        patient_id: PatientId,
-        bundle: NsipsBundle,
-    ) -> tuple[str, ...]:
-        """既存Patientを変更せず、受信値と異なる属性名だけを返す。"""
-        patient = await self._patient_repo.get(
-            corporate_id=corporate_id,
-            patient_id=patient_id,
-        )
-        if patient is None:
-            return ()
-
-        patient_command = self._mapper.to_patient_command(
-            bundle, str(corporate_id.value)
-        )
-        incoming_names = PersonNames.create(
-            last_name=patient_command.last_name,
-            first_name=patient_command.first_name,
-            last_name_kana=patient_command.last_name_kana,
-            first_name_kana=patient_command.first_name_kana,
-        )
-        conflicts: list[str] = []
-
-        external_identifiers = await self._patient_external_id_repo.list_by_patient(
-            corporate_id=corporate_id,
-            patient_id=patient_id,
-        )
-        expected_external_id = ExternalPatientId(bundle.patient.external_patient_id)
-        if not any(
-            identifier.is_active
-            and identifier.store_id == store_id
-            and identifier.system_name == ExternalSystemName("recept")
-            and identifier.external_patient_id == expected_external_id
-            for identifier in external_identifiers
-        ):
-            conflicts.append("external_patient_id")
-
-        if patient.names.kanji != incoming_names.kanji:
-            conflicts.append("kanji_name")
-        if patient.names.kana != incoming_names.kana:
-            conflicts.append("kana_name")
-        if (
-            patient.birth_date is None
-            or patient.birth_date.value != bundle.patient.birth_date
-        ):
-            conflicts.append("birth_date")
-
-        incoming_fields = (
-            (
-                "gender",
-                unwrap(build_optional(bundle.patient.gender, PatientGenderCode)),
-                unwrap(patient.gender),
-            ),
-            (
-                "postal_code",
-                unwrap(build_optional(bundle.patient.postal_code, PatientPostalCode)),
-                unwrap(patient.postal_code),
-            ),
-            (
-                "address",
-                unwrap(build_optional(bundle.patient.address, PatientAddress)),
-                unwrap(patient.address),
-            ),
-            (
-                "phone_number",
-                unwrap(build_optional(bundle.patient.phone_number, PatientPhoneNumber)),
-                unwrap(patient.phone_number),
-            ),
-        )
-        conflicts.extend(
-            name
-            for name, incoming, existing in incoming_fields
-            if incoming is not None and incoming != existing
-        )
-        return tuple(conflicts)
 
     @staticmethod
     def _coverage_matches(

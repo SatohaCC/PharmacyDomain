@@ -121,6 +121,9 @@ def test_配線されたユースケースは_宣言どおりの型で組み立�
     # Act
     registry = scope.use_cases
 
+    assert registry.patient.change_profile is not None
+    assert registry.medication_history.get_view is not None
+
     # Assert
     for bundle_name in get_type_hints(PostgresUseCaseRegistry):
         bundle = getattr(registry, bundle_name)

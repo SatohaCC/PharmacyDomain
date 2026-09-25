@@ -17,6 +17,9 @@ from app.application.patient.change_patient_birth_date import (
     ChangePatientBirthDateCommand,
 )
 from app.application.patient.change_patient_names import ChangePatientNamesCommand
+from app.application.patient.change_patient_profile import (
+    ChangePatientProfileCommand,
+)
 from app.application.patient.deactivate_patient import DeactivatePatientCommand
 from app.application.patient.deactivate_patient_external_identifier import (
     DeactivatePatientExternalIdentifierCommand,
@@ -81,6 +84,15 @@ class ChangePatientBirthDateRequest(RequestModel):
     """生年月日変更の入力。``None`` は解除を意味する。"""
 
     birth_date: date | None = None
+
+
+class ChangePatientProfileRequest(RequestModel):
+    """連絡先・性別の部分変更入力。省略と明示的なnullを区別する。"""
+
+    gender: str | None = None
+    postal_code: str | None = None
+    address: str | None = None
+    phone_number: str | None = None
 
 
 class DeactivatePatientRequest(RequestModel):
@@ -190,6 +202,32 @@ async def change_patient_birth_date(
             corporate_id=corporate_id,
             patient_id=patient_id,
             birth_date=body.birth_date,
+        )
+    )
+
+
+@router.patch(
+    "/patients/{patient_id}/profile",
+    status_code=HTTPStatus.NO_CONTENT,
+    response_class=Response,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def change_patient_profile(
+    corporate_id: str,
+    patient_id: str,
+    body: ChangePatientProfileRequest,
+    use_cases: PatientUseCasesDep,
+) -> None:
+    """性別・連絡先を部分変更して履歴へ残す。"""
+    await use_cases.change_profile.execute(
+        ChangePatientProfileCommand(
+            corporate_id=corporate_id,
+            patient_id=patient_id,
+            provided_fields=frozenset(body.model_fields_set),
+            gender=body.gender,
+            postal_code=body.postal_code,
+            address=body.address,
+            phone_number=body.phone_number,
         )
     )
 

@@ -52,6 +52,7 @@ from app.application.patient.change_patient_birth_date import (
     ChangePatientBirthDateUseCase,
 )
 from app.application.patient.change_patient_names import ChangePatientNamesUseCase
+from app.application.patient.change_patient_profile import ChangePatientProfileUseCase
 from app.application.patient.deactivate_patient import DeactivatePatientUseCase
 from app.application.patient.deactivate_patient_external_identifier import (
     DeactivatePatientExternalIdentifierUseCase,
@@ -297,8 +298,9 @@ def create_patient_use_cases(
     return PatientUseCases(
         register=RegisterPatientUseCase(patients, access),
         get=GetPatientUseCase(patients, access),
-        change_names=ChangePatientNamesUseCase(patients, access),
-        change_birth_date=ChangePatientBirthDateUseCase(patients, access),
+        change_names=ChangePatientNamesUseCase(patients, access, clock),
+        change_birth_date=ChangePatientBirthDateUseCase(patients, access, clock),
+        change_profile=ChangePatientProfileUseCase(patients, access, clock),
         deactivate=DeactivatePatientUseCase(patients, access, clock),
         reactivate=ReactivatePatientUseCase(patients, access, clock),
         merge=MergePatientsUseCase(patients, access, clock),

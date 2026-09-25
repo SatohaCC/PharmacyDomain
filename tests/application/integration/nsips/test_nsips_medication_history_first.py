@@ -599,8 +599,8 @@ async def test_tc25_患者属性がPatient登録と取得DTOまで保持され�
 
 
 @pytest.mark.asyncio
-async def test_tc26_既存患者の属性差分を上書きせず項目名だけ要確認にする() -> None:
-    """同一外部患者IDの属性差分は既存値を守り、差分のある項目名だけを返す。"""
+async def test_tc26_既存患者の非欠損プロフィール差分をマスターへ反映する() -> None:
+    """別受付で受けたプロフィール変更を現行値と受信履歴へ反映する。"""
     fixture = await create_fixture()
     first_bundle = _patient_bundle(
         external_patient_id="P-DEMOGRAPHICS-2",
@@ -639,31 +639,33 @@ async def test_tc26_既存患者の属性差分を上書きせず項目名だけ
     )
 
     assert second.patient_id == first.patient_id
-    assert getattr(second, "patient_attribute_conflicts", ()) == (
-        "gender",
-        "postal_code",
-        "address",
-        "phone_number",
+    assert second.patient_attribute_conflicts == ()
+    assert second.has_pending_correction_review is False
+    assert getattr(second, "patient_profile_updated_fields", ()) == (
+        "patient.gender",
+        "patient.postal_code",
+        "patient.address",
+        "patient.phone_number",
     )
     patient = await fixture.patient_repo.get(
         corporate_id=fixture.corporate_id,
         patient_id=PatientId.parse(first.patient_id),
     )
     assert patient is not None
-    assert patient.gender is not None and patient.gender.value == "1"
-    assert patient.postal_code is not None and patient.postal_code.value == "0012345"
+    assert patient.gender is not None and patient.gender.value == "2"
+    assert patient.postal_code is not None and patient.postal_code.value == "0098765"
     assert (
         patient.address is not None
-        and patient.address.value == "東京都千代田区一丁目2番地"
+        and patient.address.value == "東京都中央区三丁目4番地"
     )
     assert (
         patient.phone_number is not None
-        and patient.phone_number.value == "03-1234-5678"
+        and patient.phone_number.value == "03-9876-5432"
     )
-    result_text = repr(second)
-    assert "0098765" not in result_text
-    assert "東京都中央区三丁目4番地" not in result_text
-    assert "03-9876-5432" not in result_text
+    profile_change = patient.profile_history[-1]
+    assert profile_change.received_profile is not None
+    assert profile_change.received_profile.address is not None
+    assert profile_change.received_profile.address.value == "東京都中央区三丁目4番地"
 
 
 @pytest.mark.parametrize(

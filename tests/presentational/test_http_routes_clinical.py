@@ -18,13 +18,22 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import TypeAdapter
 
+from app.application.access_control.policy import AuthorizationService
+from app.application.corporate.corporate_access import CorporateAccessService
+from app.application.medication_history.get_medication_history_view import (
+    CurrentPatientProfileBoundary,
+    GetMedicationHistoryViewUseCase,
+    MedicationHistoryPatientProfileDto,
+)
 from app.application.medication_history.inputs import (
     CategorizedNoteInput,
     HandbookStatusInput,
     ResidualDrugInput,
     SoapInput,
 )
+from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history.primitives import StatutoryDispensingRecordItem
+from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import (
     InquiryNumber,
     InquiryResultType,
@@ -468,7 +477,16 @@ def history_fixture() -> history_helpers.MedicationHistoryFixture:
 @pytest.fixture
 def history_client(
     history_fixture: history_helpers.MedicationHistoryFixture,
+    current_patient_profile_reader: _HttpCurrentPatientProfileReader,
 ) -> Iterator[TestClient]:
+    view_use_case = GetMedicationHistoryViewUseCase(
+        history_fixture.record_repository,
+        current_patient_profile_reader,
+        CorporateAccessService(
+            history_fixture.corporate_repository,
+            AuthorizationService(vendor_admin()),
+        ),
+    )
     bundle = MedicationHistoryUseCases(
         start=history_fixture.start,
         update_draft=history_fixture.update_draft,
@@ -484,8 +502,42 @@ def history_client(
         add_follow_up=history_fixture.add_follow_up,
         record_tracing_report=history_fixture.record_tracing_report,
         record_tracing_report_response=history_fixture.record_tracing_report_response,
+        get_view=view_use_case,
     )
     yield from _client({get_medication_history_use_cases: lambda: bundle})
+
+
+class _HttpCurrentPatientProfileReader(CurrentPatientProfileBoundary):
+    """HTTPテストで読取時点の患者プロフィールを返す境界Fake。"""
+
+    def __init__(self) -> None:
+        self.profile = MedicationHistoryPatientProfileDto(
+            last_name="山田",
+            first_name="花子",
+            last_name_kana="ヤマダ",
+            first_name_kana="ハナコ",
+            birth_date="1980-01-02",
+            gender="2",
+            postal_code="1000001",
+            address="東京都中央区一丁目",
+            phone_number="03-0000-0000",
+        )
+
+    async def get_current_profile(
+        self,
+        *,
+        corporate_id: CorporateId,
+        patient_id: PatientId,
+    ) -> MedicationHistoryPatientProfileDto | None:
+        """指定患者に対応する現在プロフィールを返す。"""
+        del corporate_id, patient_id
+        return self.profile
+
+
+@pytest.fixture
+def current_patient_profile_reader() -> _HttpCurrentPatientProfileReader:
+    """読取時点に切り替えられる患者プロフィール境界を返す。"""
+    return _HttpCurrentPatientProfileReader()
 
 
 def _start_history_body(
@@ -537,6 +589,52 @@ def test_薬歴を起票して確定すると_頭書きへ投影される(
     assert finalized.json()["status"] == "finalized"
     assert profile.status_code == HTTPStatus.OK, profile.text
     assert profile.json()["patient_id"] == patient_id
+
+
+def test_tc82_薬歴viewは_確定本文と読取時点の患者プロフィールを返す(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+    current_patient_profile_reader: _HttpCurrentPatientProfileReader,
+) -> None:
+    """保存済み薬歴本文を保ち、現行プロフィールを別項目で返す。"""
+    corporate_id = str(history_fixture.corporate_id.value)
+    started = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories",
+        json=_start_history_body(history_fixture),
+        headers=_HEADERS,
+    )
+    assert started.status_code == HTTPStatus.CREATED, started.text
+    record_id = started.json()["id"]
+    finalized = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/{record_id}/finalization",
+        headers=_HEADERS,
+    )
+    assert finalized.status_code == HTTPStatus.OK, finalized.text
+    saved_record = history_client.get(
+        f"/corporates/{corporate_id}/medication-histories/{record_id}",
+        headers=_HEADERS,
+    )
+    assert saved_record.status_code == HTTPStatus.OK, saved_record.text
+
+    current_patient_profile_reader.profile = MedicationHistoryPatientProfileDto(
+        last_name="山田",
+        first_name="花子",
+        last_name_kana="ヤマダ",
+        first_name_kana="ハナコ",
+        birth_date="1980-01-02",
+        gender="2",
+        postal_code="1000001",
+        address="東京都中央区二丁目",
+        phone_number="03-0000-0000",
+    )
+    view = history_client.get(
+        f"/corporates/{corporate_id}/medication-histories/{record_id}/view",
+        headers=_HEADERS,
+    )
+
+    assert view.status_code == HTTPStatus.OK, view.text
+    assert view.json()["record"] == saved_record.json()
+    assert view.json()["current_patient_profile"]["address"] == "東京都中央区二丁目"
 
 
 def test_TC25_下書きの全項目更新と確定メタデータ付き確定(

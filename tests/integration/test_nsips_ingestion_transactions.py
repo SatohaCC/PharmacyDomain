@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import ClassVar
 
@@ -21,6 +21,13 @@ from app.application.integration.nsips.models import (
     NsipsRpInfo,
 )
 from app.domain.corporate.primitives import CorporateId
+from app.domain.foundation.exceptions import ConcurrentModificationError
+from app.domain.patient.patient import Patient
+from app.domain.patient.primitives import ExternalPatientId, PatientAddress
+from app.domain.patient.profile_history import (
+    PatientProfileChange,
+    PatientProfileSnapshot,
+)
 from app.domain.reception.primitives import ReceptionId
 from app.domain.reception.reception import Reception
 from app.domain.reception.repository import ReceptionRepository
@@ -30,11 +37,13 @@ from app.domain.shared.medicine import (
     MedicineIdentifier,
 )
 from app.domain.store.primitives import StoreId
+from app.infrastructure.postgres.codec import decode_aggregate
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.repositories.repository_set import (
     PostgresRepositorySet,
 )
 from tests.factories.medicine_catalog_factory import create_medicine
+from tests.factories.persistence_factory import create_patient
 from tests.integration.organization_helpers import appoint_manager, setup_organization
 
 _NEW_ROWS: tuple[str, ...] = (
@@ -59,6 +68,7 @@ class _FailAfterReceptionSave:
     _delegate: ReceptionRepository
     _session: AsyncSession
     _corporate_id: CorporateId
+    observed_patient_kanji_name: str | None
     observed_tables: ClassVar[tuple[str, ...]] = _NEW_ROWS
 
     def __init__(
@@ -70,6 +80,7 @@ class _FailAfterReceptionSave:
         self._delegate = delegate
         self._session = session
         self._corporate_id = corporate_id
+        self.observed_patient_kanji_name = None
 
     async def get(
         self,
@@ -114,6 +125,8 @@ class _FailAfterReceptionSave:
         )
         assert isinstance(patient_payload, dict)
         assert patient_payload["profile_history"]
+        persisted_patient = decode_aggregate(patient_payload, Patient)
+        self.observed_patient_kanji_name = persisted_patient.names.kanji.full_name
         assert isinstance(reception_payload, dict)
         assert reception_payload["correction_history"]
         raise _LateIngestionFailure("受付保存後の障害を注入した。")
@@ -229,6 +242,7 @@ async def test_tc74_受付保存後の失敗で取込と変更履歴を一括rol
         ),
     )
     changed_command = replace(command, structured_bundle=changed_bundle)
+    fail_after_save: _FailAfterReceptionSave | None = None
     with pytest.raises(_LateIngestionFailure):
         async with organization.root.request_scope(
             authorization=organization.authorization
@@ -236,16 +250,19 @@ async def test_tc74_受付保存後の失敗で取込と変更履歴を一括rol
             use_case = scope.use_cases.integration.ingest_nsips
             original = use_case._reception_repo
             assert original is not None
+            fail_after_save = _FailAfterReceptionSave(
+                original,
+                scope._unit_of_work.session,
+                organization.corporate.id,
+            )
             monkeypatch.setattr(
                 use_case,
                 "_reception_repo",
-                _FailAfterReceptionSave(
-                    original,
-                    scope._unit_of_work.session,
-                    organization.corporate.id,
-                ),
+                fail_after_save,
             )
             await use_case.execute(changed_command)
+    assert fail_after_save is not None
+    assert fail_after_save.observed_patient_kanji_name == "山田 花子"
 
     async with PostgresUnitOfWork(session_factory) as work:
         repositories = PostgresRepositorySet.create(work)
@@ -283,3 +300,97 @@ async def test_tc74_受付保存後の失敗で取込と変更履歴を一括rol
             for table in _NEW_ROWS
         }
     assert counts == dict.fromkeys(_NEW_ROWS, 1)
+
+
+@pytest.mark.asyncio
+async def test_tc85_同一Patientの競合更新は古いversionを拒否し再試行履歴を保つ(
+    engine: AsyncEngine,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """先に確定したプロフィールを保ち、再読込後の更新履歴も追記する。"""
+    organization = await setup_organization(engine, session_factory)
+    patient = create_patient(corporate_id=organization.corporate.id)
+    async with PostgresUnitOfWork(session_factory) as work:
+        await PostgresRepositorySet.create(work).patient.save(patient)
+        await work.commit()
+
+    first_reception = ReceptionId.generate()
+    second_reception = ReceptionId.generate()
+    recorded_at = datetime(2026, 9, 24, 1, 2, 3, tzinfo=UTC)
+
+    def _change(reception_id: ReceptionId, address: str) -> PatientProfileChange:
+        return PatientProfileChange(
+            reception_id=reception_id,
+            store_id=organization.store.id,
+            external_patient_id=ExternalPatientId("POS-TC85"),
+            recorded_at=recorded_at,
+            changed_fields=("patient.address",),
+            received_profile=PatientProfileSnapshot(
+                names=patient.names,
+                birth_date=patient.birth_date,
+                gender=patient.gender,
+                postal_code=patient.postal_code,
+                address=PatientAddress(address),
+                phone_number=patient.phone_number,
+            ),
+        )
+
+    first_change = _change(first_reception, "東京都千代田区一丁目")
+    second_change = _change(second_reception, "東京都中央区二丁目")
+    async with (
+        PostgresUnitOfWork(session_factory) as first_work,
+        PostgresUnitOfWork(session_factory) as stale_work,
+    ):
+        first_repositories = PostgresRepositorySet.create(first_work)
+        stale_repositories = PostgresRepositorySet.create(stale_work)
+        first_read = await first_repositories.patient.get(
+            corporate_id=organization.corporate.id,
+            patient_id=patient.id,
+        )
+        stale_read = await stale_repositories.patient.get(
+            corporate_id=organization.corporate.id,
+            patient_id=patient.id,
+        )
+        assert first_read is not None
+        assert stale_read is not None
+        first_update = replace(
+            first_read.record_profile_change(first_change),
+            address=PatientAddress("東京都千代田区一丁目"),
+        )
+        stale_update = replace(
+            stale_read.record_profile_change(second_change),
+            address=PatientAddress("東京都中央区二丁目"),
+        )
+        await first_repositories.patient.save(first_update)
+        await first_work.commit()
+        with pytest.raises(ConcurrentModificationError):
+            await stale_repositories.patient.save(stale_update)
+        await stale_work.rollback()
+
+    async with PostgresUnitOfWork(session_factory) as work:
+        repositories = PostgresRepositorySet.create(work)
+        current = await repositories.patient.get(
+            corporate_id=organization.corporate.id,
+            patient_id=patient.id,
+        )
+        assert current is not None
+        assert current.address == PatientAddress("東京都千代田区一丁目")
+        assert len(current.profile_history) == 1
+        retry = replace(
+            current.record_profile_change(second_change),
+            address=PatientAddress("東京都中央区二丁目"),
+        )
+        await repositories.patient.save(retry)
+        await work.commit()
+
+    async with PostgresUnitOfWork(session_factory) as work:
+        final = await PostgresRepositorySet.create(work).patient.get(
+            corporate_id=organization.corporate.id,
+            patient_id=patient.id,
+        )
+        assert final is not None
+        assert final.address == PatientAddress("東京都中央区二丁目")
+        assert [item.reception_id for item in final.profile_history] == [
+            first_reception,
+            second_reception,
+        ]
