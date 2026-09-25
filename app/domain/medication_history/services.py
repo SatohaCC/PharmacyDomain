@@ -183,11 +183,11 @@ def _assess_pharmacist_names(
     無関係なスタッフの氏名がスナップショットに入っていることもある。
     最終鑑査者は第五号の対象ではないので問わない。
     """
+    if record.counselor_id is None:
+        return StatutoryItemState.MISSING
     return _recorded_if(
-        all(
-            source.find_pharmacist(staff_id) is not None
-            for staff_id in (dispensing.dispenser_id, record.counselor_id)
-        )
+        source.find_pharmacist(dispensing.dispenser_id) is not None
+        and source.find_pharmacist(record.counselor_id) is not None
     )
 
 

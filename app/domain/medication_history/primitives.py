@@ -81,6 +81,12 @@ class CounselingTimestamp(BaseAwareTimestamp):
     timestamp_name: ClassVar[str] = "服薬指導日時"
 
 
+class MedicationHistoryImportTimestamp(BaseAwareTimestamp):
+    """薬歴を外部システムから取り込んだUTC時刻。"""
+
+    timestamp_name: ClassVar[str] = "薬歴取込時刻"
+
+
 class AmendmentTimestamp(BaseAwareTimestamp):
     """確定済薬歴へ追記したUTC時刻。"""
 

@@ -332,7 +332,6 @@ class NsipsDataMapper:
         corporate_id: str,
         store_id: str,
         dispensing_id: str,
-        counselor_id: str,
     ) -> StartMedicationHistoryCommand:
         """薬歴下書き起票コマンドへ変換する。"""
         p = bundle.prescription
@@ -367,7 +366,6 @@ class NsipsDataMapper:
             corporate_id=corporate_id,
             store_id=store_id,
             dispensing_id=dispensing_id,
-            counselor_id=counselor_id,
             method=None,
             soap=SoapInput(
                 objective=(LabeledNoteInput(text=obj_summary),),

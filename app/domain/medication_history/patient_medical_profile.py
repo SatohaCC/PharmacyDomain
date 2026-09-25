@@ -21,6 +21,7 @@ from app.domain.medication_history.exceptions import (
     AllergyNotFoundError,
     ConcurrentMedicationNotFoundError,
     MedicalConditionNotFoundError,
+    MedicationHistoryDomainError,
     ProfilePatientMismatchError,
     UnfinalizedRecordProjectionError,
 )
@@ -153,6 +154,12 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
 
         raw_events: list[_ProfileEvent] = []
         for record in records:
+            if not record.is_finalized:
+                continue
+            if record.counselor_id is None or record.counseled_at is None:
+                raise MedicationHistoryDomainError(
+                    "確定済の薬歴には実際の指導者と指導日時が必要です。"
+                )
             raw_events.append(
                 _ProfileEvent(
                     occurred_at=record.counseled_at.value,
@@ -194,6 +201,10 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
         self._ensure_same_patient(record)
         if not record.is_finalized:
             raise UnfinalizedRecordProjectionError()
+        if record.counselor_id is None or record.counseled_at is None:
+            raise MedicationHistoryDomainError(
+                "頭書きへの投影には実際の指導者と指導日時が必要です。"
+            )
         provenance = _provenance_of(record)
         return self._apply_intents(record.profile_updates, provenance)
 
@@ -408,6 +419,10 @@ def _provenance_of(record: MedicationHistoryRecord) -> ProfileProvenance:
     登録日は服薬指導日時のUTC日付とする。頭書きは監査で「誰がいつ登録したか」を
     示すためのものなので、投影を実行した時刻ではなく指導の時刻を根拠にする。
     """
+    if record.counselor_id is None or record.counseled_at is None:
+        raise MedicationHistoryDomainError(
+            "頭書きの由来には実際の指導者と指導日時が必要です。"
+        )
     return ProfileProvenance(
         source_record_id=record.id,
         recorded_by=record.counselor_id,

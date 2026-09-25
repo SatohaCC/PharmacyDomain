@@ -39,7 +39,9 @@ def _history_record_columns(record: MedicationHistoryRecord) -> dict[str, object
         "dispensing_id": record.dispensing_id.value,
         "prescription_id": record.prescription_id.value,
         "status": record.status.value,
-        "counseled_at": record.counseled_at.value,
+        "counseled_at": (
+            record.counseled_at.value if record.counseled_at is not None else None
+        ),
     }
 
 
@@ -103,7 +105,7 @@ class PostgresMedicationHistoryRepository(
                 medication_history_records.c.patient_id == patient_id.value,
             )
             .order_by(
-                medication_history_records.c.counseled_at.desc(),
+                medication_history_records.c.counseled_at.desc().nulls_last(),
                 medication_history_records.c.id.desc(),
             ),
         )

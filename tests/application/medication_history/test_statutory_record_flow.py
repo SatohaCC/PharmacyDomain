@@ -38,6 +38,7 @@ from tests.application.medication_history.helpers import (
     create_fixture,
     create_start_command,
 )
+from tests.factories.medication_history_factory import create_nsips_draft_record
 
 
 async def _finalized_record_id(fixture: MedicationHistoryFixture) -> str:
@@ -95,6 +96,28 @@ class Test調剤録代替の確認:
         assert StatutoryRecordBlocker.MEDICATION_HISTORY_NOT_FINALIZED.value in tuple(
             blocker.blocker for blocker in result.blockers
         )
+
+    async def test_tc19_指導者未確定の下書きは_薬剤師氏名を未記載とする(self) -> None:
+        fixture = create_fixture()
+        record = create_nsips_draft_record(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            patient_id=fixture.patient_id,
+            dispensing_id=fixture.dispensing.id,
+            prescription_id=fixture.dispensing.prescription_id,
+        )
+        await fixture.record_repository.save(record)
+
+        result = await fixture.verify_statutory_record.execute(
+            _query(fixture, str(record.id.value))
+        )
+
+        counselor_assessment = next(
+            assessment
+            for assessment in result.assessments
+            if assessment.item == "pharmacist_names"
+        )
+        assert counselor_assessment.state == StatutoryItemState.MISSING.value
 
 
 class Test認可と法人境界:

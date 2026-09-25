@@ -881,7 +881,6 @@ class IngestNsipsUseCase:
                 corporate_id=command.corporate_id,
                 store_id=command.store_id,
                 dispensing_id=disp_dto.id,
-                counselor_id=command.operator_staff_id,
             )
             hist_dto = await self._start_medication_history_use_case.execute(hist_cmd)
 

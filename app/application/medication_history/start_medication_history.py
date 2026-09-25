@@ -5,8 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.application.access_control.boundary import CorporateAccessBoundary
-from app.application.access_control.models import Permission
+from app.application.access_control.models import Permission, ResolvedActorContext
 from app.application.common.clock import Clock
+from app.application.common.exceptions import AuthorizationError
 from app.application.common.optional_conversion import build_optional
 from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
@@ -40,12 +41,12 @@ from app.domain.medication_history.primitives import (
     BillingAdditionName,
     CounselingMethod,
     CounselingTimestamp,
+    MedicationHistoryImportTimestamp,
     MedicationHistorySourceSystem,
 )
 from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.services import CounselorQualificationService
 from app.domain.medication_history.value_objects import BillingAddition
-from app.domain.staff.primitives import StaffId
 from app.domain.store.primitives import StoreId
 
 
@@ -56,7 +57,6 @@ class StartMedicationHistoryCommand:
     corporate_id: str
     store_id: str
     dispensing_id: str
-    counselor_id: str
     method: str | None
     soap: SoapInput
     handbook_status: HandbookStatusInput | None
@@ -97,8 +97,8 @@ class StartMedicationHistoryUseCase:
         食い違う薬歴を作れてしまう。ここから取る限り調剤との一致は
         **構築の形で保証される**ので、判定を重ねて置かない。
 
-        指導日時はCommandではなく注入Clockから採る。呼び出し元が過去日時を
-        詐称できないようにするため（AGENTS.md「資格の時間境界」と同じ理由）。
+        通常起票の指導者は信頼済みActorから決め、指導日時はClockから採る。
+        NSIPS由来の起票は受信時刻だけを記録し、指導実績を作らない。
         """
         corporate_id = CorporateId.parse(command.corporate_id)
         await self._corporate_access.require_active(
@@ -113,11 +113,24 @@ class StartMedicationHistoryUseCase:
             corporate_id=corporate_id,
             dispensing_id=DispensingId.parse(command.dispensing_id),
         )
-        counselor_id = StaffId.parse(command.counselor_id)
-        qualifications = await self._staff_qualification.get_qualifications(
-            corporate_id=corporate_id, staff_id=counselor_id
-        )
-        self._counselor_service.ensure_pharmacist(qualifications)
+        is_nsips_import = command.source_system == "NSIPS"
+        if is_nsips_import:
+            counselor_id = None
+            counseled_at = None
+            imported_at = MedicationHistoryImportTimestamp(self._clock.now())
+        else:
+            actor = self._corporate_access.actor
+            if not isinstance(actor, ResolvedActorContext) or actor.staff_id is None:
+                raise AuthorizationError(
+                    "薬歴の起票にはスタッフを特定できるActorが必要です。"
+                )
+            counselor_id = actor.staff_id
+            qualifications = await self._staff_qualification.get_qualifications(
+                corporate_id=corporate_id, staff_id=counselor_id
+            )
+            self._counselor_service.ensure_pharmacist(qualifications)
+            counseled_at = CounselingTimestamp(self._clock.now())
+            imported_at = None
 
         additions = tuple(
             BillingAddition(
@@ -136,7 +149,7 @@ class StartMedicationHistoryUseCase:
             dispensing_id=dispensing.id,
             prescription_id=dispensing.prescription_id,
             counselor_id=counselor_id,
-            counseled_at=CounselingTimestamp(self._clock.now()),
+            counseled_at=counseled_at,
             method=(
                 parse_enum(CounselingMethod, command.method, "服薬指導の方法")
                 if command.method is not None
@@ -159,6 +172,7 @@ class StartMedicationHistoryUseCase:
             source_system=build_optional(
                 command.source_system, MedicationHistorySourceSystem
             ),
+            imported_at=imported_at,
         )
         await self._repository.save(record)
         return MedicationHistoryDto.from_entity(record)

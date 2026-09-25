@@ -62,6 +62,7 @@ from app.presentational.routers.prescription import RegisterPrescriptionRequest
 from tests.application.dispensing import helpers as dispensing_helpers
 from tests.application.medication_history import helpers as history_helpers
 from tests.application.prescription import helpers as prescription_helpers
+from tests.factories.medication_history_factory import create_nsips_draft_record
 from tests.factories.prescription_factory import create_response, start_inquiry
 from tests.fakes.stub_actor_context_provider import (
     VALID_TOKEN,
@@ -504,7 +505,10 @@ def history_client(
         record_tracing_report_response=history_fixture.record_tracing_report_response,
         get_view=view_use_case,
     )
-    yield from _client({get_medication_history_use_cases: lambda: bundle})
+    app = create_app(actor_provider=StubActorContextProvider(history_fixture.actor))
+    app.dependency_overrides.update({get_medication_history_use_cases: lambda: bundle})
+    yield TestClient(app)
+    app.dependency_overrides.clear()
 
 
 class _HttpCurrentPatientProfileReader(CurrentPatientProfileBoundary):
@@ -547,7 +551,6 @@ def _start_history_body(
     return StartMedicationHistoryRequest(
         store_id=command.store_id,
         dispensing_id=command.dispensing_id,
-        counselor_id=command.counselor_id,
         method=command.method or "face_to_face",
         soap=command.soap,
         handbook_status=command.handbook_status or HandbookStatusInput(presented=True),
@@ -558,7 +561,7 @@ def _start_history_body(
     ).model_dump(mode="json")
 
 
-def test_薬歴を起票して確定すると_頭書きへ投影される(
+def test_tc10_HTTP起票では_Actorの薬剤師を指導者として頭書きへ投影する(
     history_client: TestClient,
     history_fixture: history_helpers.MedicationHistoryFixture,
 ) -> None:
@@ -571,6 +574,8 @@ def test_薬歴を起票して確定すると_頭書きへ投影される(
         headers=_HEADERS,
     )
     assert started.status_code == HTTPStatus.CREATED, started.text
+    assert started.json()["counselor_id"] == str(history_fixture.counselor_id.value)
+    assert started.json()["counseled_at"] == history_fixture.clock.now().isoformat()
 
     # Act
     finalized = history_client.post(
@@ -589,6 +594,82 @@ def test_薬歴を起票して確定すると_頭書きへ投影される(
     assert finalized.json()["status"] == "finalized"
     assert profile.status_code == HTTPStatus.OK, profile.text
     assert profile.json()["patient_id"] == patient_id
+
+
+def test_tc09_起票本文のcounselor_idは_未知項目として拒否する(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    corporate_id = str(history_fixture.corporate_id.value)
+    body = _start_history_body(history_fixture)
+    body["counselor_id"] = "別スタッフのID"
+
+    response = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories",
+        json=body,
+        headers=_HEADERS,
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_CONTENT
+    assert history_fixture.record_repository.items == {}
+
+
+def test_tc16_NSIPS下書き確定は_実指導情報を記録して取込時刻を残す(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    corporate_id = str(history_fixture.corporate_id.value)
+    imported_at = history_fixture.clock.now()
+    imported_record = create_nsips_draft_record(
+        corporate_id=history_fixture.corporate_id,
+        store_id=history_fixture.store_id,
+        patient_id=history_fixture.patient_id,
+        dispensing_id=history_fixture.dispensing.id,
+        prescription_id=history_fixture.dispensing.prescription_id,
+        imported_at=imported_at,
+        ready_to_finalize=True,
+    )
+    history_fixture.record_repository.items[imported_record.id] = imported_record
+    counseled_at = imported_at.replace(hour=1)
+
+    response = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/"
+        f"{imported_record.id.value}/finalization",
+        json={"counseled_at": counseled_at.isoformat()},
+        headers=_HEADERS,
+    )
+
+    assert response.status_code == HTTPStatus.OK, response.text
+    assert response.json()["counselor_id"] == str(history_fixture.counselor_id.value)
+    assert response.json()["counseled_at"] == counseled_at.isoformat()
+    assert response.json()["imported_at"] == imported_at.isoformat()
+
+
+def test_tc17_実指導日時を省いて取込下書きを確定できない(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    corporate_id = str(history_fixture.corporate_id.value)
+    imported_record = create_nsips_draft_record(
+        corporate_id=history_fixture.corporate_id,
+        store_id=history_fixture.store_id,
+        patient_id=history_fixture.patient_id,
+        dispensing_id=history_fixture.dispensing.id,
+        prescription_id=history_fixture.dispensing.prescription_id,
+        imported_at=history_fixture.clock.now(),
+    )
+    history_fixture.record_repository.items[imported_record.id] = imported_record
+
+    response = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/"
+        f"{imported_record.id.value}/finalization",
+        json={},
+        headers=_HEADERS,
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_CONTENT
+    assert not history_fixture.record_repository.items[imported_record.id].is_finalized
+    assert history_fixture.profile_repository.items == {}
 
 
 def test_tc82_薬歴viewは_確定本文と読取時点の患者プロフィールを返す(

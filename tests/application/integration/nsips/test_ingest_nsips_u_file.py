@@ -25,6 +25,7 @@ from app.application.integration.nsips.models import (
 )
 from app.domain.medication_history.primitives import (
     CounselingMethod,
+    CounselingTimestamp,
     MedicationHistoryRecordId,
 )
 from app.domain.medication_history.value_objects import (
@@ -83,7 +84,11 @@ async def test_ingest_u_file_with_finalized_history_records_correction() -> None
         handbook_status=HandbookStatus(presented=True),
         residual_drug=ResidualDrugRecord.none_remaining(),
         information_sheet_provided=False,
-    ).finalize(finalized_by=fixture.pharmacist_id)
+    ).finalize(
+        counselor_id=fixture.pharmacist_id,
+        counseled_at=CounselingTimestamp(fixture.clock.now()),
+        finalized_by=fixture.pharmacist_id,
+    )
     await fixture.medication_history_repo.save(finalized_history)
 
     # 3. レセコン側で疑義照会等により日数変更され、同一処方箋番号でUファイル（5日分処方）が再送される
@@ -1412,7 +1417,11 @@ async def test_tc47_処方メタデータ差分は重複扱いせず訂正を要
         handbook_status=HandbookStatus(presented=True),
         residual_drug=ResidualDrugRecord.none_remaining(),
         information_sheet_provided=False,
-    ).finalize(finalized_by=fixture.pharmacist_id)
+    ).finalize(
+        counselor_id=fixture.pharmacist_id,
+        counseled_at=CounselingTimestamp(fixture.clock.now()),
+        finalized_by=fixture.pharmacist_id,
+    )
     await fixture.medication_history_repo.save(finalized_history)
     original_dispensing = await fixture.dispensing_repo.get(
         corporate_id=fixture.corporate_id,
@@ -1631,7 +1640,11 @@ async def test_tc35_確定薬歴の加算訂正で原本を保持して要確認
         handbook_status=HandbookStatus(presented=True),
         residual_drug=ResidualDrugRecord.none_remaining(),
         information_sheet_provided=False,
-    ).finalize(finalized_by=fixture.pharmacist_id)
+    ).finalize(
+        counselor_id=fixture.pharmacist_id,
+        counseled_at=CounselingTimestamp(fixture.clock.now()),
+        finalized_by=fixture.pharmacist_id,
+    )
     await fixture.medication_history_repo.save(finalized)
 
     corrected = await execute_structured_test_command(

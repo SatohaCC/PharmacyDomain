@@ -331,6 +331,11 @@ _RECEPTION_PRIMARY_KEY_TRANSFORM_PREFIXES = (
     "(corporate_id, store_id, id)",
 )
 
+# NULL指導日時を持つ未確定の取込下書きを保存できるようにする前進DDL。
+_MEDICATION_HISTORY_COUNSELED_AT_TRANSFORM_PREFIXES = (
+    "ALTER TABLE medication_history_records ALTER COLUMN counseled_at DROP NOT NULL",
+)
+
 
 def _split_statements(sql: str) -> list[str]:
     """``$$`` で囲まれた本体の中の ``;`` で切らずに文へ分ける。
@@ -385,6 +390,11 @@ def _migration_ddl() -> set[str]:
                 "CONSTRAINT pk_receptions PRIMARY KEY (id)",
                 "CONSTRAINT pk_receptions PRIMARY KEY (corporate_id, store_id, id)",
             )
+        elif statement.startswith("CREATE TABLE medication_history_records "):
+            statement = statement.replace(
+                "counseled_at TIMESTAMP WITH TIME ZONE NOT NULL",
+                "counseled_at TIMESTAMP WITH TIME ZONE",
+            )
         elif statement.startswith(
             "CREATE UNIQUE INDEX uq_patient_external_identifiers_active_source "
             "ON patient_external_identifiers (corporate_id, system_name, external_patient_id)"
@@ -428,6 +438,9 @@ def test_マイグレーションの全DDLが_検査の対象になっている(
         and not statement.startswith(_COMPARED_DDL_PREFIXES)
         and not statement.startswith(_PATIENT_EXTERNAL_ID_TRANSFORM_PREFIXES)
         and not statement.startswith(_RECEPTION_PRIMARY_KEY_TRANSFORM_PREFIXES)
+        and not statement.startswith(
+            _MEDICATION_HISTORY_COUNSELED_AT_TRANSFORM_PREFIXES
+        )
         and statement not in routines
     ]
 
@@ -483,6 +496,18 @@ def test_Receptionの受付IDを店舗スコープにする_前進マイグレ�
     assert (
         sum(
             statement.startswith(_RECEPTION_PRIMARY_KEY_TRANSFORM_PREFIXES[1])
+            for statement in statements
+        )
+        == 1
+    )
+
+
+def test_tc23_薬歴指導日時をNULL可能にする前進マイグレーションがある() -> None:
+    statements = _upgrade_statements()
+
+    assert (
+        sum(
+            statement.startswith(_MEDICATION_HISTORY_COUNSELED_AT_TRANSFORM_PREFIXES[0])
             for statement in statements
         )
         == 1

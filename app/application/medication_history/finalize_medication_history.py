@@ -6,8 +6,9 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from app.application.access_control.boundary import CorporateAccessBoundary
-from app.application.access_control.models import Permission
+from app.application.access_control.models import Permission, ResolvedActorContext
 from app.application.common.clock import Clock
+from app.application.common.exceptions import AuthorizationError
 from app.application.common.unit_of_work import UnitOfWork
 from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
@@ -17,11 +18,13 @@ from app.application.medication_history.reference import (
 )
 from app.application.medication_history.support import load_record_or_raise
 from app.domain.corporate.primitives import CorporateId
+from app.domain.medication_history.exceptions import MedicationHistoryDomainError
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
 from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
 from app.domain.medication_history.primitives import (
+    CounselingTimestamp,
     FinalizationDelayReason,
     FinalizedTimestamp,
     MedicationHistoryRecordId,
@@ -41,6 +44,7 @@ class FinalizeMedicationHistoryCommand:
 
     corporate_id: str
     record_id: str
+    counseled_at: datetime | None = None
     finalized_by: str | None = None
     finalized_at: datetime | None = None
     delay_reason: str | None = None
@@ -98,15 +102,50 @@ class FinalizeMedicationHistoryUseCase:
             corporate_id=corporate_id,
             record_id=MedicationHistoryRecordId.parse(command.record_id),
         )
+        counselor_id = record.counselor_id
+        counseled_at = record.counseled_at
+        qualified_staff_ids: set[StaffId] = set()
+        if counselor_id is None or counseled_at is None:
+            if command.counseled_at is None:
+                raise MedicationHistoryDomainError(
+                    "取込下書きを確定するには実際の指導日時が必要です。"
+                )
+            actor = self._corporate_access.actor
+            if not isinstance(actor, ResolvedActorContext) or actor.staff_id is None:
+                raise AuthorizationError(
+                    "取込下書きの確定にはスタッフを特定できるActorが必要です。"
+                )
+            counselor_id = actor.staff_id
+            counseled_at = CounselingTimestamp(command.counseled_at)
+            if (
+                self._staff_qualification is not None
+                and self._counselor_service is not None
+            ):
+                qualifications = await self._staff_qualification.get_qualifications(
+                    corporate_id=corporate_id, staff_id=counselor_id
+                )
+                self._counselor_service.ensure_pharmacist(qualifications)
+                qualified_staff_ids.add(counselor_id)
+        elif command.counseled_at is not None and (
+            CounselingTimestamp(command.counseled_at) != counseled_at
+        ):
+            raise MedicationHistoryDomainError(
+                "記録済みの指導日時は確定時に変更できません。"
+            )
 
+        if counselor_id is None or counseled_at is None:
+            raise MedicationHistoryDomainError(
+                "薬歴を確定するには実際の指導者と指導日時が必要です。"
+            )
         finalized_by = (
             StaffId.parse(command.finalized_by)
             if command.finalized_by is not None
-            else record.counselor_id
+            else record.counselor_id or counselor_id
         )
         if (
             self._staff_qualification is not None
             and self._counselor_service is not None
+            and finalized_by not in qualified_staff_ids
         ):
             qualifications = await self._staff_qualification.get_qualifications(
                 corporate_id=corporate_id, staff_id=finalized_by
@@ -118,7 +157,7 @@ class FinalizeMedicationHistoryUseCase:
         elif self._clock is not None:
             finalized_at = FinalizedTimestamp(self._clock.now())
         else:
-            finalized_at = FinalizedTimestamp(record.counseled_at.value)
+            finalized_at = FinalizedTimestamp(counseled_at.value)
 
         delay_reason = (
             FinalizationDelayReason(command.delay_reason)
@@ -134,6 +173,8 @@ class FinalizeMedicationHistoryUseCase:
                 catalog.validate_record_compliance(record)
 
         finalized = record.finalize(
+            counselor_id=counselor_id,
+            counseled_at=counseled_at,
             finalized_at=finalized_at,
             finalized_by=finalized_by,
             delay_reason=delay_reason,

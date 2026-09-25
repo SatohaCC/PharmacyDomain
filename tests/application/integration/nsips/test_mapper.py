@@ -171,7 +171,7 @@ def test_調剤開始コマンドへのマッピングと分割情報() -> None:
     assert cmd_split.split_reason == "long_term_storage"
 
 
-def test_tc20_未確認事項を薬歴下書きで不明のままにする() -> None:
+def test_tc11_NSIPS起票Commandへ_operatorを指導者として写さない() -> None:
     """NSIPS取込だけでは指導方法や確認結果を事実として作らない。"""
     mapper = NsipsDataMapper()
     bundle = _create_sample_bundle()
@@ -181,13 +181,13 @@ def test_tc20_未確認事項を薬歴下書きで不明のままにする() -> 
         corporate_id="corp-1",
         store_id="store-1",
         dispensing_id="disp-1",
-        counselor_id="staff-1",
     )
 
     assert cmd.corporate_id == "corp-1"
     assert cmd.store_id == "store-1"
     assert cmd.dispensing_id == "disp-1"
-    assert cmd.counselor_id == "staff-1"
+    assert not hasattr(cmd, "counselor_id")
+    assert cmd.source_system == "NSIPS"
     assert cmd.method is None
     assert len(cmd.soap.objective) == 1
     assert "アムロジピン錠5mg" in cmd.soap.objective[0].text
@@ -328,7 +328,6 @@ def test_tc24_保険と算定事実を薬歴の臨床記載へ混ぜない() -> 
         corporate_id="corp-1",
         store_id="store-1",
         dispensing_id="disp-1",
-        counselor_id="staff-1",
     )
     objective = "\n".join(note.text for note in command.soap.objective)
 
@@ -355,7 +354,6 @@ def test_tc27_加算の点数と数量を別々に保持する() -> None:
         corporate_id="corp-1",
         store_id="store-1",
         dispensing_id="disp-1",
-        counselor_id="staff-1",
     )
 
     [addition] = command.billing_additions or ()

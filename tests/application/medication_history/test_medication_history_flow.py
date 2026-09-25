@@ -13,6 +13,8 @@ from datetime import date, timedelta
 
 import pytest
 
+from app.application.access_control.models import ActorContext, ResolvedActorContext
+from app.application.common.exceptions import ApplicationError
 from app.application.corporate.exceptions import CorporateInactiveError
 from app.application.medication_history.amend_medication_history import (
     AmendMedicationHistoryCommand,
@@ -30,6 +32,7 @@ from app.application.medication_history.finalize_medication_history import (
 from app.application.medication_history.get_medication_history import (
     GetMedicationHistoryQuery,
     ListMedicationHistoriesQuery,
+    MedicationHistoryDto,
 )
 from app.application.medication_history.get_patient_medical_profile import (
     GetPatientMedicalProfileQuery,
@@ -57,17 +60,29 @@ from app.domain.medication_history.exceptions import (
     FinalizationDelayReasonRequiredError,
     MedicationHistoryAlreadyExistsError,
     MedicationHistoryAlreadyFinalizedError,
+    MedicationHistoryDomainError,
     MedicationHistoryNotFinalizedError,
     SoapContentRequiredError,
 )
-from app.domain.medication_history.primitives import MedicationHistoryStatus
+from app.domain.medication_history.medication_history_record import (
+    MedicationHistoryRecord,
+)
+from app.domain.medication_history.primitives import (
+    MedicationHistoryStatus,
+)
 from app.domain.staff.primitives import StaffId, StaffQualifications
 from tests.application.medication_history.helpers import (
     MedicationHistoryFixture,
     create_fixture,
+    create_nsips_start_command,
+    create_resolved_actor,
     create_soap_input,
     create_start_command,
     register_another_dispensing,
+)
+from tests.factories.medication_history_factory import (
+    create_nsips_draft_record,
+    create_record,
 )
 
 _AS_OF = date(2026, 8, 24)
@@ -91,6 +106,28 @@ async def _start(fixture: MedicationHistoryFixture) -> str:
     return started.id
 
 
+async def _start_nsips(fixture: MedicationHistoryFixture) -> MedicationHistoryDto:
+    """取込時刻だけを持つNSIPS由来の下書きを作る。"""
+    return await fixture.start.execute(create_nsips_start_command(fixture))
+
+
+async def _save_nsips_draft(
+    fixture: MedicationHistoryFixture,
+) -> MedicationHistoryRecord:
+    """テスト対象の後続ユースケースに使う取込DRAFTをRepositoryへ置く。"""
+    record = create_nsips_draft_record(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        patient_id=fixture.patient_id,
+        dispensing_id=fixture.dispensing.id,
+        prescription_id=fixture.dispensing.prescription_id,
+        imported_at=fixture.clock.now(),
+        ready_to_finalize=True,
+    )
+    await fixture.record_repository.save(record)
+    return record
+
+
 async def _finalize(fixture: MedicationHistoryFixture, record_id: str) -> None:
     """薬歴を確定する。"""
     await fixture.finalize.execute(
@@ -103,7 +140,9 @@ async def _finalize(fixture: MedicationHistoryFixture, record_id: str) -> None:
 class Test薬歴の作成:
     """調剤との一致と指導者の資格を確認して起こす。"""
 
-    async def test_薬歴を起こすと_下書きで保存される(self) -> None:
+    async def test_tc06_薬剤師スタッフActorを指導者として下書き保存する(
+        self,
+    ) -> None:
         # Arrange
         fixture = create_fixture()
 
@@ -114,6 +153,8 @@ class Test薬歴の作成:
         assert actual.status == MedicationHistoryStatus.DRAFT.value
         assert actual.patient_id == str(fixture.patient_id.value)
         assert actual.prescription_id == str(fixture.dispensing.prescription_id.value)
+        assert actual.counselor_id == str(fixture.counselor_id.value)
+        assert actual.counseled_at == fixture.clock.now().isoformat()
 
     async def test_患者は調剤セッションから決まる(self) -> None:
         """Commandに患者IDを持たせない。調剤と食い違う患者の薬歴を作れてしまう。"""
@@ -137,6 +178,7 @@ class Test薬歴の作成:
         actual = await fixture.start.execute(create_start_command(fixture))
 
         # Assert
+        assert actual.counseled_at is not None
         assert actual.counseled_at.startswith("2026-08-23T08:00")
 
     async def test_残薬なしを_明示的に記録できる(self) -> None:
@@ -284,12 +326,12 @@ class Test認可と法人境界:
 
     async def test_在籍していないスタッフは_404相当になる(self) -> None:
         # Arrange
-        fixture = create_fixture()
-        command = create_start_command(fixture, counselor_id=StaffId.generate())
+        missing_staff_id = StaffId.generate()
+        fixture = create_fixture(actor=create_resolved_actor(staff_id=missing_staff_id))
 
         # Act / Assert
         with pytest.raises(MedicationHistoryStaffNotFoundError):
-            await fixture.start.execute(command)
+            await fixture.start.execute(create_start_command(fixture))
 
     async def test_他法人からは_薬歴を取得できない(self) -> None:
         # Arrange
@@ -309,10 +351,10 @@ class Test認可と法人境界:
 class Test服薬指導者の資格:
     """薬剤師法第25条の2に基づく指導者の資格を検証する。"""
 
-    async def test_薬剤師資格が無いと_薬歴を起こせない(self) -> None:
+    async def test_tc08_Actorの薬剤師資格が無いと_薬歴を起こせない(self) -> None:
         # Arrange
-        fixture = create_fixture()
         clerk_id = StaffId.generate()
+        fixture = create_fixture(actor=create_resolved_actor(staff_id=clerk_id))
         fixture.staff_qualification.register(
             corporate_id=fixture.corporate_id,
             staff_id=clerk_id,
@@ -321,9 +363,180 @@ class Test服薬指導者の資格:
 
         # Act / Assert
         with pytest.raises(CounselorQualificationError):
-            await fixture.start.execute(
-                create_start_command(fixture, counselor_id=clerk_id)
+            await fixture.start.execute(create_start_command(fixture))
+
+        assert fixture.record_repository.items == {}
+
+    async def test_tc07_スタッフ未解決Actorでは_薬歴を起こさず保存しない(
+        self,
+    ) -> None:
+        fixture = create_fixture(
+            actor=ActorContext.vendor_system_admin(principal_id="test-unresolved")
+        )
+
+        with pytest.raises(ApplicationError):
+            await fixture.start.execute(create_start_command(fixture))
+
+        assert fixture.record_repository.items == {}
+
+
+class TestNSIPS取込後の指導実績:
+    """NSIPS取込時刻と実際の服薬指導を別に扱う。"""
+
+    async def test_tc13_取込下書きDTOは_指導実績と取込時刻を分けて返す(self) -> None:
+        fixture = create_fixture()
+
+        actual = await _start_nsips(fixture)
+
+        assert actual.counselor_id is None
+        assert actual.counseled_at is None
+        assert actual.imported_at == fixture.clock.now().isoformat()
+
+    async def test_tc14_実指導日時なしでは確定せず_薬歴と頭書きを変更しない(
+        self,
+    ) -> None:
+        fixture = create_fixture()
+        record = await _save_nsips_draft(fixture)
+        record_id = record.id
+        before = fixture.record_repository.items[record_id]
+
+        with pytest.raises(MedicationHistoryDomainError):
+            await fixture.finalize.execute(
+                FinalizeMedicationHistoryCommand(
+                    corporate_id=str(fixture.corporate_id.value),
+                    record_id=str(record_id.value),
+                )
             )
+
+        assert fixture.record_repository.items[record_id] == before
+        assert fixture.profile_repository.items == {}
+
+    async def test_tc15_確定時はActorと実指導日時を記録し_取込時刻を維持する(
+        self,
+    ) -> None:
+        fixture = create_fixture()
+        record = await _save_nsips_draft(fixture)
+        counseled_at = fixture.clock.now() - timedelta(hours=2)
+
+        actual = await fixture.finalize.execute(
+            FinalizeMedicationHistoryCommand(
+                corporate_id=str(fixture.corporate_id.value),
+                record_id=str(record.id.value),
+                counseled_at=counseled_at,
+            )
+        )
+
+        assert actual.counselor_id == str(fixture.counselor_id.value)
+        assert actual.counseled_at == counseled_at.isoformat()
+        assert actual.imported_at == fixture.clock.now().isoformat()
+        assert actual.finalized_at != actual.counseled_at
+
+    async def test_tc18_未解決Actorと非薬剤師Actorは_取込下書きを確定できない(
+        self,
+    ) -> None:
+        actors = (
+            (
+                ActorContext.vendor_system_admin(
+                    principal_id="test-unresolved-finalizer"
+                ),
+                ApplicationError,
+            ),
+            (
+                create_resolved_actor(staff_id=StaffId.generate()),
+                CounselorQualificationError,
+            ),
+        )
+        for actor, error_type in actors:
+            fixture = create_fixture(actor=actor)
+            if isinstance(actor, ResolvedActorContext) and actor.staff_id is not None:
+                fixture.staff_qualification.register(
+                    corporate_id=fixture.corporate_id,
+                    staff_id=actor.staff_id,
+                    qualifications=StaffQualifications.empty(),
+                )
+            record = await _save_nsips_draft(fixture)
+
+            with pytest.raises(error_type):
+                await fixture.finalize.execute(
+                    FinalizeMedicationHistoryCommand(
+                        corporate_id=str(fixture.corporate_id.value),
+                        record_id=str(record.id.value),
+                        counseled_at=fixture.clock.now(),
+                    )
+                )
+
+            assert fixture.profile_repository.items == {}
+            saved = await fixture.record_repository.get(
+                corporate_id=fixture.corporate_id,
+                record_id=record.id,
+            )
+            assert saved is not None and not saved.is_finalized
+
+    async def test_tc20_取込下書きは_頭書きの再構築へ投影しない(self) -> None:
+        fixture = create_fixture()
+        await _save_nsips_draft(fixture)
+
+        profile = await fixture.rebuild_profile.execute(
+            RebuildPatientMedicalProfileCommand(
+                corporate_id=str(fixture.corporate_id.value),
+                patient_id=str(fixture.patient_id.value),
+                as_of=_AS_OF,
+            )
+        )
+
+        assert profile.allergies == ()
+        assert profile.adverse_reactions == ()
+
+    async def test_tc22_インメモリ一覧では_指導日時なしの取込下書きを末尾へ決定的に並べる(
+        self,
+    ) -> None:
+        fixture = create_fixture()
+        dated = create_record(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            patient_id=fixture.patient_id,
+            dispensing_id=fixture.dispensing.id,
+            prescription_id=fixture.dispensing.prescription_id,
+        )
+        imported_first = create_nsips_draft_record(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            patient_id=fixture.patient_id,
+            dispensing_id=fixture.dispensing.id,
+            prescription_id=fixture.dispensing.prescription_id,
+        )
+        imported_second = create_nsips_draft_record(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            patient_id=fixture.patient_id,
+            dispensing_id=fixture.dispensing.id,
+            prescription_id=fixture.dispensing.prescription_id,
+        )
+        await fixture.record_repository.save(dated)
+        await fixture.record_repository.save(imported_first)
+        await fixture.record_repository.save(imported_second)
+
+        records = await fixture.list_by_patient.execute(
+            ListMedicationHistoriesQuery(
+                corporate_id=str(fixture.corporate_id.value),
+                patient_id=str(fixture.patient_id.value),
+            )
+        )
+        repeated = await fixture.list_by_patient.execute(
+            ListMedicationHistoriesQuery(
+                corporate_id=str(fixture.corporate_id.value),
+                patient_id=str(fixture.patient_id.value),
+            )
+        )
+
+        assert records[0].id == str(dated.id.value)
+        assert records[1].counseled_at is None
+        assert records[2].counseled_at is None
+        assert [item.id for item in records] == [item.id for item in repeated]
+        assert [item.id for item in records[1:]] == sorted(
+            (str(imported_first.id.value), str(imported_second.id.value)),
+            reverse=True,
+        )
 
     async def test_薬剤師資格が無いと_追記できない(self) -> None:
         # Arrange
@@ -794,6 +1007,8 @@ class Test一覧:
 
         # Assert
         assert len(actual) == 2
+        assert actual[0].counseled_at is not None
+        assert actual[1].counseled_at is not None
         assert actual[0].counseled_at > actual[1].counseled_at
 
     async def test_他法人からは_一覧に現れない(self) -> None:
