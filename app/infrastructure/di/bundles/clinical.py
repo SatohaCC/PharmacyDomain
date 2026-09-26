@@ -371,6 +371,7 @@ def build_medication_history_use_cases(
             unit_of_work,
             store_operations,
             record_repository,
+            clock,
         ),
         get_follow_up_sources=GetFollowUpSourcesUseCase(
             record_repository,

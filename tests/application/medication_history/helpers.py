@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from datetime import datetime
 
 from app.application.access_control.models import (
     ActorContext,
@@ -304,6 +305,7 @@ def create_fixture(
             NullUnitOfWork(),
             store_operations,
             follow_up_source_boundary,
+            clock,
         ),
         store_operations=store_operations,
         follow_up_source_boundary=follow_up_source_boundary,
@@ -364,6 +366,8 @@ def create_start_command(
     information_sheet_provided: bool | None = False,
     billing_additions: tuple[BillingAdditionInput, ...] | None = None,
     source_system: str | None = None,
+    counselor_id: str | None = None,
+    counseled_at: datetime | None = None,
 ) -> StartMedicationHistoryCommand:
     """薬歴作成コマンドを組み立てる。"""
     return StartMedicationHistoryCommand(
@@ -388,6 +392,8 @@ def create_start_command(
         profile_updates=profile_updates,
         billing_additions=billing_additions,
         source_system=source_system,
+        counselor_id=counselor_id,
+        counseled_at=counseled_at,
     )
 
 

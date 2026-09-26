@@ -59,6 +59,9 @@ def _history_record_columns(record: MedicationHistoryRecord) -> dict[str, object
         "counseled_at": (
             record.counseled_at.value if record.counseled_at is not None else None
         ),
+        "recorded_at": (
+            record.recorded_at.value if record.recorded_at is not None else None
+        ),
     }
 
 
@@ -117,7 +120,7 @@ class PostgresMedicationHistoryRepository(
         corporate_id: CorporateId,
         patient_id: PatientId,
     ) -> list[MedicationHistoryRecord]:
-        """患者の薬歴タイムラインを ``counseled_at`` 降順で返す。"""
+        """患者の薬歴タイムラインを実施・登録時刻の降順で返す。"""
         return await self.find_all(
             MEDICATION_HISTORY_RECORD_MAPPING,
             select(medication_history_records)
@@ -127,6 +130,7 @@ class PostgresMedicationHistoryRepository(
             )
             .order_by(
                 medication_history_records.c.counseled_at.desc().nulls_last(),
+                medication_history_records.c.recorded_at.desc().nulls_last(),
                 medication_history_records.c.id.desc(),
             ),
         )

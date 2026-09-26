@@ -23,6 +23,9 @@ from typing import (
 )
 
 from app.domain.foundation.primitives.base import DomainPrimitive
+from app.domain.medication_history.medication_history_record import (
+    MedicationHistoryRecord,
+)
 from app.domain.staff.primitives import (
     BaseQualificationProfile,
     DietitianProfile,
@@ -84,7 +87,17 @@ def decode_aggregate(
     payload: Mapping[str, object], aggregate_type: type[_AggregateT]
 ) -> _AggregateT:
     """指定された集約型として payload を検証しながら復元する。"""
-    decoded = _decode(payload, aggregate_type, context=aggregate_type.__name__)
+    compatible_payload: Mapping[str, object] = payload
+    if aggregate_type is MedicationHistoryRecord:
+        # 旧薬歴のレビュー日時・確認者は現行の監査値ではないため読み捨てる。
+        compatible_payload = {
+            name: item
+            for name, item in payload.items()
+            if name not in {"reviewed_at", "reviewed_by"}
+        }
+    decoded = _decode(
+        compatible_payload, aggregate_type, context=aggregate_type.__name__
+    )
     if not isinstance(decoded, aggregate_type):
         raise PersistenceMappingError(
             f"payload は {aggregate_type.__name__} として復元できません。"

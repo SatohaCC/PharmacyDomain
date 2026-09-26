@@ -493,6 +493,7 @@ medication_history_records = Table(
     Column("record_kind", String(32), nullable=False),
     Column("source_record_id", UUID(as_uuid=True), nullable=True),
     Column("counseled_at", DateTime(timezone=True), nullable=True),
+    Column("recorded_at", DateTime(timezone=True), nullable=True),
     Column("payload", JSONB, nullable=False),
     Column("version", Integer, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),

@@ -46,11 +46,11 @@ from app.domain.medication_history.primitives import (
     ExternalCorrectionTimestamp,
     FinalizationDelayReason,
     FinalizedTimestamp,
+    FollowUpRecordedTimestamp,
     MedicationHistoryImportTimestamp,
     MedicationHistoryRecordId,
     MedicationHistoryRecordKind,
     MedicationHistoryReviewResult,
-    MedicationHistoryReviewTimestamp,
     MedicationHistorySourceSystem,
     MedicationHistoryStatus,
     TracingReportId,
@@ -101,6 +101,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     source_system: MedicationHistorySourceSystem | None = None
     imported_at: MedicationHistoryImportTimestamp | None = None
     recorded_by: StaffId | None = None
+    recorded_at: FollowUpRecordedTimestamp | None = None
     status: MedicationHistoryStatus = MedicationHistoryStatus.DRAFT
     amendments: tuple[MedicationHistoryAmendment, ...] = ()
     follow_ups: tuple[FollowUpRecord, ...] = ()
@@ -109,8 +110,6 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     finalized_by: StaffId | None = None
     delay_reason: FinalizationDelayReason | None = None
     review_result: MedicationHistoryReviewResult | None = None
-    reviewed_by: StaffId | None = None
-    reviewed_at: MedicationHistoryReviewTimestamp | None = None
     retention_expiry_date: date | None = None
     external_corrections: tuple[ExternalPrescriptionCorrection, ...] = ()
 
@@ -226,25 +225,12 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
                 and self.delay_reason is None
             ):
                 raise FinalizationDelayReasonRequiredError()
-            review_fields = (
-                self.review_result,
-                self.reviewed_by,
-                self.reviewed_at,
-            )
-            if any(value is not None for value in review_fields) and any(
-                value is None for value in review_fields
-            ):
-                raise MedicationHistoryDomainError(
-                    "薬歴レビュー結果・確認者・確認日時はまとめて記録してください。"
-                )
         else:
             if (
                 self.finalized_at is not None
                 or self.finalized_by is not None
                 or self.delay_reason is not None
                 or self.review_result is not None
-                or self.reviewed_by is not None
-                or self.reviewed_at is not None
             ):
                 raise MedicationHistoryDomainError(
                     "下書き状態の薬歴に確定メタデータは設定できません。"
@@ -321,6 +307,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         source_system: MedicationHistorySourceSystem | None = None,
         imported_at: MedicationHistoryImportTimestamp | None = None,
         recorded_by: StaffId | None = None,
+        recorded_at: FollowUpRecordedTimestamp | None = None,
         record_kind: MedicationHistoryRecordKind = MedicationHistoryRecordKind.INITIAL,
         source_record_id: MedicationHistoryRecordId | None = None,
     ) -> Self:
@@ -351,6 +338,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             source_system=source_system,
             imported_at=imported_at,
             recorded_by=recorded_by,
+            recorded_at=recorded_at,
             status=MedicationHistoryStatus.DRAFT,
         )
 
@@ -421,18 +409,18 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         finalized_by: StaffId | None = None,
         delay_reason: FinalizationDelayReason | None = None,
         review_result: MedicationHistoryReviewResult | None = None,
-        reviewed_by: StaffId | None = None,
-        reviewed_at: MedicationHistoryReviewTimestamp | None = None,
     ) -> Self:
         """薬歴を確定する。
 
-        確定日時の省略時は指導日時、確定者の省略時は指導者を使う。
-        指導実績のない取込下書きは、実際の指導者と指導日時を渡さなければ確定できない。
+        確定日時と確定者は呼び出し元から明示する。指導日時・指導者から監査値を
+        推定しない。指導実績のない取込下書きは、実際の指導者と指導日時も必要。
         """
         self._ensure_not_finalized()
-        if review_result is None or reviewed_by is None or reviewed_at is None:
+        if finalized_at is None or finalized_by is None:
+            raise FinalizationStaffRequiredError()
+        if review_result is None:
             raise MedicationHistoryDomainError(
-                "薬歴を確定するには確認結果・確認者・確認日時が必要です。"
+                "薬歴確定時のレビュー結果を指定してください。"
             )
         supplied_counselor = counselor_id is not None
         supplied_counseled_at = counseled_at is not None
@@ -459,14 +447,6 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             raise MedicationHistoryDomainError(
                 "薬歴を確定するには実際の指導者と指導日時が必要です。"
             )
-        actual_finalized_at = (
-            finalized_at
-            if finalized_at is not None
-            else FinalizedTimestamp(actual_counseled_at.value)
-        )
-        actual_finalized_by = (
-            finalized_by if finalized_by is not None else actual_counselor_id
-        )
         with_counseling = replace(
             self,
             counselor_id=actual_counselor_id,
@@ -475,12 +455,10 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         return replace(
             with_counseling,
             status=MedicationHistoryStatus.FINALIZED,
-            finalized_at=actual_finalized_at,
-            finalized_by=actual_finalized_by,
+            finalized_at=finalized_at,
+            finalized_by=finalized_by,
             delay_reason=delay_reason,
             review_result=review_result,
-            reviewed_by=reviewed_by,
-            reviewed_at=reviewed_at,
         )
 
     def amend(

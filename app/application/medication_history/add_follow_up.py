@@ -10,6 +10,7 @@ from app.application.access_control.store_access import (
     StoreOperation,
     StoreOperationBoundary,
 )
+from app.application.common.clock import Clock
 from app.application.common.exceptions import AuthorizationError
 from app.application.common.optional_conversion import build_optional
 from app.application.common.unit_of_work import UnitOfWork
@@ -41,6 +42,7 @@ from app.domain.medication_history.primitives import (
     CounselingMethod,
     CounselingNote,
     CounselingTimestamp,
+    FollowUpRecordedTimestamp,
     MajorCategoryCode,
     MedicationHistoryRecordId,
     MedicationHistoryRecordKind,
@@ -69,6 +71,7 @@ class AddFollowUpUseCase:
         unit_of_work: UnitOfWork,
         store_operations: StoreOperationBoundary,
         source_boundary: MedicationHistoryFollowUpSourceBoundary,
+        clock: Clock,
     ) -> None:
         self._repository = repository
         self._corporate_access = corporate_access
@@ -77,6 +80,7 @@ class AddFollowUpUseCase:
         self._unit_of_work = unit_of_work
         self._store_operations = store_operations
         self._source_boundary = source_boundary
+        self._clock = clock
 
     async def execute(self, command: AddFollowUpCommand) -> MedicationHistoryDto:
         """参照元を本文ごと読み込まず、独立した下書きを保存する。"""
@@ -164,6 +168,7 @@ class AddFollowUpUseCase:
             note.has_content for note in additional_notes
         ):
             raise SoapContentRequiredError()
+        recorded_at = FollowUpRecordedTimestamp(self._clock.now())
 
         record = MedicationHistoryRecord.start(
             corporate_id=corporate_id,
@@ -196,6 +201,7 @@ class AddFollowUpUseCase:
                 command.source_system, MedicationHistorySourceSystem
             ),
             recorded_by=recorded_by,
+            recorded_at=recorded_at,
             record_kind=MedicationHistoryRecordKind.FOLLOW_UP,
             source_record_id=source.record_id,
         )

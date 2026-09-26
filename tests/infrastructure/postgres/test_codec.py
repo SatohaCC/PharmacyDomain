@@ -7,13 +7,14 @@ import importlib
 import inspect
 import pkgutil
 import uuid
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any
 
 import pytest
 
 import app.domain
+from app.application.medication_history.get_medication_history import FollowUpDto
 from app.domain.corporate.corporate import Corporate
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.exceptions import VerificationStatusMismatchError
@@ -31,11 +32,10 @@ from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
 from app.domain.medication_history.primitives import (
-    FinalizationDelayReason,
     FinalizedTimestamp,
+    FollowUpRecordedTimestamp,
     MedicationHistoryRecordKind,
     MedicationHistoryReviewResult,
-    MedicationHistoryReviewTimestamp,
     MedicationHistorySourceSystem,
     MedicationHistoryStatus,
 )
@@ -107,6 +107,7 @@ from app.infrastructure.postgres.codec import (
 )
 from tests.factories.dispensing_factory import create_dispensing, verify_passed
 from tests.factories.medication_history_factory import (
+    create_follow_up,
     create_independent_follow_up_record,
     create_nsips_draft_record,
     create_record,
@@ -642,52 +643,63 @@ def test_tc71_患者プロフィール受信履歴のcodec往復と旧payload互
 
 
 def test_TC24_薬歴集約のcodec往復と後方互換復元() -> None:
-    """確定メタデータを含む薬歴のJSONB往復と、旧payloadからの後方互換復元ができる。"""
-    # Arrange 1: 確定済み薬歴（finalized_at, finalized_by, delay_reason あり）の往復
-    record = create_record()
-    finalized = record.finalize(
-        finalized_at=FinalizedTimestamp(datetime(2026, 8, 25, 10, 0, tzinfo=UTC)),
-        finalized_by=StaffId.generate(),
-        delay_reason=FinalizationDelayReason("翌日確認のため"),
-        review_result=MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED,
-        reviewed_by=StaffId.generate(),
-        reviewed_at=MedicationHistoryReviewTimestamp(
-            datetime(2026, 8, 25, 9, 0, tzinfo=UTC)
-        ),
+    """旧レビューキーを読み捨て、新形式では確定監査値と結果を保つ。"""
+    draft = create_record()
+    counseled_at = draft.counseled_at
+    assert counseled_at is not None
+    finalized_at = counseled_at.value + timedelta(minutes=5)
+    finalizer_id = StaffId.generate()
+    reviewer_id = StaffId.generate()
+    legacy_payload = encode_aggregate(draft)
+    legacy_payload.update(
+        status=MedicationHistoryStatus.FINALIZED.value,
+        finalized_at=finalized_at.isoformat(),
+        finalized_by=str(finalizer_id.value),
+        delay_reason=None,
+        review_result=MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED.value,
+        reviewed_by=str(reviewer_id.value),
+        reviewed_at=counseled_at.value.isoformat(),
     )
-    encoded = encode_aggregate(finalized)
 
-    # Act 1
-    restored = decode_aggregate(encoded, MedicationHistoryRecord)
+    restored = decode_aggregate(legacy_payload, MedicationHistoryRecord)
+    reencoded = encode_aggregate(restored)
 
-    # Assert 1
-    assert restored.id == finalized.id
-    assert restored.status == MedicationHistoryStatus.FINALIZED
-    assert restored.finalized_at == finalized.finalized_at
-    assert restored.finalized_by == finalized.finalized_by
-    assert restored.delay_reason == finalized.delay_reason
-    assert restored.review_result == finalized.review_result
-    assert restored.reviewed_by == finalized.reviewed_by
-    assert restored.reviewed_at == finalized.reviewed_at
+    assert restored.status is MedicationHistoryStatus.FINALIZED
+    assert restored.finalized_at == FinalizedTimestamp(finalized_at)
+    assert restored.finalized_by == finalizer_id
+    assert restored.review_result is (
+        MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED
+    )
+    assert not hasattr(restored, "reviewed_at")
+    assert not hasattr(restored, "reviewed_by")
+    assert "reviewed_at" not in reencoded
+    assert "reviewed_by" not in reencoded
 
-    # Arrange 2: 旧形式（レビュー証跡が存在しない確定済みpayload）
-    legacy_payload = encode_aggregate(finalized)
-    legacy_payload.pop("recorded_by", None)
-    legacy_payload.pop("review_result", None)
-    legacy_payload.pop("reviewed_by", None)
-    legacy_payload.pop("reviewed_at", None)
 
-    # Act 2
-    restored_legacy = decode_aggregate(legacy_payload, MedicationHistoryRecord)
+def test_tc44_13_登録日時payloadの往復と旧フォローアップ子要素を復元する() -> None:
+    recorded_at = FollowUpRecordedTimestamp(datetime(2026, 8, 25, 3, 0, tzinfo=UTC))
+    record = dataclasses.replace(create_record(), recorded_at=recorded_at)
 
-    # Assert 2
-    assert restored_legacy.status == MedicationHistoryStatus.FINALIZED
-    assert restored_legacy.finalized_at == finalized.finalized_at
-    assert restored_legacy.finalized_by == finalized.finalized_by
-    assert restored_legacy.delay_reason == finalized.delay_reason
-    assert restored_legacy.review_result is None
-    assert restored_legacy.reviewed_by is None
-    assert restored_legacy.reviewed_at is None
+    restored_record = decode_aggregate(
+        encode_aggregate(record), MedicationHistoryRecord
+    )
+
+    assert restored_record.recorded_at == recorded_at
+
+    follow_up = create_follow_up()
+    with_follow_up = dataclasses.replace(record, follow_ups=(follow_up,))
+    legacy_nested_payload = encode_aggregate(with_follow_up)
+    nested_payload = legacy_nested_payload["follow_ups"]
+    assert isinstance(nested_payload, list) and isinstance(nested_payload[0], dict)
+    nested_payload[0].pop("recorded_at", None)
+    nested_payload[0].pop("recorded_by", None)
+
+    restored_legacy = decode_aggregate(legacy_nested_payload, MedicationHistoryRecord)
+    dto = FollowUpDto.from_value(restored_legacy.follow_ups[0])
+
+    assert dto.recorded_at is None
+    assert dto.recorded_by is None
+    assert restored_legacy.follow_ups[0].followed_up_at == follow_up.followed_up_at
 
 
 def test_TC23_薬歴の未記録状態をcodec往復し旧payloadも復元する() -> None:

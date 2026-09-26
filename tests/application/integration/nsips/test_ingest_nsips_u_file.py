@@ -40,10 +40,10 @@ from app.domain.medication_history.primitives import (
     BillingAdditionName,
     CounselingMethod,
     CounselingTimestamp,
+    FinalizedTimestamp,
     MedicationHistoryImportTimestamp,
     MedicationHistoryRecordKind,
     MedicationHistoryReviewResult,
-    MedicationHistoryReviewTimestamp,
     MedicationHistorySourceSystem,
 )
 from app.domain.medication_history.value_objects import (
@@ -276,10 +276,9 @@ async def test_ingest_u_file_with_finalized_history_records_correction() -> None
     ).finalize(
         counselor_id=fixture.pharmacist_id,
         counseled_at=CounselingTimestamp(fixture.clock.now()),
+        finalized_at=FinalizedTimestamp(fixture.clock.now()),
         finalized_by=fixture.pharmacist_id,
         review_result=MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED,
-        reviewed_by=fixture.pharmacist_id,
-        reviewed_at=MedicationHistoryReviewTimestamp(fixture.clock.now()),
     )
     await fixture.medication_history_repo.save(finalized_history)
 
@@ -1616,10 +1615,9 @@ async def test_tc47_処方メタデータ差分は重複扱いせず訂正を要
     ).finalize(
         counselor_id=fixture.pharmacist_id,
         counseled_at=CounselingTimestamp(fixture.clock.now()),
+        finalized_at=FinalizedTimestamp(fixture.clock.now()),
         finalized_by=fixture.pharmacist_id,
         review_result=MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED,
-        reviewed_by=fixture.pharmacist_id,
-        reviewed_at=MedicationHistoryReviewTimestamp(fixture.clock.now()),
     )
     await fixture.medication_history_repo.save(finalized_history)
     original_dispensing = await fixture.dispensing_repo.get(
@@ -1840,10 +1838,9 @@ async def test_tc35_確定薬歴の加算訂正で原本を保持して要確認
     ).finalize(
         counselor_id=fixture.pharmacist_id,
         counseled_at=CounselingTimestamp(fixture.clock.now()),
+        finalized_at=FinalizedTimestamp(fixture.clock.now()),
         finalized_by=fixture.pharmacist_id,
         review_result=MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED,
-        reviewed_by=fixture.pharmacist_id,
-        reviewed_at=MedicationHistoryReviewTimestamp(fixture.clock.now()),
     )
     await fixture.medication_history_repo.save(finalized)
 

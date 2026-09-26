@@ -15,9 +15,11 @@ class FakeClock(Clock):
 
     def __init__(self, now: datetime = DEFAULT_NOW) -> None:
         self._now = now
+        self.calls = 0
 
     def now(self) -> datetime:
         """固定された aware UTC 時刻を返す。"""
+        self.calls += 1
         return self._now
 
     def advance(self, delta: timedelta) -> None:

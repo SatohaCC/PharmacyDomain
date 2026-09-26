@@ -140,15 +140,19 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
     ) -> Self:
         """確定済薬歴の列および紐づくフォローアップから頭書きを再構築する。
 
-        指導日時・フォローアップ日時の昇順にすべての差分を畳み込む。頭書きは薬歴からの投影なので、
-        確定済薬歴が残ってさえいれば投影を作り直せる。再構築は履歴からの
-        復元を担い、薬歴と頭書きの保存を原子的にする責務は Unit of Work が担う。
+        指導日時・フォローアップ日時の昇順、次に登録日時の昇順ですべての差分を
+        畳み込む。頭書きは薬歴からの投影なので、確定済薬歴が残ってさえいれば
+        投影を作り直せる。再構築は履歴からの復元を担い、薬歴と頭書きの保存を
+        原子的にする責務は Unit of Work が担う。
         """
         profile = cls.empty_for(corporate_id=corporate_id, patient_id=patient_id)
 
         @dataclass(frozen=True)
         class _ProfileEvent:
             occurred_at: datetime
+            recorded_at: datetime | None
+            event_order: int
+            event_id: str
             record: MedicationHistoryRecord
             follow_up: FollowUpRecord | None = None
 
@@ -163,6 +167,13 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
             raw_events.append(
                 _ProfileEvent(
                     occurred_at=record.counseled_at.value,
+                    recorded_at=(
+                        record.recorded_at.value
+                        if record.recorded_at is not None
+                        else None
+                    ),
+                    event_order=0,
+                    event_id=str(record.id.value),
                     record=record,
                 )
             )
@@ -170,12 +181,31 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
                 raw_events.append(
                     _ProfileEvent(
                         occurred_at=follow_up.followed_up_at.value,
+                        recorded_at=(
+                            follow_up.recorded_at.value
+                            if follow_up.recorded_at is not None
+                            else (
+                                record.recorded_at.value
+                                if record.recorded_at is not None
+                                else None
+                            )
+                        ),
+                        event_order=1,
+                        event_id=str(follow_up.id.value),
                         record=record,
                         follow_up=follow_up,
                     )
                 )
 
-        raw_events.sort(key=lambda ev: ev.occurred_at)
+        raw_events.sort(
+            key=lambda ev: (
+                ev.occurred_at,
+                ev.recorded_at is not None,
+                ev.recorded_at or ev.occurred_at,
+                ev.event_order,
+                ev.event_id,
+            )
+        )
         for ev in raw_events:
             if ev.follow_up is not None:
                 profile = profile.apply_follow_up(ev.record, ev.follow_up)

@@ -36,6 +36,7 @@ from app.domain.store.primitives import StoreId
 from tests.application.medication_history.helpers import (
     MedicationHistoryFixture,
     create_fixture,
+    create_pharmacist_qualifications,
     create_soap_input,
     create_start_command,
 )
@@ -64,24 +65,41 @@ async def _create_and_finalize_record(fixture: MedicationHistoryFixture) -> str:
 class TestAddFollowUpUseCase:
     """AddFollowUpUseCase の単体・結合テスト。"""
 
-    async def test_add_follow_up_success(self) -> None:
-        """TC-09: 別店舗のフォローアップを新しい下書き薬歴として保存する。"""
+    async def test_tc44_08_独立フォローアップの登録者と登録日時を保存する(
+        self,
+    ) -> None:
+        """ActorとClockの監査値を臨床日時・指導者と分けて保存する。"""
         fixture = create_fixture()
         record_id = await _create_and_finalize_record(fixture)
         source_id = MedicationHistoryRecordId.parse(record_id)
         target_store_id = StoreId.generate()
+        counselor_id = StaffId.generate()
+        fixture.staff_qualification.register(
+            corporate_id=fixture.corporate_id,
+            staff_id=counselor_id,
+            qualifications=create_pharmacist_qualifications(),
+        )
         fixture.store_reference.register(
             corporate_id=fixture.corporate_id,
             store_id=target_store_id,
         )
+        parent = await fixture.record_repository.get(
+            corporate_id=fixture.corporate_id,
+            record_id=source_id,
+        )
+        assert parent is not None and parent.counseled_at is not None
+        followed_up_at = parent.counseled_at.value + timedelta(days=3)
+        fixture.clock.advance(followed_up_at - fixture.clock.now() + timedelta(days=1))
+        expected_recorded_at = fixture.clock.now()
+        fixture.clock.calls = 0
 
         command = AddFollowUpCommand(
             corporate_id=str(fixture.corporate_id.value),
             record_id=record_id,
             store_id=str(target_store_id.value),
             patient_id=str(fixture.patient_id.value),
-            counselor_id=str(fixture.counselor_id.value),
-            followed_up_at=COUNSELED_AT + timedelta(days=3),
+            counselor_id=str(counselor_id.value),
+            followed_up_at=followed_up_at,
             method="telephone",
             soap=SoapInput(
                 subjective=(create_soap_input().subjective[0],),
@@ -98,11 +116,12 @@ class TestAddFollowUpUseCase:
         assert dto.dispensing_id == str(fixture.dispensing.id.value)
         assert dto.prescription_id == str(fixture.dispensing.prescription_id.value)
         assert dto.status == "draft"
+        assert dto.recorded_by == str(fixture.counselor_id.value)
+        assert dto.recorded_at == expected_recorded_at.isoformat()
+        assert not hasattr(dto, "reviewed_at")
+        assert not hasattr(dto, "reviewed_by")
+        assert fixture.clock.calls == 1
 
-        parent = await fixture.record_repository.get(
-            corporate_id=fixture.corporate_id,
-            record_id=source_id,
-        )
         child = await fixture.record_repository.get(
             corporate_id=fixture.corporate_id,
             record_id=MedicationHistoryRecordId.parse(dto.id),
@@ -112,6 +131,11 @@ class TestAddFollowUpUseCase:
         assert child is not None
         assert child.source_record_id == source_id
         assert child.recorded_by == fixture.counselor_id
+        assert child.recorded_at is not None
+        assert child.recorded_at.value == expected_recorded_at
+        assert child.counselor_id == counselor_id
+        assert child.counseled_at is not None
+        assert child.counseled_at.value == followed_up_at
         assert len(fixture.record_repository.items) == 2
 
     async def test_tc10_確定済み店舗横断フォローアップから次の店舗へ連鎖できる(
