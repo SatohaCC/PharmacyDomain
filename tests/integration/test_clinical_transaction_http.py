@@ -388,7 +388,8 @@ async def test_HTTP経由の薬歴確定が_薬歴と頭書きを同じ要求で
     async with _client(fixture) as client:
         response = await client.post(
             f"/corporates/{fixture.corporate_id.value}"
-            f"/medication-histories/{fixture.record.id.value}/finalization"
+            f"/medication-histories/{fixture.record.id.value}/finalization",
+            json={"review_result": "assessment_and_instruction_recorded"},
         )
 
     # Assert
@@ -423,7 +424,8 @@ async def test_HTTP経由の薬歴確定で頭書きが保存できなければ_
     async with reject_profile_writes(engine), _client(fixture) as client:
         response = await client.post(
             f"/corporates/{fixture.corporate_id.value}"
-            f"/medication-histories/{fixture.record.id.value}/finalization"
+            f"/medication-histories/{fixture.record.id.value}/finalization",
+            json={"review_result": "assessment_and_instruction_recorded"},
         )
 
     # Assert: 翻訳表に無い IntegrityError なので 500。薬歴は下書きのまま。
@@ -461,7 +463,8 @@ async def test_HTTP経由の薬歴確定で頭書きが保存できなければ_
     async with _client(fixture) as client:
         retried = await client.post(
             f"/corporates/{fixture.corporate_id.value}"
-            f"/medication-histories/{fixture.record.id.value}/finalization"
+            f"/medication-histories/{fixture.record.id.value}/finalization",
+            json={"review_result": "assessment_and_instruction_recorded"},
         )
     assert retried.status_code == 200, retried.text
     async with PostgresUnitOfWork(session_factory) as work:

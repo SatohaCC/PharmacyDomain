@@ -46,16 +46,16 @@ from tests.factories.medicine_catalog_factory import create_medicine
 from tests.factories.persistence_factory import create_patient
 from tests.integration.organization_helpers import appoint_manager, setup_organization
 
-_NEW_ROWS: tuple[str, ...] = (
-    "patients",
-    "patient_external_identifiers",
-    "patient_coverages",
-    "coverage_selection_records",
-    "receptions",
-    "prescriptions",
-    "dispensing_processes",
-    "medication_history_records",
-)
+_EXPECTED_INGEST_ROW_COUNTS: dict[str, int] = {
+    "patients": 1,
+    "patient_external_identifiers": 1,
+    "patient_coverages": 1,
+    "coverage_selection_records": 1,
+    "receptions": 1,
+    "prescriptions": 1,
+    "dispensing_processes": 1,
+    "medication_history_records": 0,
+}
 
 
 class _LateIngestionFailure(RuntimeError):
@@ -69,7 +69,7 @@ class _FailAfterReceptionSave:
     _session: AsyncSession
     _corporate_id: CorporateId
     observed_patient_kanji_name: str | None
-    observed_tables: ClassVar[tuple[str, ...]] = _NEW_ROWS
+    expected_row_counts: ClassVar[dict[str, int]] = _EXPECTED_INGEST_ROW_COUNTS
 
     def __init__(
         self,
@@ -99,14 +99,16 @@ class _FailAfterReceptionSave:
     async def save(self, reception: Reception) -> None:
         """受付保存後に各テーブルを確認し、UoWへ失敗を返す。"""
         await self._delegate.save(reception)
-        for table in self.observed_tables:
+        for table, expected_count in self.expected_row_counts.items():
             count = await self._session.scalar(
                 text(
                     f"SELECT count(*) FROM {table} WHERE corporate_id = :corporate_id"
                 ),
                 {"corporate_id": self._corporate_id.value},
             )
-            assert count == 1, f"失敗注入前に {table} の書込みが完了していない。"
+            assert count == expected_count, (
+                f"失敗注入前の {table} の件数が期待値と異なる。"
+            )
         patient_payload = await self._session.scalar(
             text("SELECT payload FROM patients WHERE id = :patient_id"),
             {"patient_id": reception.patient_id.value},
@@ -133,7 +135,7 @@ class _FailAfterReceptionSave:
 
 
 def _bundle() -> NsipsBundle:
-    """実UoWで患者・資格・処方・調剤・薬歴を作る構造化入力を返す。"""
+    """実UoWで患者・資格・処方・調剤を取り込む構造化入力を返す。"""
     return NsipsBundle(
         header_version="structured-test",
         patient=NsipsPatientInfo(
@@ -185,7 +187,7 @@ async def test_tc74_受付保存後の失敗で取込と変更履歴を一括rol
     session_factory: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """既存患者・受付のプロフィールと訂正履歴を同じUoWでrollbackする。"""
+    """NSIPS取込は薬歴を作らず、患者・受付の更新を同じUoWでrollbackする。"""
     organization = await setup_organization(engine, session_factory)
     await appoint_manager(session_factory, organization)
 
@@ -297,9 +299,9 @@ async def test_tc74_受付保存後の失敗で取込と変更履歴を一括rol
                     {"corporate_id": organization.corporate.id.value},
                 )
             ).scalar_one()
-            for table in _NEW_ROWS
+            for table in _EXPECTED_INGEST_ROW_COUNTS
         }
-    assert counts == dict.fromkeys(_NEW_ROWS, 1)
+    assert counts == _EXPECTED_INGEST_ROW_COUNTS
 
 
 @pytest.mark.asyncio
