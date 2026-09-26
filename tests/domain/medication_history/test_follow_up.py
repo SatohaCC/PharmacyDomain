@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from app.domain.corporate.primitives import CorporateId
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.medication_history.exceptions import (
     DuplicatedFollowUpIdError,
     FollowUpDateBeforeCounselingError,
@@ -21,6 +22,7 @@ from app.domain.medication_history.primitives import (
     ConditionStatus,
     CounselingMethod,
     CounselingNote,
+    FollowUpRecordedTimestamp,
     MajorCategoryCode,
     MediumCategoryCode,
     StatutoryCategory,
@@ -157,6 +159,25 @@ class TestFollowUpRecordDomain:
 
         fu = create_follow_up(method=CounselingMethod.OTC)
         assert fu.method == CounselingMethod.OTC
+
+    def test_tc44_11_登録日時と登録者は両方設定するか両方省略する(self) -> None:
+        recorded_at = FollowUpRecordedTimestamp(datetime(2026, 8, 28, 6, 0, tzinfo=UTC))
+        recorded_by = StaffId.generate()
+
+        with_audit = create_follow_up(
+            recorded_at=recorded_at,
+            recorded_by=recorded_by,
+        )
+        legacy = create_follow_up()
+
+        assert with_audit.recorded_at == recorded_at
+        assert with_audit.recorded_by == recorded_by
+        assert legacy.recorded_at is None
+        assert legacy.recorded_by is None
+        with pytest.raises(DomainValidationError):
+            create_follow_up(recorded_at=recorded_at)
+        with pytest.raises(DomainValidationError):
+            create_follow_up(recorded_by=recorded_by)
 
 
 class TestFollowUpPatientProfileProjection:

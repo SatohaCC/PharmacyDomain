@@ -81,6 +81,12 @@ class CounselingTimestamp(BaseAwareTimestamp):
     timestamp_name: ClassVar[str] = "服薬指導日時"
 
 
+class FollowUpRecordedTimestamp(BaseAwareTimestamp):
+    """フォローアップをシステムへ登録したUTC時刻。"""
+
+    timestamp_name: ClassVar[str] = "フォローアップ登録日時"
+
+
 class MedicationHistoryImportTimestamp(BaseAwareTimestamp):
     """薬歴を外部システムから取り込んだUTC時刻。"""
 
@@ -97,10 +103,6 @@ class FinalizedTimestamp(BaseAwareTimestamp):
     """薬歴を確定した日時。"""
 
     timestamp_name: ClassVar[str] = "確定日時"
-
-
-class MedicationHistoryReviewTimestamp(BaseAwareTimestamp):
-    """薬剤師が確定内容を確認したUTC時刻。"""
 
 
 class ExternalCorrectionTimestamp(BaseAwareTimestamp):

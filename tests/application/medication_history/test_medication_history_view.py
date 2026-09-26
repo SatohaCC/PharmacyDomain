@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 
 import pytest
 
@@ -16,7 +17,9 @@ from app.application.medication_history.finalize_medication_history import (
     FinalizeMedicationHistoryCommand,
 )
 from app.application.medication_history.get_medication_history import (
+    FollowUpDto,
     GetMedicationHistoryQuery,
+    MedicationHistoryDto,
 )
 from app.application.medication_history.get_medication_history_view import (
     CurrentPatientProfileBoundary,
@@ -26,12 +29,19 @@ from app.application.medication_history.get_medication_history_view import (
 )
 from app.domain.corporate.corporate import Corporate
 from app.domain.corporate.primitives import CorporateId
+from app.domain.medication_history.primitives import FollowUpRecordedTimestamp
 from app.domain.patient.primitives import PatientId
+from app.domain.staff.primitives import StaffId
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.application.medication_history.helpers import (
     MedicationHistoryFixture,
     create_fixture,
     create_start_command,
+)
+from tests.factories.medication_history_factory import (
+    create_follow_up,
+    create_independent_follow_up_record,
+    create_record,
 )
 
 
@@ -164,6 +174,31 @@ async def test_tc82_確定薬歴本文を変えず読取時点の患者住所を
     )
     assert after_read == saved_record
     assert view.record.soap == saved_record.soap
+
+
+def test_tc44_10と12_監査日時と登録者をDTOへ変換する() -> None:
+    recorded_at = FollowUpRecordedTimestamp(datetime(2026, 8, 25, 3, 0, tzinfo=UTC))
+    recorded_by = StaffId.generate()
+    record = replace(
+        create_independent_follow_up_record(create_record()),
+        recorded_at=recorded_at,
+        recorded_by=recorded_by,
+    )
+    nested = create_follow_up(recorded_at=recorded_at, recorded_by=recorded_by)
+    legacy_nested = create_follow_up()
+
+    record_dto = MedicationHistoryDto.from_entity(record)
+    nested_dto = FollowUpDto.from_value(nested)
+    legacy_nested_dto = FollowUpDto.from_value(legacy_nested)
+
+    assert record_dto.recorded_at == recorded_at.value.isoformat()
+    assert record_dto.recorded_by == str(recorded_by.value)
+    assert nested_dto.recorded_at == recorded_at.value.isoformat()
+    assert nested_dto.recorded_by == str(recorded_by.value)
+    assert legacy_nested_dto.recorded_at is None
+    assert legacy_nested_dto.recorded_by is None
+    assert not hasattr(record_dto, "reviewed_at")
+    assert not hasattr(record_dto, "reviewed_by")
 
 
 @pytest.mark.asyncio

@@ -12,6 +12,7 @@ import importlib
 import io
 import pkgutil
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -37,6 +38,7 @@ from app.domain.identity.user_account import UserAccount
 from app.domain.medication_history.category_catalog import (
     MedicationHistoryCategoryCatalog,
 )
+from app.domain.medication_history.primitives import FollowUpRecordedTimestamp
 from app.domain.reception.primitives import (
     ReceptionFieldPath,
     ReceptionFingerprint,
@@ -336,6 +338,11 @@ _MEDICATION_HISTORY_COUNSELED_AT_TRANSFORM_PREFIXES = (
     "ALTER TABLE medication_history_records ALTER COLUMN counseled_at DROP NOT NULL",
 )
 
+# 薬歴の登録日時を既存行のNULLを保ったまま検索列へ追加する。
+_MEDICATION_HISTORY_RECORDED_AT_TRANSFORM_PREFIXES = (
+    "ALTER TABLE medication_history_records ADD COLUMN recorded_at TIMESTAMP WITH TIME ZONE",
+)
+
 # 0008は既存薬歴を初回へ移行し、自己参照FKと初回だけの一意性へ切り替える。
 _MEDICATION_HISTORY_RECORD_KIND_TRANSFORM_PREFIXES = (
     "ALTER TABLE medication_history_records ADD COLUMN record_kind VARCHAR(32) DEFAULT 'initial' NOT NULL",
@@ -419,7 +426,8 @@ def _migration_ddl() -> set[str]:
                 "(id, corporate_id, patient_id, prescription_id, dispensing_id), "
                 "CONSTRAINT uq_medication_history_records_source_identity UNIQUE "
                 "(id, corporate_id, patient_id, prescription_id, dispensing_id), "
-                "record_kind VARCHAR(32) NOT NULL, source_record_id UUID"
+                "record_kind VARCHAR(32) NOT NULL, source_record_id UUID, "
+                "recorded_at TIMESTAMP WITH TIME ZONE"
             )
             statement = _normalized_statement(
                 statement[:close_index] + ", " + additions + statement[close_index:]
@@ -476,6 +484,7 @@ def test_マイグレーションの全DDLが_検査の対象になっている(
         and not statement.startswith(
             _MEDICATION_HISTORY_COUNSELED_AT_TRANSFORM_PREFIXES
         )
+        and not statement.startswith(_MEDICATION_HISTORY_RECORDED_AT_TRANSFORM_PREFIXES)
         and not statement.startswith(_MEDICATION_HISTORY_RECORD_KIND_TRANSFORM_PREFIXES)
         and statement not in routines
     ]
@@ -544,6 +553,18 @@ def test_tc23_薬歴指導日時をNULL可能にする前進マイグレーシ�
     assert (
         sum(
             statement.startswith(_MEDICATION_HISTORY_COUNSELED_AT_TRANSFORM_PREFIXES[0])
+            for statement in statements
+        )
+        == 1
+    )
+
+
+def test_tc44_15_薬歴登録日時検索列を追加する前進マイグレーションがある() -> None:
+    statements = _upgrade_statements()
+
+    assert (
+        sum(
+            statement.startswith(_MEDICATION_HISTORY_RECORDED_AT_TRANSFORM_PREFIXES[0])
             for statement in statements
         )
         == 1
@@ -758,3 +779,16 @@ def test_全ての集約対応が_列の検査対象になっている() -> None
         f"検査されていない集約: {sorted(declared - covered)} / "
         f"実在しない集約: {sorted(covered - declared)}"
     )
+
+
+def test_tc44_15_検索列へフォローアップ登録日時を出力する() -> None:
+    record = replace(
+        create_record(),
+        recorded_at=FollowUpRecordedTimestamp(datetime(2026, 8, 24, 5, 0, tzinfo=UTC)),
+    )
+
+    row_values = MEDICATION_HISTORY_RECORD_MAPPING.row_values(record)
+
+    assert "recorded_at" in schema.medication_history_records.c
+    assert record.recorded_at is not None
+    assert row_values.get("recorded_at") == record.recorded_at.value

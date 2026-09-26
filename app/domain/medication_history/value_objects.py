@@ -17,6 +17,7 @@ from datetime import date
 from typing import ClassVar, Self
 
 from app.domain.foundation.entity import Entity
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.value_object import ValueObject
 from app.domain.medication_history.exceptions import (
     ConcurrentMedicationPeriodInvertedError,
@@ -47,6 +48,7 @@ from app.domain.medication_history.primitives import (
     CounselingTimestamp,
     ExternalCorrectionTimestamp,
     FollowUpId,
+    FollowUpRecordedTimestamp,
     GenericPreferenceType,
     HandbookConsolidationReason,
     HandbookNotPresentedReason,
@@ -765,6 +767,8 @@ class FollowUpRecord(Entity[FollowUpId]):
     residual_drug: ResidualDrugRecord | None
     information_sheet_provided: bool | None = False
     source_system: MedicationHistorySourceSystem | None = None
+    recorded_at: FollowUpRecordedTimestamp | None = None
+    recorded_by: StaffId | None = None
     profile_updates: ProfileUpdateIntents = field(default_factory=ProfileUpdateIntents)
     additional_notes: tuple[CategorizedNote, ...] = ()
 
@@ -784,6 +788,10 @@ class FollowUpRecord(Entity[FollowUpId]):
 
     def validate(self) -> None:
         """白紙のフォローアップ記録を拒否する。"""
+        if (self.recorded_at is None) != (self.recorded_by is None):
+            raise DomainValidationError(
+                "フォローアップ登録日時と登録者は両方設定するか、両方未設定にしてください。"
+            )
         has_soap = self.soap.has_content
         has_additional = any(note.has_content for note in self.additional_notes)
         if not has_soap and not has_additional:

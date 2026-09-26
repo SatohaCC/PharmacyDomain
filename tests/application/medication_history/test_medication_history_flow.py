@@ -70,6 +70,7 @@ from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
 from app.domain.medication_history.primitives import (
+    FollowUpRecordedTimestamp,
     MedicationHistoryRecordId,
     MedicationHistoryRecordKind,
     MedicationHistoryStatus,
@@ -81,6 +82,7 @@ from tests.application.medication_history.helpers import (
     MedicationHistoryFixture,
     create_fixture,
     create_nsips_start_command,
+    create_pharmacist_qualifications,
     create_resolved_actor,
     create_soap_input,
     create_start_command,
@@ -527,7 +529,7 @@ class TestNSIPS取込後の指導実績:
         assert actual.counselor_id == str(fixture.counselor_id.value)
         assert actual.counseled_at == counseled_at.isoformat()
         assert actual.imported_at == fixture.clock.now().isoformat()
-        assert actual.finalized_at != actual.counseled_at
+        assert actual.finalized_at == fixture.clock.now().isoformat()
 
     async def test_tc18_未解決Actorと非薬剤師Actorは_取込下書きを確定できない(
         self,
@@ -637,6 +639,90 @@ class TestNSIPS取込後の指導実績:
             reverse=True,
         )
 
+    async def test_tc44_14_同一実施日時は登録日時とIDの降順に並ぶ(self) -> None:
+        fixture = create_fixture()
+        counseled_at = fixture.clock.now()
+        older_registered = create_record(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            patient_id=fixture.patient_id,
+            counseled_at=counseled_at,
+        )
+        later_registered = create_record(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            patient_id=fixture.patient_id,
+            counseled_at=counseled_at,
+        )
+        same_registration_first = create_record(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            patient_id=fixture.patient_id,
+            counseled_at=counseled_at,
+        )
+        same_registration_second = create_record(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            patient_id=fixture.patient_id,
+            counseled_at=counseled_at,
+        )
+        legacy = create_record(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            patient_id=fixture.patient_id,
+            counseled_at=counseled_at,
+        )
+        ordered_records = (
+            replace(
+                older_registered,
+                recorded_at=FollowUpRecordedTimestamp(
+                    counseled_at + timedelta(minutes=1)
+                ),
+            ),
+            replace(
+                later_registered,
+                recorded_at=FollowUpRecordedTimestamp(
+                    counseled_at + timedelta(minutes=3)
+                ),
+            ),
+            replace(
+                same_registration_first,
+                recorded_at=FollowUpRecordedTimestamp(
+                    counseled_at + timedelta(minutes=3)
+                ),
+            ),
+            replace(
+                same_registration_second,
+                recorded_at=FollowUpRecordedTimestamp(
+                    counseled_at + timedelta(minutes=3)
+                ),
+            ),
+            legacy,
+        )
+        for record in reversed(ordered_records):
+            await fixture.record_repository.save(record)
+
+        actual = await fixture.list_by_patient.execute(
+            ListMedicationHistoriesQuery(
+                corporate_id=str(fixture.corporate_id.value),
+                patient_id=str(fixture.patient_id.value),
+            )
+        )
+
+        same_time_ids = sorted(
+            (
+                str(later_registered.id.value),
+                str(same_registration_first.id.value),
+                str(same_registration_second.id.value),
+            ),
+            reverse=True,
+        )
+        assert [item.id for item in actual] == [
+            *same_time_ids,
+            str(older_registered.id.value),
+            str(legacy.id.value),
+        ]
+
     async def test_薬剤師資格が無いと_追記できない(self) -> None:
         # Arrange
         fixture = create_fixture()
@@ -665,33 +751,54 @@ class TestNSIPS取込後の指導実績:
 class Test確定と投影:
     """保存順序と頭書きへの反映。"""
 
-    async def test_tc17_確定時レビュー者と時刻は_ActorとClockから決まる(self) -> None:
-        fixture = create_fixture()
-        started = await fixture.start.execute(create_start_command(fixture))
+    async def test_tc44_03_確定監査値はActorとClockから一度だけ決まる(self) -> None:
+        finalizer_id = StaffId.generate()
+        fixture = create_fixture(actor=create_resolved_actor(staff_id=finalizer_id))
+        fixture.staff_qualification.register(
+            corporate_id=fixture.corporate_id,
+            staff_id=finalizer_id,
+            qualifications=create_pharmacist_qualifications(),
+        )
+        record = create_record(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            patient_id=fixture.patient_id,
+            counselor_id=fixture.counselor_id,
+            counseled_at=fixture.clock.now() - timedelta(hours=2),
+        )
+        await fixture.record_repository.save(record)
+        expected_finalized_at = fixture.clock.now()
+        fixture.clock.calls = 0
 
         finalized = await fixture.finalize.execute(
             FinalizeMedicationHistoryCommand(
                 corporate_id=str(fixture.corporate_id.value),
-                record_id=started.id,
+                record_id=str(record.id.value),
                 review_result="assessment_and_instruction_recorded",
             )
         )
 
         assert finalized.status == MedicationHistoryStatus.FINALIZED.value
         assert finalized.review_result == "assessment_and_instruction_recorded"
-        assert finalized.reviewed_by == str(fixture.counselor_id.value)
-        assert finalized.reviewed_at == fixture.clock.now().isoformat()
+        assert finalized.finalized_by == str(finalizer_id.value)
+        assert finalized.finalized_at == expected_finalized_at.isoformat()
+        assert not hasattr(finalized, "reviewed_by")
+        assert not hasattr(finalized, "reviewed_at")
+        assert fixture.clock.calls == 1
         loaded = await fixture.get.execute(
             GetMedicationHistoryQuery(
                 corporate_id=str(fixture.corporate_id.value),
-                record_id=started.id,
+                record_id=str(record.id.value),
             )
         )
         assert loaded.review_result == "assessment_and_instruction_recorded"
-        assert loaded.reviewed_by == str(fixture.counselor_id.value)
-        assert loaded.reviewed_at == fixture.clock.now().isoformat()
+        assert loaded.finalized_by == str(finalizer_id.value)
+        assert loaded.finalized_at == fixture.clock.now().isoformat()
+        assert not hasattr(loaded, "reviewed_by")
+        assert not hasattr(loaded, "reviewed_at")
         assert finalized.counselor_id == str(fixture.counselor_id.value)
-        assert finalized.counseled_at == fixture.clock.now().isoformat()
+        assert record.counseled_at is not None
+        assert finalized.counseled_at == record.counseled_at.value.isoformat()
 
     async def test_tc18_追加記載なしの結果は_薬剤師記載とともに保持される(
         self,
@@ -716,8 +823,8 @@ class Test確定と投影:
         )
 
         assert finalized.review_result == "no_additional_recordable_items"
-        assert finalized.reviewed_by == str(fixture.counselor_id.value)
-        assert finalized.reviewed_at == fixture.clock.now().isoformat()
+        assert finalized.finalized_by == str(fixture.counselor_id.value)
+        assert finalized.finalized_at == fixture.clock.now().isoformat()
         assert finalized.soap.assessment[0].text == authored_text
 
     async def test_確定すると_頭書きへ差分が投影される(self) -> None:
@@ -1293,13 +1400,9 @@ class Test薬歴確定ユースケース真正性と遅延理由:
         # Arrange
         fixture = create_fixture()
         record_id = await _start(fixture)
-        finalized_at = fixture.clock.now()
-
         cmd = FinalizeMedicationHistoryCommand(
             corporate_id=str(fixture.corporate_id.value),
             record_id=record_id,
-            finalized_by=str(fixture.counselor_id.value),
-            finalized_at=finalized_at,
             review_result="assessment_and_instruction_recorded",
         )
 
@@ -1308,7 +1411,7 @@ class Test薬歴確定ユースケース真正性と遅延理由:
 
         # Assert
         assert actual.status == MedicationHistoryStatus.FINALIZED.value
-        assert actual.finalized_at == finalized_at.isoformat()
+        assert actual.finalized_at == fixture.clock.now().isoformat()
         assert actual.finalized_by == str(fixture.counselor_id.value)
         assert actual.delay_reason is None
 
@@ -1317,14 +1420,18 @@ class Test薬歴確定ユースケース真正性と遅延理由:
         from datetime import timedelta
 
         fixture = create_fixture()
-        record_id = await _start(fixture)
-        next_day = fixture.clock.now() + timedelta(days=1)
+        started = await fixture.start.execute(
+            create_start_command(
+                fixture,
+                counselor_id=str(fixture.counselor_id.value),
+                counseled_at=fixture.clock.now(),
+            )
+        )
+        fixture.clock.advance(timedelta(days=1))
 
         cmd = FinalizeMedicationHistoryCommand(
             corporate_id=str(fixture.corporate_id.value),
-            record_id=record_id,
-            finalized_by=str(fixture.counselor_id.value),
-            finalized_at=next_day,
+            record_id=started.id,
             delay_reason="処方照会と患者再来局の確認のため翌日確定",
             review_result="assessment_and_instruction_recorded",
         )
@@ -1339,14 +1446,18 @@ class Test薬歴確定ユースケース真正性と遅延理由:
     async def test_tc20_遅延確定で遅延理由が無いと拒否される(self) -> None:
         # Arrange
         fixture = create_fixture()
-        record_id = await _start(fixture)
-        next_day = fixture.clock.now() + timedelta(days=1)
+        started = await fixture.start.execute(
+            create_start_command(
+                fixture,
+                counselor_id=str(fixture.counselor_id.value),
+                counseled_at=fixture.clock.now(),
+            )
+        )
+        fixture.clock.advance(timedelta(days=1))
 
         cmd = FinalizeMedicationHistoryCommand(
             corporate_id=str(fixture.corporate_id.value),
-            record_id=record_id,
-            finalized_by=str(fixture.counselor_id.value),
-            finalized_at=next_day,
+            record_id=started.id,
             delay_reason=None,
             review_result="assessment_and_instruction_recorded",
         )
@@ -1357,12 +1468,18 @@ class Test薬歴確定ユースケース真正性と遅延理由:
 
     async def test_tc21_確定者が薬剤師資格を持たない場合は拒否される(self) -> None:
         # Arrange
-        from datetime import UTC, datetime
-
-        fixture = create_fixture()
-        record_id = await _start(fixture)
         non_pharmacist_id = StaffId.generate()
-        # 資格を持たないスタッフとして登録
+        fixture = create_fixture(
+            actor=create_resolved_actor(staff_id=non_pharmacist_id)
+        )
+        record = create_record(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            patient_id=fixture.patient_id,
+            counselor_id=fixture.counselor_id,
+            counseled_at=fixture.clock.now(),
+        )
+        await fixture.record_repository.save(record)
         fixture.staff_qualification.register(
             corporate_id=fixture.corporate_id,
             staff_id=non_pharmacist_id,
@@ -1371,9 +1488,7 @@ class Test薬歴確定ユースケース真正性と遅延理由:
 
         cmd = FinalizeMedicationHistoryCommand(
             corporate_id=str(fixture.corporate_id.value),
-            record_id=record_id,
-            finalized_by=str(non_pharmacist_id.value),
-            finalized_at=datetime.now(UTC),
+            record_id=str(record.id.value),
             review_result="assessment_and_instruction_recorded",
         )
 
@@ -1391,8 +1506,6 @@ class Test薬歴確定ユースケース真正性と遅延理由:
             FinalizeMedicationHistoryCommand(
                 corporate_id=str(fixture.corporate_id.value),
                 record_id=record_id,
-                finalized_by=str(fixture.counselor_id.value),
-                finalized_at=finalized_at,
                 review_result="assessment_and_instruction_recorded",
             )
         )
@@ -1408,3 +1521,5 @@ class Test薬歴確定ユースケース真正性と遅延理由:
         # Assert
         assert actual.finalized_at == finalized_at.isoformat()
         assert actual.finalized_by == str(fixture.counselor_id.value)
+        assert not hasattr(actual, "reviewed_at")
+        assert not hasattr(actual, "reviewed_by")

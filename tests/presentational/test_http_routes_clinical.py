@@ -74,9 +74,6 @@ from app.presentational.routers.medication_history import (
 from app.presentational.routers.prescription import RegisterPrescriptionRequest
 from tests.application.dispensing import helpers as dispensing_helpers
 from tests.application.medication_history import helpers as history_helpers
-from tests.application.medication_history.helpers import (
-    create_pharmacist_qualifications,
-)
 from tests.application.prescription import helpers as prescription_helpers
 from tests.factories.medication_history_factory import (
     create_note,
@@ -621,12 +618,14 @@ def test_tc10_HTTP初回保存は_記載者を指導者にせず実記載を保�
     # Assert
     assert finalized.status_code == HTTPStatus.OK, finalized.text
     assert finalized.json()["status"] == "finalized"
-    assert finalized.json().get("reviewed_by") == str(
+    assert finalized.json().get("finalized_by") == str(
         history_fixture.counselor_id.value
     )
     assert (
-        finalized.json().get("reviewed_at") == history_fixture.clock.now().isoformat()
+        finalized.json().get("finalized_at") == history_fixture.clock.now().isoformat()
     )
+    assert "reviewed_by" not in finalized.json()
+    assert "reviewed_at" not in finalized.json()
     assert profile.status_code == HTTPStatus.OK, profile.text
     assert profile.json()["patient_id"] == patient_id
 
@@ -805,9 +804,11 @@ def test_tc19_HTTPレビュー結果のない確定は_薬歴と頭書きを変�
     assert history_fixture.profile_repository.items == {}
 
 
-def test_tc22_HTTPレビュー者は_Actorから決まり確定者とは別に返る(
+@pytest.mark.parametrize("field_name", ("finalized_at", "finalized_by"))
+def test_tc44_01_HTTP確定監査値の指定は拒否して下書きを保つ(
     history_client: TestClient,
     history_fixture: history_helpers.MedicationHistoryFixture,
+    field_name: str,
 ) -> None:
     corporate_id = str(history_fixture.corporate_id.value)
     started = history_client.post(
@@ -816,30 +817,28 @@ def test_tc22_HTTPレビュー者は_Actorから決まり確定者とは別に�
         headers=_HEADERS,
     )
     assert started.status_code == HTTPStatus.CREATED, started.text
-    other_finalizer_id = StaffId.generate()
-    history_fixture.staff_qualification.register(
-        corporate_id=history_fixture.corporate_id,
-        staff_id=other_finalizer_id,
-        qualifications=create_pharmacist_qualifications(),
+    record_id = started.json()["id"]
+    before = history_fixture.record_repository.items.copy()
+    forged_value = (
+        history_fixture.clock.now().isoformat()
+        if field_name == "finalized_at"
+        else str(StaffId.generate().value)
     )
-    counseled_at = history_fixture.clock.now()
 
     response = history_client.post(
-        f"/corporates/{corporate_id}/medication-histories/"
-        f"{started.json()['id']}/finalization",
+        f"/corporates/{corporate_id}/medication-histories/{record_id}/finalization",
         json={
-            "counseled_at": counseled_at.isoformat(),
-            "finalized_by": str(other_finalizer_id.value),
             "review_result": "assessment_and_instruction_recorded",
+            field_name: forged_value,
         },
         headers=_HEADERS,
     )
 
-    assert response.status_code == HTTPStatus.OK, response.text
-    data = response.json()
-    assert data.get("reviewed_by") == str(history_fixture.counselor_id.value)
-    assert data.get("reviewed_at") == history_fixture.clock.now().isoformat()
-    assert data.get("finalized_by") == str(other_finalizer_id.value)
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_CONTENT, response.text
+    assert history_fixture.record_repository.items == before
+    saved = next(iter(history_fixture.record_repository.items.values()))
+    assert saved.is_finalized is False
+    assert history_fixture.profile_repository.items == {}
 
 
 def test_tc18_HTTP追加記載なしの確認は_本文に残して確定できる(
@@ -1101,7 +1100,6 @@ def test_TC25_下書きの全項目更新と確定メタデータ付き確定(
     finalize_res = history_client.post(
         f"{base}/finalization",
         json=FinalizeMedicationHistoryRequest(
-            finalized_by=counselor_str,
             review_result="assessment_and_instruction_recorded",
         ).model_dump(mode="json"),
         headers=_HEADERS,
@@ -1114,6 +1112,8 @@ def test_TC25_下書きの全項目更新と確定メタデータ付き確定(
     assert finalized["finalized_by"] == counselor_str
     assert finalized["finalized_at"] is not None
     assert finalized["delay_reason"] is None
+    assert "reviewed_by" not in finalized
+    assert "reviewed_at" not in finalized
 
 
 def test_確定済みの薬歴は_訂正として積まれる(
@@ -1216,7 +1216,7 @@ def test_確定済の薬歴は_調剤録の代替可否を返す(
     assert len(body["assessments"]) == len(StatutoryDispensingRecordItem)
 
 
-def test_確定済みの薬歴にフォローアップを追加できる(
+def test_tc44_08_HTTPフォローアップは登録者とサーバー登録日時を返す(
     history_client: TestClient,
     history_fixture: history_helpers.MedicationHistoryFixture,
 ) -> None:
@@ -1236,6 +1236,10 @@ def test_確定済みの薬歴にフォローアップを追加できる(
         headers=_HEADERS,
     )
     assert finalized.status_code == HTTPStatus.OK, finalized.text
+
+    history_fixture.clock.advance(timedelta(days=12))
+    expected_recorded_at = history_fixture.clock.now()
+    history_fixture.clock.calls = 0
 
     body = AddFollowUpRequest(
         store_id=str(history_fixture.store_id.value),
@@ -1264,6 +1268,46 @@ def test_確定済みの薬歴にフォローアップを追加できる(
     assert result["store_id"] == str(history_fixture.store_id.value)
     assert result["patient_id"] == str(history_fixture.patient_id.value)
     assert result["status"] == "draft"
+    assert result["recorded_by"] == str(history_fixture.counselor_id.value)
+    assert result["recorded_at"] == expected_recorded_at.isoformat()
+    assert result["recorded_at"] != result["counseled_at"]
+    assert history_fixture.clock.calls == 1
+    assert "reviewed_by" not in result
+    assert "reviewed_at" not in result
+
+
+@pytest.mark.parametrize("field_name", ("recorded_at", "recorded_by"))
+def test_tc44_09_HTTPフォローアップ監査値の本文指定を拒否する(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+    field_name: str,
+) -> None:
+    corporate_id = str(history_fixture.corporate_id.value)
+    body = AddFollowUpRequest(
+        store_id=str(history_fixture.store_id.value),
+        patient_id=str(history_fixture.patient_id.value),
+        counselor_id=str(history_fixture.counselor_id.value),
+        followed_up_at=datetime(2026, 9, 3, 14, 0, tzinfo=ZoneInfo("Asia/Tokyo")),
+        method="telephone",
+        soap=history_helpers.create_soap_input(
+            subjective="服用後の体調確認。問題なし。"
+        ),
+    ).model_dump(mode="json")
+    body[field_name] = (
+        history_fixture.clock.now().isoformat()
+        if field_name == "recorded_at"
+        else str(StaffId.generate().value)
+    )
+
+    response = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/"
+        "00000000-0000-4000-8000-000000000000/follow-ups",
+        json=body,
+        headers=_HEADERS,
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_CONTENT, response.text
+    assert history_fixture.record_repository.items == {}
 
 
 def test_未確定の下書き薬歴にフォローアップを追加すると422が返る(

@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -43,7 +43,6 @@ from app.domain.medication_history.primitives import (
     HandbookNotPresentedReason,
     MajorCategoryCode,
     MedicationHistoryReviewResult,
-    MedicationHistoryReviewTimestamp,
     MedicationHistoryStatus,
     MediumCategoryCode,
     ResidualDrugQuantity,
@@ -325,24 +324,26 @@ class TestSOAPと確定:
         finalized = finalize_record_with_review(record)
         assert finalized.is_finalized
 
-    def test_tc17_AssessmentとPlanを含む確定でレビュー証跡を保持する(self) -> None:
+    def test_tc17_AssessmentとPlanを含む確定で結果と確定監査値を保持する(
+        self,
+    ) -> None:
         record = create_record()
-        reviewer_id = StaffId.generate()
-        reviewed_at = MedicationHistoryReviewTimestamp(
-            _record_counseled_at(record).value
+        finalizer_id = StaffId.generate()
+        finalized_at = FinalizedTimestamp(
+            _record_counseled_at(record).value + timedelta(minutes=3)
         )
 
         finalized = record.finalize(
+            finalized_by=finalizer_id,
+            finalized_at=finalized_at,
             review_result=MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED,
-            reviewed_by=reviewer_id,
-            reviewed_at=reviewed_at,
         )
 
         assert finalized.review_result is (
             MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED
         )
-        assert finalized.reviewed_by == reviewer_id
-        assert finalized.reviewed_at == reviewed_at
+        assert finalized.finalized_by == finalizer_id
+        assert finalized.finalized_at == finalized_at
 
     def test_tc18_追加記載なしの明示確認結果を保存する(self) -> None:
         record = create_record(
@@ -350,20 +351,20 @@ class TestSOAPと確定:
                 assessment=(create_note("対象情報を確認し、追加記載事項はない。"),)
             )
         )
-        reviewed_at = MedicationHistoryReviewTimestamp(
-            _record_counseled_at(record).value
+        finalized_at = FinalizedTimestamp(
+            _record_counseled_at(record).value + timedelta(minutes=2)
         )
 
         finalized = record.finalize(
+            finalized_by=_record_counselor_id(record),
+            finalized_at=finalized_at,
             review_result=MedicationHistoryReviewResult.NO_ADDITIONAL_RECORDABLE_ITEMS,
-            reviewed_by=_record_counselor_id(record),
-            reviewed_at=reviewed_at,
         )
 
         assert finalized.review_result is (
             MedicationHistoryReviewResult.NO_ADDITIONAL_RECORDABLE_ITEMS
         )
-        assert finalized.reviewed_at == reviewed_at
+        assert finalized.finalized_at == finalized_at
 
     def test_tc19_レビュー結果がない薬歴は確定できない(self) -> None:
         record = create_record()
@@ -385,10 +386,8 @@ class TestSOAPと確定:
                 review_result=(
                     MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED
                 ),
-                reviewed_by=_record_counselor_id(record),
-                reviewed_at=MedicationHistoryReviewTimestamp(
-                    _record_counseled_at(record).value
-                ),
+                finalized_by=_record_counselor_id(record),
+                finalized_at=FinalizedTimestamp(_record_counseled_at(record).value),
             )
 
         assert record.status is MedicationHistoryStatus.DRAFT
@@ -678,10 +677,6 @@ class Test下書き更新:
             finalized_at=FinalizedTimestamp(_record_counseled_at(record).value),
             finalized_by=_record_counselor_id(record),
             review_result=MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED,
-            reviewed_by=_record_counselor_id(record),
-            reviewed_at=MedicationHistoryReviewTimestamp(
-                _record_counseled_at(record).value
-            ),
         )
 
         # Act / Assert
@@ -710,6 +705,29 @@ class Test確定真正性と遅延理由:
         assert finalized.finalized_at == finalized_at
         assert finalized.finalized_by == finalized_by
         assert finalized.delay_reason is None
+
+    def test_tc44_02_確定日時と確定者を指導実績とは別に指定できる(self) -> None:
+        record = create_record()
+        finalizer_id = StaffId.generate()
+        finalized_at = FinalizedTimestamp(
+            _record_counseled_at(record).value + timedelta(minutes=5)
+        )
+
+        try:
+            finalized = record.finalize(
+                finalized_at=finalized_at,
+                finalized_by=finalizer_id,
+                review_result=(
+                    MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED
+                ),
+            )
+        except MedicationHistoryDomainError as error:
+            pytest.fail(f"確定監査値を明示すれば確定できるはずです: {error}")
+
+        assert finalized.finalized_at == finalized_at
+        assert finalized.finalized_by == finalizer_id
+        assert finalized.counseled_at == record.counseled_at
+        assert finalized.counselor_id == record.counselor_id
 
     def test_tc09_翌日確定で遅延理由を指定して確定できる(self) -> None:
         # Arrange

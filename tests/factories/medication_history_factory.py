@@ -25,6 +25,7 @@ from app.domain.medication_history.primitives import (
     FinalizationDelayReason,
     FinalizedTimestamp,
     FollowUpId,
+    FollowUpRecordedTimestamp,
     GenericPreferenceType,
     HandbookNotPresentedReason,
     LifestyleNote,
@@ -32,7 +33,6 @@ from app.domain.medication_history.primitives import (
     MedicationHistoryRecordId,
     MedicationHistoryRecordKind,
     MedicationHistoryReviewResult,
-    MedicationHistoryReviewTimestamp,
     MedicationHistorySourceSystem,
     MedicationHistoryStatus,
     PhysicianName,
@@ -310,31 +310,21 @@ def finalize_record_with_review(
     finalized_at: FinalizedTimestamp | None = None,
     finalized_by: StaffId | None = None,
     delay_reason: FinalizationDelayReason | None = None,
-    reviewed_by: StaffId | None = None,
-    reviewed_at: MedicationHistoryReviewTimestamp | None = None,
 ) -> MedicationHistoryRecord:
-    """レビュー入力を明示して薬歴を確定するテストヘルパー。"""
+    """確定日時と確定者を明示して薬歴を確定するテストヘルパー。"""
     actual_counselor_id = counselor_id or record.counselor_id
     actual_counseled_at = counseled_at or record.counseled_at
-    actual_reviewed_by = reviewed_by or actual_counselor_id or StaffId.generate()
-    actual_reviewed_at = (
-        reviewed_at
-        or (
-            MedicationHistoryReviewTimestamp(actual_counseled_at.value)
-            if actual_counseled_at is not None
-            else None
-        )
-        or MedicationHistoryReviewTimestamp(COUNSELED_AT)
+    actual_finalized_by = finalized_by or actual_counselor_id
+    actual_finalized_at = finalized_at or FinalizedTimestamp(
+        actual_counseled_at.value if actual_counseled_at is not None else COUNSELED_AT
     )
     return record.finalize(
         counselor_id=actual_counselor_id,
         counseled_at=actual_counseled_at,
-        finalized_at=finalized_at,
-        finalized_by=finalized_by,
+        finalized_at=actual_finalized_at,
+        finalized_by=actual_finalized_by,
         delay_reason=delay_reason,
         review_result=review_result,
-        reviewed_by=actual_reviewed_by,
-        reviewed_at=actual_reviewed_at,
     )
 
 
@@ -368,8 +358,6 @@ def create_independent_follow_up_record(
         finalized_by=None,
         delay_reason=None,
         review_result=None,
-        reviewed_by=None,
-        reviewed_at=None,
     )
     return finalize_record_with_review(draft) if finalized else draft
 
@@ -419,6 +407,8 @@ def create_follow_up(
     follow_up_id: FollowUpId | None = None,
     counselor_id: StaffId | None = None,
     followed_up_at: datetime | None = None,
+    recorded_at: FollowUpRecordedTimestamp | None = None,
+    recorded_by: StaffId | None = None,
     method: CounselingMethod = CounselingMethod.TELEPHONE,
     soap: SoapRecord | None = None,
     handbook_status: HandbookStatus | None = None,
@@ -436,6 +426,8 @@ def create_follow_up(
             if followed_up_at is not None
             else datetime(2026, 8, 27, 5, 0, tzinfo=UTC)
         ),
+        recorded_at=recorded_at,
+        recorded_by=recorded_by,
         method=method,
         soap=soap
         if soap is not None

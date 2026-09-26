@@ -10,7 +10,8 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from dataclasses import replace
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -29,7 +30,10 @@ from app.domain.medication_history.medication_history_record import (
 from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
 from app.domain.medication_history.primitives import (
     ConditionStatus,
+    FinalizedTimestamp,
+    FollowUpRecordedTimestamp,
     GenericPreferenceType,
+    MedicationHistoryStatus,
 )
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
 from app.domain.patient.primitives import PatientId
@@ -38,6 +42,7 @@ from tests.factories.medication_history_factory import (
     create_allergy_intent,
     create_concurrent_intent,
     create_condition_intent,
+    create_follow_up,
     create_generic_preference_intents,
     create_lifestyle_intents,
     create_record,
@@ -46,7 +51,6 @@ from tests.factories.medication_history_factory import (
     create_retract_condition_intent,
     create_stop_intent,
     create_update_condition_status_intent,
-    finalize_record_with_review,
 )
 
 _CORPORATE_ID = CorporateId.generate()
@@ -67,7 +71,14 @@ def _record(
         counseled_at=counseled_at,
         profile_updates=profile_updates,
     )
-    return finalize_record_with_review(record)
+    assert record.counseled_at is not None
+    assert record.counselor_id is not None
+    return replace(
+        record,
+        status=MedicationHistoryStatus.FINALIZED,
+        finalized_at=FinalizedTimestamp(record.counseled_at.value),
+        finalized_by=record.counselor_id,
+    )
 
 
 def _timeline() -> tuple[MedicationHistoryRecord, ...]:
@@ -198,6 +209,76 @@ class Test再構築の一致:
 
         # Assert
         assert _content_of(first) == _content_of(second)
+
+    def test_tc44_16_同時刻の再構築は登録日時と旧子要素規則で決まる(
+        self,
+    ) -> None:
+        occurred_at = datetime(2026, 8, 24, 1, 0, tzinfo=UTC)
+        registered_at = datetime(2026, 8, 24, 2, 0, tzinfo=UTC)
+        earlier_record = replace(
+            _record(
+                counseled_at=occurred_at,
+                profile_updates=create_generic_preference_intents(
+                    GenericPreferenceType.ACCEPTS
+                ),
+            ),
+            recorded_at=FollowUpRecordedTimestamp(registered_at),
+        )
+        later_record = replace(
+            _record(
+                counseled_at=occurred_at,
+                profile_updates=create_generic_preference_intents(
+                    GenericPreferenceType.REFUSES
+                ),
+            ),
+            recorded_at=FollowUpRecordedTimestamp(registered_at + timedelta(minutes=1)),
+        )
+
+        ordered = PatientMedicalProfile.rebuild_from(
+            corporate_id=_CORPORATE_ID,
+            patient_id=_PATIENT_ID,
+            records=(earlier_record, later_record),
+        )
+        reversed_order = PatientMedicalProfile.rebuild_from(
+            corporate_id=_CORPORATE_ID,
+            patient_id=_PATIENT_ID,
+            records=(later_record, earlier_record),
+        )
+
+        assert _content_of(reversed_order) == _content_of(ordered)
+        assert ordered.generic_preference is not None
+        assert ordered.generic_preference.preference is GenericPreferenceType.REFUSES
+        assert ordered.generic_preference.provenance.source_record_id == later_record.id
+
+        parent = replace(
+            earlier_record,
+            profile_updates=create_generic_preference_intents(
+                GenericPreferenceType.ACCEPTS
+            ),
+            follow_ups=(
+                create_follow_up(
+                    followed_up_at=occurred_at,
+                    profile_updates=create_generic_preference_intents(
+                        GenericPreferenceType.REFUSES
+                    ),
+                ),
+            ),
+        )
+        legacy_child_projection = PatientMedicalProfile.rebuild_from(
+            corporate_id=_CORPORATE_ID,
+            patient_id=_PATIENT_ID,
+            records=(parent,),
+        )
+
+        assert legacy_child_projection.generic_preference is not None
+        assert (
+            legacy_child_projection.generic_preference.preference
+            is GenericPreferenceType.REFUSES
+        )
+        assert (
+            legacy_child_projection.generic_preference.provenance.source_record_id
+            == parent.id
+        )
 
 
 class Test由来:
