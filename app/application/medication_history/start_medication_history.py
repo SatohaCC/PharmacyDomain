@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission, ResolvedActorContext
-from app.application.common.clock import Clock
-from app.application.common.exceptions import AuthorizationError
+from app.application.common.exceptions import AuthorizationError, NotFoundError
 from app.application.common.optional_conversion import build_optional
+from app.application.common.unit_of_work import UnitOfWork
 from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
 )
@@ -21,6 +22,7 @@ from app.application.medication_history.inputs import (
 )
 from app.application.medication_history.reference import (
     DispensingReferenceBoundary,
+    ReceptionMedicationHistoryBoundary,
     StaffQualificationBoundary,
     StoreReferenceBoundary,
 )
@@ -33,6 +35,10 @@ from app.application.medication_history.support import (
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.primitives import DispensingId
+from app.domain.medication_history.exceptions import (
+    MedicationHistoryDomainError,
+    SoapContentRequiredError,
+)
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
@@ -47,6 +53,7 @@ from app.domain.medication_history.primitives import (
 from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.services import CounselorQualificationService
 from app.domain.medication_history.value_objects import BillingAddition
+from app.domain.staff.primitives import StaffId
 from app.domain.store.primitives import StoreId
 
 
@@ -65,6 +72,10 @@ class StartMedicationHistoryCommand:
     profile_updates: ProfileUpdateInput | None = None
     billing_additions: tuple[BillingAdditionInput, ...] | None = None
     source_system: str | None = None
+    imported_at: datetime | None = None
+    counselor_id: str | None = None
+    counseled_at: datetime | None = None
+    reception_id: str | None = None
 
 
 class StartMedicationHistoryUseCase:
@@ -78,7 +89,8 @@ class StartMedicationHistoryUseCase:
         dispensing_reference: DispensingReferenceBoundary,
         staff_qualification: StaffQualificationBoundary,
         counselor_service: CounselorQualificationService,
-        clock: Clock,
+        unit_of_work: UnitOfWork,
+        reception_source: ReceptionMedicationHistoryBoundary | None = None,
     ) -> None:
         self._repository = repository
         self._corporate_access = corporate_access
@@ -86,7 +98,8 @@ class StartMedicationHistoryUseCase:
         self._dispensing_reference = dispensing_reference
         self._staff_qualification = staff_qualification
         self._counselor_service = counselor_service
-        self._clock = clock
+        self._unit_of_work = unit_of_work
+        self._reception_source = reception_source
 
     async def execute(
         self, command: StartMedicationHistoryCommand
@@ -97,8 +110,8 @@ class StartMedicationHistoryUseCase:
         食い違う薬歴を作れてしまう。ここから取る限り調剤との一致は
         **構築の形で保証される**ので、判定を重ねて置かない。
 
-        通常起票の指導者は信頼済みActorから決め、指導日時はClockから採る。
-        NSIPS由来の起票は受信時刻だけを記録し、指導実績を作らない。
+        記載者は信頼済みActorから決める。指導実績は明示入力された場合だけ記録し、
+        記載者や保存時刻から推定しない。
         """
         corporate_id = CorporateId.parse(command.corporate_id)
         await self._corporate_access.require_active(
@@ -113,24 +126,100 @@ class StartMedicationHistoryUseCase:
             corporate_id=corporate_id,
             dispensing_id=DispensingId.parse(command.dispensing_id),
         )
-        is_nsips_import = command.source_system == "NSIPS"
-        if is_nsips_import:
-            counselor_id = None
-            counseled_at = None
-            imported_at = MedicationHistoryImportTimestamp(self._clock.now())
-        else:
-            actor = self._corporate_access.actor
-            if not isinstance(actor, ResolvedActorContext) or actor.staff_id is None:
-                raise AuthorizationError(
-                    "薬歴の起票にはスタッフを特定できるActorが必要です。"
+        source_system = command.source_system
+        imported_at_value = command.imported_at
+        addition_inputs = command.billing_additions or ()
+        if command.reception_id is not None:
+            self._unit_of_work.ensure_active()
+            if self._reception_source is None:
+                raise NotFoundError(
+                    "受付由来情報を確認できません。", code="RECEPTION_NOT_FOUND"
                 )
-            counselor_id = actor.staff_id
-            qualifications = await self._staff_qualification.get_qualifications(
-                corporate_id=corporate_id, staff_id=counselor_id
+            reception_source = await self._reception_source.get_for_initial_save(
+                corporate_id=corporate_id,
+                store_id=store_id,
+                reception_id=command.reception_id,
             )
-            self._counselor_service.ensure_pharmacist(qualifications)
-            counseled_at = CounselingTimestamp(self._clock.now())
-            imported_at = None
+            if reception_source is None:
+                raise NotFoundError(
+                    "指定された受付が見つかりません。", code="RECEPTION_NOT_FOUND"
+                )
+            if (
+                reception_source.patient_id != dispensing.patient_id
+                or reception_source.dispensing_id != dispensing.id
+                or (
+                    reception_source.prescription_id is not None
+                    and reception_source.prescription_id != dispensing.prescription_id
+                )
+            ):
+                raise MedicationHistoryDomainError(
+                    "受付と患者・処方・調剤セッションが一致しません。"
+                )
+            if reception_source.medication_history_id is not None:
+                raise MedicationHistoryDomainError(
+                    "受付にはすでに薬歴が関連付いています。"
+                )
+            if reception_source.is_follow_up:
+                raise MedicationHistoryDomainError(
+                    "フォローアップ受付から初回薬歴は作成できません。"
+                )
+            if (
+                command.source_system is not None
+                or command.imported_at is not None
+                or command.billing_additions is not None
+            ):
+                raise MedicationHistoryDomainError(
+                    "受付由来情報は受付記録から取得してください。"
+                )
+            source_system = reception_source.source_system
+            imported_at_value = reception_source.imported_at
+            addition_inputs = reception_source.billing_additions
+        actor = self._corporate_access.actor
+        if not isinstance(actor, ResolvedActorContext) or actor.staff_id is None:
+            raise AuthorizationError(
+                "薬歴の初回保存にはスタッフを特定できるActorが必要です。"
+            )
+        recorded_by = actor.staff_id
+        qualifications = await self._staff_qualification.get_qualifications(
+            corporate_id=corporate_id, staff_id=recorded_by
+        )
+        self._counselor_service.ensure_pharmacist(qualifications)
+
+        if (command.counselor_id is None) != (command.counseled_at is None):
+            raise MedicationHistoryDomainError(
+                "実際の指導者と指導日時は両方指定するか、両方未指定にしてください。"
+            )
+        counselor_id = (
+            StaffId.parse(command.counselor_id)
+            if command.counselor_id is not None
+            else None
+        )
+        counseled_at = (
+            CounselingTimestamp(command.counseled_at)
+            if command.counseled_at is not None
+            else None
+        )
+        if counselor_id is not None and counselor_id != recorded_by:
+            counselor_qualifications = (
+                await self._staff_qualification.get_qualifications(
+                    corporate_id=corporate_id, staff_id=counselor_id
+                )
+            )
+            self._counselor_service.ensure_pharmacist(counselor_qualifications)
+
+        if source_system == "NSIPS" and imported_at_value is None:
+            raise MedicationHistoryDomainError(
+                "NSIPS由来の薬歴には受信した取込時刻が必要です。"
+            )
+        if imported_at_value is not None and source_system != "NSIPS":
+            raise MedicationHistoryDomainError(
+                "取込時刻を記録する場合は取込元システムを指定してください。"
+            )
+        imported_at = (
+            MedicationHistoryImportTimestamp(imported_at_value)
+            if imported_at_value is not None
+            else None
+        )
 
         additions = tuple(
             BillingAddition(
@@ -139,8 +228,12 @@ class StartMedicationHistoryUseCase:
                 points=item.points,
                 quantity=item.quantity,
             )
-            for item in (command.billing_additions or ())
+            for item in addition_inputs
         )
+
+        soap = build_soap(command.soap)
+        if not soap.has_content:
+            raise SoapContentRequiredError()
 
         record = MedicationHistoryRecord.start(
             corporate_id=corporate_id,
@@ -155,7 +248,7 @@ class StartMedicationHistoryUseCase:
                 if command.method is not None
                 else None
             ),
-            soap=build_soap(command.soap),
+            soap=soap,
             handbook_status=(
                 build_handbook_status(command.handbook_status)
                 if command.handbook_status is not None
@@ -169,10 +262,17 @@ class StartMedicationHistoryUseCase:
             information_sheet_provided=command.information_sheet_provided,
             profile_updates=build_profile_updates(command.profile_updates),
             billing_additions=additions,
-            source_system=build_optional(
-                command.source_system, MedicationHistorySourceSystem
-            ),
+            source_system=build_optional(source_system, MedicationHistorySourceSystem),
             imported_at=imported_at,
+            recorded_by=recorded_by,
         )
         await self._repository.save(record)
+        if command.reception_id is not None:
+            assert self._reception_source is not None
+            await self._reception_source.associate_medication_history(
+                corporate_id=corporate_id,
+                store_id=store_id,
+                reception_id=command.reception_id,
+                medication_history_id=record.id,
+            )
         return MedicationHistoryDto.from_entity(record)

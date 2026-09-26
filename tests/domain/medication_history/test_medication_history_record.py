@@ -42,6 +42,8 @@ from app.domain.medication_history.primitives import (
     HandbookConsolidationReason,
     HandbookNotPresentedReason,
     MajorCategoryCode,
+    MedicationHistoryReviewResult,
+    MedicationHistoryReviewTimestamp,
     MedicationHistoryStatus,
     MediumCategoryCode,
     ResidualDrugQuantity,
@@ -61,6 +63,7 @@ from tests.factories.medication_history_factory import (
     create_nsips_draft_record,
     create_record,
     create_soap,
+    finalize_record_with_review,
 )
 
 _AMENDED_AT = AmendmentTimestamp(datetime(2026, 8, 25, 1, 0, tzinfo=UTC))
@@ -123,7 +126,7 @@ class TestNSIPS取込と服薬指導実績:
         record = create_nsips_draft_record()
 
         with pytest.raises(MedicationHistoryDomainError):
-            record.finalize()
+            finalize_record_with_review(record)
 
     def test_tc05_実指導情報を設定して確定しても_取込時刻を維持する(self) -> None:
         imported_at = datetime(2026, 8, 24, 4, 0, tzinfo=UTC)
@@ -133,7 +136,8 @@ class TestNSIPS取込と服薬指導実績:
             imported_at=imported_at, ready_to_finalize=True
         )
 
-        finalized = record.finalize(
+        finalized = finalize_record_with_review(
+            record,
             counselor_id=counselor_id,
             counseled_at=CounselingTimestamp(counseled_at),
         )
@@ -279,7 +283,7 @@ class TestSOAPと確定:
         )
 
         with pytest.raises(MedicationHistoryUnassessedItemsError) as error:
-            unassessed.finalize()
+            finalize_record_with_review(unassessed)
 
         assert error.value.missing_items == (
             "服薬指導方法",
@@ -293,7 +297,7 @@ class TestSOAPと確定:
             residual_drug=ResidualDrugRecord.none_remaining(),
             information_sheet_provided=False,
         )
-        assert completed.finalize().is_finalized
+        assert finalize_record_with_review(completed).is_finalized
 
     def test_下書きでは_SOAPが空でも構築できる(self) -> None:
         """聞き取りながら書き足す運用を壊さない。"""
@@ -304,11 +308,12 @@ class TestSOAPと確定:
         assert actual.status is MedicationHistoryStatus.DRAFT
 
     def test_finalize_with_partial_soap_s_only(self) -> None:
-        """TC-REC-01: S節のみでも正常に確定できること。"""
+        """S節だけでは薬剤師の評価・指導を確認できず確定できない。"""
         soap = SoapRecord(subjective=(create_note("頭痛があるとのこと。"),))
         record = create_record(soap=soap)
-        finalized = record.finalize()
-        assert finalized.is_finalized
+        with pytest.raises(MedicationHistoryDomainError):
+            finalize_record_with_review(record)
+        assert not record.is_finalized
 
     def test_finalize_with_s_and_p(self) -> None:
         """TC-REC-02: SとP節のみでも正常に確定できること。"""
@@ -317,17 +322,85 @@ class TestSOAPと確定:
             plan=(create_note("次回経過観察。"),),
         )
         record = create_record(soap=soap)
-        finalized = record.finalize()
+        finalized = finalize_record_with_review(record)
         assert finalized.is_finalized
+
+    def test_tc17_AssessmentとPlanを含む確定でレビュー証跡を保持する(self) -> None:
+        record = create_record()
+        reviewer_id = StaffId.generate()
+        reviewed_at = MedicationHistoryReviewTimestamp(
+            _record_counseled_at(record).value
+        )
+
+        finalized = record.finalize(
+            review_result=MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED,
+            reviewed_by=reviewer_id,
+            reviewed_at=reviewed_at,
+        )
+
+        assert finalized.review_result is (
+            MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED
+        )
+        assert finalized.reviewed_by == reviewer_id
+        assert finalized.reviewed_at == reviewed_at
+
+    def test_tc18_追加記載なしの明示確認結果を保存する(self) -> None:
+        record = create_record(
+            soap=SoapRecord(
+                assessment=(create_note("対象情報を確認し、追加記載事項はない。"),)
+            )
+        )
+        reviewed_at = MedicationHistoryReviewTimestamp(
+            _record_counseled_at(record).value
+        )
+
+        finalized = record.finalize(
+            review_result=MedicationHistoryReviewResult.NO_ADDITIONAL_RECORDABLE_ITEMS,
+            reviewed_by=_record_counselor_id(record),
+            reviewed_at=reviewed_at,
+        )
+
+        assert finalized.review_result is (
+            MedicationHistoryReviewResult.NO_ADDITIONAL_RECORDABLE_ITEMS
+        )
+        assert finalized.reviewed_at == reviewed_at
+
+    def test_tc19_レビュー結果がない薬歴は確定できない(self) -> None:
+        record = create_record()
+
+        with pytest.raises(MedicationHistoryDomainError):
+            record.finalize()
+
+        assert record.status is MedicationHistoryStatus.DRAFT
+
+    def test_tc20_ObjectiveだけではAssessmentAndInstructionRecordedにできない(
+        self,
+    ) -> None:
+        record = create_record(
+            soap=SoapRecord(objective=(create_note("受信処方の要約。"),))
+        )
+
+        with pytest.raises(MedicationHistoryDomainError):
+            record.finalize(
+                review_result=(
+                    MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED
+                ),
+                reviewed_by=_record_counselor_id(record),
+                reviewed_at=MedicationHistoryReviewTimestamp(
+                    _record_counseled_at(record).value
+                ),
+            )
+
+        assert record.status is MedicationHistoryStatus.DRAFT
 
     def test_finalize_with_completely_empty_content_rejected(self) -> None:
         """TC-REC-04: SOAP全節が空かつ追加メモもない白紙確定は拒否されること。"""
         record = create_record(soap=SoapRecord())
         with pytest.raises(SoapContentRequiredError):
-            record.finalize()
+            finalize_record_with_review(record)
 
     def test_finalize_with_additional_notes_only(self) -> None:
-        """TC-REC-05: SOAPの4枠は空だが追加中区分メモがある場合は確定できること。"""
+        """SOAPの評価・指導が無い追加記載メモだけでは確定できない。"""
         record = create_record(
             soap=SoapRecord(),
             additional_notes=(
@@ -338,8 +411,9 @@ class TestSOAPと確定:
                 ),
             ),
         )
-        finalized = record.finalize()
-        assert finalized.is_finalized
+        with pytest.raises(MedicationHistoryDomainError):
+            finalize_record_with_review(record)
+        assert not record.is_finalized
 
     def test_空文字だけの記載は_記載とみなさない(self) -> None:
         """定型文の空欄を埋めただけの記録（中身なし）は確定させない。"""
@@ -349,14 +423,14 @@ class TestSOAPと確定:
             )
         )
         with pytest.raises(SoapContentRequiredError):
-            record.finalize()
+            finalize_record_with_review(record)
 
     def test_全セクションが埋まっていれば_確定できる(self) -> None:
         # Arrange
         record = create_record()
 
         # Act
-        actual = record.finalize()
+        actual = finalize_record_with_review(record)
 
         # Assert
         assert actual.is_finalized
@@ -364,7 +438,7 @@ class TestSOAPと確定:
     def test_確定済は_下書きのSOAPを上書きできない(self) -> None:
         """調剤録は3年保存。遡って書き換えられる記録は監査に耐えない。"""
         # Arrange
-        record = create_record().finalize()
+        record = finalize_record_with_review(create_record())
 
         # Act / Assert
         with pytest.raises(MedicationHistoryAlreadyFinalizedError):
@@ -372,7 +446,7 @@ class TestSOAPと確定:
 
     def test_確定済は_二度確定できない(self) -> None:
         # Arrange
-        record = create_record().finalize()
+        record = finalize_record_with_review(create_record())
 
         # Act / Assert
         with pytest.raises(MedicationHistoryAlreadyFinalizedError):
@@ -407,7 +481,9 @@ class Test追記:
 
     def test_追記しても_元のSOAPは書き換わらない(self) -> None:
         # Arrange
-        record = create_record(soap=create_soap(subjective="交付時の記載。")).finalize()
+        record = finalize_record_with_review(
+            create_record(soap=create_soap(subjective="交付時の記載。"))
+        )
 
         # Act
         actual = record.amend(
@@ -425,7 +501,7 @@ class Test追記:
     def test_空セクションのあるSOAPは_追記できない(self) -> None:
         """確定済の薬歴を白紙にする追記は拒否されること（TC-REC-06）。"""
         # Arrange
-        record = create_record().finalize()
+        record = finalize_record_with_review(create_record())
 
         # Act / Assert
         with pytest.raises(SoapContentRequiredError):
@@ -439,7 +515,7 @@ class Test追記:
     def test_実効SOAPが空になる確定済の薬歴は_構築できない(self) -> None:
         """白紙の確定済薬歴はreplaceでも構築できない。"""
         # Arrange: 追記の中身だけを空へ差し替えた状態を組み立てる
-        record = create_record().finalize()
+        record = finalize_record_with_review(create_record())
         amended = record.amend(
             amended_soap=create_soap(),
             reason=_REASON,
@@ -454,7 +530,7 @@ class Test追記:
 
     def test_amend_with_partial_soap(self) -> None:
         """TC-REC-07: Sのみの部分記載で追記できること。"""
-        record = create_record().finalize()
+        record = finalize_record_with_review(create_record())
         amended = record.amend(
             amended_soap=SoapRecord(subjective=(create_note("追記: 頭痛再発。"),)),
             reason=_REASON,
@@ -466,7 +542,7 @@ class Test追記:
     def test_追記は_確定済の薬歴にだけ付く(self) -> None:
         """追記だけを持つ下書きは構築できない。"""
         # Arrange
-        record = create_record().finalize()
+        record = finalize_record_with_review(create_record())
         amended = record.amend(
             amended_soap=create_soap(),
             reason=_REASON,
@@ -601,6 +677,11 @@ class Test下書き更新:
         finalized = record.finalize(
             finalized_at=FinalizedTimestamp(_record_counseled_at(record).value),
             finalized_by=_record_counselor_id(record),
+            review_result=MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED,
+            reviewed_by=_record_counselor_id(record),
+            reviewed_at=MedicationHistoryReviewTimestamp(
+                _record_counseled_at(record).value
+            ),
         )
 
         # Act / Assert
@@ -618,7 +699,8 @@ class Test確定真正性と遅延理由:
         finalized_by = StaffId.generate()
 
         # Act
-        finalized = record.finalize(
+        finalized = finalize_record_with_review(
+            record,
             finalized_at=finalized_at,
             finalized_by=finalized_by,
         )
@@ -639,7 +721,8 @@ class Test確定真正性と遅延理由:
         delay_reason = FinalizationDelayReason("疑義照会の回答待ちのため翌日記載")
 
         # Act
-        finalized = record.finalize(
+        finalized = finalize_record_with_review(
+            record,
             finalized_at=finalized_at,
             finalized_by=finalized_by,
             delay_reason=delay_reason,
@@ -659,7 +742,8 @@ class Test確定真正性と遅延理由:
 
         # Act / Assert
         with pytest.raises(FinalizationDelayReasonRequiredError):
-            record.finalize(
+            finalize_record_with_review(
+                record,
                 finalized_at=finalized_at,
                 finalized_by=finalized_by,
                 delay_reason=None,
@@ -675,7 +759,8 @@ class Test確定真正性と遅延理由:
 
         # Act / Assert
         with pytest.raises(FinalizationDateBeforeCounselingError):
-            record.finalize(
+            finalize_record_with_review(
+                record,
                 finalized_at=finalized_at,
                 finalized_by=finalized_by,
             )
@@ -686,13 +771,9 @@ class Test確定真正性と遅延理由:
         finalized_at = FinalizedTimestamp(_record_counseled_at(record).value)
 
         # Act / Assert
+        finalized = finalize_record_with_review(record, finalized_at=finalized_at)
         with pytest.raises(FinalizationStaffRequiredError):
-            replace(
-                record,
-                status=MedicationHistoryStatus.FINALIZED,
-                finalized_at=finalized_at,
-                finalized_by=None,
-            )
+            replace(finalized, finalized_by=None)
 
     def test_tc14_下書き状態で確定日時が設定されていると不変条件違反(self) -> None:
         # Arrange
@@ -744,7 +825,7 @@ class Test確定真正性と遅延理由:
         )
 
         assert updated.billing_additions == (corrected,)
-        finalized = updated.finalize()
+        finalized = finalize_record_with_review(updated)
         with pytest.raises(MedicationHistoryAlreadyFinalizedError):
             finalized.update_draft(billing_additions=(original,))
 

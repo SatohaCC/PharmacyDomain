@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
+from app.application.common.exceptions import NotFoundError
 from app.application.composition.reference_support import load_store_in_corporate
 from app.application.medication_history.exceptions import (
     MedicationHistoryDispensingNotFoundError,
@@ -10,8 +13,11 @@ from app.application.medication_history.exceptions import (
     MedicationHistoryStaffNotFoundError,
     MedicationHistoryStoreNotFoundError,
 )
+from app.application.medication_history.inputs import BillingAdditionInput
 from app.application.medication_history.reference import (
     DispensingReferenceBoundary,
+    ReceptionMedicationHistoryBoundary,
+    ReceptionMedicationHistorySource,
     StaffQualificationBoundary,
     StatutoryRecordSourceBoundary,
     StoreReferenceBoundary,
@@ -20,6 +26,8 @@ from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.primitives import DispensingId
 from app.domain.dispensing.repository import DispensingProcessRepository
+from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.medication_history.primitives import MedicationHistoryRecordId
 from app.domain.medication_history.value_objects import (
     StatutoryInquiryRecord,
     StatutoryPharmacistName,
@@ -29,6 +37,8 @@ from app.domain.patient.primitives import PatientId
 from app.domain.patient.repository import PatientRepository
 from app.domain.prescription.primitives import PrescriptionId
 from app.domain.prescription.repository import PrescriptionRepository
+from app.domain.reception.primitives import ReceptionId
+from app.domain.reception.repository import ReceptionRepository
 from app.domain.staff.primitives import StaffId, StaffQualifications
 from app.domain.staff.repository import StaffRepository
 from app.domain.store.primitives import StoreId
@@ -81,6 +91,84 @@ class DispensingSourceAdapter(DispensingReferenceBoundary):
         if process is None:
             raise MedicationHistoryDispensingNotFoundError()
         return process
+
+
+class ReceptionMedicationHistorySourceAdapter(ReceptionMedicationHistoryBoundary):
+    """Receptionから受信由来情報を読み、初回保存後の関連を記録する。"""
+
+    def __init__(self, repository: ReceptionRepository) -> None:
+        self._repository = repository
+
+    async def get_for_initial_save(
+        self,
+        *,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+        reception_id: str,
+    ) -> ReceptionMedicationHistorySource | None:
+        """Receptionを薬歴へ渡す項目だけのProjectionに畳む。"""
+        reception = await self._repository.get(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            reception_id=ReceptionId.parse(reception_id),
+        )
+        if reception is None:
+            return None
+        source_data = reception.source_data
+        return ReceptionMedicationHistorySource(
+            patient_id=reception.patient_id,
+            prescription_id=reception.prescription_id,
+            dispensing_id=reception.dispensing_id,
+            medication_history_id=reception.medication_history_id,
+            source_system="NSIPS" if source_data is not None else None,
+            imported_at=source_data.imported_at if source_data is not None else None,
+            is_follow_up=(
+                source_data.is_follow_up if source_data is not None else False
+            ),
+            billing_additions=(
+                tuple(
+                    BillingAdditionInput(
+                        code=item.code,
+                        name=item.name,
+                        points=item.points,
+                        quantity=item.quantity,
+                    )
+                    for item in source_data.billing_additions
+                )
+                if source_data is not None
+                else ()
+            ),
+        )
+
+    async def associate_medication_history(
+        self,
+        *,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+        reception_id: str,
+        medication_history_id: MedicationHistoryRecordId,
+    ) -> None:
+        """初回保存した薬歴への受付リンクを保存する。"""
+        parsed_reception_id = ReceptionId.parse(reception_id)
+        reception = await self._repository.get(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            reception_id=parsed_reception_id,
+        )
+        if reception is None:
+            raise NotFoundError(
+                "指定された受付が見つかりません。", code="RECEPTION_NOT_FOUND"
+            )
+        if (
+            reception.medication_history_id is not None
+            and reception.medication_history_id != medication_history_id
+        ):
+            raise DomainValidationError(
+                "受付は別の薬歴に関連付いているため、付け替えできません。"
+            )
+        await self._repository.save(
+            replace(reception, medication_history_id=medication_history_id)
+        )
 
 
 class CounselorQualificationAdapter(StaffQualificationBoundary):

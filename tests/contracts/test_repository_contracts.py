@@ -78,6 +78,7 @@ from tests.factories.dispensing_factory import create_dispensing
 from tests.factories.medication_history_factory import (
     create_allergy_intent,
     create_record,
+    finalize_record_with_review,
 )
 from tests.factories.medicine_catalog_factory import (
     create_identifier,
@@ -691,15 +692,17 @@ async def test_薬歴保存_同一調剤に確定済が2件目だと_拒否さ�
     repository = repository_type()
     corporate_id, dispensing_id = CorporateId.generate(), DispensingId.generate()
     await repository.save(
-        create_record(corporate_id=corporate_id, dispensing_id=dispensing_id).finalize()
+        finalize_record_with_review(
+            create_record(corporate_id=corporate_id, dispensing_id=dispensing_id)
+        )
     )
 
     # Act / Assert
     with pytest.raises(MedicationHistoryAlreadyExistsError):
         await repository.save(
-            create_record(
-                corporate_id=corporate_id, dispensing_id=dispensing_id
-            ).finalize()
+            finalize_record_with_review(
+                create_record(corporate_id=corporate_id, dispensing_id=dispensing_id)
+            )
         )
 
 
@@ -740,7 +743,7 @@ async def test_薬歴保存_同じ薬歴の確定は_自分自身と競合しな
     await repository.save(record)
 
     # Act
-    await repository.save(record.finalize())
+    await repository.save(finalize_record_with_review(record))
 
     # Assert
     stored = await repository.get(corporate_id=corporate_id, record_id=record.id)
@@ -897,7 +900,8 @@ async def test_頭書き保存_同じ頭書きの更新は_自分自身と競合
         corporate_id=corporate_id,
         patient_id=patient_id,
         profile_updates=ProfileUpdateIntents(new_allergies=(create_allergy_intent(),)),
-    ).finalize()
+    )
+    record = finalize_record_with_review(record)
 
     # Act
     await repository.save(profile.apply(record))

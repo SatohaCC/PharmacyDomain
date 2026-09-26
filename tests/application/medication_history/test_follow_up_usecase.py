@@ -35,6 +35,7 @@ async def _create_and_finalize_record(fixture: MedicationHistoryFixture) -> str:
         FinalizeMedicationHistoryCommand(
             corporate_id=draft.corporate_id,
             record_id=draft.id,
+            review_result="assessment_and_instruction_recorded",
         )
     )
     return str(finalized.id)

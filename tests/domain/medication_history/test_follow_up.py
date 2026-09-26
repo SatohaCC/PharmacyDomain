@@ -41,12 +41,13 @@ from tests.factories.medication_history_factory import (
     create_follow_up,
     create_record,
     create_update_condition_status_intent,
+    finalize_record_with_review,
 )
 
 
 def _finalized_record(**kwargs: Any) -> MedicationHistoryRecord:
     record = create_record(**kwargs)
-    return record.finalize()
+    return finalize_record_with_review(record)
 
 
 class TestFollowUpRecordDomain:

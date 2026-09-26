@@ -14,11 +14,6 @@ from app.application.composition.dispensing_references import (
     DispensingStoreReferenceAdapter,
     PrescriptionSourceAdapter,
 )
-from app.application.composition.medication_history_references import (
-    CounselorQualificationAdapter,
-    DispensingSourceAdapter,
-    MedicationHistoryStoreReferenceAdapter,
-)
 from app.application.composition.prescription_references import (
     CoverageSelectionPublicExpenseAdapter,
     PrescriptionPatientReferenceAdapter,
@@ -35,13 +30,6 @@ from app.application.integration.nsips.ingest_nsips import (
 )
 from app.application.integration.nsips.mapper import NsipsDataMapper
 from app.application.integration.nsips.parser import NsipsParser
-from app.application.medication_history.add_follow_up import AddFollowUpUseCase
-from app.application.medication_history.get_medication_history import (
-    ListMedicationHistoriesByPatientUseCase,
-)
-from app.application.medication_history.start_medication_history import (
-    StartMedicationHistoryUseCase,
-)
 from app.application.patient.register_patient import RegisterPatientUseCase
 from app.application.patient.register_patient_external_identifier import (
     RegisterPatientExternalIdentifierUseCase,
@@ -61,7 +49,6 @@ from app.domain.dispensing.services import (
     DispensingIterationUniquenessService,
     DispensingPharmacistService,
 )
-from app.domain.medication_history.services import CounselorQualificationService
 from app.domain.prescription.services import (
     NarcoticPrescriptionService,
     PrescriptionDocumentNumberUniquenessService,
@@ -104,9 +91,6 @@ from tests.fakes.in_memory_medication_history_repository import (
 )
 from tests.fakes.in_memory_patient_coverage_repository import (
     InMemoryPatientCoverageRepository,
-)
-from tests.fakes.in_memory_patient_medical_profile_repository import (
-    InMemoryPatientMedicalProfileRepository,
 )
 from tests.fakes.in_memory_patient_repository import (
     InMemoryPatientExternalIdentifierRepository,
@@ -230,7 +214,6 @@ async def create_fixture() -> NsipsFixture:
     prescription_repo = InMemoryPrescriptionRepository()
     dispensing_repo = InMemoryDispensingProcessRepository()
     medication_history_repo = InMemoryMedicationHistoryRepository()
-    profile_repo = InMemoryPatientMedicalProfileRepository()
     clock = FakeClock()
     unit_of_work = NullUnitOfWork()
 
@@ -308,29 +291,6 @@ async def create_fixture() -> NsipsFixture:
         clock=clock,
     )
 
-    start_medication_history = StartMedicationHistoryUseCase(
-        repository=medication_history_repo,
-        corporate_access=corporate_access,
-        store_reference=MedicationHistoryStoreReferenceAdapter(store_repo),
-        dispensing_reference=DispensingSourceAdapter(dispensing_repo),
-        staff_qualification=CounselorQualificationAdapter(staff_repo),
-        counselor_service=CounselorQualificationService(),
-        clock=clock,
-    )
-
-    add_follow_up = AddFollowUpUseCase(
-        repository=medication_history_repo,
-        profile_repository=profile_repo,
-        corporate_access=corporate_access,
-        staff_qualification=CounselorQualificationAdapter(staff_repo),
-        counselor_service=CounselorQualificationService(),
-        unit_of_work=unit_of_work,
-    )
-
-    list_medication_histories = ListMedicationHistoriesByPatientUseCase(
-        medication_history_repo, corporate_access
-    )
-
     use_case = IngestNsipsUseCase(
         corporate_access=corporate_access,
         unit_of_work=unit_of_work,
@@ -347,9 +307,7 @@ async def create_fixture() -> NsipsFixture:
         register_prescription_use_case=register_prescription,
         ready_for_dispensing_use_case=ready_for_dispensing,
         start_dispensing_use_case=start_dispensing,
-        start_medication_history_use_case=start_medication_history,
-        add_follow_up_use_case=add_follow_up,
-        list_medication_histories_use_case=list_medication_histories,
+        medication_history_repo=medication_history_repo,
         parser=NsipsParser(),
         mapper=NsipsDataMapper(),
         clock=clock,

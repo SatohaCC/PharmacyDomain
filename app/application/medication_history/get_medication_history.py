@@ -312,6 +312,10 @@ class MedicationHistoryDto:
     finalized_at: str | None = None
     finalized_by: str | None = None
     delay_reason: str | None = None
+    recorded_by: str | None = None
+    review_result: str | None = None
+    reviewed_by: str | None = None
+    reviewed_at: str | None = None
 
     @classmethod
     def from_entity(cls, record: MedicationHistoryRecord) -> MedicationHistoryDto:
@@ -379,6 +383,22 @@ class MedicationHistoryDto:
                 else None
             ),
             delay_reason=unwrap(record.delay_reason),
+            recorded_by=(
+                str(record.recorded_by.value)
+                if record.recorded_by is not None
+                else None
+            ),
+            review_result=unwrap(record.review_result),
+            reviewed_by=(
+                str(record.reviewed_by.value)
+                if record.reviewed_by is not None
+                else None
+            ),
+            reviewed_at=(
+                record.reviewed_at.value.isoformat()
+                if record.reviewed_at is not None
+                else None
+            ),
         )
 
 

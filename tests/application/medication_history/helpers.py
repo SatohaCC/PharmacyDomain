@@ -10,6 +10,9 @@ from app.application.access_control.models import (
     ResolvedActorContext,
 )
 from app.application.access_control.policy import AuthorizationService
+from app.application.composition.medication_history_references import (
+    ReceptionMedicationHistorySourceAdapter,
+)
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.application.medication_history.add_follow_up import AddFollowUpUseCase
 from app.application.medication_history.amend_medication_history import (
@@ -82,6 +85,7 @@ from tests.fakes.in_memory_medication_history_repository import (
 from tests.fakes.in_memory_patient_medical_profile_repository import (
     InMemoryPatientMedicalProfileRepository,
 )
+from tests.fakes.in_memory_reception_repository import InMemoryReceptionRepository
 from tests.fakes.medication_history_reference_boundaries import (
     FakeCounselorQualificationSource,
     FakeDispensingSource,
@@ -136,6 +140,7 @@ class MedicationHistoryFixture:
     record_tracing_report_response: RecordTracingReportResponseUseCase
     record_repository: InMemoryMedicationHistoryRepository
     profile_repository: InMemoryPatientMedicalProfileRepository
+    reception_repository: InMemoryReceptionRepository
     category_catalog_repository: InMemoryMedicationHistoryCategoryCatalogRepository
     corporate_repository: AutoProvisioningCorporateRepository
     actor: ActorContext
@@ -176,6 +181,7 @@ def create_fixture(*, actor: ActorContext | None = None) -> MedicationHistoryFix
 
     record_repository = InMemoryMedicationHistoryRepository()
     profile_repository = InMemoryPatientMedicalProfileRepository()
+    reception_repository = InMemoryReceptionRepository()
     category_catalog_repository = InMemoryMedicationHistoryCategoryCatalogRepository()
     store_reference = FakeMedicationHistoryStoreReference()
     store_reference.register(corporate_id=corporate_id, store_id=store_id)
@@ -211,7 +217,8 @@ def create_fixture(*, actor: ActorContext | None = None) -> MedicationHistoryFix
             dispensing_source,
             staff_qualification,
             CounselorQualificationService(),
-            clock,
+            NullUnitOfWork(),
+            ReceptionMedicationHistorySourceAdapter(reception_repository),
         ),
         update_draft=UpdateMedicationHistoryDraftUseCase(
             record_repository, corporate_access
@@ -276,6 +283,7 @@ def create_fixture(*, actor: ActorContext | None = None) -> MedicationHistoryFix
         ),
         record_repository=record_repository,
         profile_repository=profile_repository,
+        reception_repository=reception_repository,
         category_catalog_repository=category_catalog_repository,
         corporate_repository=corporate_repository,
         actor=resolved_actor,
@@ -350,4 +358,8 @@ def create_nsips_start_command(
     fixture: MedicationHistoryFixture,
 ) -> StartMedicationHistoryCommand:
     """NSIPS由来の初回薬歴コマンドを作る。"""
-    return replace(create_start_command(fixture), source_system="NSIPS")
+    return replace(
+        create_start_command(fixture),
+        source_system="NSIPS",
+        imported_at=fixture.clock.now(),
+    )

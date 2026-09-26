@@ -82,16 +82,19 @@ router = APIRouter(
 
 
 class StartMedicationHistoryRequest(RequestModel):
-    """薬歴の起票の入力。"""
+    """薬歴の初回保存の入力。"""
 
     store_id: str
     dispensing_id: str
-    method: str
+    reception_id: str | None = None
     soap: SoapInput
-    handbook_status: HandbookStatusInput
-    residual_drug: ResidualDrugInput
+    method: str | None = None
+    handbook_status: HandbookStatusInput | None = None
+    residual_drug: ResidualDrugInput | None = None
     information_sheet_provided: bool | None = None
     profile_updates: ProfileUpdateInput | None = None
+    counselor_id: str | None = None
+    counseled_at: datetime | None = None
 
 
 class BillingAdditionRequest(RequestModel):
@@ -123,6 +126,7 @@ class FinalizeMedicationHistoryRequest(RequestModel):
     finalized_by: str | None = None
     finalized_at: datetime | None = None
     delay_reason: str | None = None
+    review_result: str | None = None
 
 
 class AmendMedicationHistoryRequest(RequestModel):
@@ -195,18 +199,21 @@ async def start_medication_history(
     body: StartMedicationHistoryRequest,
     use_cases: MedicationHistoryUseCasesDep,
 ) -> MedicationHistoryDto:
-    """完了した調剤に対する薬歴を起票する。"""
+    """薬剤師が記入した薬歴を初回保存する。"""
     return await use_cases.start.execute(
         StartMedicationHistoryCommand(
             corporate_id=corporate_id,
             store_id=body.store_id,
             dispensing_id=body.dispensing_id,
+            reception_id=body.reception_id,
             method=body.method,
             soap=body.soap,
             handbook_status=body.handbook_status,
             residual_drug=body.residual_drug,
             information_sheet_provided=body.information_sheet_provided,
             profile_updates=body.profile_updates,
+            counselor_id=body.counselor_id,
+            counseled_at=body.counseled_at,
         )
     )
 
@@ -304,6 +311,7 @@ async def finalize_medication_history(
             finalized_by=body.finalized_by if body is not None else None,
             finalized_at=body.finalized_at if body is not None else None,
             delay_reason=body.delay_reason if body is not None else None,
+            review_result=body.review_result if body is not None else None,
         )
     )
 

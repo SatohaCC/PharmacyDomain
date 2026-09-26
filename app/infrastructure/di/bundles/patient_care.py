@@ -17,6 +17,9 @@ from app.application.composition.coverage_selection_adapter import (
 from app.application.composition.patient_references import (
     PatientStoreReferenceAdapter,
 )
+from app.application.composition.reception_medication_history import (
+    ReceptionMedicationHistoryAssociationAdapter,
+)
 from app.application.composition.reception_references import (
     ReceptionPatientReferenceAdapter,
     ReceptionStoreReferenceAdapter,
@@ -55,6 +58,9 @@ from app.application.patient.register_patient import RegisterPatientUseCase
 from app.application.patient.register_patient_external_identifier import (
     RegisterPatientExternalIdentifierUseCase,
 )
+from app.application.reception.associate_reception_medication_history import (
+    AssociateReceptionMedicationHistoryUseCase,
+)
 from app.application.reception.get_last_coverage_selection import (
     GetLastCoverageSelectionUseCase,
 )
@@ -63,6 +69,7 @@ from app.application.reception.record_coverage_selection import (
 )
 from app.domain.coverage.combination import CoverageSelectionService
 from app.domain.coverage.services import PatientCoverageConflictService
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.repositories.repository_set import (
     PostgresRepositorySet,
 )
@@ -191,12 +198,14 @@ class ReceptionUseCases:
 
     record_coverage_selection: RecordCoverageSelectionUseCase
     get_last_coverage_selection: GetLastCoverageSelectionUseCase
+    associate_medication_history: AssociateReceptionMedicationHistoryUseCase
 
 
 def build_reception_use_cases(
     repositories: PostgresRepositorySet,
     corporate_access: CorporateAccessService,
     clock: Clock,
+    unit_of_work: PostgresUnitOfWork,
 ) -> ReceptionUseCases:
     """受付ユースケースを組み立てる。
 
@@ -225,6 +234,14 @@ def build_reception_use_cases(
             store_reference,
             patient_reference,
             coverage_selection,
+        ),
+        associate_medication_history=AssociateReceptionMedicationHistoryUseCase(
+            reception_repository=repositories.reception,
+            medication_history_reference=ReceptionMedicationHistoryAssociationAdapter(
+                repositories.medication_history
+            ),
+            corporate_access=corporate_access,
+            unit_of_work=unit_of_work,
         ),
     )
 

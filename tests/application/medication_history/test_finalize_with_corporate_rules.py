@@ -82,6 +82,7 @@ async def test_finalize_passes_when_corporate_required_categories_met(
         fixture.start._corporate_access,
         NullUnitOfWork(),
         category_catalog_repository=catalog_repo,
+        clock=fixture.clock,
     )
 
     # SとPを両方入力して下書き作成
@@ -101,6 +102,8 @@ async def test_finalize_passes_when_corporate_required_categories_met(
         FinalizeMedicationHistoryCommand(
             corporate_id=str(fixture.corporate_id.value),
             record_id=draft.id,
+            counseled_at=fixture.clock.now(),
+            review_result="assessment_and_instruction_recorded",
         )
     )
     assert finalized_dto.status == "finalized"
@@ -147,6 +150,7 @@ async def test_finalize_fails_when_corporate_required_categories_missing(
         fixture.start._corporate_access,
         NullUnitOfWork(),
         category_catalog_repository=catalog_repo,
+        clock=fixture.clock,
     )
 
     from tests.application.medication_history.helpers import create_start_command
@@ -166,6 +170,8 @@ async def test_finalize_fails_when_corporate_required_categories_missing(
             FinalizeMedicationHistoryCommand(
                 corporate_id=str(fixture.corporate_id.value),
                 record_id=draft.id,
+                counseled_at=fixture.clock.now(),
+                review_result="assessment_and_instruction_recorded",
             )
         )
     assert "P（指導計画）" in str(exc_info.value)

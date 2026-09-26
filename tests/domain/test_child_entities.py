@@ -25,6 +25,7 @@ from tests.factories.medication_history_factory import (
     create_record,
     create_tracing_report,
     create_tracing_report_response,
+    finalize_record_with_review,
 )
 
 
@@ -170,7 +171,7 @@ def test_子エンティティのハッシュはIDに基づく() -> None:
 
 def test_子エンティティを含む薬歴のCodec可逆性() -> None:
     """TC-07: TracingReport / FollowUpRecord を含む薬歴のエンコード・デコード可逆性。"""
-    record = create_record().finalize()
+    record = finalize_record_with_review(create_record())
     report = create_tracing_report(
         provided_at=COUNSELED_AT + timedelta(days=1),
     )

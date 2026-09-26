@@ -13,6 +13,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
+from app.application.reception.associate_reception_medication_history import (
+    AssociateReceptionMedicationHistoryCommand,
+)
 from app.application.reception.get_coverage_selection import CoverageSelectionRecordDto
 from app.application.reception.get_last_coverage_selection import (
     GetLastCoverageSelectionQuery,
@@ -26,7 +29,7 @@ from app.presentational.errors import error_responses
 from app.presentational.schemas import RequestModel
 
 router = APIRouter(
-    prefix="/corporates/{corporate_id}/coverage-selections",
+    prefix="/corporates/{corporate_id}",
     tags=["reception"],
     dependencies=[Depends(get_actor_context)],
     responses=error_responses(
@@ -48,8 +51,22 @@ class RecordCoverageSelectionRequest(RequestModel):
     coverage_ids: list[str]
 
 
+class AssociateReceptionMedicationHistoryRequest(RequestModel):
+    """受付を薬歴へ関連付ける入力。"""
+
+    store_id: str
+    medication_history_id: str
+
+
+class AssociateReceptionMedicationHistoryResponse(RequestModel):
+    """受付と薬歴の関連結果。"""
+
+    reception_id: str
+    medication_history_id: str
+
+
 @router.post(
-    "",
+    "/coverage-selections",
     status_code=HTTPStatus.CREATED,
     response_model=CoverageSelectionRecordDto,
     responses=error_responses(HTTPStatus.CONFLICT),
@@ -72,7 +89,7 @@ async def record_coverage_selection(
 
 
 @router.get(
-    "/latest",
+    "/coverage-selections/latest",
     response_model=LastCoverageSelectionCandidateDto | None,
 )
 async def get_last_coverage_selection(
@@ -94,6 +111,32 @@ async def get_last_coverage_selection(
             patient_id=patient_id,
             applied_on=applied_on,
         )
+    )
+
+
+@router.post(
+    "/receptions/{reception_id}/medication-history",
+    response_model=AssociateReceptionMedicationHistoryResponse,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def associate_reception_medication_history(
+    corporate_id: str,
+    reception_id: str,
+    body: AssociateReceptionMedicationHistoryRequest,
+    use_cases: ReceptionUseCasesDep,
+) -> AssociateReceptionMedicationHistoryResponse:
+    """薬剤師が選んだ薬歴を受付へ関連付ける。"""
+    reception = await use_cases.associate_medication_history.execute(
+        AssociateReceptionMedicationHistoryCommand(
+            corporate_id=corporate_id,
+            store_id=body.store_id,
+            reception_id=reception_id,
+            medication_history_id=body.medication_history_id,
+        )
+    )
+    return AssociateReceptionMedicationHistoryResponse(
+        reception_id=reception.reception_id,
+        medication_history_id=reception.medication_history_id,
     )
 
 

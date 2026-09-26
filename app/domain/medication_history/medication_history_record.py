@@ -48,6 +48,8 @@ from app.domain.medication_history.primitives import (
     FinalizedTimestamp,
     MedicationHistoryImportTimestamp,
     MedicationHistoryRecordId,
+    MedicationHistoryReviewResult,
+    MedicationHistoryReviewTimestamp,
     MedicationHistorySourceSystem,
     MedicationHistoryStatus,
     TracingReportId,
@@ -95,6 +97,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     billing_additions: tuple[BillingAddition, ...] = ()
     source_system: MedicationHistorySourceSystem | None = None
     imported_at: MedicationHistoryImportTimestamp | None = None
+    recorded_by: StaffId | None = None
     status: MedicationHistoryStatus = MedicationHistoryStatus.DRAFT
     amendments: tuple[MedicationHistoryAmendment, ...] = ()
     follow_ups: tuple[FollowUpRecord, ...] = ()
@@ -102,6 +105,9 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     finalized_at: FinalizedTimestamp | None = None
     finalized_by: StaffId | None = None
     delay_reason: FinalizationDelayReason | None = None
+    review_result: MedicationHistoryReviewResult | None = None
+    reviewed_by: StaffId | None = None
+    reviewed_at: MedicationHistoryReviewTimestamp | None = None
     retention_expiry_date: date | None = None
     external_corrections: tuple[ExternalPrescriptionCorrection, ...] = ()
 
@@ -118,6 +124,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         self._ensure_counseling_provenance_is_valid()
         self._ensure_amendments_only_after_finalized()
         self._ensure_finalized_soap_is_complete()
+        self._ensure_finalized_review_has_authored_evidence()
         self._ensure_finalized_items_are_assessed()
         self._ensure_finalization_metadata_is_valid()
 
@@ -137,6 +144,17 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         )
         if missing_items:
             raise MedicationHistoryUnassessedItemsError(missing_items=missing_items)
+
+    def _ensure_finalized_review_has_authored_evidence(self) -> None:
+        """新しいレビュー証跡は薬剤師自身のA/P記載を伴う。"""
+        if not self.status.is_finalized or self.review_result is None:
+            return
+        if not any(
+            note.has_content for note in (*self.soap.assessment, *self.soap.plan)
+        ):
+            raise MedicationHistoryDomainError(
+                "確定には薬剤師が記載したAssessmentまたはPlanが必要です。"
+            )
 
     def _ensure_amendments_only_after_finalized(self) -> None:
         """追記が確定済の薬歴にだけ付くことを検証する。"""
@@ -172,18 +190,32 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
                 and self.delay_reason is None
             ):
                 raise FinalizationDelayReasonRequiredError()
+            review_fields = (
+                self.review_result,
+                self.reviewed_by,
+                self.reviewed_at,
+            )
+            if any(value is not None for value in review_fields) and any(
+                value is None for value in review_fields
+            ):
+                raise MedicationHistoryDomainError(
+                    "薬歴レビュー結果・確認者・確認日時はまとめて記録してください。"
+                )
         else:
             if (
                 self.finalized_at is not None
                 or self.finalized_by is not None
                 or self.delay_reason is not None
+                or self.review_result is not None
+                or self.reviewed_by is not None
+                or self.reviewed_at is not None
             ):
                 raise MedicationHistoryDomainError(
                     "下書き状態の薬歴に確定メタデータは設定できません。"
                 )
 
     def _ensure_counseling_provenance_is_valid(self) -> None:
-        """指導実績の組とNSIPS取込だけの下書きを検証する。"""
+        """指導実績と、薬剤師記載または旧NSIPS下書きの由来を検証する。"""
         has_counselor = self.counselor_id is not None
         has_counseled_at = self.counseled_at is not None
         if has_counselor != has_counseled_at:
@@ -192,13 +224,15 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             )
         if has_counselor:
             return
-        if (
-            self.status is not MedicationHistoryStatus.DRAFT
-            or self.source_system != MedicationHistorySourceSystem("NSIPS")
-            or self.imported_at is None
+        if self.status is not MedicationHistoryStatus.DRAFT or (
+            self.recorded_by is None
+            and (
+                self.source_system != MedicationHistorySourceSystem("NSIPS")
+                or self.imported_at is None
+            )
         ):
             raise MedicationHistoryDomainError(
-                "指導実績のない下書きにはNSIPS取込時刻が必要です。"
+                "指導実績のない下書きには薬剤師の記載者またはNSIPS取込時刻が必要です。"
             )
 
     # ------------------------------------------------------------------
@@ -250,6 +284,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         billing_additions: tuple[BillingAddition, ...] = (),
         source_system: MedicationHistorySourceSystem | None = None,
         imported_at: MedicationHistoryImportTimestamp | None = None,
+        recorded_by: StaffId | None = None,
     ) -> Self:
         """服薬指導の記録を下書きとして起こす。"""
         return cls(
@@ -275,6 +310,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             billing_additions=billing_additions,
             source_system=source_system,
             imported_at=imported_at,
+            recorded_by=recorded_by,
             status=MedicationHistoryStatus.DRAFT,
         )
 
@@ -344,6 +380,9 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         finalized_at: FinalizedTimestamp | None = None,
         finalized_by: StaffId | None = None,
         delay_reason: FinalizationDelayReason | None = None,
+        review_result: MedicationHistoryReviewResult | None = None,
+        reviewed_by: StaffId | None = None,
+        reviewed_at: MedicationHistoryReviewTimestamp | None = None,
     ) -> Self:
         """薬歴を確定する。
 
@@ -351,6 +390,10 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         指導実績のない取込下書きは、実際の指導者と指導日時を渡さなければ確定できない。
         """
         self._ensure_not_finalized()
+        if review_result is None or reviewed_by is None or reviewed_at is None:
+            raise MedicationHistoryDomainError(
+                "薬歴を確定するには確認結果・確認者・確認日時が必要です。"
+            )
         supplied_counselor = counselor_id is not None
         supplied_counseled_at = counseled_at is not None
         if supplied_counselor != supplied_counseled_at:
@@ -395,6 +438,9 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             finalized_at=actual_finalized_at,
             finalized_by=actual_finalized_by,
             delay_reason=delay_reason,
+            review_result=review_result,
+            reviewed_by=reviewed_by,
+            reviewed_at=reviewed_at,
         )
 
     def amend(

@@ -28,6 +28,26 @@ class ReceptionCorrection:
     received_at: datetime
 
 
+@dataclass(frozen=True, kw_only=True)
+class ReceptionBillingAddition:
+    """受付で受信した算定加算の構造化情報。"""
+
+    code: str
+    name: str
+    points: int | None = None
+    quantity: int | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class ReceptionSourceData:
+    """外部受付Bundleの保管用スナップショット。"""
+
+    bundle_json: str
+    imported_at: datetime
+    is_follow_up: bool = False
+    billing_additions: tuple[ReceptionBillingAddition, ...] = ()
+
+
 @dataclass(frozen=True, eq=False, kw_only=True)
 class Reception(AggregateRoot[ReceptionId]):
     """一受付の受信指紋と作成済み集約IDを保持する。"""
@@ -42,3 +62,5 @@ class Reception(AggregateRoot[ReceptionId]):
     prescription_id: PrescriptionId | None = None
     dispensing_id: DispensingId | None = None
     medication_history_id: MedicationHistoryRecordId | None = None
+    source_data: ReceptionSourceData | None = None
+    source_data_history: tuple[ReceptionSourceData, ...] = ()

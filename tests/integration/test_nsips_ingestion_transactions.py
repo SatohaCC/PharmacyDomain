@@ -204,7 +204,7 @@ async def test_tc74_受付保存後の失敗で取込と変更履歴を一括rol
     command = IngestNsipsCommand(
         corporate_id=str(organization.corporate.id.value),
         store_id=str(organization.store.id.value),
-        operator_staff_id=str(organization.staff[0].id.value),
+        dispenser_staff_id=str(organization.staff[0].id.value),
         reception_id=str(ReceptionId.generate().value),
         structured_bundle=_bundle(),
     )

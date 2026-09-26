@@ -8,6 +8,14 @@ from decimal import Decimal
 
 import pytest
 
+from app.application.access_control.policy import AuthorizationService
+from app.application.composition.medication_history_references import (
+    CounselorQualificationAdapter,
+    DispensingSourceAdapter,
+    MedicationHistoryStoreReferenceAdapter,
+    ReceptionMedicationHistorySourceAdapter,
+)
+from app.application.corporate.corporate_access import CorporateAccessService
 from app.application.integration.nsips.ingest_nsips import (
     IngestNsipsCommand,
 )
@@ -22,21 +30,28 @@ from app.application.integration.nsips.models import (
     NsipsRpInfo,
 )
 from app.application.integration.nsips.parser import NsipsParser
+from app.application.medication_history.inputs import LabeledNoteInput, SoapInput
+from app.application.medication_history.start_medication_history import (
+    StartMedicationHistoryCommand,
+    StartMedicationHistoryUseCase,
+)
 from app.application.patient.get_patient import GetPatientQuery, GetPatientUseCase
 from app.application.patient.register_patient import RegisterPatientUseCase
 from app.application.reception.exceptions import ReceptionCoverageSelectionError
 from app.domain.coverage.exceptions import CoveragePeriodConflictError
 from app.domain.dispensing.exceptions import DispensingOutsidePrescriptionPeriodError
 from app.domain.dispensing.primitives import DispensingId
-from app.domain.medication_history.primitives import MedicationHistoryRecordId
+from app.domain.medication_history.exceptions import MedicationHistoryDomainError
+from app.domain.medication_history.services import CounselorQualificationService
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import PrescriptionId
-from app.domain.reception.primitives import CoverageSelectionRecordId
+from app.domain.reception.primitives import CoverageSelectionRecordId, ReceptionId
 from tests.application.access_helpers import create_vendor_corporate_access_for
 from tests.application.integration.nsips.helpers import (
     create_fixture,
     execute_structured_test_command,
 )
+from tests.application.medication_history.helpers import create_resolved_actor
 
 # ==============================================================================
 # 1. 合成入力の構文解析回帰（対象NSIPS版の仕様適合を示さない）
@@ -223,8 +238,8 @@ def test_処方日と調剤日の独立マッピング() -> None:
     assert disp_cmd.dispensed_date == date(2026, 9, 22)
 
 
-def test_加算はSOAP臨床記載と分けて薬歴Commandへ写す() -> None:
-    """NSIPS加算を構造化して保持し、薬歴未確認項目や保険を捏造しない。"""
+def test_加算は構造化情報に保ち処方要約をSOAPへ写さない() -> None:
+    """NSIPS由来の加算は構造化し、処方・調剤内容はSOAPへ自動転記しない。"""
     mapper = NsipsDataMapper()
     bundle = NsipsBundle(
         header_version="1.0",
@@ -288,12 +303,14 @@ def test_加算はSOAP臨床記載と分けて薬歴Commandへ写す() -> None:
     assert hist_cmd.billing_additions[0].code == "140000110"
     assert hist_cmd.billing_additions[0].name == "特定薬剤管理指導加算２"
 
-    # SOAP Objective は処方・調剤の観察可能な事実だけを含める。
+    # SOAP Objectiveにも受信した処方・調剤の要約を自動生成しない。
     obj_text = "\n".join(note.text for note in hist_cmd.soap.objective)
     assert "特定薬剤管理指導加算２" not in obj_text
     assert "保険情報:" not in obj_text
-    assert "アムロジピン" in obj_text
-    assert "一包化" in obj_text or "PACKAGE_UNIT" in obj_text
+    assert "アムロジピン" not in obj_text
+    assert "1日3回毎食後" not in obj_text
+    assert "一包化" not in obj_text
+    assert "PACKAGE_UNIT" not in obj_text
     assert hist_cmd.method is None
     assert hist_cmd.handbook_status is None
     assert hist_cmd.residual_drug is None
@@ -309,8 +326,8 @@ def test_加算はSOAP臨床記載と分けて薬歴Commandへ写す() -> None:
 
 
 @pytest.mark.asyncio
-async def test_tc12_合成入力による受付取込は取込時刻だけを薬歴へ記録する() -> None:
-    """合成Fixtureの既存経路を確認する。NSIPS版の適合を示すケースではない。"""
+async def test_tc12_合成入力による受付取込は薬歴を作らず取込情報を受付に保つ() -> None:
+    """構造化Fixtureでは、薬歴を作らず加算などを受付側に保持する。"""
     fixture = await create_fixture()
     text = (
         "1,20260920,DOC-FULL-01,1310001,中央診療所,01,内科,佐藤医師\n"
@@ -323,7 +340,7 @@ async def test_tc12_合成入力による受付取込は取込時刻だけを薬
     cmd = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        operator_staff_id=str(fixture.pharmacist_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
         raw_nsips_text=text,
     )
 
@@ -332,7 +349,7 @@ async def test_tc12_合成入力による受付取込は取込時刻だけを薬
     # 1. 結果DTOの検証
     assert result.prescription_id is not None
     assert result.dispensing_id is not None
-    assert result.medication_history_id is not None
+    assert result.medication_history_id is None
     assert result.coverage_selection_record_id is not None
     assert result.dispensed_date == "2026-09-22"
     assert "特定薬剤管理指導加算２" in result.addition_names
@@ -357,20 +374,77 @@ async def test_tc12_合成入力による受付取込は取込時刻だけを薬
     assert dispensing is not None
     assert dispensing.dispensed_date.value == date(2026, 9, 22)
 
-    # 4. 薬歴集約に加算が記録されていることの検証
-    history = await fixture.medication_history_repo.get(
-        corporate_id=fixture.corporate_id,
-        record_id=MedicationHistoryRecordId.parse(result.medication_history_id),
+    # 4. 受付は取込メタデータと構造化Bundleを保ち、薬歴は作らない。
+    assert fixture.medication_history_repo.items == {}
+    reception = next(iter(fixture.reception_repo.items.values()))
+    assert reception.medication_history_id is None
+    source_data = getattr(reception, "source_data", None)
+    assert source_data is not None
+    assert source_data.imported_at == fixture.clock.now()
+    assert source_data.billing_additions[0].code == "140000110"
+    assert source_data.billing_additions[0].points is None
+    assert source_data.billing_additions[0].quantity == 1
+    assert "140000110" in source_data.bundle_json
+    assert "特定薬剤管理指導加算２" in source_data.bundle_json
+
+    # 5. 薬剤師が本文を記載して初回保存した時点でのみ薬歴を作り、
+    #    受付の由来情報を引き継ぐ。記載者はActor由来で、指導実績とは別。
+    reception_id = str(reception.id.value)
+    start = StartMedicationHistoryUseCase(
+        repository=fixture.medication_history_repo,
+        corporate_access=CorporateAccessService(
+            fixture.corporate_repo,
+            AuthorizationService(create_resolved_actor(staff_id=fixture.pharmacist_id)),
+        ),
+        store_reference=MedicationHistoryStoreReferenceAdapter(fixture.store_repo),
+        dispensing_reference=DispensingSourceAdapter(fixture.dispensing_repo),
+        staff_qualification=CounselorQualificationAdapter(fixture.staff_repo),
+        counselor_service=CounselorQualificationService(),
+        unit_of_work=fixture.unit_of_work,
+        reception_source=ReceptionMedicationHistorySourceAdapter(
+            fixture.reception_repo
+        ),
     )
-    assert history is not None
-    assert len(history.billing_additions) == 1
-    assert history.billing_additions[0].code.value == "140000110"
-    assert history.billing_additions[0].name.value == "特定薬剤管理指導加算２"
-    assert history.imported_at is not None
-    assert history.imported_at.value == fixture.clock.now()
-    assert history.counselor_id is None
-    assert history.counseled_at is None
-    assert not hasattr(history, "importer_staff_id")
+    start_command = StartMedicationHistoryCommand(
+        corporate_id=str(fixture.corporate_id.value),
+        store_id=str(fixture.store_id.value),
+        dispensing_id=result.dispensing_id,
+        reception_id=reception_id,
+        method=None,
+        soap=SoapInput(
+            subjective=(LabeledNoteInput(text="薬剤師が聞き取った内容を記載"),)
+        ),
+        handbook_status=None,
+        residual_drug=None,
+    )
+    await fixture.reception_repo.save(
+        replace(reception, patient_id=PatientId.generate())
+    )
+    with pytest.raises(MedicationHistoryDomainError):
+        await start.execute(start_command)
+    assert fixture.medication_history_repo.items == {}
+
+    # 受付の患者が調剤セッションと一致しないデータを戻してから、正常保存を確認。
+    await fixture.reception_repo.save(reception)
+    saved = await start.execute(start_command)
+
+    assert saved.source_system == "NSIPS"
+    assert saved.imported_at == fixture.clock.now().isoformat()
+    assert len(saved.billing_additions) == 1
+    assert saved.billing_additions[0].code == "140000110"
+    assert saved.soap.subjective[0].text == "薬剤師が聞き取った内容を記載"
+    assert saved.soap.objective == ()
+    assert saved.recorded_by == str(fixture.pharmacist_id.value)
+    assert saved.counselor_id is None
+    assert saved.counseled_at is None
+    linked_reception = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=ReceptionId.parse(reception_id),
+    )
+    assert linked_reception is not None
+    assert linked_reception.medication_history_id is not None
+    assert str(linked_reception.medication_history_id.value) == saved.id
 
 
 @pytest.mark.asyncio
@@ -399,7 +473,7 @@ async def test_tc15_同一の明示資格を別処方で再受信しても資格
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            operator_staff_id=str(fixture.pharmacist_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
             structured_bundle=first_bundle,
         ),
     )
@@ -425,7 +499,7 @@ async def test_tc15_同一の明示資格を別処方で再受信しても資格
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            operator_staff_id=str(fixture.pharmacist_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
             structured_bundle=second_bundle,
         ),
     )
@@ -456,7 +530,7 @@ async def test_処方箋の使用期間を過ぎた調剤日は拒否される()
     cmd = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        operator_staff_id=str(fixture.pharmacist_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
         raw_nsips_text=text,
     )
 
@@ -484,7 +558,7 @@ async def test_tc17_調剤日欠損は書込み前に拒否される() -> None:
             IngestNsipsCommand(
                 corporate_id=str(fixture.corporate_id.value),
                 store_id=str(fixture.store_id.value),
-                operator_staff_id=str(fixture.pharmacist_id.value),
+                dispenser_staff_id=str(fixture.pharmacist_id.value),
                 structured_bundle=bundle,
             ),
         )
@@ -628,7 +702,7 @@ async def test_tc26_既存患者の非欠損プロフィール差分をマスタ
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            operator_staff_id=str(fixture.pharmacist_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
             structured_bundle=first_bundle,
         ),
     )
@@ -637,7 +711,7 @@ async def test_tc26_既存患者の非欠損プロフィール差分をマスタ
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            operator_staff_id=str(fixture.pharmacist_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
             structured_bundle=second_bundle,
         ),
     )
@@ -707,7 +781,7 @@ async def test_tc11_tc12_枝番不一致または欠損時に既存資格を選�
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            operator_staff_id=str(fixture.pharmacist_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
             structured_bundle=bundle("DOC-BRANCH-1", first_branch),
         ),
     )
@@ -719,7 +793,7 @@ async def test_tc11_tc12_枝番不一致または欠損時に既存資格を選�
             IngestNsipsCommand(
                 corporate_id=str(fixture.corporate_id.value),
                 store_id=str(fixture.store_id.value),
-                operator_staff_id=str(fixture.pharmacist_id.value),
+                dispenser_staff_id=str(fixture.pharmacist_id.value),
                 structured_bundle=bundle("DOC-BRANCH-2", second_branch),
             ),
         )
@@ -771,7 +845,7 @@ async def test_tc13_公費の順位違いを既存の別順位資格へ誤照合
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            operator_staff_id=str(fixture.pharmacist_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
             structured_bundle=first_bundle,
         ),
     )
@@ -783,7 +857,7 @@ async def test_tc13_公費の順位違いを既存の別順位資格へ誤照合
             IngestNsipsCommand(
                 corporate_id=str(fixture.corporate_id.value),
                 store_id=str(fixture.store_id.value),
-                operator_staff_id=str(fixture.pharmacist_id.value),
+                dispenser_staff_id=str(fixture.pharmacist_id.value),
                 structured_bundle=second_bundle,
             ),
         )
@@ -834,7 +908,7 @@ async def test_tc10_給付割合不明の資格を保持し請求選択しない
             IngestNsipsCommand(
                 corporate_id=str(fixture.corporate_id.value),
                 store_id=str(fixture.store_id.value),
-                operator_staff_id=str(fixture.pharmacist_id.value),
+                dispenser_staff_id=str(fixture.pharmacist_id.value),
                 structured_bundle=bundle,
             ),
         )
@@ -878,7 +952,7 @@ async def test_tc14_公費の片側欠損を登録せず要確認理由を返す
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            operator_staff_id=str(fixture.pharmacist_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
             structured_bundle=bundle,
         ),
     )

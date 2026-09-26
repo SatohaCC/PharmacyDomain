@@ -46,6 +46,7 @@ from tests.factories.medication_history_factory import (
     create_retract_condition_intent,
     create_stop_intent,
     create_update_condition_status_intent,
+    finalize_record_with_review,
 )
 
 _CORPORATE_ID = CorporateId.generate()
@@ -60,12 +61,13 @@ def _record(
     patient_id: PatientId = _PATIENT_ID,
 ) -> MedicationHistoryRecord:
     """確定済の薬歴を1件組み立てる。"""
-    return create_record(
+    record = create_record(
         corporate_id=corporate_id,
         patient_id=patient_id,
         counseled_at=counseled_at,
         profile_updates=profile_updates,
-    ).finalize()
+    )
+    return finalize_record_with_review(record)
 
 
 def _timeline() -> tuple[MedicationHistoryRecord, ...]:

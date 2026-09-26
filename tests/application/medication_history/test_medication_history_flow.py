@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date, timedelta
 
 import pytest
@@ -44,6 +45,7 @@ from app.application.medication_history.inputs import (
     ConcurrentMedicationIntentInput,
     ConditionIntentInput,
     HandbookStatusInput,
+    LabeledNoteInput,
     ProfileUpdateInput,
     ResidualDrugInput,
     RetractAllergyIntentInput,
@@ -68,6 +70,7 @@ from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
 from app.domain.medication_history.primitives import (
+    MedicationHistoryRecordId,
     MedicationHistoryStatus,
 )
 from app.domain.staff.primitives import StaffId, StaffQualifications
@@ -132,7 +135,9 @@ async def _finalize(fixture: MedicationHistoryFixture, record_id: str) -> None:
     """薬歴を確定する。"""
     await fixture.finalize.execute(
         FinalizeMedicationHistoryCommand(
-            corporate_id=str(fixture.corporate_id.value), record_id=record_id
+            corporate_id=str(fixture.corporate_id.value),
+            record_id=record_id,
+            review_result="assessment_and_instruction_recorded",
         )
     )
 
@@ -140,7 +145,7 @@ async def _finalize(fixture: MedicationHistoryFixture, record_id: str) -> None:
 class Test薬歴の作成:
     """調剤との一致と指導者の資格を確認して起こす。"""
 
-    async def test_tc06_薬剤師スタッフActorを指導者として下書き保存する(
+    async def test_tc06_初回保存の記載者を指導者として扱わない(
         self,
     ) -> None:
         # Arrange
@@ -153,8 +158,63 @@ class Test薬歴の作成:
         assert actual.status == MedicationHistoryStatus.DRAFT.value
         assert actual.patient_id == str(fixture.patient_id.value)
         assert actual.prescription_id == str(fixture.dispensing.prescription_id.value)
-        assert actual.counselor_id == str(fixture.counselor_id.value)
-        assert actual.counseled_at == fixture.clock.now().isoformat()
+        assert actual.counselor_id is None
+        assert actual.counseled_at is None
+        assert getattr(actual, "recorded_by", None) == str(fixture.counselor_id.value)
+
+    async def test_tc10_初回保存は部分記載を保存し_記載者と指導実績を分ける(
+        self,
+    ) -> None:
+        fixture = create_fixture()
+        authored_text = "服薬後に眠気が出たとの申告を確認した。"
+        imported_at = fixture.clock.now() - timedelta(hours=2)
+        addition = BillingAdditionInput(
+            code="140000110",
+            name="特定薬剤管理指導加算２",
+            points=100,
+            quantity=1,
+        )
+        command = replace(
+            create_start_command(fixture),
+            method=None,
+            soap=SoapInput(
+                subjective=(LabeledNoteInput(text=authored_text),),
+            ),
+            handbook_status=None,
+            residual_drug=None,
+            information_sheet_provided=None,
+            source_system="NSIPS",
+            imported_at=imported_at,
+            billing_additions=(addition,),
+        )
+
+        actual = await fixture.start.execute(command)
+
+        assert actual.status == MedicationHistoryStatus.DRAFT.value
+        assert actual.soap.subjective[0].text == authored_text
+        assert actual.counselor_id is None
+        assert actual.counseled_at is None
+        assert actual.imported_at == imported_at.isoformat()
+        assert actual.billing_additions[0].code == addition.code
+        assert actual.billing_additions[0].name == addition.name
+        assert getattr(actual, "recorded_by", None) == str(fixture.counselor_id.value)
+
+    async def test_tc12_白紙の初回保存では薬歴レコードを作らない(self) -> None:
+        fixture = create_fixture()
+        command = replace(
+            create_start_command(fixture),
+            method=None,
+            soap=SoapInput(),
+            handbook_status=None,
+            residual_drug=None,
+            information_sheet_provided=None,
+            source_system="NSIPS",
+        )
+
+        with pytest.raises(MedicationHistoryDomainError):
+            await fixture.start.execute(command)
+
+        assert fixture.record_repository.items == {}
 
     async def test_患者は調剤セッションから決まる(self) -> None:
         """Commandに患者IDを持たせない。調剤と食い違う患者の薬歴を作れてしまう。"""
@@ -169,7 +229,7 @@ class Test薬歴の作成:
         assert not hasattr(command, "patient_id")
         assert actual.patient_id == str(fixture.dispensing.patient_id.value)
 
-    async def test_指導日時は_Commandではなく注入Clockから来る(self) -> None:
+    async def test_初回保存時刻を_実指導日時へ自動設定しない(self) -> None:
         # Arrange
         fixture = create_fixture()
         fixture.clock.advance(timedelta(hours=5))
@@ -178,8 +238,7 @@ class Test薬歴の作成:
         actual = await fixture.start.execute(create_start_command(fixture))
 
         # Assert
-        assert actual.counseled_at is not None
-        assert actual.counseled_at.startswith("2026-08-23T08:00")
+        assert actual.counseled_at is None
 
     async def test_残薬なしを_明示的に記録できる(self) -> None:
         """法定記載事項ウ（ホ）「残薬がないときは、その旨を記載すること」。"""
@@ -280,18 +339,28 @@ class Test算定加算訂正:
                 )
             )
 
-    async def test_下書きは_SOAPが空でも作れる(self) -> None:
+    async def test_部分記載で下書きを作れる(self) -> None:
         """聞き取りながら書き足す運用を壊さない。"""
         # Arrange
         fixture = create_fixture()
+        authored_text = "頭痛は昨日から軽くなっている。"
 
         # Act
         actual = await fixture.start.execute(
-            create_start_command(fixture, soap=SoapInput())
+            create_start_command(
+                fixture,
+                soap=SoapInput(
+                    subjective=(LabeledNoteInput(text=authored_text),),
+                ),
+            )
         )
 
         # Assert
         assert actual.status == MedicationHistoryStatus.DRAFT.value
+        assert actual.soap.subjective[0].text == authored_text
+        assert actual.soap.objective == ()
+        assert actual.soap.assessment == ()
+        assert actual.soap.plan == ()
 
 
 class Test認可と法人境界:
@@ -405,6 +474,7 @@ class TestNSIPS取込後の指導実績:
                 FinalizeMedicationHistoryCommand(
                     corporate_id=str(fixture.corporate_id.value),
                     record_id=str(record_id.value),
+                    review_result="assessment_and_instruction_recorded",
                 )
             )
 
@@ -423,6 +493,7 @@ class TestNSIPS取込後の指導実績:
                 corporate_id=str(fixture.corporate_id.value),
                 record_id=str(record.id.value),
                 counseled_at=counseled_at,
+                review_result="assessment_and_instruction_recorded",
             )
         )
 
@@ -462,6 +533,7 @@ class TestNSIPS取込後の指導実績:
                         corporate_id=str(fixture.corporate_id.value),
                         record_id=str(record.id.value),
                         counseled_at=fixture.clock.now(),
+                        review_result="assessment_and_instruction_recorded",
                     )
                 )
 
@@ -566,6 +638,61 @@ class TestNSIPS取込後の指導実績:
 class Test確定と投影:
     """保存順序と頭書きへの反映。"""
 
+    async def test_tc17_確定時レビュー者と時刻は_ActorとClockから決まる(self) -> None:
+        fixture = create_fixture()
+        started = await fixture.start.execute(create_start_command(fixture))
+
+        finalized = await fixture.finalize.execute(
+            FinalizeMedicationHistoryCommand(
+                corporate_id=str(fixture.corporate_id.value),
+                record_id=started.id,
+                review_result="assessment_and_instruction_recorded",
+            )
+        )
+
+        assert finalized.status == MedicationHistoryStatus.FINALIZED.value
+        assert finalized.review_result == "assessment_and_instruction_recorded"
+        assert finalized.reviewed_by == str(fixture.counselor_id.value)
+        assert finalized.reviewed_at == fixture.clock.now().isoformat()
+        loaded = await fixture.get.execute(
+            GetMedicationHistoryQuery(
+                corporate_id=str(fixture.corporate_id.value),
+                record_id=started.id,
+            )
+        )
+        assert loaded.review_result == "assessment_and_instruction_recorded"
+        assert loaded.reviewed_by == str(fixture.counselor_id.value)
+        assert loaded.reviewed_at == fixture.clock.now().isoformat()
+        assert finalized.counselor_id == str(fixture.counselor_id.value)
+        assert finalized.counseled_at == fixture.clock.now().isoformat()
+
+    async def test_tc18_追加記載なしの結果は_薬剤師記載とともに保持される(
+        self,
+    ) -> None:
+        fixture = create_fixture()
+        authored_text = "対象情報を確認し、追加記載事項はないと判断した。"
+        started = await fixture.start.execute(
+            create_start_command(
+                fixture,
+                soap=SoapInput(
+                    assessment=(LabeledNoteInput(text=authored_text),),
+                ),
+            )
+        )
+
+        finalized = await fixture.finalize.execute(
+            FinalizeMedicationHistoryCommand(
+                corporate_id=str(fixture.corporate_id.value),
+                record_id=started.id,
+                review_result="no_additional_recordable_items",
+            )
+        )
+
+        assert finalized.review_result == "no_additional_recordable_items"
+        assert finalized.reviewed_by == str(fixture.counselor_id.value)
+        assert finalized.reviewed_at == fixture.clock.now().isoformat()
+        assert finalized.soap.assessment[0].text == authored_text
+
     async def test_確定すると_頭書きへ差分が投影される(self) -> None:
         # Arrange
         fixture = create_fixture()
@@ -576,7 +703,9 @@ class Test確定と投影:
         # Act
         actual = await fixture.finalize.execute(
             FinalizeMedicationHistoryCommand(
-                corporate_id=str(fixture.corporate_id.value), record_id=started.id
+                corporate_id=str(fixture.corporate_id.value),
+                record_id=started.id,
+                review_result="assessment_and_instruction_recorded",
             )
         )
 
@@ -659,15 +788,32 @@ class Test確定と投影:
         assert cond.provenance.source_record_id == second.id
 
     async def test_SOAPが空だと_確定できない(self) -> None:
-        # Arrange
+        """空の初回保存は確定前のDRAFT自体を作らない。"""
         fixture = create_fixture()
-        started = await fixture.start.execute(
-            create_start_command(fixture, soap=SoapInput())
-        )
 
-        # Act / Assert
         with pytest.raises(SoapContentRequiredError):
-            await _finalize(fixture, started.id)
+            await fixture.start.execute(create_start_command(fixture, soap=SoapInput()))
+        assert fixture.record_repository.items == {}
+
+    async def test_確定には薬剤師レビュー結果が必要(self) -> None:
+        fixture = create_fixture()
+        started = await fixture.start.execute(create_start_command(fixture))
+
+        with pytest.raises(MedicationHistoryDomainError):
+            await fixture.finalize.execute(
+                FinalizeMedicationHistoryCommand(
+                    corporate_id=str(fixture.corporate_id.value),
+                    record_id=started.id,
+                )
+            )
+
+        stored = await fixture.record_repository.get(
+            corporate_id=fixture.corporate_id,
+            record_id=MedicationHistoryRecordId.parse(started.id),
+        )
+        assert stored is not None
+        assert stored.status is MedicationHistoryStatus.DRAFT
+        assert fixture.profile_repository.items == {}
 
     async def test_確定済は_下書きを編集できない(self) -> None:
         # Arrange
@@ -1007,9 +1153,8 @@ class Test一覧:
 
         # Assert
         assert len(actual) == 2
-        assert actual[0].counseled_at is not None
-        assert actual[1].counseled_at is not None
-        assert actual[0].counseled_at > actual[1].counseled_at
+        assert actual[0].counseled_at is None
+        assert actual[1].counseled_at is None
 
     async def test_他法人からは_一覧に現れない(self) -> None:
         # Arrange
@@ -1128,6 +1273,7 @@ class Test薬歴確定ユースケース真正性と遅延理由:
             record_id=record_id,
             finalized_by=str(fixture.counselor_id.value),
             finalized_at=finalized_at,
+            review_result="assessment_and_instruction_recorded",
         )
 
         # Act
@@ -1153,6 +1299,7 @@ class Test薬歴確定ユースケース真正性と遅延理由:
             finalized_by=str(fixture.counselor_id.value),
             finalized_at=next_day,
             delay_reason="処方照会と患者再来局の確認のため翌日確定",
+            review_result="assessment_and_instruction_recorded",
         )
 
         # Act
@@ -1174,6 +1321,7 @@ class Test薬歴確定ユースケース真正性と遅延理由:
             finalized_by=str(fixture.counselor_id.value),
             finalized_at=next_day,
             delay_reason=None,
+            review_result="assessment_and_instruction_recorded",
         )
 
         # Act / Assert
@@ -1199,6 +1347,7 @@ class Test薬歴確定ユースケース真正性と遅延理由:
             record_id=record_id,
             finalized_by=str(non_pharmacist_id.value),
             finalized_at=datetime.now(UTC),
+            review_result="assessment_and_instruction_recorded",
         )
 
         # Act / Assert
@@ -1217,6 +1366,7 @@ class Test薬歴確定ユースケース真正性と遅延理由:
                 record_id=record_id,
                 finalized_by=str(fixture.counselor_id.value),
                 finalized_at=finalized_at,
+                review_result="assessment_and_instruction_recorded",
             )
         )
 

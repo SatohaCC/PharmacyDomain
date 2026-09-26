@@ -140,7 +140,7 @@ class NsipsBundleRequest(RequestModel):
 class IngestNsipsRequest(RequestModel):
     """NSIPS取込リクエストボディ。"""
 
-    operator_staff_id: str
+    dispenser_staff_id: str
     reception_id: str
     raw_nsips_text: str | None = None
     structured_bundle: NsipsBundleRequest | None = None
@@ -276,7 +276,7 @@ async def ingest_nsips(
         IngestNsipsCommand(
             corporate_id=corporate_id,
             store_id=store_id,
-            operator_staff_id=body.operator_staff_id,
+            dispenser_staff_id=body.dispenser_staff_id,
             reception_id=body.reception_id,
             raw_nsips_text=body.raw_nsips_text,
             structured_bundle=bundle,

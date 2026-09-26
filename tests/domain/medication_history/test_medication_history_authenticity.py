@@ -17,6 +17,7 @@ from tests.factories.medication_history_factory import (
     COUNSELED_AT,
     create_record,
     create_soap,
+    finalize_record_with_review,
 )
 
 
@@ -26,7 +27,8 @@ def test_finalize_records_retention_expiry() -> None:
     catalog = PreservationPolicyCatalog.create_standard_statutory_catalog()
 
     # 確定してカタログを適用
-    finalized = record.finalize(
+    finalized = finalize_record_with_review(
+        record,
         finalized_at=FinalizedTimestamp(COUNSELED_AT),
         finalized_by=record.counselor_id,
     ).calculate_and_set_retention_expiry(catalog)
@@ -41,7 +43,8 @@ def test_record_external_correction_preserves_original() -> None:
         counseled_at=COUNSELED_AT,
         soap=create_soap(subjective="指導時: 処方日数7日分を確認"),
     )
-    finalized = record.finalize(
+    finalized = finalize_record_with_review(
+        record,
         finalized_at=FinalizedTimestamp(COUNSELED_AT),
         finalized_by=record.counselor_id,
     )
@@ -75,7 +78,7 @@ def test_record_external_correction_preserves_original() -> None:
 
 def test_acknowledge_external_correction() -> None:
     """TC-15: 薬剤師による外部処方訂正の確認により要確認フラグが解消される。"""
-    record = create_record(counseled_at=COUNSELED_AT).finalize()
+    record = finalize_record_with_review(create_record(counseled_at=COUNSELED_AT))
     correction = ExternalPrescriptionCorrection(
         correction_id="corr-001",
         corrected_at=ExternalCorrectionTimestamp(
@@ -104,7 +107,7 @@ def test_acknowledge_external_correction() -> None:
 
 def test_amend_after_external_correction() -> None:
     """TC-16: 外部訂正を受けた後に薬剤師が指導追補（amend）を行った場合、新旧記録が保全される。"""
-    record = create_record(counseled_at=COUNSELED_AT).finalize()
+    record = finalize_record_with_review(create_record(counseled_at=COUNSELED_AT))
     correction = ExternalPrescriptionCorrection(
         correction_id="corr-001",
         corrected_at=ExternalCorrectionTimestamp(
