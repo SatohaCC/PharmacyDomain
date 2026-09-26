@@ -134,7 +134,10 @@ class PostgresUseCaseRegistry:
     def reception(self) -> ReceptionUseCases:
         if "reception" not in self._cache:
             self._cache["reception"] = build_reception_use_cases(
-                self._repositories, self._corporate_access, self._clock
+                self._repositories,
+                self._corporate_access,
+                self._clock,
+                self._unit_of_work,
             )
         return cast(ReceptionUseCases, self._cache["reception"])
 
@@ -187,7 +190,6 @@ class PostgresUseCaseRegistry:
                 self.reception,
                 self.prescription,
                 self.dispensing,
-                self.medication_history,
                 self._unit_of_work,
                 self._clock,
             )

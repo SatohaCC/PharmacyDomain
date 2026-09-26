@@ -35,12 +35,13 @@ from tests.factories.medication_history_factory import (
     create_record,
     create_tracing_report,
     create_tracing_report_response,
+    finalize_record_with_review,
 )
 
 
 def _finalized_record(**kwargs: Any) -> MedicationHistoryRecord:
     record = create_record(**kwargs)
-    return record.finalize()
+    return finalize_record_with_review(record)
 
 
 class TestTracingReportDomain:

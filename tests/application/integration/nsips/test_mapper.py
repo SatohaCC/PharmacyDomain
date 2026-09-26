@@ -171,8 +171,8 @@ def test_調剤開始コマンドへのマッピングと分割情報() -> None:
     assert cmd_split.split_reason == "long_term_storage"
 
 
-def test_tc11_NSIPS起票Commandへ_operatorを指導者として写さない() -> None:
-    """NSIPS取込だけでは指導方法や確認結果を事実として作らない。"""
+def test_tc11_NSIPS由来Commandへ処方要約をSOAP本文として生成しない() -> None:
+    """NSIPS由来情報を薬剤師が書いたSOAP本文として作らない。"""
     mapper = NsipsDataMapper()
     bundle = _create_sample_bundle()
 
@@ -186,11 +186,14 @@ def test_tc11_NSIPS起票Commandへ_operatorを指導者として写さない() 
     assert cmd.corporate_id == "corp-1"
     assert cmd.store_id == "store-1"
     assert cmd.dispensing_id == "disp-1"
-    assert not hasattr(cmd, "counselor_id")
+    assert cmd.counselor_id is None
+    assert cmd.counseled_at is None
     assert cmd.source_system == "NSIPS"
     assert cmd.method is None
-    assert len(cmd.soap.objective) == 1
-    assert "アムロジピン錠5mg" in cmd.soap.objective[0].text
+    assert cmd.soap.subjective == ()
+    assert cmd.soap.objective == ()
+    assert cmd.soap.assessment == ()
+    assert cmd.soap.plan == ()
     assert cmd.handbook_status is None
     assert cmd.residual_drug is None
     assert cmd.information_sheet_provided is None

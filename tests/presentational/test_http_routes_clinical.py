@@ -9,7 +9,8 @@ JSONを置くと、Application層の項目が増えたときにテストだけ�
 from __future__ import annotations
 
 from collections.abc import Iterator
-from datetime import datetime
+from dataclasses import replace
+from datetime import datetime, timedelta
 from http import HTTPStatus
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -28,16 +29,25 @@ from app.application.medication_history.get_medication_history_view import (
 from app.application.medication_history.inputs import (
     CategorizedNoteInput,
     HandbookStatusInput,
+    LabeledNoteInput,
     ResidualDrugInput,
     SoapInput,
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history.primitives import StatutoryDispensingRecordItem
+from app.domain.medication_history.value_objects import SoapRecord
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import (
     InquiryNumber,
     InquiryResultType,
 )
+from app.domain.reception.primitives import ReceptionFingerprint, ReceptionId
+from app.domain.reception.reception import (
+    Reception,
+    ReceptionBillingAddition,
+    ReceptionSourceData,
+)
+from app.domain.staff.primitives import StaffId
 from app.infrastructure.di.bundles.clinical import (
     DispensingUseCases,
     MedicationHistoryUseCases,
@@ -61,8 +71,14 @@ from app.presentational.routers.medication_history import (
 from app.presentational.routers.prescription import RegisterPrescriptionRequest
 from tests.application.dispensing import helpers as dispensing_helpers
 from tests.application.medication_history import helpers as history_helpers
+from tests.application.medication_history.helpers import (
+    create_pharmacist_qualifications,
+)
 from tests.application.prescription import helpers as prescription_helpers
-from tests.factories.medication_history_factory import create_nsips_draft_record
+from tests.factories.medication_history_factory import (
+    create_note,
+    create_nsips_draft_record,
+)
 from tests.factories.prescription_factory import create_response, start_inquiry
 from tests.fakes.stub_actor_context_provider import (
     VALID_TOKEN,
@@ -561,7 +577,7 @@ def _start_history_body(
     ).model_dump(mode="json")
 
 
-def test_tc10_HTTP起票では_Actorの薬剤師を指導者として頭書きへ投影する(
+def test_tc10_HTTP初回保存は_記載者を指導者にせず実記載を保存する(
     history_client: TestClient,
     history_fixture: history_helpers.MedicationHistoryFixture,
 ) -> None:
@@ -574,13 +590,18 @@ def test_tc10_HTTP起票では_Actorの薬剤師を指導者として頭書き�
         headers=_HEADERS,
     )
     assert started.status_code == HTTPStatus.CREATED, started.text
-    assert started.json()["counselor_id"] == str(history_fixture.counselor_id.value)
-    assert started.json()["counseled_at"] == history_fixture.clock.now().isoformat()
+    assert started.json().get("recorded_by") == str(history_fixture.counselor_id.value)
+    assert started.json().get("counselor_id") is None
+    assert started.json().get("counseled_at") is None
 
     # Act
     finalized = history_client.post(
         f"/corporates/{corporate_id}"
         f"/medication-histories/{started.json()['id']}/finalization",
+        json={
+            "counseled_at": history_fixture.clock.now().isoformat(),
+            "review_result": "assessment_and_instruction_recorded",
+        },
         headers=_HEADERS,
     )
     profile = history_client.get(
@@ -592,8 +613,305 @@ def test_tc10_HTTP起票では_Actorの薬剤師を指導者として頭書き�
     # Assert
     assert finalized.status_code == HTTPStatus.OK, finalized.text
     assert finalized.json()["status"] == "finalized"
+    assert finalized.json().get("reviewed_by") == str(
+        history_fixture.counselor_id.value
+    )
+    assert (
+        finalized.json().get("reviewed_at") == history_fixture.clock.now().isoformat()
+    )
     assert profile.status_code == HTTPStatus.OK, profile.text
     assert profile.json()["patient_id"] == patient_id
+
+
+def test_tc10b_HTTP部分SOAP初回保存と再保存は同じIDを更新する(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    corporate_id = str(history_fixture.corporate_id.value)
+    authored_text = "食後の眠気が続くとの申告を記録する。"
+    partial_body = {
+        "store_id": str(history_fixture.store_id.value),
+        "dispensing_id": str(history_fixture.dispensing.id.value),
+        "soap": TypeAdapter(SoapInput).dump_python(
+            SoapInput(
+                subjective=(LabeledNoteInput(text=authored_text),),
+            ),
+            mode="json",
+        ),
+    }
+
+    started = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories",
+        json=partial_body,
+        headers=_HEADERS,
+    )
+
+    assert started.status_code == HTTPStatus.CREATED, started.text
+    first = started.json()
+    assert first.get("status") == "draft"
+    assert first.get("soap", {}).get("subjective", [])[0]["text"] == authored_text
+    assert first.get("soap", {}).get("objective") == []
+    assert first.get("counseled_at") is None
+
+    updated_text = "眠気の出現時刻と服用との関係を確認する。"
+    update = history_client.put(
+        f"/corporates/{corporate_id}/medication-histories/{first['id']}/draft",
+        json={
+            "soap": TypeAdapter(SoapInput).dump_python(
+                SoapInput(
+                    assessment=(LabeledNoteInput(text=updated_text),),
+                ),
+                mode="json",
+            )
+        },
+        headers=_HEADERS,
+    )
+
+    assert update.status_code == HTTPStatus.OK, update.text
+    assert update.json()["id"] == first["id"]
+    assert update.json()["soap"]["assessment"][0]["text"] == updated_text
+    assert len(history_fixture.record_repository.items) == 1
+
+
+def test_HTTP初回保存は受付由来情報を引き継ぎSOAP本文を薬剤師の記載に保つ(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    corporate_id = history_fixture.corporate_id
+    store_id = history_fixture.store_id
+    reception_id = ReceptionId.generate()
+    imported_at = history_fixture.clock.now() - timedelta(hours=2)
+    reception = Reception(
+        id=reception_id,
+        corporate_id=corporate_id,
+        store_id=store_id,
+        patient_id=history_fixture.patient_id,
+        latest_fingerprint=ReceptionFingerprint("a" * 64),
+        field_fingerprints=(),
+        prescription_id=history_fixture.dispensing.prescription_id,
+        dispensing_id=history_fixture.dispensing.id,
+        source_data=ReceptionSourceData(
+            bundle_json="{}",
+            imported_at=imported_at,
+            billing_additions=(
+                ReceptionBillingAddition(
+                    code="140000110",
+                    name="特定薬剤管理指導加算２",
+                    points=100,
+                    quantity=1,
+                ),
+            ),
+        ),
+    )
+    history_fixture.reception_repository.items[
+        (corporate_id, store_id, reception_id)
+    ] = reception
+    authored_text = "患者が話した眠気を薬剤師が記録する。"
+    body = {
+        "store_id": str(store_id.value),
+        "dispensing_id": str(history_fixture.dispensing.id.value),
+        "reception_id": str(reception_id.value),
+        "soap": TypeAdapter(SoapInput).dump_python(
+            SoapInput(subjective=(LabeledNoteInput(text=authored_text),)),
+            mode="json",
+        ),
+    }
+
+    response = history_client.post(
+        f"/corporates/{corporate_id.value}/medication-histories",
+        json=body,
+        headers=_HEADERS,
+    )
+
+    assert response.status_code == HTTPStatus.CREATED, response.text
+    saved = response.json()
+    assert saved["source_system"] == "NSIPS"
+    assert saved["imported_at"] == imported_at.isoformat()
+    assert saved["billing_additions"][0]["code"] == "140000110"
+    assert saved["soap"]["subjective"][0]["text"] == authored_text
+    assert saved["soap"]["objective"] == []
+    assert saved["recorded_by"] == str(history_fixture.counselor_id.value)
+    assert saved["counselor_id"] is None
+    assert saved["counseled_at"] is None
+    linked = history_fixture.reception_repository.items[
+        (corporate_id, store_id, reception_id)
+    ]
+    assert linked.medication_history_id is not None
+    assert str(linked.medication_history_id.value) == saved["id"]
+
+    # 由来情報をHTTP入力から偽装できない。
+    rejected = history_client.post(
+        f"/corporates/{corporate_id.value}/medication-histories",
+        json={
+            **body,
+            "source_system": "NSIPS",
+            "imported_at": imported_at.isoformat(),
+            "billing_additions": [],
+        },
+        headers=_HEADERS,
+    )
+    assert rejected.status_code == HTTPStatus.UNPROCESSABLE_CONTENT, rejected.text
+    assert len(history_fixture.record_repository.items) == 1
+
+
+def test_tc12_HTTP白紙の初回保存は_薬歴を作らない(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    corporate_id = str(history_fixture.corporate_id.value)
+    body = _start_history_body(history_fixture)
+    body["soap"] = TypeAdapter(SoapInput).dump_python(SoapInput(), mode="json")
+    response = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories",
+        json=body,
+        headers=_HEADERS,
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_CONTENT, response.text
+    assert history_fixture.record_repository.items == {}
+
+
+def test_tc19_HTTPレビュー結果のない確定は_薬歴と頭書きを変更しない(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    corporate_id = str(history_fixture.corporate_id.value)
+    started = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories",
+        json=_start_history_body(history_fixture),
+        headers=_HEADERS,
+    )
+    assert started.status_code == HTTPStatus.CREATED, started.text
+    record_id = started.json()["id"]
+
+    response = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/{record_id}/finalization",
+        json={},
+        headers=_HEADERS,
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_CONTENT, response.text
+    assert history_fixture.record_repository.items
+    saved = next(iter(history_fixture.record_repository.items.values()))
+    assert saved.is_finalized is False
+    assert history_fixture.profile_repository.items == {}
+
+
+def test_tc22_HTTPレビュー者は_Actorから決まり確定者とは別に返る(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    corporate_id = str(history_fixture.corporate_id.value)
+    started = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories",
+        json=_start_history_body(history_fixture),
+        headers=_HEADERS,
+    )
+    assert started.status_code == HTTPStatus.CREATED, started.text
+    other_finalizer_id = StaffId.generate()
+    history_fixture.staff_qualification.register(
+        corporate_id=history_fixture.corporate_id,
+        staff_id=other_finalizer_id,
+        qualifications=create_pharmacist_qualifications(),
+    )
+    counseled_at = history_fixture.clock.now()
+
+    response = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/"
+        f"{started.json()['id']}/finalization",
+        json={
+            "counseled_at": counseled_at.isoformat(),
+            "finalized_by": str(other_finalizer_id.value),
+            "review_result": "assessment_and_instruction_recorded",
+        },
+        headers=_HEADERS,
+    )
+
+    assert response.status_code == HTTPStatus.OK, response.text
+    data = response.json()
+    assert data.get("reviewed_by") == str(history_fixture.counselor_id.value)
+    assert data.get("reviewed_at") == history_fixture.clock.now().isoformat()
+    assert data.get("finalized_by") == str(other_finalizer_id.value)
+
+
+def test_tc18_HTTP追加記載なしの確認は_本文に残して確定できる(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    corporate_id = str(history_fixture.corporate_id.value)
+    body = _start_history_body(history_fixture)
+    body["soap"] = TypeAdapter(SoapInput).dump_python(
+        SoapInput(
+            assessment=(
+                LabeledNoteInput(
+                    text="対象情報を確認し、追加記載事項はないと判断した。"
+                ),
+            ),
+        ),
+        mode="json",
+    )
+    started = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories",
+        json=body,
+        headers=_HEADERS,
+    )
+    assert started.status_code == HTTPStatus.CREATED, started.text
+
+    response = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/"
+        f"{started.json()['id']}/finalization",
+        json={
+            "counseled_at": history_fixture.clock.now().isoformat(),
+            "review_result": "no_additional_recordable_items",
+        },
+        headers=_HEADERS,
+    )
+
+    assert response.status_code == HTTPStatus.OK, response.text
+    assert response.json().get("review_result") == "no_additional_recordable_items"
+    assert (
+        response.json().get("soap", {}).get("assessment", [])[0]["text"]
+        == "対象情報を確認し、追加記載事項はないと判断した。"
+    )
+
+
+def test_tc20_HTTP客観要約だけでは_確定できない(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    corporate_id = str(history_fixture.corporate_id.value)
+    record = create_nsips_draft_record(
+        corporate_id=history_fixture.corporate_id,
+        store_id=history_fixture.store_id,
+        patient_id=history_fixture.patient_id,
+        dispensing_id=history_fixture.dispensing.id,
+        prescription_id=history_fixture.dispensing.prescription_id,
+        imported_at=history_fixture.clock.now() - timedelta(hours=2),
+        ready_to_finalize=True,
+    )
+    record = replace(
+        record,
+        soap=SoapRecord(
+            objective=(create_note("NSIPSから受信した処方・調剤の要約"),),
+        ),
+    )
+    history_fixture.record_repository.items[record.id] = record
+
+    response = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/"
+        f"{record.id.value}/finalization",
+        json={
+            "counseled_at": history_fixture.clock.now().isoformat(),
+            "review_result": "assessment_and_instruction_recorded",
+        },
+        headers=_HEADERS,
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_CONTENT, response.text
+    assert response.json().get("code") != "REQUEST_VALIDATION_ERROR"
+    stored = history_fixture.record_repository.items[record.id]
+    assert stored.is_finalized is False
+    assert history_fixture.profile_repository.items == {}
 
 
 def test_tc09_起票本文のcounselor_idは_未知項目として拒否する(
@@ -635,7 +953,10 @@ def test_tc16_NSIPS下書き確定は_実指導情報を記録して取込時刻
     response = history_client.post(
         f"/corporates/{corporate_id}/medication-histories/"
         f"{imported_record.id.value}/finalization",
-        json={"counseled_at": counseled_at.isoformat()},
+        json={
+            "counseled_at": counseled_at.isoformat(),
+            "review_result": "assessment_and_instruction_recorded",
+        },
         headers=_HEADERS,
     )
 
@@ -663,7 +984,7 @@ def test_tc17_実指導日時を省いて取込下書きを確定できない(
     response = history_client.post(
         f"/corporates/{corporate_id}/medication-histories/"
         f"{imported_record.id.value}/finalization",
-        json={},
+        json={"review_result": "assessment_and_instruction_recorded"},
         headers=_HEADERS,
     )
 
@@ -688,6 +1009,7 @@ def test_tc82_薬歴viewは_確定本文と読取時点の患者プロフィー�
     record_id = started.json()["id"]
     finalized = history_client.post(
         f"/corporates/{corporate_id}/medication-histories/{record_id}/finalization",
+        json={"review_result": "assessment_and_instruction_recorded"},
         headers=_HEADERS,
     )
     assert finalized.status_code == HTTPStatus.OK, finalized.text
@@ -772,6 +1094,7 @@ def test_TC25_下書きの全項目更新と確定メタデータ付き確定(
         f"{base}/finalization",
         json=FinalizeMedicationHistoryRequest(
             finalized_by=counselor_str,
+            review_result="assessment_and_instruction_recorded",
         ).model_dump(mode="json"),
         headers=_HEADERS,
     )
@@ -797,7 +1120,11 @@ def test_確定済みの薬歴は_訂正として積まれる(
         headers=_HEADERS,
     ).json()
     base = f"/corporates/{corporate_id}/medication-histories/{started['id']}"
-    history_client.post(f"{base}/finalization", headers=_HEADERS)
+    history_client.post(
+        f"{base}/finalization",
+        json={"review_result": "assessment_and_instruction_recorded"},
+        headers=_HEADERS,
+    )
     amended_soap = history_helpers.create_soap_input(
         subjective="訂正後の聞き取り内容。"
     )
@@ -860,6 +1187,7 @@ def test_確定済の薬歴は_調剤録の代替可否を返す(
     record_id = started.json()["id"]
     finalized = history_client.post(
         f"/corporates/{corporate_id}/medication-histories/{record_id}/finalization",
+        json={"review_result": "assessment_and_instruction_recorded"},
         headers=_HEADERS,
     )
     assert finalized.status_code == HTTPStatus.OK, finalized.text
@@ -896,6 +1224,7 @@ def test_確定済みの薬歴にフォローアップを追加できる(
     record_id = started.json()["id"]
     finalized = history_client.post(
         f"/corporates/{corporate_id}/medication-histories/{record_id}/finalization",
+        json={"review_result": "assessment_and_instruction_recorded"},
         headers=_HEADERS,
     )
     assert finalized.status_code == HTTPStatus.OK, finalized.text
@@ -979,6 +1308,7 @@ def test_確定済みの薬歴にトレーシングレポートを追加でき�
 
     finalized = history_client.post(
         f"/corporates/{corporate_id}/medication-histories/{record_id}/finalization",
+        json={"review_result": "assessment_and_instruction_recorded"},
         headers=_HEADERS,
     )
     assert finalized.status_code == HTTPStatus.OK, finalized.text
@@ -1033,6 +1363,7 @@ def test_トレーシングレポートに医師返答を記録できる(
 
     finalized = history_client.post(
         f"/corporates/{corporate_id}/medication-histories/{record_id}/finalization",
+        json={"review_result": "assessment_and_instruction_recorded"},
         headers=_HEADERS,
     )
     assert finalized.status_code == HTTPStatus.OK, finalized.text
@@ -1137,6 +1468,7 @@ def test_存在しないレポートIDに返答を記録すると404が返る(
 
     finalized = history_client.post(
         f"/corporates/{corporate_id}/medication-histories/{record_id}/finalization",
+        json={"review_result": "assessment_and_instruction_recorded"},
         headers=_HEADERS,
     )
     assert finalized.status_code == HTTPStatus.OK, finalized.text

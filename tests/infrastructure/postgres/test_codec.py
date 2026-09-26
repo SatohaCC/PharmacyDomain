@@ -33,6 +33,8 @@ from app.domain.medication_history.medication_history_record import (
 from app.domain.medication_history.primitives import (
     FinalizationDelayReason,
     FinalizedTimestamp,
+    MedicationHistoryReviewResult,
+    MedicationHistoryReviewTimestamp,
     MedicationHistorySourceSystem,
     MedicationHistoryStatus,
 )
@@ -66,7 +68,11 @@ from app.domain.reception.primitives import (
     ReceptionFingerprint,
     ReceptionId,
 )
-from app.domain.reception.reception import Reception, ReceptionCorrection
+from app.domain.reception.reception import (
+    Reception,
+    ReceptionCorrection,
+    ReceptionSourceData,
+)
 from app.domain.staff.primitives import (
     BaseQualificationProfile,
     DietitianProfile,
@@ -191,11 +197,22 @@ def test_受付の全体指紋と項目指紋が_JSONBを経由して往復で�
                 received_at=datetime(2026, 9, 23, tzinfo=UTC),
             ),
         ),
+        source_data=ReceptionSourceData(
+            bundle_json='{"additions":[{"code":"140000110"}],"follow_up":{}}',
+            imported_at=datetime(2026, 9, 23, tzinfo=UTC),
+            is_follow_up=True,
+        ),
     )
 
     restored = decode_aggregate(encode_aggregate(reception), Reception)
 
     assert encode_aggregate(restored) == encode_aggregate(reception)
+    assert restored.source_data == reception.source_data
+
+    legacy_payload = encode_aggregate(reception)
+    legacy_payload.pop("source_data")
+    restored_legacy = decode_aggregate(legacy_payload, Reception)
+    assert restored_legacy.source_data is None
 
 
 @pytest.mark.parametrize(
@@ -630,6 +647,11 @@ def test_TC24_薬歴集約のcodec往復と後方互換復元() -> None:
         finalized_at=FinalizedTimestamp(datetime(2026, 8, 25, 10, 0, tzinfo=UTC)),
         finalized_by=StaffId.generate(),
         delay_reason=FinalizationDelayReason("翌日確認のため"),
+        review_result=MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED,
+        reviewed_by=StaffId.generate(),
+        reviewed_at=MedicationHistoryReviewTimestamp(
+            datetime(2026, 8, 25, 9, 0, tzinfo=UTC)
+        ),
     )
     encoded = encode_aggregate(finalized)
 
@@ -642,21 +664,28 @@ def test_TC24_薬歴集約のcodec往復と後方互換復元() -> None:
     assert restored.finalized_at == finalized.finalized_at
     assert restored.finalized_by == finalized.finalized_by
     assert restored.delay_reason == finalized.delay_reason
+    assert restored.review_result == finalized.review_result
+    assert restored.reviewed_by == finalized.reviewed_by
+    assert restored.reviewed_at == finalized.reviewed_at
 
-    # Arrange 2: 旧形式（確定メタデータフィールドが存在しないpayload）
-    legacy_payload = encode_aggregate(create_record())
-    legacy_payload.pop("finalized_at", None)
-    legacy_payload.pop("finalized_by", None)
-    legacy_payload.pop("delay_reason", None)
+    # Arrange 2: 旧形式（レビュー証跡が存在しない確定済みpayload）
+    legacy_payload = encode_aggregate(finalized)
+    legacy_payload.pop("recorded_by", None)
+    legacy_payload.pop("review_result", None)
+    legacy_payload.pop("reviewed_by", None)
+    legacy_payload.pop("reviewed_at", None)
 
     # Act 2
     restored_legacy = decode_aggregate(legacy_payload, MedicationHistoryRecord)
 
     # Assert 2
-    assert restored_legacy.status == MedicationHistoryStatus.DRAFT
-    assert restored_legacy.finalized_at is None
-    assert restored_legacy.finalized_by is None
-    assert restored_legacy.delay_reason is None
+    assert restored_legacy.status == MedicationHistoryStatus.FINALIZED
+    assert restored_legacy.finalized_at == finalized.finalized_at
+    assert restored_legacy.finalized_by == finalized.finalized_by
+    assert restored_legacy.delay_reason == finalized.delay_reason
+    assert restored_legacy.review_result is None
+    assert restored_legacy.reviewed_by is None
+    assert restored_legacy.reviewed_at is None
 
 
 def test_TC23_薬歴の未記録状態をcodec往復し旧payloadも復元する() -> None:

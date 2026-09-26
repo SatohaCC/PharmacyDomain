@@ -46,7 +46,9 @@ async def _finalized_record_id(fixture: MedicationHistoryFixture) -> str:
     started = await fixture.start.execute(create_start_command(fixture))
     await fixture.finalize.execute(
         FinalizeMedicationHistoryCommand(
-            corporate_id=str(fixture.corporate_id.value), record_id=started.id
+            corporate_id=str(fixture.corporate_id.value),
+            record_id=started.id,
+            review_result="assessment_and_instruction_recorded",
         )
     )
     return started.id

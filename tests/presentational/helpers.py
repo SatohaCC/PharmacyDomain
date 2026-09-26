@@ -20,6 +20,9 @@ from app.application.composition.coverage_references import (
 from app.application.composition.coverage_selection_adapter import (
     CoverageSelectionAdapter,
 )
+from app.application.composition.reception_medication_history import (
+    ReceptionMedicationHistoryAssociationAdapter,
+)
 from app.application.composition.reception_references import (
     ReceptionPatientReferenceAdapter,
     ReceptionStoreReferenceAdapter,
@@ -69,6 +72,9 @@ from app.application.patient.reactivate_patient import ReactivatePatientUseCase
 from app.application.patient.register_patient import RegisterPatientUseCase
 from app.application.patient.register_patient_external_identifier import (
     RegisterPatientExternalIdentifierUseCase,
+)
+from app.application.reception.associate_reception_medication_history import (
+    AssociateReceptionMedicationHistoryUseCase,
 )
 from app.application.reception.get_last_coverage_selection import (
     GetLastCoverageSelectionUseCase,
@@ -155,6 +161,9 @@ from tests.fakes.in_memory_identity_repositories import (
 from tests.fakes.in_memory_manager_assignment_repository import (
     InMemoryStoreManagerAssignmentRepository,
 )
+from tests.fakes.in_memory_medication_history_repository import (
+    InMemoryMedicationHistoryRepository,
+)
 from tests.fakes.in_memory_medicine_catalog_repository import (
     InMemoryMedicineCatalogRepository,
 )
@@ -165,6 +174,7 @@ from tests.fakes.in_memory_patient_repository import (
     InMemoryPatientExternalIdentifierRepository,
     InMemoryPatientRepository,
 )
+from tests.fakes.in_memory_reception_repository import InMemoryReceptionRepository
 from tests.fakes.in_memory_staff_repository import InMemoryStaffRepository
 from tests.fakes.in_memory_store_repository import InMemoryStoreRepository
 from tests.fakes.null_unit_of_work import NullUnitOfWork
@@ -343,6 +353,8 @@ def create_coverage_use_cases(
 
 def create_reception_use_cases(
     records: InMemoryCoverageSelectionRecordRepository,
+    receptions: InMemoryReceptionRepository,
+    medication_histories: InMemoryMedicationHistoryRepository,
     stores: InMemoryStoreRepository,
     patients: InMemoryPatientRepository,
     coverages: InMemoryPatientCoverageRepository,
@@ -364,6 +376,14 @@ def create_reception_use_cases(
         ),
         get_last_coverage_selection=GetLastCoverageSelectionUseCase(
             records, access, store_reference, patient_reference, selection
+        ),
+        associate_medication_history=AssociateReceptionMedicationHistoryUseCase(
+            reception_repository=receptions,
+            medication_history_reference=ReceptionMedicationHistoryAssociationAdapter(
+                medication_histories
+            ),
+            corporate_access=access,
+            unit_of_work=NullUnitOfWork(),
         ),
     )
 

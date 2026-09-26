@@ -107,6 +107,7 @@ async def _finalized_record(fixture: MedicationHistoryFixture) -> str:
         FinalizeMedicationHistoryCommand(
             corporate_id=str(fixture.corporate_id.value),
             record_id=started.id,
+            review_result="assessment_and_instruction_recorded",
         )
     )
     return started.id

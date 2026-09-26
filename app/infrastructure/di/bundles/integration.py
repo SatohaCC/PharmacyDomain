@@ -9,7 +9,6 @@ from app.application.corporate.corporate_access import CorporateAccessService
 from app.application.integration.nsips.ingest_nsips import IngestNsipsUseCase
 from app.infrastructure.di.bundles.clinical import (
     DispensingUseCases,
-    MedicationHistoryUseCases,
     PrescriptionUseCases,
 )
 from app.infrastructure.di.bundles.patient_care import (
@@ -38,7 +37,6 @@ def build_integration_use_cases(
     reception_use_cases: ReceptionUseCases,
     prescription_use_cases: PrescriptionUseCases,
     dispensing_use_cases: DispensingUseCases,
-    medication_history_use_cases: MedicationHistoryUseCases,
     unit_of_work: PostgresUnitOfWork,
     clock: Clock,
 ) -> IntegrationUseCases:
@@ -59,9 +57,7 @@ def build_integration_use_cases(
         register_prescription_use_case=prescription_use_cases.register,
         ready_for_dispensing_use_case=prescription_use_cases.ready_for_dispensing,
         start_dispensing_use_case=dispensing_use_cases.start,
-        start_medication_history_use_case=medication_history_use_cases.start,
-        add_follow_up_use_case=medication_history_use_cases.add_follow_up,
-        list_medication_histories_use_case=medication_history_use_cases.list_by_patient,
+        medication_history_repo=repositories.medication_history,
         clock=clock,
     )
     return IntegrationUseCases(ingest_nsips=ingest_nsips)

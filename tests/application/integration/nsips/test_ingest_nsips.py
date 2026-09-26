@@ -22,15 +22,6 @@ from app.application.integration.nsips.parser import NsipsParser
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.exceptions import DispensingPharmacistQualificationError
 from app.domain.dispensing.primitives import DispensingId
-from app.domain.medication_history.primitives import (
-    CounselingMethod,
-    CounselingTimestamp,
-    MedicationHistoryRecordId,
-)
-from app.domain.medication_history.value_objects import (
-    HandbookStatus,
-    ResidualDrugRecord,
-)
 from app.domain.patient.external_identifier import PatientExternalIdentifier
 from app.domain.patient.patient import Patient
 from app.domain.patient.primitives import (
@@ -50,6 +41,11 @@ from app.domain.store.primitives import StoreId
 from tests.application.integration.nsips.helpers import (
     create_fixture,
     execute_structured_test_command,
+)
+from tests.factories.medication_history_factory import (
+    create_record,
+    create_soap,
+    finalize_record_with_review,
 )
 from tests.factories.store_factory import create_store
 
@@ -91,19 +87,23 @@ class _UnsupportedNsipsVersionParser(NsipsParser):
 
 @pytest.mark.asyncio
 async def test_新規患者のNSIPSが全集約一括で起票される() -> None:
-    """TC-16: 未登録のレセコン患者番号を含むNSIPSを受信した場合、新規患者登録〜薬歴下書きまで一括起票される。"""
+    """未登録患者のNSIPS取込では受付まで保存し、薬歴は作らない。"""
     fixture = await create_fixture()
     cmd = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        operator_staff_id=str(fixture.pharmacist_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
         raw_nsips_text="1,20260921,DOC-001,1310001,中央診療所,01,内科,佐藤医師\n2,P-1001,ヤマダタロウ,山田太郎,1,19800101\n4,20260921,REC-001,調剤花子\n5,1,内服,1日3回毎食後,14,1,610406001,アムロジピン,1,錠,0\n",
     )
     result = await execute_structured_test_command(fixture, cmd)
     assert result.is_new_patient is True
     assert result.prescription_id is not None
     assert result.dispensing_id is not None
-    assert result.medication_history_id is not None
+    assert result.medication_history_id is None
+    assert fixture.medication_history_repo.items == {}
+    reception = next(iter(fixture.reception_repo.items.values()))
+    assert reception.medication_history_id is None
+    assert reception.dispensing_id == DispensingId.parse(result.dispensing_id)
 
 
 @pytest.mark.asyncio
@@ -113,7 +113,7 @@ async def test_tc45_未確認版のraw入力は書込み前に拒否される() 
     command = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        operator_staff_id=str(fixture.pharmacist_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
         raw_nsips_text=(
             "1,20260921,DOC-UNVERIFIED,1310001,中央診療所,01,内科,佐藤医師\n"
             "2,P-UNVERIFIED,ヤマダタロウ,山田太郎,1,19800101\n"
@@ -151,7 +151,7 @@ async def test_tc45_未登録のraw版識別子も書込み前に拒否される
     command = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        operator_staff_id=str(fixture.pharmacist_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
         raw_nsips_text=raw_text,
     )
 
@@ -175,7 +175,7 @@ async def test_既存患者のNSIPSでは既存患者IDが再利用される() -
     cmd1 = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        operator_staff_id=str(fixture.pharmacist_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
         raw_nsips_text="1,20260921,DOC-001,1310001,中央診療所,01,内科,佐藤医師\n2,P-EXIST,ヤマダタロウ,山田太郎,1,19800101\n4,20260921,REC-001,調剤花子\n5,1,内服,1日3回毎食後,14,1,610406001,アムロジピン,1,錠,0\n",
     )
     res1 = await execute_structured_test_command(fixture, cmd1)
@@ -185,7 +185,7 @@ async def test_既存患者のNSIPSでは既存患者IDが再利用される() -
     cmd2 = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        operator_staff_id=str(fixture.pharmacist_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
         raw_nsips_text="1,20260921,DOC-002,1310001,中央診療所,01,内科,佐藤医師\n2,P-EXIST,ヤマダタロウ,山田太郎,1,19800101\n4,20260921,REC-001,調剤花子\n5,1,内服,1日3回毎食後,14,1,610406001,アムロジピン,1,錠,0\n",
     )
     res2 = await execute_structured_test_command(fixture, cmd2)
@@ -200,7 +200,7 @@ async def test_分割調剤NSIPSが客観的事実として記録される() -> 
     cmd = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        operator_staff_id=str(fixture.pharmacist_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
         raw_nsips_text="1,20260921,DOC-003,1310001,中央診療所,01,内科,佐藤医師\n2,P-1002,スズキ,鈴木,2,19900101\n4,20260921,REC-001,調剤花子\n5,1,内服,1日3回毎食後,7,1,610406001,アムロジピン,1,錠,0\n6,1,3,長期保存困難\n",
     )
     result = await execute_structured_test_command(fixture, cmd)
@@ -225,7 +225,7 @@ async def test_調製区分が調剤セッションに反映される() -> None:
     cmd = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        operator_staff_id=str(fixture.pharmacist_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
         raw_nsips_text="1,20260921,DOC-004,1310001,中央診療所,01,内科,佐藤医師\n2,P-1003,タナカ,田中,1,19700101\n4,20260921,REC-001,調剤花子\n5,1,内服,1日3回毎食後,14,1,610406001,アムロジピン,1,錠,1\n",
     )
     result = await execute_structured_test_command(fixture, cmd)
@@ -249,7 +249,7 @@ async def test_tc32_同一Bundle再送で受付集約を重複作成しない() 
     cmd = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        operator_staff_id=str(fixture.pharmacist_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
         raw_nsips_text="1,20260921,DOC-DUP,1310001,中央診療所,01,内科,佐藤医師\n2,P-1004,サイトウ,斉藤,1,19850101\n4,20260921,REC-001,調剤花子\n5,1,内服,1日3回毎食後,14,1,610406001,アムロジピン,1,錠,0\n",
     )
     res1 = await execute_structured_test_command(fixture, cmd)
@@ -258,11 +258,13 @@ async def test_tc32_同一Bundle再送で受付集約を重複作成しない() 
     res2 = await execute_structured_test_command(fixture, cmd)
     assert res2.is_duplicate is True
     assert res2.prescription_id == res1.prescription_id
+    assert res1.medication_history_id is None
+    assert res2.medication_history_id is None
     assert len(fixture.patient_repo.items) == 1
     assert len(fixture.patient_external_id_repo.items) == 1
     assert len(fixture.prescription_repo.items) == 1
     assert len(fixture.dispensing_repo.items) == 1
-    assert len(fixture.medication_history_repo.items) == 1
+    assert fixture.medication_history_repo.items == {}
 
 
 @pytest.mark.asyncio
@@ -285,7 +287,7 @@ async def test_tc50_取込CommandはUUIDv7以外の受付IDで書き込まない
     command = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        operator_staff_id=str(fixture.pharmacist_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
         reception_id=reception_id,
         structured_bundle=_minimal_structured_bundle(f"DOC-TC50-{invalid_kind}"),
     )
@@ -310,7 +312,7 @@ async def test_tc54_同じ処方箋番号でも別受付IDなら別患者へ紐�
     first = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        operator_staff_id=str(fixture.pharmacist_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
         reception_id=str(first_reception_id.value),
         raw_nsips_text=(
             "1,20260922,DOC-COLLISION,1310001,中央診療所,01,内科,佐藤医師\n"
@@ -322,7 +324,7 @@ async def test_tc54_同じ処方箋番号でも別受付IDなら別患者へ紐�
     second = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        operator_staff_id=str(fixture.pharmacist_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
         reception_id=str(second_reception_id.value),
         raw_nsips_text=(
             "1,20260922,DOC-COLLISION,1310001,中央診療所,01,内科,佐藤医師\n"
@@ -386,7 +388,7 @@ async def test_tc55_別店舗で同じ受付IDを独立した受付として処�
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(other_store_id.value),
-            operator_staff_id=str(fixture.pharmacist_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             raw_nsips_text=(
                 "1,20260922,DOC-TC55,1310001,中央診療所,01,内科,佐藤医師\n"
@@ -461,7 +463,7 @@ async def test_tc64_店舗未指定の旧外部IDを店舗別取込で採用し�
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            operator_staff_id=str(fixture.pharmacist_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(ReceptionId.generate().value),
             raw_nsips_text=(
                 "1,20260922,DOC-TC64,1310001,中央診療所,01,内科,佐藤医師\n"
@@ -496,7 +498,7 @@ async def test_tc65_氏名と生年月日が一致しても患者を自動統合
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            operator_staff_id=str(fixture.pharmacist_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(ReceptionId.generate().value),
             raw_nsips_text=(
                 "1,20260922,DOC-TC65-A,1310001,中央診療所,01,内科,佐藤医師\n"
@@ -511,7 +513,7 @@ async def test_tc65_氏名と生年月日が一致しても患者を自動統合
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            operator_staff_id=str(fixture.pharmacist_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(ReceptionId.generate().value),
             raw_nsips_text=(
                 "1,20260922,DOC-TC65-B,1310001,中央診療所,01,内科,佐藤医師\n"
@@ -535,7 +537,7 @@ async def test_認可権限不足または他法人店舗の指定は拒否さ�
     cmd = IngestNsipsCommand(
         corporate_id=str(other_corp.value),
         store_id=str(fixture.store_id.value),
-        operator_staff_id=str(fixture.pharmacist_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
         raw_nsips_text="1,20260921,DOC-001,1310001,中央診療所,01,内科,佐藤医師\n2,P-1001,ヤマダ,山田,1,19800101\n4,20260921,REC-001,調剤花子\n5,1,内服,1日3回毎食後,14,1,610406001,アムロジピン,1,錠,0\n",
     )
     with pytest.raises(ApplicationError):
@@ -549,7 +551,7 @@ async def test_tc42_Fakeは無資格スタッフ失敗後の先行書込みを�
     cmd = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        operator_staff_id=str(fixture.unqualified_staff_id.value),
+        dispenser_staff_id=str(fixture.unqualified_staff_id.value),
         raw_nsips_text="1,20260921,DOC-001,1310001,中央診療所,01,内科,佐藤医師\n2,P-1001,ヤマダ,山田,1,19800101\n4,20260921,REC-001,調剤花子\n5,1,内服,1日3回毎食後,14,1,610406001,アムロジピン,1,錠,0\n",
     )
     with pytest.raises(DispensingPharmacistQualificationError):
@@ -569,7 +571,7 @@ async def test_Fakeでは処方箋検証失敗前の患者保存が残る() -> N
     cmd = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        operator_staff_id=str(fixture.pharmacist_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
         raw_nsips_text="1,20260921,DOC-FAIL,1310001,中央診療所,01,内科,佐藤医師\n2,P-1001,ヤマダ,山田,1,19800101\n4,20260921,REC-001,調剤花子\n5,1,内服,1日3回毎食後,14,1,999999999,麻薬医薬品,1,錠,0\n",
     )
     with pytest.raises(MedicineClassificationMissingError):
@@ -593,7 +595,7 @@ async def test_UnitOfWork未開始の実行は拒否される() -> None:
     cmd = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        operator_staff_id=str(fixture.pharmacist_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
         raw_nsips_text="1,20260921,DOC-001,1310001,中央診療所,01,内科,佐藤医師\n2,P-1001,ヤマダ,山田,1,19800101\n",
     )
     with pytest.raises(RuntimeError):
@@ -601,47 +603,127 @@ async def test_UnitOfWork未開始の実行は拒否される() -> None:
 
 
 @pytest.mark.asyncio
-async def test_薬品0件のフォローアップ単独受付が直近薬歴に紐付けられる() -> None:
-    """TC-25: 薬品0件のNSIPSを受信した場合、処方箋・調剤を起票せず直近薬歴にフォローアップが紐付けられる。"""
+async def test_tc07_薬歴未作成のフォローアップ単独受付を受付側へ保留する() -> None:
+    """薬歴未作成時のフォローアップは薬歴を作らず受付側に保留する。"""
     fixture = await create_fixture()
     # 1. 初回処方で患者と薬歴を起票
     cmd1 = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        operator_staff_id=str(fixture.pharmacist_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
         raw_nsips_text="1,20260921,DOC-INIT,1310001,中央診療所,01,内科,佐藤医師\n2,P-1001,ヤマダタロウ,山田太郎,1,19800101\n4,20260921,REC-001,調剤花子\n5,1,内服,1日3回毎食後,14,1,610406001,アムロジピン,1,錠,0\n",
     )
     res1 = await execute_structured_test_command(fixture, cmd1)
-    assert res1.medication_history_id is not None
-
-    # 薬歴を確定（フォローアップ追加の前提）
-    hist_record = await fixture.medication_history_repo.get(
-        corporate_id=fixture.corporate_id,
-        record_id=MedicationHistoryRecordId.parse(res1.medication_history_id),
-    )
-    assert hist_record is not None
-    finalized_record = hist_record.update_draft(
-        method=CounselingMethod.FACE_TO_FACE,
-        handbook_status=HandbookStatus(presented=True),
-        residual_drug=ResidualDrugRecord.none_remaining(),
-        information_sheet_provided=False,
-    ).finalize(
-        counselor_id=fixture.pharmacist_id,
-        counseled_at=CounselingTimestamp(fixture.clock.now()),
-        finalized_by=fixture.pharmacist_id,
-    )
-    await fixture.medication_history_repo.save(finalized_record)
+    assert res1.medication_history_id is None
+    assert fixture.medication_history_repo.items == {}
 
     # 2. 薬品0件のNSIPSを受信（フォローアップ受付）
     cmd2 = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        operator_staff_id=str(fixture.pharmacist_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
         raw_nsips_text="1,20260921,DOC-FOLLOWUP,1310001,中央診療所,01,内科,佐藤医師\n2,P-1001,ヤマダタロウ,山田太郎,1,19800101\n",
     )
     result = await execute_structured_test_command(fixture, cmd2)
     assert result.is_follow_up_only is True
     assert result.prescription_id is None
     assert result.dispensing_id is None
-    assert result.medication_history_id == res1.medication_history_id
-    assert result.follow_up_id is not None
+    assert result.medication_history_id is None
+    assert result.follow_up_id is None
+    assert fixture.medication_history_repo.items == {}
+    follow_up_reception = max(
+        fixture.reception_repo.items.values(),
+        key=lambda reception: reception.id.value,
+    )
+    assert follow_up_reception.medication_history_id is None
+    source_data = getattr(follow_up_reception, "source_data", None)
+    assert source_data is not None
+    assert source_data.is_follow_up is True
+    assert "DOC-FOLLOWUP" in source_data.bundle_json
+
+
+@pytest.mark.asyncio
+async def test_tc09_既存受付に明示関連付けした薬歴も自動更新しない() -> None:
+    """U-fileはリンク済み薬歴を更新せず受付の受信履歴にだけ保管する。"""
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    initial = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            raw_nsips_text=(
+                "1,20260921,DOC-FOLLOWUP-LINKED,1310001,中央診療所,01,内科,佐藤医師\n"
+                "2,P-1001,ヤマダタロウ,山田太郎,1,19800101\n"
+                "4,20260921,REC-LINKED,調剤花子\n"
+                "5,1,内服,1日3回毎食後,14,1,610406001,アムロジピン,1,錠,0\n"
+            ),
+        ),
+    )
+    assert initial.medication_history_id is None
+    assert initial.dispensing_id is not None
+    dispensing = await fixture.dispensing_repo.get(
+        corporate_id=fixture.corporate_id,
+        dispensing_id=DispensingId.parse(initial.dispensing_id),
+    )
+    assert dispensing is not None
+    authored_record = finalize_record_with_review(
+        create_record(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            patient_id=PatientId.parse(initial.patient_id),
+            dispensing_id=dispensing.id,
+            prescription_id=dispensing.prescription_id,
+            counselor_id=fixture.pharmacist_id,
+            counseled_at=fixture.clock.now(),
+            soap=create_soap(subjective="患者の訴えを薬剤師が記載した。"),
+        )
+    )
+    await fixture.medication_history_repo.save(authored_record)
+    reception = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=reception_id,
+    )
+    assert reception is not None
+    assert reception.source_data is not None
+    original_source_data = reception.source_data
+    await fixture.reception_repo.save(
+        replace(reception, medication_history_id=authored_record.id)
+    )
+    authored_soap = authored_record.soap
+
+    follow_up_result = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            raw_nsips_text=(
+                "1,20260921,DOC-FOLLOWUP-LINKED,1310001,中央診療所,01,内科,佐藤医師\n"
+                "2,P-1001,ヤマダタロウ,山田太郎,1,19800101\n"
+            ),
+        ),
+    )
+
+    assert follow_up_result.is_follow_up_only is True
+    assert follow_up_result.medication_history_id == str(authored_record.id.value)
+    assert follow_up_result.follow_up_id is None
+    assert len(fixture.medication_history_repo.items) == 1
+    saved = fixture.medication_history_repo.items[authored_record.id]
+    assert saved.soap == authored_soap
+    assert saved.follow_ups == authored_record.follow_ups
+    updated_reception = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=reception_id,
+    )
+    assert updated_reception is not None
+    assert updated_reception.medication_history_id == authored_record.id
+    assert updated_reception.source_data is not None
+    assert updated_reception.source_data.is_follow_up is True
+    assert updated_reception.source_data_history == (original_source_data,)
+    assert updated_reception.source_data.bundle_json != original_source_data.bundle_json

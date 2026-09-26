@@ -10,6 +10,12 @@ from __future__ import annotations
 from http import HTTPStatus
 from typing import Any
 
+from app.domain.corporate.primitives import CorporateId
+from app.domain.patient.primitives import PatientId
+from app.domain.reception.primitives import ReceptionFingerprint, ReceptionId
+from app.domain.reception.reception import Reception
+from app.domain.store.primitives import StoreId
+from tests.factories.medication_history_factory import create_record
 from tests.fakes.fake_clock import DEFAULT_NOW
 from tests.presentational.conftest import AUTHORIZED_HEADERS, Api
 
@@ -534,6 +540,55 @@ def test_履歴が無ければ_候補はnullで返る(api: Api) -> None:
     # Assert
     assert response.status_code == HTTPStatus.OK
     assert response.json() is None
+
+
+def test_受付から薬剤師が選んだ薬歴へ明示的に関連付けできる(api: Api) -> None:
+    # Arrange
+    corporate_id = CorporateId.parse(_corporate(api))
+    store_id = StoreId.parse(_store(api, str(corporate_id.value)))
+    patient_id = PatientId.parse(_patient(api, str(corporate_id.value)))
+    history = create_record(
+        corporate_id=corporate_id,
+        store_id=store_id,
+        patient_id=patient_id,
+    )
+    reception_id = ReceptionId.generate()
+    reception = Reception(
+        id=reception_id,
+        corporate_id=corporate_id,
+        store_id=store_id,
+        patient_id=patient_id,
+        latest_fingerprint=ReceptionFingerprint("a" * 64),
+        field_fingerprints=(),
+        prescription_id=history.prescription_id,
+        dispensing_id=history.dispensing_id,
+    )
+    api.receptions.items[(corporate_id, store_id, reception_id)] = reception
+    api.medication_histories.items[history.id] = history
+
+    # Act
+    response = api.client.post(
+        f"/corporates/{corporate_id.value}"
+        f"/receptions/{reception_id.value}/medication-history",
+        json={
+            "store_id": str(store_id.value),
+            "medication_history_id": str(history.id.value),
+        },
+        headers=AUTHORIZED_HEADERS,
+    )
+
+    # Assert
+    assert response.status_code == HTTPStatus.OK, response.text
+    assert response.json() == {
+        "reception_id": str(reception_id.value),
+        "medication_history_id": str(history.id.value),
+    }
+    assert (
+        api.receptions.items[
+            (corporate_id, store_id, reception_id)
+        ].medication_history_id
+        == history.id
+    )
 
 
 # --- 医薬品マスタ -----------------------------------------------------------

@@ -21,6 +21,7 @@ from app.application.composition.medication_history_references import (
     CounselorQualificationAdapter,
     DispensingSourceAdapter,
     MedicationHistoryStoreReferenceAdapter,
+    ReceptionMedicationHistorySourceAdapter,
     StatutoryRecordSourceAdapter,
 )
 from app.application.composition.medicine_restriction_adapter import (
@@ -299,7 +300,8 @@ def build_medication_history_use_cases(
             dispensing_source,
             counselor_qualification,
             counselor,
-            clock,
+            unit_of_work,
+            ReceptionMedicationHistorySourceAdapter(repositories.reception),
         ),
         update_draft=UpdateMedicationHistoryDraftUseCase(
             record_repository, corporate_access

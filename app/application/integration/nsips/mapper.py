@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from app.application.coverage.register_patient_coverage import (
     RegisterPatientCoverageCommand,
 )
@@ -15,9 +13,7 @@ from app.application.dispensing.start_dispensing import StartDispensingCommand
 from app.application.integration.nsips.exceptions import NsipsParseError
 from app.application.integration.nsips.models import NsipsBundle
 from app.application.medication_history.inputs import (
-    AddFollowUpCommand,
     BillingAdditionInput,
-    LabeledNoteInput,
     SoapInput,
 )
 from app.application.medication_history.start_medication_history import (
@@ -333,24 +329,7 @@ class NsipsDataMapper:
         store_id: str,
         dispensing_id: str,
     ) -> StartMedicationHistoryCommand:
-        """薬歴下書き起票コマンドへ変換する。"""
-        p = bundle.prescription
-
-        med_lines: list[str] = []
-        for rp in p.rps:
-            med_names = ", ".join(m.medicine_name for m in rp.medicines)
-            prep_info = ""
-            if rp.preparation_method:
-                pm_upper = rp.preparation_method.upper()
-                if "PACKAGE" in pm_upper or "UNIT" in pm_upper or "DOSE" in pm_upper:
-                    prep_info = f" [一包化 ({rp.preparation_method})]"
-                else:
-                    prep_info = f" [{rp.preparation_method}]"
-            med_lines.append(
-                f"Rp{rp.rp_number}: {med_names} ({rp.instructions}){prep_info}"
-            )
-
-        obj_summary = "NSIPSから受信した処方・調剤内容:\n" + "\n".join(med_lines)
+        """薬歴Commandへ由来情報だけを写し、SOAP本文は生成しない。"""
 
         billing_additions = tuple(
             BillingAdditionInput(
@@ -367,43 +346,12 @@ class NsipsDataMapper:
             store_id=store_id,
             dispensing_id=dispensing_id,
             method=None,
-            soap=SoapInput(
-                objective=(LabeledNoteInput(text=obj_summary),),
-            ),
+            soap=SoapInput(),
             handbook_status=None,
             residual_drug=None,
             information_sheet_provided=None,
             profile_updates=None,
             billing_additions=billing_additions,
-            source_system="NSIPS",
-        )
-
-    @staticmethod
-    def to_follow_up_command(
-        bundle: NsipsBundle,
-        *,
-        corporate_id: str,
-        record_id: str,
-        counselor_id: str,
-        followed_up_at: datetime,
-    ) -> AddFollowUpCommand:
-        """フォローアップ記録コマンドへ変換する。"""
-        return AddFollowUpCommand(
-            corporate_id=corporate_id,
-            record_id=record_id,
-            counselor_id=counselor_id,
-            followed_up_at=followed_up_at,
-            method=None,
-            soap=SoapInput(
-                objective=(
-                    LabeledNoteInput(
-                        text="NSIPSから受信した服薬期間中フォローアップ受付"
-                    ),
-                ),
-            ),
-            handbook_status=None,
-            residual_drug=None,
-            information_sheet_provided=None,
             source_system="NSIPS",
         )
 

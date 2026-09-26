@@ -31,7 +31,10 @@ from app.domain.staff.primitives import (
     PharmacistProfile,
     StaffQualifications,
 )
-from tests.factories.medication_history_factory import create_record
+from tests.factories.medication_history_factory import (
+    create_record,
+    finalize_record_with_review,
+)
 
 
 class Test服薬指導者の資格:
@@ -71,10 +74,10 @@ class Test薬歴の一意性:
     def test_同一調剤に確定済が2件だと_拒否される(self) -> None:
         # Arrange
         corporate_id = CorporateId.generate()
-        first = create_record(corporate_id=corporate_id).finalize()
-        second = create_record(
-            corporate_id=corporate_id, dispensing_id=first.dispensing_id
-        ).finalize()
+        first = finalize_record_with_review(create_record(corporate_id=corporate_id))
+        second = finalize_record_with_review(
+            create_record(corporate_id=corporate_id, dispensing_id=first.dispensing_id)
+        )
 
         # Act / Assert
         with pytest.raises(MedicationHistoryAlreadyExistsError):
@@ -95,7 +98,9 @@ class Test薬歴の一意性:
     def test_確定済と下書きは_競合しない(self) -> None:
         # Arrange
         corporate_id = CorporateId.generate()
-        finalized = create_record(corporate_id=corporate_id).finalize()
+        finalized = finalize_record_with_review(
+            create_record(corporate_id=corporate_id)
+        )
         draft = create_record(
             corporate_id=corporate_id, dispensing_id=finalized.dispensing_id
         )
@@ -112,26 +117,30 @@ class Test薬歴の一意性:
         # Arrange
         corporate_id = CorporateId.generate()
         draft = create_record(corporate_id=corporate_id)
-        finalized = create_record(
-            corporate_id=corporate_id, dispensing_id=draft.dispensing_id
-        ).finalize()
+        finalized = finalize_record_with_review(
+            create_record(corporate_id=corporate_id, dispensing_id=draft.dispensing_id)
+        )
 
         # Act / Assert: 例外を送出しないこと自体が表明
         MedicationHistoryUniquenessService().ensure_no_conflict(finalized, [draft])
 
     def test_自分自身とは_競合しない(self) -> None:
         # Arrange
-        record = create_record().finalize()
+        record = finalize_record_with_review(create_record())
 
         # Act / Assert: 例外を送出しないこと自体が表明
         MedicationHistoryUniquenessService().ensure_no_conflict(record, [record])
 
     def test_別法人なら_同じ調剤IDでも競合しない(self) -> None:
         # Arrange
-        first = create_record(corporate_id=CorporateId.generate()).finalize()
-        second = create_record(
-            corporate_id=CorporateId.generate(), dispensing_id=first.dispensing_id
-        ).finalize()
+        first = finalize_record_with_review(
+            create_record(corporate_id=CorporateId.generate())
+        )
+        second = finalize_record_with_review(
+            create_record(
+                corporate_id=CorporateId.generate(), dispensing_id=first.dispensing_id
+            )
+        )
 
         # Act / Assert: 例外を送出しないこと自体が表明
         MedicationHistoryUniquenessService().ensure_no_conflict(second, [first])

@@ -16,7 +16,7 @@ from app.application.medication_history.get_medication_history import (
 from app.application.medication_history.reference import (
     StaffQualificationBoundary,
 )
-from app.application.medication_history.support import load_record_or_raise
+from app.application.medication_history.support import load_record_or_raise, parse_enum
 from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history.exceptions import MedicationHistoryDomainError
 from app.domain.medication_history.medication_history_record import (
@@ -28,6 +28,8 @@ from app.domain.medication_history.primitives import (
     FinalizationDelayReason,
     FinalizedTimestamp,
     MedicationHistoryRecordId,
+    MedicationHistoryReviewResult,
+    MedicationHistoryReviewTimestamp,
 )
 from app.domain.medication_history.repository import (
     MedicationHistoryCategoryCatalogRepository,
@@ -48,6 +50,7 @@ class FinalizeMedicationHistoryCommand:
     finalized_by: str | None = None
     finalized_at: datetime | None = None
     delay_reason: str | None = None
+    review_result: str | None = None
 
 
 class FinalizeMedicationHistoryUseCase:
@@ -102,30 +105,50 @@ class FinalizeMedicationHistoryUseCase:
             corporate_id=corporate_id,
             record_id=MedicationHistoryRecordId.parse(command.record_id),
         )
+        if command.review_result is None:
+            raise MedicationHistoryDomainError(
+                "薬歴確定時のレビュー結果を指定してください。"
+            )
+        review_result = parse_enum(
+            MedicationHistoryReviewResult,
+            command.review_result,
+            "薬歴レビュー結果",
+        )
+
+        actor = self._corporate_access.actor
+        if not isinstance(actor, ResolvedActorContext) or actor.staff_id is None:
+            raise AuthorizationError(
+                "薬歴の確認にはスタッフを特定できるActorが必要です。"
+            )
+        reviewer_id = actor.staff_id
         counselor_id = record.counselor_id
         counseled_at = record.counseled_at
         qualified_staff_ids: set[StaffId] = set()
+        if (
+            self._staff_qualification is not None
+            and self._counselor_service is not None
+        ):
+            qualifications = await self._staff_qualification.get_qualifications(
+                corporate_id=corporate_id, staff_id=reviewer_id
+            )
+            self._counselor_service.ensure_pharmacist(qualifications)
+            qualified_staff_ids.add(reviewer_id)
         if counselor_id is None or counseled_at is None:
-            if command.counseled_at is None:
+            if command.counseled_at is not None:
+                counselor_id = reviewer_id
+                counseled_at = CounselingTimestamp(command.counseled_at)
+            elif self._clock is not None and record.source_system is None:
+                counselor_id = reviewer_id
+                counseled_at = CounselingTimestamp(self._clock.now())
+            else:
                 raise MedicationHistoryDomainError(
                     "取込下書きを確定するには実際の指導日時が必要です。"
                 )
-            actor = self._corporate_access.actor
-            if not isinstance(actor, ResolvedActorContext) or actor.staff_id is None:
-                raise AuthorizationError(
-                    "取込下書きの確定にはスタッフを特定できるActorが必要です。"
-                )
-            counselor_id = actor.staff_id
-            counseled_at = CounselingTimestamp(command.counseled_at)
             if (
                 self._staff_qualification is not None
                 and self._counselor_service is not None
             ):
-                qualifications = await self._staff_qualification.get_qualifications(
-                    corporate_id=corporate_id, staff_id=counselor_id
-                )
-                self._counselor_service.ensure_pharmacist(qualifications)
-                qualified_staff_ids.add(counselor_id)
+                qualified_staff_ids.add(reviewer_id)
         elif command.counseled_at is not None and (
             CounselingTimestamp(command.counseled_at) != counseled_at
         ):
@@ -152,12 +175,16 @@ class FinalizeMedicationHistoryUseCase:
             )
             self._counselor_service.ensure_pharmacist(qualifications)
 
+        if self._clock is None:
+            raise MedicationHistoryDomainError(
+                "薬歴レビュー日時を記録するClockが必要です。"
+            )
+        reviewed_at = MedicationHistoryReviewTimestamp(self._clock.now())
+
         if command.finalized_at is not None:
             finalized_at = FinalizedTimestamp(command.finalized_at)
-        elif self._clock is not None:
-            finalized_at = FinalizedTimestamp(self._clock.now())
         else:
-            finalized_at = FinalizedTimestamp(counseled_at.value)
+            finalized_at = FinalizedTimestamp(self._clock.now())
 
         delay_reason = (
             FinalizationDelayReason(command.delay_reason)
@@ -178,6 +205,9 @@ class FinalizeMedicationHistoryUseCase:
             finalized_at=finalized_at,
             finalized_by=finalized_by,
             delay_reason=delay_reason,
+            review_result=review_result,
+            reviewed_by=reviewer_id,
+            reviewed_at=reviewed_at,
         )
         await self._record_repository.save(finalized)
         await self._project_to_profile(finalized)

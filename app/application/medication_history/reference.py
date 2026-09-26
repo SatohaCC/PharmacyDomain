@@ -7,11 +7,15 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol
 
+from app.application.medication_history.inputs import BillingAdditionInput
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.primitives import DispensingId
+from app.domain.medication_history.primitives import MedicationHistoryRecordId
 from app.domain.medication_history.value_objects import StatutoryRecordSource
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import PrescriptionId
@@ -58,6 +62,45 @@ class DispensingReferenceBoundary(Protocol):
             MedicationHistoryDispensingNotFoundError: 未存在または別法人の
                 調剤セッションである場合。
         """
+        ...
+
+
+@dataclass(frozen=True, kw_only=True)
+class ReceptionMedicationHistorySource:
+    """初回保存へ引き継ぐ受付由来情報。"""
+
+    patient_id: PatientId
+    prescription_id: PrescriptionId | None
+    dispensing_id: DispensingId | None
+    medication_history_id: MedicationHistoryRecordId | None
+    source_system: str | None
+    imported_at: datetime | None
+    is_follow_up: bool
+    billing_additions: tuple[BillingAdditionInput, ...]
+
+
+class ReceptionMedicationHistoryBoundary(Protocol):
+    """受付から由来情報を読み、保存した薬歴との関連を更新する境界。"""
+
+    async def get_for_initial_save(
+        self,
+        *,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+        reception_id: str,
+    ) -> ReceptionMedicationHistorySource | None:
+        """受付が存在すれば調剤IDと受信由来情報を返す。"""
+        ...
+
+    async def associate_medication_history(
+        self,
+        *,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+        reception_id: str,
+        medication_history_id: MedicationHistoryRecordId,
+    ) -> None:
+        """受付を初回保存した薬歴へ関連付ける。"""
         ...
 
 

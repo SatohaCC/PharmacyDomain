@@ -22,11 +22,15 @@ from app.domain.medication_history.primitives import (
     CounselingMethod,
     CounselingNote,
     CounselingTimestamp,
+    FinalizationDelayReason,
+    FinalizedTimestamp,
     FollowUpId,
     GenericPreferenceType,
     HandbookNotPresentedReason,
     LifestyleNote,
     MedicationHistoryImportTimestamp,
+    MedicationHistoryReviewResult,
+    MedicationHistoryReviewTimestamp,
     MedicationHistorySourceSystem,
     PhysicianName,
     PrescriberActionType,
@@ -294,6 +298,43 @@ def create_record(
     )
 
 
+def finalize_record_with_review(
+    record: MedicationHistoryRecord,
+    *,
+    review_result: MedicationHistoryReviewResult = MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED,
+    counselor_id: StaffId | None = None,
+    counseled_at: CounselingTimestamp | None = None,
+    finalized_at: FinalizedTimestamp | None = None,
+    finalized_by: StaffId | None = None,
+    delay_reason: FinalizationDelayReason | None = None,
+    reviewed_by: StaffId | None = None,
+    reviewed_at: MedicationHistoryReviewTimestamp | None = None,
+) -> MedicationHistoryRecord:
+    """レビュー入力を明示して薬歴を確定するテストヘルパー。"""
+    actual_counselor_id = counselor_id or record.counselor_id
+    actual_counseled_at = counseled_at or record.counseled_at
+    actual_reviewed_by = reviewed_by or actual_counselor_id or StaffId.generate()
+    actual_reviewed_at = (
+        reviewed_at
+        or (
+            MedicationHistoryReviewTimestamp(actual_counseled_at.value)
+            if actual_counseled_at is not None
+            else None
+        )
+        or MedicationHistoryReviewTimestamp(COUNSELED_AT)
+    )
+    return record.finalize(
+        counselor_id=actual_counselor_id,
+        counseled_at=actual_counseled_at,
+        finalized_at=finalized_at,
+        finalized_by=finalized_by,
+        delay_reason=delay_reason,
+        review_result=review_result,
+        reviewed_by=actual_reviewed_by,
+        reviewed_at=actual_reviewed_at,
+    )
+
+
 def create_nsips_draft_record(
     *,
     imported_at: datetime = datetime(2026, 8, 24, 4, 0, tzinfo=UTC),
@@ -486,7 +527,7 @@ def create_record_for(
         counselor_id=counselor_id,
         soap=soap,
     )
-    return record.finalize() if finalized else record
+    return finalize_record_with_review(record) if finalized else record
 
 
 def create_tracing_report(

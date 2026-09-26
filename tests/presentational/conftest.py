@@ -33,6 +33,9 @@ from tests.fakes.in_memory_corporate_repository import InMemoryCorporateReposito
 from tests.fakes.in_memory_coverage_selection_record_repository import (
     InMemoryCoverageSelectionRecordRepository,
 )
+from tests.fakes.in_memory_medication_history_repository import (
+    InMemoryMedicationHistoryRepository,
+)
 from tests.fakes.in_memory_medicine_catalog_repository import (
     InMemoryMedicineCatalogRepository,
 )
@@ -43,6 +46,7 @@ from tests.fakes.in_memory_patient_repository import (
     InMemoryPatientExternalIdentifierRepository,
     InMemoryPatientRepository,
 )
+from tests.fakes.in_memory_reception_repository import InMemoryReceptionRepository
 from tests.fakes.in_memory_staff_repository import InMemoryStaffRepository
 from tests.fakes.in_memory_store_repository import InMemoryStoreRepository
 from tests.fakes.stub_actor_context_provider import (
@@ -76,6 +80,8 @@ class Api:
     external_identifiers: InMemoryPatientExternalIdentifierRepository
     coverages: InMemoryPatientCoverageRepository
     selection_records: InMemoryCoverageSelectionRecordRepository
+    receptions: InMemoryReceptionRepository
+    medication_histories: InMemoryMedicationHistoryRepository
     medicines: InMemoryMedicineCatalogRepository
     clock: FakeClock
 
@@ -90,6 +96,8 @@ def api() -> Iterator[Api]:
     external_identifiers = InMemoryPatientExternalIdentifierRepository()
     coverages = InMemoryPatientCoverageRepository()
     selection_records = InMemoryCoverageSelectionRecordRepository()
+    receptions = InMemoryReceptionRepository()
+    medication_histories = InMemoryMedicationHistoryRepository()
     medicines = InMemoryMedicineCatalogRepository()
     clock = FakeClock()
 
@@ -108,7 +116,14 @@ def api() -> Iterator[Api]:
                 coverages, patients, corporates
             ),
             get_reception_use_cases: lambda: create_reception_use_cases(
-                selection_records, stores, patients, coverages, corporates, clock
+                selection_records,
+                receptions,
+                medication_histories,
+                stores,
+                patients,
+                coverages,
+                corporates,
+                clock,
             ),
             get_medicine_catalog_use_cases: lambda: create_medicine_catalog_use_cases(
                 medicines
@@ -127,6 +142,8 @@ def api() -> Iterator[Api]:
         external_identifiers=external_identifiers,
         coverages=coverages,
         selection_records=selection_records,
+        receptions=receptions,
+        medication_histories=medication_histories,
         medicines=medicines,
         clock=clock,
     )

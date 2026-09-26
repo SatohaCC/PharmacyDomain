@@ -99,6 +99,10 @@ class FinalizedTimestamp(BaseAwareTimestamp):
     timestamp_name: ClassVar[str] = "確定日時"
 
 
+class MedicationHistoryReviewTimestamp(BaseAwareTimestamp):
+    """薬剤師が確定内容を確認したUTC時刻。"""
+
+
 class ExternalCorrectionTimestamp(BaseAwareTimestamp):
     """外部処方訂正を検知・記録したUTC日時。"""
 
@@ -133,6 +137,13 @@ class MedicationHistoryStatus(StrEnum):
     def is_finalized(self) -> bool:
         """確定済か。"""
         return self is MedicationHistoryStatus.FINALIZED
+
+
+class MedicationHistoryReviewResult(StrEnum):
+    """薬歴確定時に薬剤師が選択する確認結果。"""
+
+    ASSESSMENT_AND_INSTRUCTION_RECORDED = "assessment_and_instruction_recorded"
+    NO_ADDITIONAL_RECORDABLE_ITEMS = "no_additional_recordable_items"
 
 
 class CounselingMethod(StrEnum):

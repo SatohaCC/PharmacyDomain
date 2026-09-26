@@ -71,7 +71,10 @@ from app.infrastructure.postgres.repositories.patient_medical_profile import (
 )
 from app.infrastructure.postgres.repositories.staff import PostgresStaffRepository
 from app.infrastructure.postgres.repositories.store import PostgresStoreRepository
-from tests.factories.medication_history_factory import create_record
+from tests.factories.medication_history_factory import (
+    create_record,
+    finalize_record_with_review,
+)
 from tests.factories.medicine_catalog_factory import create_identifier, create_medicine
 from tests.factories.persistence_factory import (
     create_coverage,
@@ -625,10 +628,10 @@ async def test_同一調剤の確定済薬歴の重複が_業務例外になる(
     """1回の調剤に対する指導記録が二重になると、算定も投影も二重になる。"""
     # Arrange
     corporate_id = CorporateId.generate()
-    first = create_record(corporate_id=corporate_id).finalize()
-    duplicate = create_record(
-        corporate_id=corporate_id, dispensing_id=first.dispensing_id
-    ).finalize()
+    first = finalize_record_with_review(create_record(corporate_id=corporate_id))
+    duplicate = finalize_record_with_review(
+        create_record(corporate_id=corporate_id, dispensing_id=first.dispensing_id)
+    )
 
     unit_of_work = PostgresUnitOfWork(session_factory)
     async with unit_of_work:

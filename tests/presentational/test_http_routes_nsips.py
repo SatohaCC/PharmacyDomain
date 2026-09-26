@@ -45,7 +45,7 @@ def test_tc45_未確認版raw形式のPOSTは422で拒否し書込みを行わ�
     corp_id = str(nsips_fixture.corporate_id.value)
     store_id = str(nsips_fixture.store_id.value)
     payload = {
-        "operator_staff_id": str(nsips_fixture.pharmacist_id.value),
+        "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
         "reception_id": str(uuid.uuid7()),
         "raw_nsips_text": "1,20260921,DOC-001,1310001,中央診療所,01,内科,佐藤医師\n2,P-1001,ヤマダタロウ,山田太郎,1,19800101\n4,20260921,REC-001,調剤花子\n5,1,内服,1日3回毎食後,14,1,610406001,アムロジピン,1,錠,0\n",
     }
@@ -65,7 +65,7 @@ def test_構造化JSONペイロードのPOSTが201を返す(
     corp_id = str(nsips_fixture.corporate_id.value)
     store_id = str(nsips_fixture.store_id.value)
     payload = {
-        "operator_staff_id": str(nsips_fixture.pharmacist_id.value),
+        "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
         "reception_id": str(uuid.uuid7()),
         "structured_bundle": {
             "header_version": "1.0",
@@ -111,7 +111,7 @@ def test_tc50_受付IDがないかUUIDv7でなければ書込み前に422(
 ) -> None:
     """受付IDは呼出元が発行したUUIDv7に限り、必須入力として扱う。"""
     payload: dict[str, Any] = {
-        "operator_staff_id": str(nsips_fixture.pharmacist_id.value),
+        "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
         "structured_bundle": _valid_structured_bundle(),
     }
     if invalid_kind == "malformed":
@@ -138,7 +138,7 @@ def test_重複処方の再送が200_OKを返す(
     structured_bundle = _valid_structured_bundle()
     structured_bundle["prescription"]["document_number"] = "DOC-DUP"
     payload = {
-        "operator_staff_id": str(nsips_fixture.pharmacist_id.value),
+        "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
         "reception_id": str(uuid.uuid7()),
         "structured_bundle": structured_bundle,
     }
@@ -165,7 +165,7 @@ def test_構文不正テキストのPOSTが422を返す(
     corp_id = str(nsips_fixture.corporate_id.value)
     store_id = str(nsips_fixture.store_id.value)
     payload = {
-        "operator_staff_id": str(nsips_fixture.pharmacist_id.value),
+        "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
         "reception_id": str(uuid.uuid7()),
         "raw_nsips_text": "INVALID SYNTAX TEXT",
     }
@@ -185,7 +185,7 @@ def test_未認証のPOSTが401を返す(
     corp_id = str(nsips_fixture.corporate_id.value)
     store_id = str(nsips_fixture.store_id.value)
     payload = {
-        "operator_staff_id": str(nsips_fixture.pharmacist_id.value),
+        "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
         "reception_id": str(uuid.uuid7()),
         "raw_nsips_text": "1,20260921,DOC-001,1310001,中央診療所,01,内科,佐藤医師\n",
     }
@@ -203,7 +203,7 @@ def test_tc40_構造化JSONによる保険_調剤日_加算の取込(
     corp_id = str(nsips_fixture.corporate_id.value)
     store_id = str(nsips_fixture.store_id.value)
     payload = {
-        "operator_staff_id": str(nsips_fixture.pharmacist_id.value),
+        "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
         "reception_id": str(uuid.uuid7()),
         "structured_bundle": {
             "header_version": "1.0",
@@ -265,7 +265,8 @@ def test_tc40_構造化JSONによる保険_調剤日_加算の取込(
     data = response.json()
     assert data["prescription_id"] is not None
     assert data["dispensing_id"] is not None
-    assert data["medication_history_id"] is not None
+    assert data["medication_history_id"] is None
+    assert nsips_fixture.medication_history_repo.items == {}
     assert data["coverage_selection_record_id"] is not None
     assert data["dispensed_date"] == "2026-09-22"
     assert "特定薬剤管理指導加算２" in data["addition_names"]
@@ -295,7 +296,7 @@ def test_tc48_構造化保険の必須値が空なら422で拒否する(
     response = client.post(
         f"/corporates/{nsips_fixture.corporate_id.value}/stores/{nsips_fixture.store_id.value}/integrations/nsips",
         json={
-            "operator_staff_id": str(nsips_fixture.pharmacist_id.value),
+            "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
             "reception_id": str(uuid.uuid7()),
             "structured_bundle": structured_bundle,
         },
@@ -393,7 +394,7 @@ def test_tc37_構造化JSONの必須項目欠損は422で拒否する(
     response = client.post(
         f"/corporates/{nsips_fixture.corporate_id.value}/stores/{nsips_fixture.store_id.value}/integrations/nsips",
         json={
-            "operator_staff_id": str(nsips_fixture.pharmacist_id.value),
+            "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
             "reception_id": str(uuid.uuid7()),
             "structured_bundle": structured_bundle,
         },
@@ -422,7 +423,7 @@ def test_tc38_構造化JSONの型と形式不正は422で拒否する(
     response = client.post(
         f"/corporates/{nsips_fixture.corporate_id.value}/stores/{nsips_fixture.store_id.value}/integrations/nsips",
         json={
-            "operator_staff_id": str(nsips_fixture.pharmacist_id.value),
+            "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
             "reception_id": str(uuid.uuid7()),
             "structured_bundle": structured_bundle,
         },
@@ -441,7 +442,7 @@ def test_tc39_rawと構造化入力はちょうど一方だけ受け付ける(
 ) -> None:
     """rawテキストと構造化入力の両方指定・両方未指定を422にする。"""
     payload: dict[str, Any] = {
-        "operator_staff_id": str(nsips_fixture.pharmacist_id.value),
+        "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
     }
     if source_mode == "both":
         payload["raw_nsips_text"] = "INVALID"

@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from dataclasses import dataclass, fields, is_dataclass, replace
+from dataclasses import asdict, dataclass, fields, is_dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -25,14 +25,6 @@ from app.application.integration.nsips.exceptions import NsipsParseError
 from app.application.integration.nsips.mapper import NsipsDataMapper
 from app.application.integration.nsips.models import NsipsBundle
 from app.application.integration.nsips.parser import NsipsParser
-from app.application.medication_history.add_follow_up import AddFollowUpUseCase
-from app.application.medication_history.get_medication_history import (
-    ListMedicationHistoriesByPatientUseCase,
-    ListMedicationHistoriesQuery,
-)
-from app.application.medication_history.start_medication_history import (
-    StartMedicationHistoryUseCase,
-)
 from app.application.patient.register_patient import RegisterPatientUseCase
 from app.application.patient.register_patient_external_identifier import (
     RegisterPatientExternalIdentifierCommand,
@@ -101,7 +93,12 @@ from app.domain.reception.primitives import (
     ReceptionFingerprint,
     ReceptionId,
 )
-from app.domain.reception.reception import Reception, ReceptionCorrection
+from app.domain.reception.reception import (
+    Reception,
+    ReceptionBillingAddition,
+    ReceptionCorrection,
+    ReceptionSourceData,
+)
 from app.domain.reception.repository import ReceptionRepository
 from app.domain.shared.person_name import PersonNames
 from app.domain.store.primitives import StoreId
@@ -148,7 +145,7 @@ class IngestNsipsCommand:
 
     corporate_id: str
     store_id: str
-    operator_staff_id: str
+    dispenser_staff_id: str
     reception_id: str | None = None
     raw_nsips_text: str | None = None
     structured_bundle: NsipsBundle | None = None
@@ -197,10 +194,6 @@ class IngestNsipsUseCase:
         register_prescription_use_case: RegisterPrescriptionUseCase,
         ready_for_dispensing_use_case: ReadyForDispensingUseCase,
         start_dispensing_use_case: StartDispensingUseCase,
-        start_medication_history_use_case: StartMedicationHistoryUseCase,
-        add_follow_up_use_case: AddFollowUpUseCase | None = None,
-        list_medication_histories_use_case: ListMedicationHistoriesByPatientUseCase
-        | None = None,
         medication_history_repo: MedicationHistoryRepository | None = None,
         patient_coverage_repo: PatientCoverageRepository | None = None,
         register_coverage_use_case: RegisterPatientCoverageUseCase | None = None,
@@ -217,9 +210,7 @@ class IngestNsipsUseCase:
         self._patient_repo = patient_repo
         self._prescription_repo = prescription_repo
         self._dispensing_repo = dispensing_repo
-        self._medication_history_repo = medication_history_repo or getattr(
-            start_medication_history_use_case, "_repository", None
-        )
+        self._medication_history_repo = medication_history_repo
         self._patient_coverage_repo = patient_coverage_repo
         self._register_coverage_use_case = register_coverage_use_case
         self._record_coverage_selection_use_case = record_coverage_selection_use_case
@@ -231,9 +222,6 @@ class IngestNsipsUseCase:
         self._register_prescription_use_case = register_prescription_use_case
         self._ready_for_dispensing_use_case = ready_for_dispensing_use_case
         self._start_dispensing_use_case = start_dispensing_use_case
-        self._start_medication_history_use_case = start_medication_history_use_case
-        self._add_follow_up_use_case = add_follow_up_use_case
-        self._list_medication_histories_use_case = list_medication_histories_use_case
         self._parser = parser or NsipsParser()
         self._mapper = mapper or NsipsDataMapper()
         self._clock = clock
@@ -312,6 +300,57 @@ class IngestNsipsUseCase:
             separators=(",", ":"),
         ).encode("utf-8")
         return ReceptionFingerprint(hashlib.sha256(encoded).hexdigest())
+
+    @staticmethod
+    def _source_data(
+        bundle: NsipsBundle,
+        *,
+        imported_at: datetime,
+        is_follow_up: bool,
+    ) -> ReceptionSourceData:
+        """受信BundleをSOAPと分けたJSONB用スナップショットにする。"""
+
+        def encode(value: object) -> str:
+            if isinstance(value, (datetime, date)):
+                return value.isoformat()
+            if isinstance(value, Decimal):
+                return str(value)
+            raise TypeError(f"受付Bundleに未対応の値があります: {type(value).__name__}")
+
+        return ReceptionSourceData(
+            bundle_json=json.dumps(
+                asdict(bundle),
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                default=encode,
+            ),
+            imported_at=imported_at,
+            is_follow_up=is_follow_up,
+            billing_additions=tuple(
+                ReceptionBillingAddition(
+                    code=addition.code,
+                    name=addition.name,
+                    points=addition.points,
+                    quantity=addition.quantity,
+                )
+                for addition in bundle.additions
+            ),
+        )
+
+    @staticmethod
+    def _replace_source_data(
+        reception: Reception, source_data: ReceptionSourceData
+    ) -> Reception:
+        """新しい受信内容を最新値と履歴の両方へ記録する。"""
+        history = reception.source_data_history
+        if reception.source_data is not None:
+            history = (*history, reception.source_data)
+        return replace(
+            reception,
+            source_data=source_data,
+            source_data_history=history,
+        )
 
     @staticmethod
     def _changed_fields(
@@ -534,6 +573,12 @@ class IngestNsipsUseCase:
         # 2. 安定受付IDで受付と関連集約を照合する。
         incoming_fingerprints = self._fingerprint_bundle(bundle)
         incoming_fingerprint = self._combined_fingerprint(incoming_fingerprints)
+        received_at = self._clock.now()
+        source_data = self._source_data(
+            bundle,
+            imported_at=received_at,
+            is_follow_up=not bool(bundle.prescription.rps),
+        )
         existing_reception = await self._reception_repo.get(
             corporate_id=corporate_id,
             store_id=store_id,
@@ -570,6 +615,64 @@ class IngestNsipsUseCase:
                     patient_name=bundle.patient.kanji_name,
                     is_new_patient=False,
                     is_duplicate=True,
+                    is_follow_up_only=not bool(bundle.prescription.rps),
+                    has_pending_correction_review=False,
+                    coverage_review_required=coverage_review_reason is not None,
+                    coverage_review_reason=coverage_review_reason,
+                )
+
+            if not bundle.prescription.rps:
+                changed_fields = self._changed_fields(
+                    previous=existing_reception.field_fingerprints,
+                    incoming=incoming_fingerprints,
+                )
+                if not existing_reception.field_fingerprints:
+                    changed_fields = tuple(path for path, _ in incoming_fingerprints)
+                linked_history_id = existing_reception.medication_history_id
+                correction = ReceptionCorrection(
+                    fingerprint=incoming_fingerprint,
+                    changed_fields=changed_fields,
+                    received_at=received_at,
+                )
+                updated_reception = self._replace_source_data(
+                    existing_reception, source_data
+                )
+                await self._reception_repo.save(
+                    replace(
+                        updated_reception,
+                        latest_fingerprint=incoming_fingerprint,
+                        field_fingerprints=incoming_fingerprints,
+                        correction_history=(
+                            *existing_reception.correction_history,
+                            correction,
+                        ),
+                    )
+                )
+                return IngestNsipsResultDto(
+                    corporate_id=command.corporate_id,
+                    store_id=command.store_id,
+                    patient_id=str(existing_reception.patient_id.value),
+                    prescription_id=(
+                        str(existing_reception.prescription_id.value)
+                        if existing_reception.prescription_id is not None
+                        else None
+                    ),
+                    dispensing_id=(
+                        str(existing_reception.dispensing_id.value)
+                        if existing_reception.dispensing_id is not None
+                        else None
+                    ),
+                    medication_history_id=(
+                        str(linked_history_id.value)
+                        if linked_history_id is not None
+                        else None
+                    ),
+                    follow_up_id=None,
+                    document_number=doc_num,
+                    patient_name=bundle.patient.kanji_name,
+                    is_new_patient=False,
+                    is_duplicate=False,
+                    is_follow_up_only=True,
                     has_pending_correction_review=False,
                     coverage_review_required=coverage_review_reason is not None,
                     coverage_review_reason=coverage_review_reason,
@@ -667,20 +770,16 @@ class IngestNsipsUseCase:
                 has_reviewable_change
                 and existing_prescription is not None
                 and self._medication_history_repo is not None
+                and existing_reception.medication_history_id is not None
             ):
-                records = await self._medication_history_repo.list_by_patient(
+                matching_record = await self._medication_history_repo.get(
                     corporate_id=corporate_id,
-                    patient_id=existing_prescription.patient_id,
+                    record_id=existing_reception.medication_history_id,
                 )
-                matching_record = next(
-                    (
-                        r
-                        for r in records
-                        if r.prescription_id == existing_prescription.id
-                    ),
-                    None,
-                )
-                if matching_record is not None:
+                if (
+                    matching_record is not None
+                    and matching_record.prescription_id == existing_prescription.id
+                ):
                     matching_history_id_str = str(matching_record.id.value)
                     matching_dispensing_id_str = str(
                         matching_record.dispensing_id.value
@@ -698,7 +797,7 @@ class IngestNsipsUseCase:
                     has_pending_review = not quantity_correction_applied
                     if has_pending_review:
                         now_utc = self._clock.now()
-                        correction = ExternalPrescriptionCorrection(
+                        external_correction = ExternalPrescriptionCorrection(
                             correction_id=f"corr-{uuid.uuid7()}",
                             corrected_at=ExternalCorrectionTimestamp(now_utc),
                             source_document_number=doc_num,
@@ -706,18 +805,21 @@ class IngestNsipsUseCase:
                             details=diff_summary,
                         )
                         updated_history = matching_record.record_external_correction(
-                            correction
+                            external_correction
                         )
                         await self._medication_history_repo.save(updated_history)
 
             reception_correction = ReceptionCorrection(
                 fingerprint=incoming_fingerprint,
                 changed_fields=changed_fields,
-                received_at=self._clock.now(),
+                received_at=received_at,
+            )
+            updated_reception = self._replace_source_data(
+                existing_reception, source_data
             )
             await self._reception_repo.save(
                 replace(
-                    existing_reception,
+                    updated_reception,
                     latest_fingerprint=incoming_fingerprint,
                     field_fingerprints=incoming_fingerprints,
                     correction_history=(
@@ -871,18 +973,9 @@ class IngestNsipsUseCase:
                 corporate_id=command.corporate_id,
                 store_id=command.store_id,
                 prescription_id=presc_dto.id,
-                dispenser_id=command.operator_staff_id,
+                dispenser_id=command.dispenser_staff_id,
             )
             disp_dto = await self._start_dispensing_use_case.execute(disp_cmd)
-
-            # 4.5 薬歴下書き自動起票
-            hist_cmd = self._mapper.to_medication_history_command(
-                bundle,
-                corporate_id=command.corporate_id,
-                store_id=command.store_id,
-                dispensing_id=disp_dto.id,
-            )
-            hist_dto = await self._start_medication_history_use_case.execute(hist_cmd)
 
             disp_date_str = bundle.dispensed_date.isoformat()
             addition_names = tuple(add.name for add in bundle.additions)
@@ -895,9 +988,9 @@ class IngestNsipsUseCase:
                     patient_id=PatientId.parse(patient_id_str),
                     prescription_id=PrescriptionId.parse(presc_dto.id),
                     dispensing_id=DispensingId.parse(disp_dto.id),
-                    medication_history_id=MedicationHistoryRecordId.parse(hist_dto.id),
                     latest_fingerprint=incoming_fingerprint,
                     field_fingerprints=incoming_fingerprints,
+                    source_data=source_data,
                 )
             )
 
@@ -907,7 +1000,7 @@ class IngestNsipsUseCase:
                 patient_id=patient_id_str,
                 prescription_id=presc_dto.id,
                 dispensing_id=disp_dto.id,
-                medication_history_id=hist_dto.id,
+                medication_history_id=None,
                 document_number=doc_num,
                 patient_name=bundle.patient.kanji_name,
                 is_new_patient=is_new_patient,
@@ -926,30 +1019,6 @@ class IngestNsipsUseCase:
         follow_up_id: str | None = None
         record_id: str | None = None
 
-        if (
-            self._list_medication_histories_use_case is not None
-            and self._add_follow_up_use_case is not None
-        ):
-            histories = await self._list_medication_histories_use_case.execute(
-                ListMedicationHistoriesQuery(
-                    corporate_id=command.corporate_id,
-                    patient_id=patient_id_str,
-                )
-            )
-            if histories:
-                record_id = histories[0].id
-                now_dt = self._clock.now()
-                fu_cmd = self._mapper.to_follow_up_command(
-                    bundle,
-                    corporate_id=command.corporate_id,
-                    record_id=record_id,
-                    counselor_id=command.operator_staff_id,
-                    followed_up_at=now_dt,
-                )
-                updated_history = await self._add_follow_up_use_case.execute(fu_cmd)
-                if updated_history.follow_ups:
-                    follow_up_id = updated_history.follow_ups[-1].id
-
         await self._reception_repo.save(
             Reception(
                 id=reception_id,
@@ -965,6 +1034,7 @@ class IngestNsipsUseCase:
                 ),
                 latest_fingerprint=incoming_fingerprint,
                 field_fingerprints=incoming_fingerprints,
+                source_data=source_data,
             )
         )
 
