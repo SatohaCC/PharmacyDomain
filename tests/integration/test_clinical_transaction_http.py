@@ -36,7 +36,14 @@ from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.primitives import DispensingProcessStatus
 from app.domain.identity.account_person import AccountPerson
-from app.domain.identity.primitives import UserAccountId
+from app.domain.identity.membership import CorporateMembership
+from app.domain.identity.primitives import (
+    CorporateMembershipId,
+    ExternalSubjectKey,
+    MembershipRole,
+    UserAccountId,
+)
+from app.domain.identity.staff_person_link import StaffPersonLink
 from app.domain.identity.user_account import UserAccount
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
@@ -46,9 +53,11 @@ from app.domain.medication_history.value_objects import ProfileUpdateIntents
 from app.domain.prescription.prescription import Prescription
 from app.domain.prescription.primitives import PrescriptionStatus
 from app.domain.staff.primitives import (
+    AffiliationPeriod,
     PharmacistLicenseNumber,
     PharmacistProfile,
     StaffQualifications,
+    StoreAffiliation,
 )
 from app.infrastructure.di.root import PostgresCompositionRoot
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
@@ -75,6 +84,7 @@ from tests.integration.test_identity_persistence import _person
 
 #: 一時的に張る拒否制約の名前。後始末できたことを名前で確かめる。
 _REJECT_PROFILE_CONSTRAINT = "test_reject_profile_writes"
+_PHARMACIST_SUBJECT = "issuer/integration-clinical-pharmacist"
 
 _CLOCK = FakeClock(datetime(2026, 9, 20, 3, tzinfo=UTC))
 
@@ -112,7 +122,9 @@ async def setup_clinical(
     store = create_store(corporate_id=corporate.id)
     person = _person()
     account = UserAccount(
-        id=UserAccountId.generate(), person_id=person.id, is_vendor_admin=True
+        id=UserAccountId.generate(),
+        person_id=person.id,
+        external_subject=ExternalSubjectKey(_PHARMACIST_SUBJECT),
     )
     # 受付済のままでは調剤済へ遷移できない。実運用でも調剤開始前に確定させる。
     prescription = replace(
@@ -132,6 +144,21 @@ async def setup_clinical(
         qualifications=StaffQualifications.from_profiles(
             PharmacistProfile(license_number=PharmacistLicenseNumber("123456"))
         ),
+        affiliations=(
+            StoreAffiliation(
+                store_id=store.id,
+                is_primary=True,
+                period=AffiliationPeriod(start_date=date(2026, 1, 1)),
+            ),
+        ),
+    )
+    membership = CorporateMembership(
+        id=CorporateMembershipId.generate(),
+        account_id=account.id,
+        corporate_id=corporate.id,
+        role=MembershipRole.STORE_OPERATOR,
+        store_ids=frozenset({store.id}),
+        staff_id=pharmacist.id,
     )
     record = create_record(
         corporate_id=corporate.id,
@@ -150,6 +177,14 @@ async def setup_clinical(
         await repositories.account_person.save(person)
         await repositories.user_account.save(account)
         await repositories.staff.save(pharmacist)
+        await repositories.staff_person_link.save(
+            StaffPersonLink(
+                id=pharmacist.id,
+                corporate_id=corporate.id,
+                person_id=person.id,
+            )
+        )
+        await repositories.membership.save(membership)
         if with_prescription:
             await repositories.prescription.save(prescription)
         await repositories.dispensing.save(process)
@@ -157,7 +192,13 @@ async def setup_clinical(
         await work.commit()
 
     return ClinicalFixture(
-        app=_clinical_app(engine, session_factory, person=person, account=account),
+        app=_clinical_app(
+            engine,
+            session_factory,
+            person=person,
+            account=account,
+            membership=membership,
+        ),
         corporate_id=corporate.id,
         person=person,
         account=account,
@@ -173,14 +214,19 @@ def _clinical_app(
     *,
     person: AccountPerson,
     account: UserAccount,
+    membership: CorporateMembership,
 ) -> FastAPI:
     """本番の組み立てを使い、認証だけを固定した操作主体へ差し替える。"""
     provider = StubActorContextProvider(
         ResolvedActorContext(
-            principal_id="integration-vendor-admin",
-            roles=frozenset({ActorRole.VENDOR_SYSTEM_ADMIN}),
+            principal_id=_PHARMACIST_SUBJECT,
+            roles=frozenset({ActorRole.STORE_OPERATOR}),
             person_id=person.id,
             account_id=account.id,
+            membership_id=membership.id,
+            corporate_id=membership.corporate_id,
+            staff_id=membership.staff_id,
+            store_ids=membership.store_ids,
         )
     )
     app = create_app(actor_provider=provider)
