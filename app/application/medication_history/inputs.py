@@ -206,6 +206,8 @@ class AddFollowUpCommand:
 
     corporate_id: str
     record_id: str
+    store_id: str
+    patient_id: str
     counselor_id: str
     followed_up_at: datetime
     method: str | None

@@ -77,6 +77,7 @@ from app.domain.prescription.repository import PrescriptionRepository
 from tests.factories.dispensing_factory import create_dispensing
 from tests.factories.medication_history_factory import (
     create_allergy_intent,
+    create_independent_follow_up_record,
     create_record,
     finalize_record_with_review,
 )
@@ -774,6 +775,40 @@ async def test_薬歴の調剤検索_下書きは_返らない(
 
     # Assert
     assert actual is None
+
+
+@pytest.mark.parametrize(
+    "repository_type",
+    _MEDICATION_HISTORY_REPOSITORIES,
+    ids=lambda cls: cls.__name__,
+)
+async def test_tc39_薬歴の調剤検索は_複数フォローアップより初回を返す(
+    repository_type: type[MedicationHistoryRepository],
+) -> None:
+    """FOLLOW_UP が新しくても調剤の初回薬歴を返す。"""
+    repository = repository_type()
+    corporate_id, dispensing_id = CorporateId.generate(), DispensingId.generate()
+    initial = finalize_record_with_review(
+        create_record(corporate_id=corporate_id, dispensing_id=dispensing_id)
+    )
+    first_follow_up = create_independent_follow_up_record(
+        initial,
+        counseled_at=datetime(2026, 8, 27, 5, 0, tzinfo=UTC),
+        finalized=True,
+    )
+
+    # 後から追加された FOLLOW_UP を先に保存し、Repository が種別で選ぶことを確認する。
+    await repository.save(first_follow_up)
+    await repository.save(initial)
+
+    actual = await repository.get_by_dispensing(
+        corporate_id=corporate_id,
+        dispensing_id=dispensing_id,
+    )
+
+    assert actual is not None
+    assert actual.id == initial.id
+    assert actual.record_kind.value == "initial"
 
 
 @pytest.mark.parametrize(

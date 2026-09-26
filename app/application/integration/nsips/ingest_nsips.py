@@ -61,6 +61,7 @@ from app.domain.medication_history.medication_history_record import (
 from app.domain.medication_history.primitives import (
     ExternalCorrectionTimestamp,
     MedicationHistoryRecordId,
+    MedicationHistoryRecordKind,
 )
 from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.value_objects import ExternalPrescriptionCorrection
@@ -1322,7 +1323,12 @@ class IngestNsipsUseCase:
                 patient_id=existing.patient_id,
             )
             matching_history = next(
-                (item for item in histories if item.prescription_id == existing.id),
+                (
+                    item
+                    for item in histories
+                    if item.prescription_id == existing.id
+                    and item.record_kind is MedicationHistoryRecordKind.INITIAL
+                ),
                 None,
             )
             if matching_history is not None:

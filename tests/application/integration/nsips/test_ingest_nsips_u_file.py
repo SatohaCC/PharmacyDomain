@@ -41,6 +41,7 @@ from app.domain.medication_history.primitives import (
     CounselingMethod,
     CounselingTimestamp,
     MedicationHistoryImportTimestamp,
+    MedicationHistoryRecordKind,
     MedicationHistoryReviewResult,
     MedicationHistoryReviewTimestamp,
     MedicationHistorySourceSystem,
@@ -62,13 +63,19 @@ from app.domain.prescription.primitives import (
 )
 from app.domain.reception.primitives import ReceptionId
 from app.domain.reception.reception import ReceptionSourceData
+from app.domain.store.primitives import StoreId
 from tests.application.access_helpers import create_vendor_corporate_access_for
 from tests.application.integration.nsips.helpers import (
     NsipsFixture,
     create_fixture,
     execute_structured_test_command,
 )
-from tests.factories.medication_history_factory import create_record, create_soap
+from tests.factories.medication_history_factory import (
+    create_independent_follow_up_record,
+    create_record,
+    create_soap,
+    finalize_record_with_review,
+)
 
 
 async def _save_history_after_pharmacist_writing(
@@ -1939,6 +1946,7 @@ async def test_tc59_剤数量と保険欠落が同時に変わる場合は自動
     )
     assert initial.medication_history_id is None
     assert fixture.medication_history_repo.items == {}
+
     assert initial.prescription_id is not None
     assert initial.dispensing_id is not None
     prescription_id = PrescriptionId.parse(initial.prescription_id)
@@ -2005,3 +2013,79 @@ async def test_tc59_剤数量と保険欠落が同時に変わる場合は自動
     assert {
         field.value for field in reception.correction_history[-1].changed_fields
     } >= {"insurance", "prescription.rps[0].dispensing_quantity"}
+
+
+@pytest.mark.asyncio
+async def test_issue36_tc33_U再取込の加算比較は新しいFOLLOW_UPではなくINITIALを使う() -> (
+    None
+):
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    addition_info = NsipsAdditionInfo(
+        code="140000110", name="初回算定", points=100, quantity=1
+    )
+    bundle = _structured_bundle_for_non_prescription_correction(
+        document_number="DOC-ISSUE36-UFILE",
+        additions=(addition_info,),
+    )
+    ingested = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            structured_bundle=bundle,
+        ),
+    )
+    assert ingested.patient_id is not None
+    assert ingested.prescription_id is not None
+    assert ingested.dispensing_id is not None
+    prescription_id = PrescriptionId.parse(ingested.prescription_id)
+    dispensing_id = DispensingId.parse(ingested.dispensing_id)
+    prescription = await fixture.prescription_repo.get(
+        corporate_id=fixture.corporate_id,
+        prescription_id=prescription_id,
+    )
+    dispensing = await fixture.dispensing_repo.get(
+        corporate_id=fixture.corporate_id,
+        dispensing_id=dispensing_id,
+    )
+    assert prescription is not None
+    assert dispensing is not None
+    initial = finalize_record_with_review(
+        create_record(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            patient_id=PatientId.parse(ingested.patient_id),
+            dispensing_id=dispensing_id,
+            prescription_id=prescription_id,
+            counselor_id=fixture.pharmacist_id,
+            billing_additions=(
+                BillingAddition(
+                    code=BillingAdditionCode(addition_info.code),
+                    name=BillingAdditionName(addition_info.name),
+                    points=addition_info.points,
+                    quantity=addition_info.quantity,
+                ),
+            ),
+        )
+    )
+    follow_up = create_independent_follow_up_record(
+        initial,
+        store_id=StoreId.generate(),
+        counseled_at=fixture.clock.now().replace(day=25),
+        finalized=True,
+    )
+    await fixture.medication_history_repo.save(initial)
+    await fixture.medication_history_repo.save(follow_up)
+    assert follow_up.record_kind is MedicationHistoryRecordKind.FOLLOW_UP
+
+    difference = await fixture.use_case._detect_bundle_differences(
+        corporate_id=fixture.corporate_id,
+        existing=prescription,
+        bundle=bundle,
+        patient_attribute_conflicts=(),
+    )
+
+    assert difference is None

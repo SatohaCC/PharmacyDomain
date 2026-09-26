@@ -7,6 +7,7 @@ AGENTS.md「Boundaryの例外契約」が求める「定義だけで raise さ�
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import datetime
 
 from app.application.medication_history.exceptions import (
     MedicationHistoryDispensingNotFoundError,
@@ -17,6 +18,8 @@ from app.application.medication_history.exceptions import (
 )
 from app.application.medication_history.reference import (
     DispensingReferenceBoundary,
+    MedicationHistoryFollowUpSource,
+    MedicationHistoryFollowUpSourceBoundary,
     StaffQualificationBoundary,
     StatutoryRecordSourceBoundary,
     StoreReferenceBoundary,
@@ -24,6 +27,12 @@ from app.application.medication_history.reference import (
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.primitives import DispensingId
+from app.domain.medication_history.medication_history_record import (
+    MedicationHistoryRecord,
+)
+from app.domain.medication_history.primitives import (
+    MedicationHistoryRecordId,
+)
 from app.domain.medication_history.value_objects import (
     StatutoryPharmacistName,
     StatutoryRecordSource,
@@ -32,6 +41,9 @@ from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import PrescriptionId
 from app.domain.staff.primitives import StaffId, StaffQualifications
 from app.domain.store.primitives import StoreId
+from tests.fakes.in_memory_medication_history_repository import (
+    InMemoryMedicationHistoryRepository,
+)
 
 
 class FakeMedicationHistoryStoreReference(StoreReferenceBoundary):
@@ -53,6 +65,75 @@ class FakeMedicationHistoryStoreReference(StoreReferenceBoundary):
         """店舗が存在しない、または別法人の場合は404相当を送出する。"""
         if (corporate_id, store_id) not in self.registered:
             raise MedicationHistoryStoreNotFoundError()
+
+
+class InMemoryMedicationHistoryFollowUpSourceBoundary(
+    MedicationHistoryFollowUpSourceBoundary
+):
+    """薬歴Fakeから確定済み参照元のメタデータだけを投影する。"""
+
+    def __init__(self, repository: InMemoryMedicationHistoryRepository) -> None:
+        self._repository = repository
+        self.get_calls = 0
+        self.list_calls = 0
+
+    async def get_source_reference(
+        self,
+        *,
+        corporate_id: CorporateId,
+        patient_id: PatientId,
+        record_id: MedicationHistoryRecordId,
+    ) -> MedicationHistoryFollowUpSource | None:
+        """同一法人・患者の薬歴を状態を含むメタデータへ畳む。"""
+        self.get_calls += 1
+        record = self._repository.items.get(record_id)
+        if (
+            record is None
+            or record.corporate_id != corporate_id
+            or record.patient_id != patient_id
+        ):
+            return None
+        return self._to_source(record)
+
+    async def list_confirmed_sources(
+        self,
+        *,
+        corporate_id: CorporateId,
+        patient_id: PatientId,
+    ) -> tuple[MedicationHistoryFollowUpSource, ...]:
+        """同一法人・患者の確定済薬歴をメタデータだけで返す。"""
+        self.list_calls += 1
+        items: list[tuple[MedicationHistoryRecord, datetime]] = []
+        for record in self._repository.items.values():
+            if (
+                record.corporate_id == corporate_id
+                and record.patient_id == patient_id
+                and record.is_finalized
+                and record.counseled_at is not None
+            ):
+                items.append((record, record.counseled_at.value))
+        items.sort(key=lambda item: item[1], reverse=True)
+        return tuple(self._to_source(record) for record, _ in items)
+
+    @staticmethod
+    def _to_source(
+        record: MedicationHistoryRecord,
+    ) -> MedicationHistoryFollowUpSource:
+        """薬歴本文を除いて参照候補メタデータを作る。"""
+        return MedicationHistoryFollowUpSource(
+            record_id=record.id,
+            corporate_id=record.corporate_id,
+            patient_id=record.patient_id,
+            store_id=record.store_id,
+            dispensing_id=record.dispensing_id,
+            prescription_id=record.prescription_id,
+            record_kind=record.record_kind,
+            source_record_id=record.source_record_id,
+            status=record.status,
+            counseled_at=(
+                record.counseled_at.value if record.counseled_at is not None else None
+            ),
+        )
 
 
 class FakeDispensingSource(DispensingReferenceBoundary):

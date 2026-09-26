@@ -6,6 +6,7 @@ from typing import Final
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     Date,
     DateTime,
@@ -489,6 +490,8 @@ medication_history_records = Table(
     Column("dispensing_id", UUID(as_uuid=True), nullable=False),
     Column("prescription_id", UUID(as_uuid=True), nullable=False),
     Column("status", String(32), nullable=False),
+    Column("record_kind", String(32), nullable=False),
+    Column("source_record_id", UUID(as_uuid=True), nullable=True),
     Column("counseled_at", DateTime(timezone=True), nullable=True),
     Column("payload", JSONB, nullable=False),
     Column("version", Integer, nullable=False),
@@ -500,15 +503,49 @@ medication_history_records = Table(
         "patient_id",
         "counseled_at",
     ),
+    UniqueConstraint(
+        "id",
+        "corporate_id",
+        "patient_id",
+        "prescription_id",
+        "dispensing_id",
+        name="uq_medication_history_records_source_identity",
+    ),
+    ForeignKeyConstraint(
+        [
+            "source_record_id",
+            "corporate_id",
+            "patient_id",
+            "prescription_id",
+            "dispensing_id",
+        ],
+        [
+            "medication_history_records.id",
+            "medication_history_records.corporate_id",
+            "medication_history_records.patient_id",
+            "medication_history_records.prescription_id",
+            "medication_history_records.dispensing_id",
+        ],
+        name="fk_medication_history_records_source_identity",
+    ),
+    CheckConstraint(
+        "(record_kind = 'initial' AND source_record_id IS NULL) OR "
+        "(record_kind = 'follow_up' AND source_record_id IS NOT NULL "
+        "AND source_record_id <> id)",
+        name="record_kind_source",
+    ),
 )
 
-# 確定済だけを1件に制限する。下書きは書きかけを複数持つのが正当なので対象外。
+# 確定済の初回薬歴だけを1件に制限する。フォローアップは複数作成できる。
 Index(
     "uq_medication_history_records_finalized_dispensing",
     medication_history_records.c.corporate_id,
     medication_history_records.c.dispensing_id,
     unique=True,
-    postgresql_where=medication_history_records.c.status == "finalized",
+    postgresql_where=(
+        (medication_history_records.c.status == "finalized")
+        & (medication_history_records.c.record_kind == "initial")
+    ),
 )
 
 patient_medical_profiles = Table(

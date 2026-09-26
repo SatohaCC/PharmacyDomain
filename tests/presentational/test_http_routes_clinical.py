@@ -21,6 +21,9 @@ from pydantic import TypeAdapter
 
 from app.application.access_control.policy import AuthorizationService
 from app.application.corporate.corporate_access import CorporateAccessService
+from app.application.medication_history.get_follow_up_sources import (
+    GetFollowUpSourcesUseCase,
+)
 from app.application.medication_history.get_medication_history_view import (
     CurrentPatientProfileBoundary,
     GetMedicationHistoryViewUseCase,
@@ -517,6 +520,11 @@ def history_client(
         get_category_catalog=history_fixture.get_category_catalog,
         update_category_catalog=history_fixture.update_category_catalog,
         add_follow_up=history_fixture.add_follow_up,
+        get_follow_up_sources=GetFollowUpSourcesUseCase(
+            history_fixture.follow_up_source_boundary,
+            history_fixture.corporate_access,
+            history_fixture.store_operations,
+        ),
         record_tracing_report=history_fixture.record_tracing_report,
         record_tracing_report_response=history_fixture.record_tracing_report_response,
         get_view=view_use_case,
@@ -1230,6 +1238,8 @@ def test_確定済みの薬歴にフォローアップを追加できる(
     assert finalized.status_code == HTTPStatus.OK, finalized.text
 
     body = AddFollowUpRequest(
+        store_id=str(history_fixture.store_id.value),
+        patient_id=str(history_fixture.patient_id.value),
         counselor_id=str(history_fixture.counselor_id.value),
         followed_up_at=datetime(2026, 9, 3, 14, 0, tzinfo=ZoneInfo("Asia/Tokyo")),
         method="telephone",
@@ -1248,11 +1258,12 @@ def test_確定済みの薬歴にフォローアップを追加できる(
     # Assert
     assert response.status_code == HTTPStatus.CREATED, response.text
     result = response.json()
-    assert len(result["follow_ups"]) == 1
-    assert result["follow_ups"][0]["counselor_id"] == str(
-        history_fixture.counselor_id.value
-    )
-    assert result["follow_ups"][0]["method"] == "telephone"
+    assert result["id"] != record_id
+    assert result["record_kind"] == "follow_up"
+    assert result["source_record_id"] == record_id
+    assert result["store_id"] == str(history_fixture.store_id.value)
+    assert result["patient_id"] == str(history_fixture.patient_id.value)
+    assert result["status"] == "draft"
 
 
 def test_未確定の下書き薬歴にフォローアップを追加すると422が返る(
@@ -1271,6 +1282,8 @@ def test_未確定の下書き薬歴にフォローアップを追加すると42
     record_id = started.json()["id"]
 
     body = AddFollowUpRequest(
+        store_id=str(history_fixture.store_id.value),
+        patient_id=str(history_fixture.patient_id.value),
         counselor_id=str(history_fixture.counselor_id.value),
         followed_up_at=datetime(2026, 9, 3, 14, 0, tzinfo=ZoneInfo("Asia/Tokyo")),
         method="telephone",
@@ -1289,6 +1302,56 @@ def test_未確定の下書き薬歴にフォローアップを追加すると42
     # Assert
     assert response.status_code == HTTPStatus.UNPROCESSABLE_CONTENT, response.text
     assert response.json()["code"]
+
+
+def test_tc36_フォローアップの実施店舗と患者は必須でOpenAPIにも反映する(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    corporate_id = str(history_fixture.corporate_id.value)
+    record_id = "00000000-0000-4000-8000-000000000000"
+    body = {
+        "counselor_id": str(history_fixture.counselor_id.value),
+        "followed_up_at": datetime(
+            2026, 9, 3, 14, 0, tzinfo=ZoneInfo("Asia/Tokyo")
+        ).isoformat(),
+        "method": "telephone",
+        "soap": {},
+    }
+
+    response = history_client.post(
+        f"/corporates/{corporate_id}/medication-histories/{record_id}/follow-ups",
+        json=body,
+        headers=_HEADERS,
+    )
+    schema = history_client.get("/openapi.json").json()
+    required = schema["components"]["schemas"]["AddFollowUpRequest"]["required"]
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_CONTENT
+    assert {"store_id", "patient_id"} <= set(required)
+    assert history_fixture.record_repository.items == {}
+
+
+def test_tc37_薬歴のフォローアップ候補は専用のメタデータ経路で返す(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    corporate_id = str(history_fixture.corporate_id.value)
+
+    response = history_client.get(
+        f"/corporates/{corporate_id}/patients/{history_fixture.patient_id.value}"
+        "/medication-histories/follow-up-sources",
+        params={"store_id": str(history_fixture.store_id.value)},
+        headers=_HEADERS,
+    )
+
+    assert response.status_code == HTTPStatus.OK, response.text
+    assert response.json() == []
+    schema = history_client.get("/openapi.json").json()
+    operation = schema["paths"][
+        "/corporates/{corporate_id}/patients/{patient_id}/medication-histories/follow-up-sources"
+    ]["get"]
+    assert operation["responses"]["200"]["content"]["application/json"]["schema"]
 
 
 def test_確定済みの薬歴にトレーシングレポートを追加できる(

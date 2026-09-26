@@ -265,7 +265,7 @@ async def reject_profile_writes(engine: AsyncEngine) -> AsyncIterator[None]:
         await connection.execute(
             text(
                 f"ALTER TABLE patient_medical_profiles "
-                f"ADD CONSTRAINT {_REJECT_PROFILE_CONSTRAINT} CHECK (false)"
+                f"ADD CONSTRAINT {_REJECT_PROFILE_CONSTRAINT} CHECK (false) NOT VALID"
             )
         )
     try:

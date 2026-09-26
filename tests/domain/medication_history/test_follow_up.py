@@ -39,6 +39,7 @@ from tests.factories.medication_history_factory import (
     create_allergy_intent,
     create_condition_intent,
     create_follow_up,
+    create_independent_follow_up_record,
     create_record,
     create_update_condition_status_intent,
     finalize_record_with_review,
@@ -303,6 +304,79 @@ class TestFollowUpPatientProfileProjection:
         assert len(rebuilt.medical_conditions) == 1
         assert (
             rebuilt.medical_conditions[0].condition_status == ConditionStatus.RESOLVED
+        )
+
+    def test_rebuild_keeps_legacy_and_independent_follow_up_provenance(self) -> None:
+        """TC-30: 旧子記録と別店舗の独立記録を時系列に一度ずつ畳み込む。"""
+        from app.domain.medication_history.value_objects import ProfileUpdateIntents
+
+        corporate_id, patient_id = CorporateId.generate(), PatientId.generate()
+        initial_at = datetime(2026, 8, 20, 5, 0, tzinfo=UTC)
+        initial = _finalized_record(
+            corporate_id=corporate_id,
+            patient_id=patient_id,
+            counseled_at=initial_at,
+            profile_updates=ProfileUpdateIntents(
+                new_conditions=(create_condition_intent(condition_name="気管支喘息"),)
+            ),
+        )
+
+        legacy_follow_up_at = datetime(2026, 8, 23, 5, 0, tzinfo=UTC)
+        legacy_follow_up = create_follow_up(
+            followed_up_at=legacy_follow_up_at,
+            profile_updates=ProfileUpdateIntents(
+                new_allergies=(create_allergy_intent(allergen="ペニシリン系"),)
+            ),
+        )
+        initial_with_legacy_follow_up = initial.add_follow_up(legacy_follow_up)
+
+        independent_at = datetime(2026, 8, 26, 5, 0, tzinfo=UTC)
+        independent_follow_up = create_independent_follow_up_record(
+            initial,
+            counseled_at=independent_at,
+            profile_updates=ProfileUpdateIntents(
+                new_adverse_reactions=(
+                    create_adverse_reaction_intent(symptom="胃部不快感"),
+                )
+            ),
+            finalized=True,
+        )
+
+        later_at = datetime(2026, 8, 28, 5, 0, tzinfo=UTC)
+        later_record = _finalized_record(
+            corporate_id=corporate_id,
+            patient_id=patient_id,
+            counseled_at=later_at,
+            profile_updates=ProfileUpdateIntents(
+                updated_conditions=(
+                    create_update_condition_status_intent(
+                        condition_name="気管支喘息",
+                        new_status=ConditionStatus.RESOLVED,
+                    ),
+                )
+            ),
+        )
+
+        rebuilt = PatientMedicalProfile.rebuild_from(
+            corporate_id=corporate_id,
+            patient_id=patient_id,
+            records=(
+                later_record,
+                independent_follow_up,
+                initial_with_legacy_follow_up,
+            ),
+        )
+
+        assert len(rebuilt.allergies) == 1
+        assert rebuilt.allergies[0].provenance.source_record_id == initial.id
+        assert len(rebuilt.adverse_reactions) == 1
+        assert (
+            rebuilt.adverse_reactions[0].provenance.source_record_id
+            == independent_follow_up.id
+        )
+        assert len(rebuilt.medical_conditions) == 1
+        assert (
+            rebuilt.medical_conditions[0].condition_status is ConditionStatus.RESOLVED
         )
 
     def test_apply_follow_up_rejects_patient_mismatch(self) -> None:

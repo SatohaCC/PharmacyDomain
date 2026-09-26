@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
@@ -29,9 +29,12 @@ from app.domain.medication_history.primitives import (
     HandbookNotPresentedReason,
     LifestyleNote,
     MedicationHistoryImportTimestamp,
+    MedicationHistoryRecordId,
+    MedicationHistoryRecordKind,
     MedicationHistoryReviewResult,
     MedicationHistoryReviewTimestamp,
     MedicationHistorySourceSystem,
+    MedicationHistoryStatus,
     PhysicianName,
     PrescriberActionType,
     RetractionReason,
@@ -333,6 +336,42 @@ def finalize_record_with_review(
         reviewed_by=actual_reviewed_by,
         reviewed_at=actual_reviewed_at,
     )
+
+
+def create_independent_follow_up_record(
+    source: MedicationHistoryRecord,
+    *,
+    store_id: StoreId | None = None,
+    counseled_at: datetime | None = None,
+    finalized: bool = False,
+    profile_updates: ProfileUpdateIntents | None = None,
+) -> MedicationHistoryRecord:
+    """参照元の患者・処方・調剤を引き継ぐ独立フォローアップを組み立てる。"""
+    source_time = (
+        source.counseled_at.value if source.counseled_at is not None else COUNSELED_AT
+    )
+    occurred_at = counseled_at or source_time + timedelta(minutes=1)
+    draft = replace(
+        source,
+        id=MedicationHistoryRecordId.generate(),
+        store_id=store_id or StoreId.generate(),
+        record_kind=MedicationHistoryRecordKind.FOLLOW_UP,
+        source_record_id=source.id,
+        counseled_at=CounselingTimestamp(occurred_at),
+        billing_additions=(),
+        profile_updates=profile_updates or ProfileUpdateIntents(),
+        status=MedicationHistoryStatus.DRAFT,
+        amendments=(),
+        follow_ups=(),
+        tracing_reports=(),
+        finalized_at=None,
+        finalized_by=None,
+        delay_reason=None,
+        review_result=None,
+        reviewed_by=None,
+        reviewed_at=None,
+    )
+    return finalize_record_with_review(draft) if finalized else draft
 
 
 def create_nsips_draft_record(

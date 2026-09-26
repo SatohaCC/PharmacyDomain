@@ -10,7 +10,6 @@ from app.application.medication_history.finalize_medication_history import (
     FinalizeMedicationHistoryCommand,
 )
 from app.application.medication_history.inputs import (
-    AddFollowUpCommand,
     RecordTracingReportCommand,
     RecordTracingReportResponseCommand,
 )
@@ -27,10 +26,14 @@ from app.domain.staff.primitives import StaffId, StaffQualifications
 from tests.application.medication_history.helpers import (
     MedicationHistoryFixture,
     create_fixture,
-    create_soap_input,
     create_start_command,
 )
-from tests.factories.medication_history_factory import COUNSELED_AT
+from tests.factories.medication_history_factory import (
+    COUNSELED_AT,
+    create_follow_up,
+    create_independent_follow_up_record,
+    finalize_record_with_review,
+)
 
 
 async def _create_and_finalize_record(fixture: MedicationHistoryFixture) -> str:
@@ -93,19 +96,16 @@ class TestRecordTracingReportUseCase:
         fixture = create_fixture()
         record_id = await _create_and_finalize_record(fixture)
 
-        # フォローアップを追加
+        # 旧形式の内包フォローアップを残した薬歴を用意する。
         fu_time = COUNSELED_AT + timedelta(days=3)
-        fu_dto = await fixture.add_follow_up.execute(
-            AddFollowUpCommand(
-                corporate_id=str(fixture.corporate_id.value),
-                record_id=record_id,
-                counselor_id=str(fixture.counselor_id.value),
-                followed_up_at=fu_time,
-                method="telephone",
-                soap=create_soap_input(subjective="フォローアップ確認。問題なし。"),
-            )
+        record = await fixture.record_repository.get(
+            corporate_id=fixture.corporate_id,
+            record_id=MedicationHistoryRecordId.parse(record_id),
         )
-        follow_up_id = fu_dto.follow_ups[0].id
+        assert record is not None
+        follow_up = create_follow_up(followed_up_at=fu_time)
+        await fixture.record_repository.save(record.add_follow_up(follow_up))
+        follow_up_id = str(follow_up.id.value)
 
         command = RecordTracingReportCommand(
             corporate_id=str(fixture.corporate_id.value),
@@ -125,6 +125,56 @@ class TestRecordTracingReportUseCase:
 
         assert len(dto.tracing_reports) == 1
         assert dto.tracing_reports[0].follow_up_id == follow_up_id
+
+    async def test_tc34_独立フォローアップのトレーシングレポートは自身の薬歴に属する(
+        self,
+    ) -> None:
+        fixture = create_fixture()
+        source_id = await _create_and_finalize_record(fixture)
+        source = await fixture.record_repository.get(
+            corporate_id=fixture.corporate_id,
+            record_id=MedicationHistoryRecordId.parse(source_id),
+        )
+        assert source is not None
+        follow_up = finalize_record_with_review(
+            create_independent_follow_up_record(
+                source,
+                counseled_at=COUNSELED_AT + timedelta(days=3),
+                finalized=False,
+            )
+        )
+        await fixture.record_repository.save(follow_up)
+
+        dto = await fixture.record_tracing_report.execute(
+            RecordTracingReportCommand(
+                corporate_id=str(fixture.corporate_id.value),
+                record_id=str(follow_up.id.value),
+                reporter_id=str(fixture.counselor_id.value),
+                provided_at=COUNSELED_AT + timedelta(days=4),
+                medical_institution_name="総合医療センター",
+                physician_name="山田太郎",
+                category="adverse_reaction",
+                fee_category="fee_2",
+                delivery_method="electronic",
+                content="独立フォローアップ後に副作用を報告。",
+            )
+        )
+
+        updated_follow_up = await fixture.record_repository.get(
+            corporate_id=fixture.corporate_id,
+            record_id=follow_up.id,
+        )
+        unchanged_source = await fixture.record_repository.get(
+            corporate_id=fixture.corporate_id,
+            record_id=MedicationHistoryRecordId.parse(source_id),
+        )
+        assert dto.id == str(follow_up.id.value)
+        assert len(dto.tracing_reports) == 1
+        assert dto.tracing_reports[0].follow_up_id is None
+        assert updated_follow_up is not None
+        assert len(updated_follow_up.tracing_reports) == 1
+        assert unchanged_source is not None
+        assert unchanged_source.tracing_reports == ()
 
     async def test_record_tracing_report_inactive_corporate_raises_error(self) -> None:
         """TC-APP-03: 非アクティブ法人の場合は拒否される。"""

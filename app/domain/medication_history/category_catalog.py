@@ -17,6 +17,7 @@ from app.domain.medication_history.primitives import (
     CategoryCatalogId,
     MajorCategoryCode,
     MajorCategoryName,
+    MedicationHistoryRecordKind,
     MediumCategoryCode,
     MediumCategoryName,
 )
@@ -187,6 +188,8 @@ class MedicationHistoryCategoryCatalog(AggregateRoot[CategoryCatalogId]):
 
     def validate_record_compliance(self, record: MedicationHistoryRecord) -> None:
         """薬歴記録が本カタログの法人必須ルールを満たしているか検証する。"""
+        if record.record_kind is MedicationHistoryRecordKind.FOLLOW_UP:
+            return
         required_mediums = self.required_medium_categories()
         for req in required_mediums:
             code_val = req.code.value.lower()

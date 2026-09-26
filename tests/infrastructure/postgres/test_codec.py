@@ -33,6 +33,7 @@ from app.domain.medication_history.medication_history_record import (
 from app.domain.medication_history.primitives import (
     FinalizationDelayReason,
     FinalizedTimestamp,
+    MedicationHistoryRecordKind,
     MedicationHistoryReviewResult,
     MedicationHistoryReviewTimestamp,
     MedicationHistorySourceSystem,
@@ -106,6 +107,7 @@ from app.infrastructure.postgres.codec import (
 )
 from tests.factories.dispensing_factory import create_dispensing, verify_passed
 from tests.factories.medication_history_factory import (
+    create_independent_follow_up_record,
     create_nsips_draft_record,
     create_record,
 )
@@ -735,3 +737,26 @@ def test_tc21_取込下書きをcodec往復し旧payloadも読み込める() -> 
     assert legacy.imported_at is None
     assert legacy.counselor_id is not None
     assert legacy.counseled_at is not None
+
+
+def test_tc43_薬歴種別と参照元を往復し旧payloadを初回として復元する() -> None:
+    """独立 FOLLOW_UP は参照を保持し、旧 JSONB は INITIAL の既定値で読む。"""
+    initial = create_record()
+    follow_up = create_independent_follow_up_record(initial)
+
+    restored_follow_up = decode_aggregate(
+        encode_aggregate(follow_up), MedicationHistoryRecord
+    )
+
+    assert restored_follow_up.record_kind is MedicationHistoryRecordKind.FOLLOW_UP
+    assert restored_follow_up.source_record_id == initial.id
+    assert restored_follow_up.store_id == follow_up.store_id
+
+    legacy_payload = encode_aggregate(initial)
+    legacy_payload.pop("record_kind")
+    legacy_payload.pop("source_record_id")
+    restored_initial = decode_aggregate(legacy_payload, MedicationHistoryRecord)
+
+    assert restored_initial.record_kind is MedicationHistoryRecordKind.INITIAL
+    assert restored_initial.source_record_id is None
+    assert restored_initial.soap == initial.soap

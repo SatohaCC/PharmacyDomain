@@ -12,7 +12,9 @@ from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
-from app.domain.medication_history.primitives import MedicationHistoryRecordId
+from app.domain.medication_history.primitives import (
+    MedicationHistoryRecordId,
+)
 from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.value_objects import (
     BillingAddition,
@@ -290,6 +292,8 @@ class MedicationHistoryDto:
     patient_id: str
     dispensing_id: str
     prescription_id: str
+    record_kind: str
+    source_record_id: str | None
     counselor_id: str | None
     counseled_at: str | None
     method: str | None
@@ -327,6 +331,12 @@ class MedicationHistoryDto:
             patient_id=str(record.patient_id.value),
             dispensing_id=str(record.dispensing_id.value),
             prescription_id=str(record.prescription_id.value),
+            record_kind=record.record_kind.value,
+            source_record_id=(
+                str(record.source_record_id.value)
+                if record.source_record_id is not None
+                else None
+            ),
             counselor_id=(
                 str(record.counselor_id.value)
                 if record.counselor_id is not None
