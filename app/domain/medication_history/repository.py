@@ -40,10 +40,10 @@ class MedicationHistoryRepository(Protocol):
         corporate_id: CorporateId,
         dispensing_id: DispensingId,
     ) -> MedicationHistoryRecord | None:
-        """調剤セッションに紐付く**確定済**の薬歴を取得する。
+        """調剤セッションに紐付く**確定済の初回薬歴**を取得する。
 
-        下書きは複数あってもよいので、確定済だけを返す。確定済は
-        :meth:`save` の契約により1件以下なので一意に定まる。
+        フォローアップ薬歴は同じ調剤文脈で複数作れるため除外する。初回薬歴は
+        :meth:`save` の契約により確定済が1件以下なので一意に定まる。
         """
         ...
 
@@ -62,12 +62,12 @@ class MedicationHistoryRepository(Protocol):
         ...
 
     async def save(self, record: MedicationHistoryRecord) -> None:
-        """同一調剤セッションの確定済薬歴の重複を原子的に拒否して保存する。
+        """同一調剤セッションの確定済初回薬歴の重複を原子的に拒否して保存する。
 
         同一法人・同一 ``dispensing_id`` で ``FINALIZED`` の薬歴が2件以上に
         ならないよう、同じ集約IDを除外した上で拒否し、
-        ``MedicationHistoryAlreadyExistsError`` を送出する。1回の調剤に対する
-        指導記録が二重になると、服薬管理指導料の算定も頭書きの投影も二重になる。
+          ``MedicationHistoryAlreadyExistsError`` を送出する。同じ調剤への
+          初回薬歴の重複を防ぎ、フォローアップ薬歴は個別記録として複数許可する。
 
         下書き（``DRAFT``）は制限しない。書きかけを複数持つのは正当である。
         Applicationの事前readは早期エラー用であり原子性の代替ではない。

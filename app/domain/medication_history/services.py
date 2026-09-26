@@ -14,6 +14,7 @@ from app.domain.dispensing.primitives import DispensingProcessStatus
 from app.domain.medication_history.exceptions import (
     CounselorQualificationError,
     MedicationHistoryAlreadyExistsError,
+    MedicationHistoryDomainError,
     PatientMedicalProfileAlreadyExistsError,
     StatutoryRecordSourceMismatchError,
 )
@@ -24,6 +25,7 @@ from app.domain.medication_history.patient_medical_profile import (
     PatientMedicalProfile,
 )
 from app.domain.medication_history.primitives import (
+    MedicationHistoryRecordKind,
     StatutoryDispensingRecordItem,
     StatutoryItemState,
     StatutoryRecordBlocker,
@@ -62,7 +64,7 @@ class CounselorQualificationService:
 
 
 class MedicationHistoryUniquenessService:
-    """同一調剤セッションに確定済の薬歴が2件以上無いことを検証する。"""
+    """同一調剤セッションに確定済の初回薬歴が2件以上無いことを検証する。"""
 
     def ensure_no_conflict(
         self,
@@ -76,10 +78,17 @@ class MedicationHistoryUniquenessService:
 
         同じ集約IDの現在行は候補から除外し、自身の状態変更を妨げない。
         """
-        if not record.is_finalized:
+        if (
+            not record.is_finalized
+            or record.record_kind is MedicationHistoryRecordKind.FOLLOW_UP
+        ):
             return
         for existing in existing_records:
-            if existing.id == record.id or not existing.is_finalized:
+            if (
+                existing.id == record.id
+                or not existing.is_finalized
+                or existing.record_kind is MedicationHistoryRecordKind.FOLLOW_UP
+            ):
                 continue
             if (
                 existing.corporate_id == record.corporate_id
@@ -315,6 +324,10 @@ class StatutoryDispensingRecordService:
         Raises:
             StatutoryRecordSourceMismatchError: 3者が同じ1件を指していない場合。
         """
+        if record.record_kind is MedicationHistoryRecordKind.FOLLOW_UP:
+            raise MedicationHistoryDomainError(
+                "独立したフォローアップ薬歴は調剤録の代替確認に使えません。"
+            )
         self._ensure_same_subject(record, dispensing, source)
         return StatutoryRecordSufficiency(
             assessments=tuple(

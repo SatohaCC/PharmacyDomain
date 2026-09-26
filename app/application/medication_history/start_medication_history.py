@@ -126,6 +126,10 @@ class StartMedicationHistoryUseCase:
             corporate_id=corporate_id,
             dispensing_id=DispensingId.parse(command.dispensing_id),
         )
+        if dispensing.store_id != store_id:
+            raise MedicationHistoryDomainError(
+                "初回薬歴の店舗は調剤セッションの店舗と一致させてください。"
+            )
         source_system = command.source_system
         imported_at_value = command.imported_at
         addition_inputs = command.billing_additions or ()

@@ -23,6 +23,10 @@ from app.application.medication_history.category_catalog import CategoryCatalogD
 from app.application.medication_history.finalize_medication_history import (
     FinalizeMedicationHistoryCommand,
 )
+from app.application.medication_history.get_follow_up_sources import (
+    FollowUpSourceDto,
+    GetFollowUpSourcesQuery,
+)
 from app.application.medication_history.get_medication_history import (
     GetMedicationHistoryQuery,
     ListMedicationHistoriesQuery,
@@ -140,6 +144,8 @@ class AmendMedicationHistoryRequest(RequestModel):
 class AddFollowUpRequest(RequestModel):
     """フォローアップ記録の追加入力。"""
 
+    store_id: str
+    patient_id: str
     counselor_id: str
     followed_up_at: datetime
     method: str
@@ -361,6 +367,8 @@ async def add_follow_up(
         AddFollowUpCommand(
             corporate_id=corporate_id,
             record_id=record_id,
+            store_id=body.store_id,
+            patient_id=body.patient_id,
             counselor_id=body.counselor_id,
             followed_up_at=body.followed_up_at,
             method=body.method,
@@ -455,6 +463,26 @@ async def verify_statutory_record(
     """
     return await use_cases.verify_statutory_record.execute(
         VerifyStatutoryRecordQuery(corporate_id=corporate_id, record_id=record_id)
+    )
+
+
+@router.get(
+    "/patients/{patient_id}/medication-histories/follow-up-sources",
+    response_model=tuple[FollowUpSourceDto, ...],
+)
+async def get_follow_up_sources(
+    corporate_id: str,
+    patient_id: str,
+    store_id: Annotated[str, Query()],
+    use_cases: MedicationHistoryUseCasesDep,
+) -> tuple[FollowUpSourceDto, ...]:
+    """独立フォローアップの参照候補を本文なしで返す。"""
+    return await use_cases.get_follow_up_sources.execute(
+        GetFollowUpSourcesQuery(
+            corporate_id=corporate_id,
+            patient_id=patient_id,
+            store_id=store_id,
+        )
     )
 
 

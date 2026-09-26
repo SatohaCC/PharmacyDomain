@@ -13,7 +13,10 @@ from app.domain.medication_history.category_catalog import (
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
-from app.domain.medication_history.primitives import MedicationHistoryRecordId
+from app.domain.medication_history.primitives import (
+    MedicationHistoryRecordId,
+    MedicationHistoryRecordKind,
+)
 from app.domain.medication_history.repository import (
     MedicationHistoryCategoryCatalogRepository,
     MedicationHistoryRepository,
@@ -27,6 +30,7 @@ class InMemoryMedicationHistoryRepository(MedicationHistoryRepository):
 
     def __init__(self) -> None:
         self.items: dict[MedicationHistoryRecordId, MedicationHistoryRecord] = {}
+        self.get_calls = 0
 
     async def get(
         self,
@@ -35,6 +39,7 @@ class InMemoryMedicationHistoryRepository(MedicationHistoryRepository):
         record_id: MedicationHistoryRecordId,
     ) -> MedicationHistoryRecord | None:
         """指定法人の薬歴だけを取得する。"""
+        self.get_calls += 1
         item = self.items.get(record_id)
         if item is None or item.corporate_id != corporate_id:
             return None
@@ -52,6 +57,7 @@ class InMemoryMedicationHistoryRepository(MedicationHistoryRepository):
                 item.corporate_id == corporate_id
                 and item.dispensing_id == dispensing_id
                 and item.is_finalized
+                and item.record_kind is MedicationHistoryRecordKind.INITIAL
             ):
                 return copy.deepcopy(item)
         return None

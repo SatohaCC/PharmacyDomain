@@ -78,6 +78,9 @@ from tests.application.access_helpers import (
 from tests.factories.dispensing_factory import complete_dispensing, create_dispensing
 from tests.factories.medication_history_factory import create_statutory_source
 from tests.fakes.fake_clock import FakeClock
+from tests.fakes.fake_medication_history_store_operations import (
+    FakeMedicationHistoryStoreOperations,
+)
 from tests.fakes.in_memory_medication_history_repository import (
     InMemoryMedicationHistoryCategoryCatalogRepository,
     InMemoryMedicationHistoryRepository,
@@ -91,6 +94,7 @@ from tests.fakes.medication_history_reference_boundaries import (
     FakeDispensingSource,
     FakeMedicationHistoryStoreReference,
     FakeStatutoryRecordSource,
+    InMemoryMedicationHistoryFollowUpSourceBoundary,
 )
 from tests.fakes.null_unit_of_work import NullUnitOfWork
 
@@ -136,6 +140,8 @@ class MedicationHistoryFixture:
     get_category_catalog: GetCategoryCatalogUseCase
     update_category_catalog: UpdateCategoryCatalogUseCase
     add_follow_up: AddFollowUpUseCase
+    store_operations: FakeMedicationHistoryStoreOperations
+    follow_up_source_boundary: InMemoryMedicationHistoryFollowUpSourceBoundary
     record_tracing_report: RecordTracingReportUseCase
     record_tracing_report_response: RecordTracingReportResponseUseCase
     record_repository: InMemoryMedicationHistoryRepository
@@ -143,6 +149,7 @@ class MedicationHistoryFixture:
     reception_repository: InMemoryReceptionRepository
     category_catalog_repository: InMemoryMedicationHistoryCategoryCatalogRepository
     corporate_repository: AutoProvisioningCorporateRepository
+    corporate_access: CorporateAccessService
     actor: ActorContext
     store_reference: FakeMedicationHistoryStoreReference
     dispensing_source: FakeDispensingSource
@@ -156,18 +163,31 @@ class MedicationHistoryFixture:
     dispensing: DispensingProcess
 
 
-def create_resolved_actor(*, staff_id: StaffId | None) -> ResolvedActorContext:
+def create_resolved_actor(
+    *,
+    staff_id: StaffId | None,
+    role: ActorRole = ActorRole.VENDOR_SYSTEM_ADMIN,
+    corporate_id: CorporateId | None = None,
+    store_ids: frozenset[StoreId] = frozenset(),
+) -> ResolvedActorContext:
     """信頼済みのテストActorをスタッフ解決状態つきで生成する。"""
     return ResolvedActorContext(
         principal_id="test-pharmacist-actor",
-        roles=frozenset({ActorRole.VENDOR_SYSTEM_ADMIN}),
+        roles=frozenset({role}),
+        corporate_id=corporate_id,
         person_id=AccountPersonId.generate(),
         account_id=UserAccountId.generate(),
         staff_id=staff_id,
+        store_ids=store_ids,
     )
 
 
-def create_fixture(*, actor: ActorContext | None = None) -> MedicationHistoryFixture:
+def create_fixture(
+    *,
+    actor: ActorContext | None = None,
+    store_role: ActorRole | None = None,
+    additional_store_ids: frozenset[StoreId] = frozenset(),
+) -> MedicationHistoryFixture:
     """既定の依存を配線した Fixture を生成する。"""
     corporate_id = CorporateId.generate()
     store_id = StoreId.generate()
@@ -204,7 +224,20 @@ def create_fixture(*, actor: ActorContext | None = None) -> MedicationHistoryFix
     )
     clock = FakeClock()
     corporate_repository = AutoProvisioningCorporateRepository()
-    resolved_actor = actor or create_resolved_actor(staff_id=counselor_id)
+    store_operations = FakeMedicationHistoryStoreOperations()
+    follow_up_source_boundary = InMemoryMedicationHistoryFollowUpSourceBoundary(
+        record_repository
+    )
+    resolved_actor = actor or create_resolved_actor(
+        staff_id=counselor_id,
+        role=store_role or ActorRole.VENDOR_SYSTEM_ADMIN,
+        corporate_id=corporate_id if store_role is not None else None,
+        store_ids=(
+            frozenset({store_id}) | additional_store_ids
+            if store_role is not None
+            else frozenset()
+        ),
+    )
     corporate_access = CorporateAccessService(
         corporate_repository, AuthorizationService(resolved_actor)
     )
@@ -265,12 +298,15 @@ def create_fixture(*, actor: ActorContext | None = None) -> MedicationHistoryFix
         ),
         add_follow_up=AddFollowUpUseCase(
             record_repository,
-            profile_repository,
             corporate_access,
             staff_qualification,
             CounselorQualificationService(),
-            unit_of_work=NullUnitOfWork(),
+            NullUnitOfWork(),
+            store_operations,
+            follow_up_source_boundary,
         ),
+        store_operations=store_operations,
+        follow_up_source_boundary=follow_up_source_boundary,
         record_tracing_report=RecordTracingReportUseCase(
             record_repository,
             corporate_access,
@@ -286,6 +322,7 @@ def create_fixture(*, actor: ActorContext | None = None) -> MedicationHistoryFix
         reception_repository=reception_repository,
         category_catalog_repository=category_catalog_repository,
         corporate_repository=corporate_repository,
+        corporate_access=corporate_access,
         actor=resolved_actor,
         store_reference=store_reference,
         dispensing_source=dispensing_source,

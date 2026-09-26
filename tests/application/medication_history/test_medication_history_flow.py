@@ -71,9 +71,12 @@ from app.domain.medication_history.medication_history_record import (
 )
 from app.domain.medication_history.primitives import (
     MedicationHistoryRecordId,
+    MedicationHistoryRecordKind,
     MedicationHistoryStatus,
 )
+from app.domain.reception.primitives import ReceptionId
 from app.domain.staff.primitives import StaffId, StaffQualifications
+from app.domain.store.primitives import StoreId
 from tests.application.medication_history.helpers import (
     MedicationHistoryFixture,
     create_fixture,
@@ -228,6 +231,30 @@ class Test薬歴の作成:
         # Assert
         assert not hasattr(command, "patient_id")
         assert actual.patient_id == str(fixture.dispensing.patient_id.value)
+        assert actual.store_id == str(fixture.dispensing.store_id.value)
+        assert actual.prescription_id == str(fixture.dispensing.prescription_id.value)
+        assert actual.dispensing_id == str(fixture.dispensing.id.value)
+        assert actual.record_kind == MedicationHistoryRecordKind.INITIAL.value
+        assert actual.source_record_id is None
+
+    async def test_tc01_調剤店舗と異なる店舗で受付付き初回薬歴を作れない(self) -> None:
+        fixture = create_fixture()
+        another_store_id = StoreId.generate()
+        fixture.store_reference.register(
+            corporate_id=fixture.corporate_id,
+            store_id=another_store_id,
+        )
+        command = replace(
+            create_start_command(fixture),
+            store_id=str(another_store_id.value),
+            reception_id=str(ReceptionId.generate().value),
+        )
+
+        with pytest.raises(MedicationHistoryDomainError):
+            await fixture.start.execute(command)
+
+        assert fixture.record_repository.items == {}
+        assert fixture.reception_repository.get_calls == 0
 
     async def test_初回保存時刻を_実指導日時へ自動設定しない(self) -> None:
         # Arrange

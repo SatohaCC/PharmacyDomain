@@ -72,6 +72,7 @@ from app.infrastructure.postgres.repositories.patient_medical_profile import (
 from app.infrastructure.postgres.repositories.staff import PostgresStaffRepository
 from app.infrastructure.postgres.repositories.store import PostgresStoreRepository
 from tests.factories.medication_history_factory import (
+    create_independent_follow_up_record,
     create_record,
     finalize_record_with_review,
 )
@@ -625,7 +626,7 @@ async def test_資格選択履歴が_最新1件を返す(
 async def test_同一調剤の確定済薬歴の重複が_業務例外になる(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """1回の調剤に対する指導記録が二重になると、算定も投影も二重になる。"""
+    """FOLLOW_UPを複数許し、同じ調剤の2件目のINITIALだけを拒否する。"""
     # Arrange
     corporate_id = CorporateId.generate()
     first = finalize_record_with_review(create_record(corporate_id=corporate_id))
@@ -635,7 +636,14 @@ async def test_同一調剤の確定済薬歴の重複が_業務例外になる(
 
     unit_of_work = PostgresUnitOfWork(session_factory)
     async with unit_of_work:
-        await PostgresMedicationHistoryRepository(unit_of_work).save(first)
+        repository = PostgresMedicationHistoryRepository(unit_of_work)
+        await repository.save(first)
+        await repository.save(
+            create_independent_follow_up_record(first, finalized=True)
+        )
+        await repository.save(
+            create_independent_follow_up_record(first, finalized=True)
+        )
         await unit_of_work.commit()
 
     # Act & Assert

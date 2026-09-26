@@ -21,11 +21,16 @@ from app.application.composition.clinical_store_guard import ClinicalStoreWriteG
 from app.application.composition.store_operation_adapter import StoreOperationAdapter
 from app.domain.corporate.primitives import CorporateId
 from app.domain.foundation.exceptions import DomainError
-from app.domain.store.lifecycle import StoreStatus
+from app.domain.store.lifecycle import StoreStateConflictError, StoreStatus
+from app.domain.store.manager_assignment import ManagerAbsenceConflictError
 from app.domain.store.primitives import StoreId
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.factories.dispensing_factory import create_dispensing
-from tests.factories.medication_history_factory import create_record
+from tests.factories.medication_history_factory import (
+    create_independent_follow_up_record,
+    create_record,
+    finalize_record_with_review,
+)
 from tests.factories.prescription_factory import create_prescription
 from tests.factories.store_factory import create_manager_assignment, create_store
 from tests.fakes.fake_clock import FakeClock
@@ -58,6 +63,11 @@ def _aggregate(kind: str, *, corporate_id: CorporateId, store_id: StoreId) -> ob
         entity: object = create_prescription(corporate_id=corporate_id)
     elif kind == "dispensing":
         entity = create_dispensing(corporate_id=corporate_id)
+    elif kind == "follow_up":
+        source = finalize_record_with_review(
+            create_record(corporate_id=corporate_id, store_id=store_id)
+        )
+        return create_independent_follow_up_record(source, store_id=store_id)
     else:
         entity = create_record(corporate_id=corporate_id)
     return replace(entity, store_id=store_id)  # type: ignore[type-var]
@@ -74,6 +84,8 @@ def _aggregate(kind: str, *, corporate_id: CorporateId, store_id: StoreId) -> ob
         # 新規の薬歴は、その店舗で新しく始まる業務として問い合わせる。
         ("history", True, StoreOperation.START_HISTORY),
         ("history", False, StoreOperation.AMEND_HISTORY),
+        ("follow_up", True, StoreOperation.START_HISTORY),
+        ("follow_up", False, StoreOperation.AMEND_HISTORY),
     ],
 )
 async def test_保存対象から業務への写像を固定する(
@@ -102,6 +114,7 @@ async def test_保存対象から業務への写像を固定する(
         ("dispensing", False),
         ("history", True),
         ("history", False),
+        ("follow_up", True),
     ],
 )
 async def test_保存対象店舗の状態で業務の開始と継続を区別する(
@@ -133,3 +146,50 @@ async def test_保存対象店舗の状態で業務の開始と継続を区別�
             await guard.check(entity, is_new)
     else:
         await guard.check(entity, is_new)
+
+
+@pytest.mark.asyncio
+async def test_休止店舗ではフォローアップの新規薬歴作成を拒否する() -> None:
+    """TC-17: FOLLOW_UP 下書きも新規業務として休止店舗で拒否する。"""
+    store = replace(create_store(), status=StoreStatus.SUSPENDED)
+    stores = InMemoryStoreRepository()
+    await stores.save(store)
+    managers = InMemoryStoreManagerAssignmentRepository()
+    await managers.save(
+        create_manager_assignment(corporate_id=store.corporate_id, store_id=store.id)
+    )
+    guard = ClinicalStoreWriteGuard(
+        StoreOperationAdapter(
+            stores, create_vendor_corporate_access(), managers, FakeClock()
+        ),
+        _authorization(),
+        FakeOrganizationLock(),
+    )
+    follow_up = _aggregate(
+        "follow_up", corporate_id=store.corporate_id, store_id=store.id
+    )
+
+    with pytest.raises(StoreStateConflictError):
+        await guard.check(follow_up, is_new=True)
+
+
+@pytest.mark.asyncio
+async def test_管理薬剤師不在の店舗ではフォローアップ起票を拒否する() -> None:
+    """TC-18: 有効店舗でも管理薬剤師の在任が無ければ起票を拒否する。"""
+    store = create_store()
+    stores = InMemoryStoreRepository()
+    await stores.save(store)
+    managers = InMemoryStoreManagerAssignmentRepository()
+    guard = ClinicalStoreWriteGuard(
+        StoreOperationAdapter(
+            stores, create_vendor_corporate_access(), managers, FakeClock()
+        ),
+        _authorization(),
+        FakeOrganizationLock(),
+    )
+    follow_up = _aggregate(
+        "follow_up", corporate_id=store.corporate_id, store_id=store.id
+    )
+
+    with pytest.raises(ManagerAbsenceConflictError):
+        await guard.check(follow_up, is_new=True)

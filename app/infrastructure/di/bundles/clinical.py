@@ -33,6 +33,7 @@ from app.application.composition.prescription_references import (
     PrescriptionStaffQualificationAdapter,
     PrescriptionStoreReferenceAdapter,
 )
+from app.application.composition.store_operation_adapter import StoreOperationAdapter
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.application.dispensing.complete_dispensing import CompleteDispensingUseCase
 from app.application.dispensing.get_dispensing import GetDispensingUseCase
@@ -57,6 +58,9 @@ from app.application.medication_history.category_catalog import (
 )
 from app.application.medication_history.finalize_medication_history import (
     FinalizeMedicationHistoryUseCase,
+)
+from app.application.medication_history.get_follow_up_sources import (
+    GetFollowUpSourcesUseCase,
 )
 from app.application.medication_history.get_medication_history import (
     GetMedicationHistoryUseCase,
@@ -270,6 +274,7 @@ class MedicationHistoryUseCases:
     get_category_catalog: GetCategoryCatalogUseCase
     update_category_catalog: UpdateCategoryCatalogUseCase
     add_follow_up: AddFollowUpUseCase
+    get_follow_up_sources: GetFollowUpSourcesUseCase
     record_tracing_report: RecordTracingReportUseCase
     record_tracing_report_response: RecordTracingReportResponseUseCase
     get_view: GetMedicationHistoryViewUseCase
@@ -292,6 +297,12 @@ def build_medication_history_use_cases(
     counselor_qualification = CounselorQualificationAdapter(repositories.staff)
     counselor = CounselorQualificationService()
     dispensing_source = DispensingSourceAdapter(repositories.dispensing)
+    store_operations = StoreOperationAdapter(
+        repositories.store,
+        corporate_access,
+        repositories.manager_assignment,
+        clock,
+    )
     return MedicationHistoryUseCases(
         start=StartMedicationHistoryUseCase(
             record_repository,
@@ -354,11 +365,17 @@ def build_medication_history_use_cases(
         ),
         add_follow_up=AddFollowUpUseCase(
             record_repository,
-            profile_repository,
             corporate_access,
             counselor_qualification,
             counselor,
-            unit_of_work=unit_of_work,
+            unit_of_work,
+            store_operations,
+            record_repository,
+        ),
+        get_follow_up_sources=GetFollowUpSourcesUseCase(
+            record_repository,
+            corporate_access,
+            store_operations,
         ),
         record_tracing_report=RecordTracingReportUseCase(
             record_repository,

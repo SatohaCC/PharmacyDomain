@@ -16,6 +16,7 @@ class InMemoryReceptionRepository(ReceptionRepository):
 
     def __init__(self) -> None:
         self.items: dict[tuple[CorporateId, StoreId, ReceptionId], Reception] = {}
+        self.get_calls = 0
 
     async def get(
         self,
@@ -25,6 +26,7 @@ class InMemoryReceptionRepository(ReceptionRepository):
         reception_id: ReceptionId,
     ) -> Reception | None:
         """法人・店舗・受付IDが一致する受付だけを返す。"""
+        self.get_calls += 1
         item = self.items.get((corporate_id, store_id, reception_id))
         return copy.deepcopy(item) if item is not None else None
 

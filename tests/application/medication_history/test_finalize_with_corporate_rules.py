@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
 
 from app.application.medication_history.finalize_medication_history import (
@@ -9,6 +11,7 @@ from app.application.medication_history.finalize_medication_history import (
     FinalizeMedicationHistoryUseCase,
 )
 from app.application.medication_history.inputs import (
+    AddFollowUpCommand,
     LabeledNoteInput,
     SoapInput,
 )
@@ -29,6 +32,7 @@ from app.domain.medication_history.value_objects import (
 )
 from tests.application.medication_history.helpers import (
     create_fixture,
+    create_start_command,
 )
 from tests.fakes.in_memory_medication_history_repository import (
     InMemoryMedicationHistoryCategoryCatalogRepository,
@@ -175,3 +179,69 @@ async def test_finalize_fails_when_corporate_required_categories_missing(
             )
         )
     assert "P（指導計画）" in str(exc_info.value)
+
+
+async def test_tc29_法人の初回必須区分を_フォローアップには要求しない() -> None:
+    """INITIAL は P を要求し、FOLLOW_UP は S だけでレビュー確定できる。"""
+    fixture = create_fixture()
+    soap_code = MajorCategoryCode("soap")
+    await fixture.category_catalog_repository.save(
+        MedicationHistoryCategoryCatalog(
+            id=CategoryCatalogId.generate(),
+            corporate_id=fixture.corporate_id,
+            major_categories=(
+                MajorCategoryDefinition(
+                    code=soap_code, name=MajorCategoryName("SOAP"), display_order=1
+                ),
+            ),
+            medium_categories=(
+                MediumCategoryDefinition(
+                    code=MediumCategoryCode("s"),
+                    major_category_code=soap_code,
+                    name=MediumCategoryName("S"),
+                    display_order=1,
+                    is_required=True,
+                ),
+                MediumCategoryDefinition(
+                    code=MediumCategoryCode("p"),
+                    major_category_code=soap_code,
+                    name=MediumCategoryName("P"),
+                    display_order=2,
+                    is_required=True,
+                ),
+            ),
+        )
+    )
+
+    initial = await fixture.start.execute(create_start_command(fixture))
+    await fixture.finalize.execute(
+        FinalizeMedicationHistoryCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            record_id=initial.id,
+            review_result="assessment_and_instruction_recorded",
+        )
+    )
+    followed_up_at = fixture.clock.now() + timedelta(days=3)
+    follow_up = await fixture.add_follow_up.execute(
+        AddFollowUpCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            record_id=initial.id,
+            store_id=str(fixture.store_id.value),
+            patient_id=str(fixture.patient_id.value),
+            counselor_id=str(fixture.counselor_id.value),
+            followed_up_at=followed_up_at,
+            method="telephone",
+            soap=SoapInput(subjective=(LabeledNoteInput(text="眠気は軽減した。"),)),
+        )
+    )
+    fixture.clock.advance(followed_up_at - fixture.clock.now() + timedelta(hours=1))
+
+    finalized = await fixture.finalize.execute(
+        FinalizeMedicationHistoryCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            record_id=follow_up.id,
+            review_result="no_additional_recordable_items",
+        )
+    )
+
+    assert finalized.status == "finalized"

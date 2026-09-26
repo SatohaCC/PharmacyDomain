@@ -88,7 +88,11 @@ async def test_tc23_NULL可能化migrationは_既存の指導日時を保持す�
                 "ALTER COLUMN counseled_at SET NOT NULL"
             )
         )
-        migration = ordered_migrations()[-1]
+        migration = next(
+            item
+            for item in ordered_migrations()
+            if str(item.revision) == "20260925_0007"
+        )
 
         def upgrade(connection: Connection) -> None:
             with Operations.context(MigrationContext.configure(connection=connection)):
@@ -117,7 +121,9 @@ async def test_tc24_NULL指導日時の下書きがあると_downgradeはデー�
         await PostgresRepositorySet.create(work).medication_history.save(record)
         await work.commit()
 
-    migration = ordered_migrations()[-1]
+    migration = next(
+        item for item in ordered_migrations() if str(item.revision) == "20260925_0007"
+    )
 
     def downgrade(connection: Connection) -> None:
         with Operations.context(MigrationContext.configure(connection=connection)):

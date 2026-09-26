@@ -48,6 +48,7 @@ from app.domain.medication_history.primitives import (
     FinalizedTimestamp,
     MedicationHistoryImportTimestamp,
     MedicationHistoryRecordId,
+    MedicationHistoryRecordKind,
     MedicationHistoryReviewResult,
     MedicationHistoryReviewTimestamp,
     MedicationHistorySourceSystem,
@@ -79,6 +80,8 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     """1回の服薬指導の記録を管理する集約ルート。"""
 
     id: MedicationHistoryRecordId
+    record_kind: MedicationHistoryRecordKind = MedicationHistoryRecordKind.INITIAL
+    source_record_id: MedicationHistoryRecordId | None = None
     corporate_id: CorporateId
     store_id: StoreId
     patient_id: PatientId
@@ -121,6 +124,8 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         SOAP の充足は**確定済のときだけ**課す。下書きの途中で
         全セクションを要求すると、聞き取りながら書き足す運用ができない。
         """
+        self._ensure_record_kind_and_source_are_consistent()
+        self._ensure_follow_up_has_no_billing_additions()
         self._ensure_counseling_provenance_is_valid()
         self._ensure_amendments_only_after_finalized()
         self._ensure_finalized_soap_is_complete()
@@ -128,26 +133,57 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         self._ensure_finalized_items_are_assessed()
         self._ensure_finalization_metadata_is_valid()
 
+    def _ensure_record_kind_and_source_are_consistent(self) -> None:
+        """初回薬歴と参照元の有無を一致させ、自己参照を拒否する。"""
+        if self.record_kind is MedicationHistoryRecordKind.INITIAL:
+            if self.source_record_id is not None:
+                raise MedicationHistoryDomainError(
+                    "初回薬歴には参照元を設定できません。"
+                )
+            return
+        if self.source_record_id is None or self.source_record_id == self.id:
+            raise MedicationHistoryDomainError(
+                "フォローアップ薬歴には自分以外の参照元が必要です。"
+            )
+
+    def _ensure_follow_up_has_no_billing_additions(self) -> None:
+        """初回調剤に対する加算をフォローアップへ重ねない。"""
+        if (
+            self.record_kind is MedicationHistoryRecordKind.FOLLOW_UP
+            and self.billing_additions
+        ):
+            raise MedicationHistoryDomainError(
+                "フォローアップ薬歴に初回調剤の算定加算は記録できません。"
+            )
+
     def _ensure_finalized_items_are_assessed(self) -> None:
         """確定前に確認が必要な項目が未記録でないことを検証する。"""
         if not self.status.is_finalized:
             return
-        missing_items = tuple(
-            label
-            for label, value in (
-                ("服薬指導方法", self.method),
-                ("お薬手帳の活用状況", self.handbook_status),
-                ("残薬状況", self.residual_drug),
-                ("情報提供文書の交付", self.information_sheet_provided),
+        required_items: list[tuple[str, object | None]] = [
+            ("服薬指導方法", self.method)
+        ]
+        if self.record_kind is MedicationHistoryRecordKind.INITIAL:
+            required_items.extend(
+                (
+                    ("お薬手帳の活用状況", self.handbook_status),
+                    ("残薬状況", self.residual_drug),
+                    ("情報提供文書の交付", self.information_sheet_provided),
+                )
             )
-            if value is None
-        )
+        missing_items = tuple(label for label, value in required_items if value is None)
         if missing_items:
             raise MedicationHistoryUnassessedItemsError(missing_items=missing_items)
 
     def _ensure_finalized_review_has_authored_evidence(self) -> None:
         """新しいレビュー証跡は薬剤師自身のA/P記載を伴う。"""
         if not self.status.is_finalized or self.review_result is None:
+            return
+        if (
+            self.record_kind is MedicationHistoryRecordKind.FOLLOW_UP
+            and self.review_result
+            is MedicationHistoryReviewResult.NO_ADDITIONAL_RECORDABLE_ITEMS
+        ):
             return
         if not any(
             note.has_content for note in (*self.soap.assessment, *self.soap.plan)
@@ -285,10 +321,14 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         source_system: MedicationHistorySourceSystem | None = None,
         imported_at: MedicationHistoryImportTimestamp | None = None,
         recorded_by: StaffId | None = None,
+        record_kind: MedicationHistoryRecordKind = MedicationHistoryRecordKind.INITIAL,
+        source_record_id: MedicationHistoryRecordId | None = None,
     ) -> Self:
         """服薬指導の記録を下書きとして起こす。"""
         return cls(
             id=MedicationHistoryRecordId.generate(),
+            record_kind=record_kind,
+            source_record_id=source_record_id,
             corporate_id=corporate_id,
             store_id=store_id,
             patient_id=patient_id,

@@ -139,6 +139,13 @@ class MedicationHistoryStatus(StrEnum):
         return self is MedicationHistoryStatus.FINALIZED
 
 
+class MedicationHistoryRecordKind(StrEnum):
+    """初回薬歴か、過去薬歴を参照するフォローアップ薬歴か。"""
+
+    INITIAL = "initial"
+    FOLLOW_UP = "follow_up"
+
+
 class MedicationHistoryReviewResult(StrEnum):
     """薬歴確定時に薬剤師が選択する確認結果。"""
 

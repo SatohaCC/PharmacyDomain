@@ -15,7 +15,11 @@ from app.application.medication_history.inputs import BillingAdditionInput
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.primitives import DispensingId
-from app.domain.medication_history.primitives import MedicationHistoryRecordId
+from app.domain.medication_history.primitives import (
+    MedicationHistoryRecordId,
+    MedicationHistoryRecordKind,
+    MedicationHistoryStatus,
+)
 from app.domain.medication_history.value_objects import StatutoryRecordSource
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import PrescriptionId
@@ -101,6 +105,45 @@ class ReceptionMedicationHistoryBoundary(Protocol):
         medication_history_id: MedicationHistoryRecordId,
     ) -> None:
         """受付を初回保存した薬歴へ関連付ける。"""
+        ...
+
+
+@dataclass(frozen=True, kw_only=True)
+class MedicationHistoryFollowUpSource:
+    """フォローアップ元選択に必要な薬歴メタデータだけを表す。"""
+
+    record_id: MedicationHistoryRecordId
+    corporate_id: CorporateId
+    patient_id: PatientId
+    store_id: StoreId
+    dispensing_id: DispensingId
+    prescription_id: PrescriptionId
+    record_kind: MedicationHistoryRecordKind
+    source_record_id: MedicationHistoryRecordId | None
+    status: MedicationHistoryStatus
+    counseled_at: datetime | None
+
+
+class MedicationHistoryFollowUpSourceBoundary(Protocol):
+    """店舗横断候補から本文を除いた参照元メタデータを取得する。"""
+
+    async def get_source_reference(
+        self,
+        *,
+        corporate_id: CorporateId,
+        patient_id: PatientId,
+        record_id: MedicationHistoryRecordId,
+    ) -> MedicationHistoryFollowUpSource | None:
+        """指定患者の薬歴を状態を含むメタデータだけで取得する。"""
+        ...
+
+    async def list_confirmed_sources(
+        self,
+        *,
+        corporate_id: CorporateId,
+        patient_id: PatientId,
+    ) -> tuple[MedicationHistoryFollowUpSource, ...]:
+        """指定患者の確定済薬歴をメタデータだけで列挙する。"""
         ...
 
 

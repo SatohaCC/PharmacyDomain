@@ -27,6 +27,7 @@ from app.application.medication_history.verify_statutory_record import (
     VerifyStatutoryRecordQuery,
 )
 from app.domain.corporate.primitives import CorporateId
+from app.domain.medication_history.exceptions import MedicationHistoryDomainError
 from app.domain.medication_history.primitives import (
     MedicationHistoryRecordId,
     StatutoryDispensingRecordItem,
@@ -38,7 +39,12 @@ from tests.application.medication_history.helpers import (
     create_fixture,
     create_start_command,
 )
-from tests.factories.medication_history_factory import create_nsips_draft_record
+from tests.factories.medication_history_factory import (
+    create_independent_follow_up_record,
+    create_nsips_draft_record,
+    create_record,
+    finalize_record_with_review,
+)
 
 
 async def _finalized_record_id(fixture: MedicationHistoryFixture) -> str:
@@ -81,6 +87,29 @@ class Test調剤録代替の確認:
         assert len(result.assessments) == len(StatutoryDispensingRecordItem)
         assert result.blockers == ()
         assert result.substitutes_dispensing_record
+
+    async def test_tc32_独立フォローアップは調剤録の代替判定対象にならない(
+        self,
+    ) -> None:
+        fixture = create_fixture()
+        initial = finalize_record_with_review(
+            create_record(
+                corporate_id=fixture.corporate_id,
+                store_id=fixture.store_id,
+                patient_id=fixture.patient_id,
+                dispensing_id=fixture.dispensing.id,
+                prescription_id=fixture.dispensing.prescription_id,
+            )
+        )
+        follow_up = create_independent_follow_up_record(
+            initial, store_id=fixture.store_id, finalized=True
+        )
+        await fixture.record_repository.save(follow_up)
+
+        with pytest.raises(MedicationHistoryDomainError):
+            await fixture.verify_statutory_record.execute(
+                _query(fixture, str(follow_up.id.value))
+            )
 
     async def test_下書きの薬歴は_代替にならない理由が返る(self) -> None:
         """確認は確定済に限らない。足りないものを先に知るために使う。"""

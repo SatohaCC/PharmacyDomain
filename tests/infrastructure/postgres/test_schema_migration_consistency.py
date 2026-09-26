@@ -336,6 +336,17 @@ _MEDICATION_HISTORY_COUNSELED_AT_TRANSFORM_PREFIXES = (
     "ALTER TABLE medication_history_records ALTER COLUMN counseled_at DROP NOT NULL",
 )
 
+# 0008は既存薬歴を初回へ移行し、自己参照FKと初回だけの一意性へ切り替える。
+_MEDICATION_HISTORY_RECORD_KIND_TRANSFORM_PREFIXES = (
+    "ALTER TABLE medication_history_records ADD COLUMN record_kind VARCHAR(32) DEFAULT 'initial' NOT NULL",
+    "ALTER TABLE medication_history_records ALTER COLUMN record_kind DROP DEFAULT",
+    "ALTER TABLE medication_history_records ADD COLUMN source_record_id UUID",
+    "ALTER TABLE medication_history_records ADD CONSTRAINT uq_medication_history_records_source_identity UNIQUE",
+    "ALTER TABLE medication_history_records ADD CONSTRAINT fk_medication_history_records_source_identity FOREIGN KEY",
+    "ALTER TABLE medication_history_records ADD CONSTRAINT ck_medication_history_records_record_kind_source CHECK",
+    "DROP INDEX uq_medication_history_records_finalized_dispensing",
+)
+
 
 def _split_statements(sql: str) -> list[str]:
     """``$$`` で囲まれた本体の中の ``;`` で切らずに文へ分ける。
@@ -395,9 +406,33 @@ def _migration_ddl() -> set[str]:
                 "counseled_at TIMESTAMP WITH TIME ZONE NOT NULL",
                 "counseled_at TIMESTAMP WITH TIME ZONE",
             )
+            close_index = statement.rfind(")")
+            assert close_index > 0
+            additions = (
+                "CONSTRAINT ck_medication_history_records_record_kind_source CHECK "
+                "((record_kind = 'initial' AND source_record_id IS NULL) OR "
+                "(record_kind = 'follow_up' AND source_record_id IS NOT NULL "
+                "AND source_record_id <> id)), "
+                "CONSTRAINT fk_medication_history_records_source_identity FOREIGN KEY"
+                "(source_record_id, corporate_id, patient_id, prescription_id, "
+                "dispensing_id) REFERENCES medication_history_records "
+                "(id, corporate_id, patient_id, prescription_id, dispensing_id), "
+                "CONSTRAINT uq_medication_history_records_source_identity UNIQUE "
+                "(id, corporate_id, patient_id, prescription_id, dispensing_id), "
+                "record_kind VARCHAR(32) NOT NULL, source_record_id UUID"
+            )
+            statement = _normalized_statement(
+                statement[:close_index] + ", " + additions + statement[close_index:]
+            )
         elif statement.startswith(
             "CREATE UNIQUE INDEX uq_patient_external_identifiers_active_source "
             "ON patient_external_identifiers (corporate_id, system_name, external_patient_id)"
+        ) or (
+            statement.startswith(
+                "CREATE UNIQUE INDEX uq_medication_history_records_finalized_dispensing "
+                "ON medication_history_records (corporate_id, dispensing_id) WHERE status = 'finalized'"
+            )
+            and "record_kind" not in statement
         ):
             continue
         statements.add(statement)
@@ -441,6 +476,7 @@ def test_マイグレーションの全DDLが_検査の対象になっている(
         and not statement.startswith(
             _MEDICATION_HISTORY_COUNSELED_AT_TRANSFORM_PREFIXES
         )
+        and not statement.startswith(_MEDICATION_HISTORY_RECORD_KIND_TRANSFORM_PREFIXES)
         and statement not in routines
     ]
 
@@ -511,6 +547,23 @@ def test_tc23_薬歴指導日時をNULL可能にする前進マイグレーシ�
             for statement in statements
         )
         == 1
+    )
+
+
+def test_tc44_薬歴種別と参照鎖と初回限定索引を前進migrationへ反映する() -> None:
+    statements = _upgrade_statements()
+
+    assert all(
+        sum(statement.startswith(prefix) for statement in statements) == 1
+        for prefix in _MEDICATION_HISTORY_RECORD_KIND_TRANSFORM_PREFIXES
+    )
+    assert any(
+        statement.startswith(
+            "CREATE UNIQUE INDEX uq_medication_history_records_finalized_dispensing "
+            "ON medication_history_records (corporate_id, dispensing_id)"
+        )
+        and "record_kind = 'initial'" in statement
+        for statement in statements
     )
 
 
