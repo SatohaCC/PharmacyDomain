@@ -11,8 +11,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from datetime import date
-from typing import Self
+from datetime import date, datetime
+from typing import Any, Self, cast
+from uuid import uuid5, uuid7
 
 from app.domain.care_event.primitives import EventId
 from app.domain.corporate.primitives import CorporateId
@@ -34,12 +35,20 @@ from app.domain.medication_history.exceptions import (
     TracingReportOnDraftError,
     TracingReportResponseDateBeforeProvidedError,
 )
+from app.domain.medication_history.fact_correction import (
+    FACT_ARRAY_TYPES,
+    FACT_FIELD_TYPES,
+    EffectiveMedicationHistoryFacts,
+    FactElement,
+    MedicationHistoryFactCorrection,
+)
 from app.domain.medication_history.primitives import (
     AmendmentReason,
     AmendmentTimestamp,
     CounselingMethod,
     CounselingTimestamp,
     ExternalCorrectionTimestamp,
+    FactCorrectionTimestamp,
     FinalizationDelayReason,
     FinalizedTimestamp,
     MedicationHistoryImportTimestamp,
@@ -67,6 +76,13 @@ from app.domain.prescription.primitives import PrescriptionId
 from app.domain.shared.preservation import PreservationPolicyCatalog
 from app.domain.staff.primitives import StaffId
 from app.domain.store.primitives import StoreId
+
+_FACT_VALUE_ABSENT = object()
+
+
+def _replace_fact_field[T](value: T, field_name: str, new_value: object) -> T:
+    """宣言済み対象だけに適用する動的フィールド更新。"""
+    return cast(T, replace(cast(Any, value), **{field_name: new_value}))
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)
@@ -104,6 +120,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     review_result: MedicationHistoryReviewResult | None = None
     retention_expiry_date: date | None = None
     external_corrections: tuple[ExternalPrescriptionCorrection, ...] = ()
+    fact_corrections: tuple[MedicationHistoryFactCorrection, ...] = ()
 
     # ------------------------------------------------------------------
     # 不変条件
@@ -115,6 +132,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         SOAP の充足は**確定済のときだけ**課す。下書きの途中で
         全セクションを要求すると、聞き取りながら書き足す運用ができない。
         """
+        self._ensure_fact_corrections_are_valid()
         self._ensure_counseling_provenance_is_valid()
         self._ensure_amendments_only_after_finalized()
         self._ensure_finalized_soap_is_complete()
@@ -127,7 +145,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         if not self.status.is_finalized:
             return
         required_items: list[tuple[str, object | None]] = [
-            ("服薬指導方法", self.method)
+            ("服薬指導方法", self.effective_facts.method)
         ]
         missing_items = tuple(label for label, value in required_items if value is None)
         if missing_items:
@@ -135,10 +153,11 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
 
     def _ensure_finalized_review_has_authored_evidence(self) -> None:
         """新しいレビュー証跡は薬剤師自身のA/P記載を伴う。"""
-        if not self.status.is_finalized or self.review_result is None:
+        review_result = self.effective_facts.review_result
+        if not self.status.is_finalized or review_result is None:
             return
         if (
-            self.review_result
+            review_result
             is MedicationHistoryReviewResult.NO_ADDITIONAL_RECORDABLE_ITEMS
         ):
             return
@@ -163,24 +182,27 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         if not self.status.is_finalized:
             return
         has_soap = self.effective_soap.has_content
-        has_additional = any(note.has_content for note in self.additional_notes)
+        has_additional = any(
+            note.has_content for note in self.effective_facts.additional_notes
+        )
         if not has_soap and not has_additional:
             raise SoapContentRequiredError()
 
     def _ensure_finalization_metadata_is_valid(self) -> None:
         """確定メタデータと真正性を検証する。"""
+        facts = self.effective_facts
         if self.status is MedicationHistoryStatus.FINALIZED:
             if self.finalized_at is None or self.finalized_by is None:
                 raise FinalizationStaffRequiredError()
-            if self.counseled_at is None or self.counselor_id is None:
+            if facts.counseled_at is None or facts.counselor_id is None:
                 raise MedicationHistoryDomainError(
                     "確定済の薬歴には実際の指導者と指導日時が必要です。"
                 )
-            if self.finalized_at.value < self.counseled_at.value:
+            if self.finalized_at.value < facts.counseled_at.value:
                 raise FinalizationDateBeforeCounselingError()
             if (
-                self.finalized_at.value.date() != self.counseled_at.value.date()
-                and self.delay_reason is None
+                self.finalized_at.value.date() != facts.counseled_at.value.date()
+                and facts.delay_reason is None
             ):
                 raise FinalizationDelayReasonRequiredError()
         elif self.status is MedicationHistoryStatus.DRAFT:
@@ -196,15 +218,16 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         elif (
             self.finalized_at is not None
             or self.finalized_by is not None
-            or self.delay_reason is not None
-            or self.review_result is not None
+            or facts.delay_reason is not None
+            or facts.review_result is not None
         ):
             raise MedicationHistoryDomainError("移行記録に確定監査値は設定できません。")
 
     def _ensure_counseling_provenance_is_valid(self) -> None:
         """指導実績と、薬剤師記載または旧NSIPS下書きの由来を検証する。"""
-        has_counselor = self.counselor_id is not None
-        has_counseled_at = self.counseled_at is not None
+        facts = self.effective_facts
+        has_counselor = facts.counselor_id is not None
+        has_counseled_at = facts.counseled_at is not None
         if has_counselor != has_counseled_at:
             raise MedicationHistoryDomainError(
                 "指導者と指導日時は両方設定するか、両方未設定にしてください。"
@@ -214,7 +237,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         if self.status is not MedicationHistoryStatus.DRAFT or (
             self.recorded_by is None
             and (
-                self.source_system != MedicationHistorySourceSystem("NSIPS")
+                facts.source_system != MedicationHistorySourceSystem("NSIPS")
                 or self.imported_at is None
             )
         ):
@@ -252,7 +275,208 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     @property
     def updates_profile(self) -> bool:
         """この薬歴が頭書きへ差分を持つか。"""
-        return not self.profile_updates.is_empty
+        return not self.effective_facts.profile_updates.is_empty
+
+    def _original_fact_elements(self) -> dict[str, list[FactElement]]:
+        """薬歴IDと原本位置から安定した配列要素IDを導出する。"""
+        result: dict[str, list[FactElement]] = {}
+        for field_name in FACT_ARRAY_TYPES:
+            if field_name.startswith("profile_updates."):
+                values = getattr(self.profile_updates, field_name.split(".", 1)[1])
+            else:
+                values = getattr(self, field_name)
+            result[field_name] = [
+                FactElement(
+                    id=str(uuid5(self.id.value, f"{field_name}:{index}")),
+                    value=value,
+                )
+                for index, value in enumerate(values)
+            ]
+        return result
+
+    def _replay_facts(
+        self,
+    ) -> tuple[EffectiveMedicationHistoryFacts, dict[str, list[FactElement]]]:
+        """訂正の追記順に有効値と要素IDを再生する。"""
+        facts = EffectiveMedicationHistoryFacts(
+            counselor_id=self.counselor_id,
+            counseled_at=self.counseled_at,
+            method=self.method,
+            handbook_status=self.handbook_status,
+            residual_drug=self.residual_drug,
+            information_sheet_provided=self.information_sheet_provided,
+            profile_updates=self.profile_updates,
+            additional_notes=self.additional_notes,
+            billing_additions=self.billing_additions,
+            source_system=self.source_system,
+            delay_reason=self.delay_reason,
+            review_result=self.review_result,
+        )
+        elements = self._original_fact_elements()
+        for correction in self.fact_corrections:
+            field_name = correction.field_name
+            if field_name in FACT_ARRAY_TYPES:
+                items = elements[field_name]
+                if correction.operation == "append":
+                    if correction.element_id is None or correction.after is None:
+                        raise MedicationHistoryDomainError(
+                            "追加要素のIDと値が必要です。"
+                        )
+                    items.append(
+                        FactElement(id=correction.element_id, value=correction.after)
+                    )
+                else:
+                    position = next(
+                        (
+                            index
+                            for index, item in enumerate(items)
+                            if item.id == correction.target
+                        ),
+                        None,
+                    )
+                    if position is None:
+                        raise MedicationHistoryDomainError(
+                            "訂正対象の要素がありません。"
+                        )
+                    if correction.operation == "retract":
+                        items.pop(position)
+                    elif correction.after is not None:
+                        items[position] = FactElement(
+                            id=correction.target, value=correction.after
+                        )
+            elif field_name.startswith("profile_updates."):
+                facts = replace(
+                    facts,
+                    profile_updates=_replace_fact_field(
+                        facts.profile_updates,
+                        field_name.split(".", 1)[1],
+                        correction.after,
+                    ),
+                )
+            else:
+                facts = _replace_fact_field(facts, field_name, correction.after)
+        profile_updates = facts.profile_updates
+        for field_name, items in elements.items():
+            values = tuple(item.value for item in items)
+            if field_name.startswith("profile_updates."):
+                profile_updates = _replace_fact_field(
+                    profile_updates, field_name.split(".", 1)[1], values
+                )
+            else:
+                facts = _replace_fact_field(facts, field_name, values)
+        return replace(facts, profile_updates=profile_updates), elements
+
+    @property
+    def effective_facts(self) -> EffectiveMedicationHistoryFacts:
+        """訂正後の有効な事実を返す。原本は保持する。"""
+        return self._replay_facts()[0]
+
+    def fact_elements(self, field_name: str) -> tuple[FactElement, ...]:
+        """有効な配列要素を安定したIDとともに返す。"""
+        if field_name not in FACT_ARRAY_TYPES:
+            raise MedicationHistoryDomainError("指定した項目は配列ではありません。")
+        return tuple(self._replay_facts()[1][field_name])
+
+    def original_fact_elements(self, field_name: str) -> tuple[FactElement, ...]:
+        """原本配列の要素と不変のIDを返す。"""
+        if field_name not in FACT_ARRAY_TYPES:
+            raise MedicationHistoryDomainError("指定した項目は配列ではありません。")
+        return tuple(self._original_fact_elements()[field_name])
+
+    def _ensure_fact_corrections_are_valid(self) -> None:
+        """訂正IDの重複と下書きへの訂正を拒否する。"""
+        if self.fact_corrections and not self.is_projection_eligible:
+            raise MedicationHistoryNotFinalizedError()
+        ids = [item.id for item in self.fact_corrections]
+        if len(ids) != len(set(ids)):
+            raise MedicationHistoryDomainError("薬歴訂正IDが重複しています。")
+        if self.status is MedicationHistoryStatus.FINALIZED and any(
+            item.field_name == "review_result" and item.after is None
+            for item in self.fact_corrections
+        ):
+            raise MedicationHistoryDomainError("レビュー結果は訂正で解除できません。")
+        self._replay_facts()
+
+    def correct_fact(
+        self,
+        *,
+        target: str,
+        operation: str = "replace",
+        reason: str,
+        corrected_by: StaffId,
+        recorded_at: datetime,
+        value: object = _FACT_VALUE_ABSENT,
+    ) -> Self:
+        """確定・移行済み薬歴の事実訂正を監査値付きで追記する。"""
+        if not self.is_projection_eligible:
+            raise MedicationHistoryNotFinalizedError()
+        if not reason.strip():
+            raise MedicationHistoryDomainError("訂正理由を入力してください。")
+        if recorded_at.tzinfo is None or recorded_at.utcoffset() is None:
+            raise MedicationHistoryDomainError("訂正日時にはタイムゾーンが必要です。")
+        if operation not in {"replace", "retract", "append"}:
+            raise MedicationHistoryDomainError("訂正操作が正しくありません。")
+        facts, elements = self._replay_facts()
+        field_name = target
+        if target not in FACT_FIELD_TYPES and target not in FACT_ARRAY_TYPES:
+            field_name = next(
+                (
+                    name
+                    for name, items in elements.items()
+                    if any(item.id == target for item in items)
+                ),
+                "",
+            )
+        if field_name not in FACT_FIELD_TYPES and field_name not in FACT_ARRAY_TYPES:
+            raise MedicationHistoryDomainError("訂正対象がありません。")
+        is_array = field_name in FACT_ARRAY_TYPES
+        if operation == "append" and (not is_array or target != field_name):
+            raise MedicationHistoryDomainError("配列への追加対象が正しくありません。")
+        if operation != "append" and is_array and target == field_name:
+            raise MedicationHistoryDomainError("配列要素のIDを指定してください。")
+        if operation == "retract":
+            if value is not _FACT_VALUE_ABSENT:
+                raise MedicationHistoryDomainError("取消しに新しい値は指定できません。")
+            after: object | None = None
+        else:
+            if value is _FACT_VALUE_ABSENT:
+                raise MedicationHistoryDomainError("訂正後の値を指定してください。")
+            expected = (FACT_ARRAY_TYPES if is_array else FACT_FIELD_TYPES)[field_name]
+            if value is not None and (
+                type(value) is not bool
+                if expected is bool
+                else not isinstance(value, expected)
+            ):
+                raise MedicationHistoryDomainError("訂正値の型が対象項目と異なります。")
+            if is_array and value is None:
+                raise MedicationHistoryDomainError("配列に空の要素は追加できません。")
+            after = value
+        if is_array:
+            before = next(
+                (item.value for item in elements[field_name] if item.id == target),
+                None,
+            )
+            if operation != "append" and before is None:
+                raise MedicationHistoryDomainError("訂正対象の要素がありません。")
+        elif field_name.startswith("profile_updates."):
+            before = getattr(facts.profile_updates, field_name.split(".", 1)[1])
+        else:
+            before = getattr(facts, field_name)
+        if operation == "retract" and not is_array and before is None:
+            raise MedicationHistoryDomainError("取消し対象の値がありません。")
+        event = MedicationHistoryFactCorrection(
+            id=str(uuid7()),
+            target=target,
+            field_name=field_name,
+            operation=operation,
+            before=before,
+            after=after,
+            reason=reason.strip(),
+            corrected_by=corrected_by,
+            recorded_at=FactCorrectionTimestamp(recorded_at),
+            element_id=str(uuid7()) if operation == "append" else None,
+        )
+        return replace(self, fact_corrections=(*self.fact_corrections, event))
 
     # ------------------------------------------------------------------
     # ファクトリ

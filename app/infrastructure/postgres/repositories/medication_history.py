@@ -43,6 +43,7 @@ from app.infrastructure.postgres.schema import (
 
 def _history_record_columns(record: MedicationHistoryRecord) -> dict[str, object]:
     """検索・一意性制約に使う列を薬歴から導く。"""
+    counseled_at = record.effective_facts.counseled_at
     return {
         "id": record.id.value,
         "event_id": record.event_id.value,
@@ -56,9 +57,7 @@ def _history_record_columns(record: MedicationHistoryRecord) -> dict[str, object
             record.prescription_id.value if record.prescription_id is not None else None
         ),
         "status": record.status.value,
-        "counseled_at": (
-            record.counseled_at.value if record.counseled_at is not None else None
-        ),
+        "counseled_at": counseled_at.value if counseled_at is not None else None,
         "recorded_at": (
             record.recorded_at.value if record.recorded_at is not None else None
         ),
@@ -225,9 +224,8 @@ def _sort_timeline(
     def key(
         record: MedicationHistoryRecord,
     ) -> tuple[bool, bool, datetime, bool, datetime, str]:
-        counseled_at = (
-            record.counseled_at.value if record.counseled_at is not None else maximum
-        )
+        effective_time = record.effective_facts.counseled_at
+        counseled_at = effective_time.value if effective_time is not None else maximum
         audit_at = (
             record.finalized_at.value
             if record.finalized_at is not None
@@ -237,7 +235,7 @@ def _sort_timeline(
         )
         return (
             not record.is_projection_eligible,
-            record.counseled_at is None,
+            effective_time is None,
             counseled_at,
             record.finalized_at is None and record.recorded_at is None,
             audit_at,

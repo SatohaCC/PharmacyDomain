@@ -31,12 +31,14 @@ from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
 from app.domain.medication_history.primitives import (
+    CounselingMethod,
     FinalizedTimestamp,
     FollowUpRecordedTimestamp,
     MedicationHistoryReviewResult,
     MedicationHistorySourceSystem,
     MedicationHistoryStatus,
 )
+from app.domain.medication_history.value_objects import ProfileUpdateIntents
 from app.domain.patient.lifecycle import PatientStatus
 from app.domain.patient.patient import Patient
 from app.domain.patient.primitives import (
@@ -103,11 +105,17 @@ from app.infrastructure.postgres.codec import (
     decode_aggregate,
     encode_aggregate,
 )
+from tests.domain.medication_history.test_fact_correction import (
+    _correct,
+    _element_id,
+)
 from tests.factories.dispensing_factory import create_dispensing, verify_passed
 from tests.factories.medication_history_factory import (
+    create_allergy_intent,
     create_independent_follow_up_record,
     create_nsips_draft_record,
     create_record,
+    finalize_record_with_review,
 )
 from tests.factories.persistence_factory import create_patient
 from tests.factories.prescription_factory import (
@@ -671,6 +679,61 @@ def test_TC24_薬歴集約のcodec往復と後方互換復元() -> None:
     assert not hasattr(restored, "reviewed_by")
     assert "reviewed_at" not in reencoded
     assert "reviewed_by" not in reencoded
+
+
+def test_tc36_旧薬歴payloadに訂正履歴がなくても復元できる() -> None:
+    original = finalize_record_with_review(create_record())
+    legacy_payload = encode_aggregate(original)
+    legacy_payload.pop("fact_corrections", None)
+    legacy_payload["reviewed_by"] = str(StaffId.generate().value)
+    legacy_payload["reviewed_at"] = original.counseled_at.value.isoformat()  # type: ignore[union-attr]
+
+    restored = decode_aggregate(legacy_payload, MedicationHistoryRecord)
+
+    assert hasattr(restored, "fact_corrections"), "旧payloadにも訂正履歴の既定値が必要"
+    assert restored.fact_corrections == ()
+    assert restored.effective_facts.method == original.method
+    assert restored.profile_updates == original.profile_updates
+    assert "reviewed_by" not in encode_aggregate(restored)
+
+
+def test_tc37_異なる訂正イベントをJSONBで往復できる() -> None:
+    original = finalize_record_with_review(
+        create_record(
+            profile_updates=ProfileUpdateIntents(
+                new_allergies=(create_allergy_intent(), create_allergy_intent("卵白"))
+            )
+        )
+    )
+    first_id = _element_id(original, "profile_updates.new_allergies", 0)
+    second_id = _element_id(original, "profile_updates.new_allergies", 1)
+    corrected = _correct(original, target="method", value=CounselingMethod.TELEPHONE)
+    corrected = _correct(
+        corrected,
+        target=first_id,
+        value=create_allergy_intent(reaction="蕁麻疹"),
+    )
+    corrected = _correct(corrected, target=second_id, operation="retract")
+    corrected = _correct(
+        corrected,
+        target="profile_updates.new_allergies",
+        operation="append",
+        value=create_allergy_intent("牛乳"),
+    )
+    corrected = _correct(
+        corrected, target="method", value=CounselingMethod.FACE_TO_FACE
+    )
+
+    restored = decode_aggregate(encode_aggregate(corrected), MedicationHistoryRecord)
+
+    assert encode_aggregate(restored) == encode_aggregate(corrected)
+    assert restored.profile_updates == original.profile_updates
+    assert restored.effective_facts == corrected.effective_facts
+    assert restored.fact_corrections == corrected.fact_corrections
+    assert _element_id(restored, "profile_updates.new_allergies", 0) == first_id
+    assert _element_id(restored, "profile_updates.new_allergies", 1) == _element_id(
+        corrected, "profile_updates.new_allergies", 1
+    )
 
 
 def test_tc44_13_登録日時payloadの往復と現役payloadの入れ子記録廃止() -> None:

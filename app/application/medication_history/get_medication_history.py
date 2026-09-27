@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
+from datetime import date, datetime
+from enum import Enum
+from typing import cast
+from uuid import UUID
 
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
@@ -15,6 +19,8 @@ from app.application.medication_history.reference import (
 from app.application.medication_history.support import load_record_or_raise
 from app.domain.care_event.primitives import EventId
 from app.domain.corporate.primitives import CorporateId
+from app.domain.foundation.primitives.base import DomainPrimitive
+from app.domain.medication_history.fact_correction import FACT_ARRAY_TYPES, FactElement
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
@@ -28,12 +34,107 @@ from app.domain.medication_history.value_objects import (
     HandbookStatus,
     LabeledNote,
     MedicationHistoryAmendment,
+    ProfileUpdateIntents,
     ResidualDrugRecord,
     SoapRecord,
     TracingReport,
     TracingReportResponse,
 )
 from app.domain.patient.primitives import PatientId
+
+
+def _fact_json(value: object) -> object:
+    """薬歴の監査事実をAPIで読める構造へ変換する。"""
+    if isinstance(value, DomainPrimitive):
+        return _fact_json(value.value)
+    if isinstance(value, Enum):
+        return _fact_json(value.value)
+    if isinstance(value, datetime | date):
+        return value.isoformat()
+    if isinstance(value, UUID):
+        return str(value)
+    if is_dataclass(value) and not isinstance(value, type):
+        return {
+            item.name: _fact_json(getattr(value, item.name)) for item in fields(value)
+        }
+    if isinstance(value, tuple | list):
+        return [_fact_json(item) for item in value]
+    return value
+
+
+def _element_json(element: FactElement) -> dict[str, object]:
+    """配列要素IDと値の項目を1つの表示単位にする。"""
+    payload = _fact_json(element.value)
+    if isinstance(payload, dict):
+        return {"id": element.id, **payload}
+    return {"id": element.id, "value": payload}
+
+
+def _profile_updates_json(
+    record: MedicationHistoryRecord, *, original: bool
+) -> dict[str, object]:
+    """原本または有効な頭書き差分を要素IDつきで返す。"""
+    updates = (
+        record.profile_updates if original else record.effective_facts.profile_updates
+    )
+    result: dict[str, object] = {}
+    for item in fields(ProfileUpdateIntents):
+        field_name = f"profile_updates.{item.name}"
+        if field_name in FACT_ARRAY_TYPES:
+            elements = (
+                record.original_fact_elements(field_name)
+                if original
+                else record.fact_elements(field_name)
+            )
+            result[item.name] = [_element_json(element) for element in elements]
+        else:
+            result[item.name] = _fact_json(getattr(updates, item.name))
+    return result
+
+
+def _original_facts_json(record: MedicationHistoryRecord) -> dict[str, object]:
+    """交付時の記録値を訂正後の表示と独立して返す。"""
+    return {
+        "counselor_id": _fact_json(record.counselor_id),
+        "counseled_at": _fact_json(record.counseled_at),
+        "method": _fact_json(record.method),
+        "handbook_status": _fact_json(record.handbook_status),
+        "residual_drug": _fact_json(record.residual_drug),
+        "information_sheet_provided": record.information_sheet_provided,
+        "profile_updates": _profile_updates_json(record, original=True),
+        "additional_notes": [
+            _element_json(item)
+            for item in record.original_fact_elements("additional_notes")
+        ],
+        "billing_additions": [
+            _element_json(item)
+            for item in record.original_fact_elements("billing_additions")
+        ],
+        "source_system": _fact_json(record.source_system),
+        "delay_reason": _fact_json(record.delay_reason),
+        "review_result": _fact_json(record.review_result),
+    }
+
+
+def _fact_corrections_json(
+    record: MedicationHistoryRecord,
+) -> tuple[dict[str, object], ...]:
+    """追記順を保った監査履歴を返す。"""
+    return tuple(
+        {
+            "id": item.id,
+            "target": item.target,
+            "field_name": item.field_name,
+            "operation": item.operation,
+            "before": _fact_json(item.before),
+            "after": _fact_json(item.after),
+            "reason": item.reason,
+            "corrected_by": _fact_json(item.corrected_by),
+            "recorded_at": _fact_json(item.recorded_at),
+            "element_id": item.element_id,
+        }
+        for item in record.fact_corrections
+    )
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -147,15 +248,19 @@ class CategorizedNoteDto:
     medium_category_code: str
     text: str
     category: str
+    id: str | None = None
 
     @classmethod
-    def from_value(cls, value: CategorizedNote) -> CategorizedNoteDto:
+    def from_value(
+        cls, value: CategorizedNote, *, element_id: str | None = None
+    ) -> CategorizedNoteDto:
         """記載メモからDTOを生成する。"""
         return cls(
             major_category_code=value.major_category_code.value,
             medium_category_code=value.medium_category_code.value,
             text=value.text.value,
             category=value.statutory_category.value,
+            id=element_id,
         )
 
 
@@ -225,15 +330,19 @@ class BillingAdditionDto:
     name: str
     points: int | None
     quantity: int | None
+    id: str | None = None
 
     @classmethod
-    def from_value(cls, value: BillingAddition) -> BillingAdditionDto:
+    def from_value(
+        cls, value: BillingAddition, *, element_id: str | None = None
+    ) -> BillingAdditionDto:
         """算定加算からDTOを生成する。"""
         return cls(
             code=value.code.value,
             name=value.name.value,
             points=value.points,
             quantity=value.quantity,
+            id=element_id,
         )
 
 
@@ -267,6 +376,9 @@ class MedicationHistoryDto:
     imported_at: str | None
     amendments: tuple[AmendmentDto, ...]
     updates_profile: bool
+    profile_updates: dict[str, object]
+    original_facts: dict[str, object]
+    fact_corrections: tuple[dict[str, object], ...]
     additional_notes: tuple[CategorizedNoteDto, ...] = ()
     billing_additions: tuple[BillingAdditionDto, ...] = ()
     tracing_reports: tuple[TracingReportDto, ...] = ()
@@ -285,6 +397,7 @@ class MedicationHistoryDto:
         event: MedicationHistoryEventReference | None = None,
     ) -> MedicationHistoryDto:
         """薬歴集約からDTOを生成する。"""
+        facts = record.effective_facts
         return cls(
             id=str(record.id.value),
             corporate_id=str(record.corporate_id.value),
@@ -316,31 +429,31 @@ class MedicationHistoryDto:
                 else None
             ),
             counselor_id=(
-                str(record.counselor_id.value)
-                if record.counselor_id is not None
+                str(facts.counselor_id.value)
+                if facts.counselor_id is not None
                 else None
             ),
             counseled_at=(
-                record.counseled_at.value.isoformat()
-                if record.counseled_at is not None
+                facts.counseled_at.value.isoformat()
+                if facts.counseled_at is not None
                 else None
             ),
-            method=unwrap(record.method),
+            method=unwrap(facts.method),
             status=record.status.value,
             soap=SoapDto.from_value(record.soap),
             effective_soap=SoapDto.from_value(record.effective_soap),
             handbook_status=(
-                HandbookStatusDto.from_value(record.handbook_status)
-                if record.handbook_status is not None
+                HandbookStatusDto.from_value(facts.handbook_status)
+                if facts.handbook_status is not None
                 else None
             ),
             residual_drug=(
-                ResidualDrugDto.from_value(record.residual_drug)
-                if record.residual_drug is not None
+                ResidualDrugDto.from_value(facts.residual_drug)
+                if facts.residual_drug is not None
                 else None
             ),
-            information_sheet_provided=record.information_sheet_provided,
-            source_system=unwrap(record.source_system),
+            information_sheet_provided=facts.information_sheet_provided,
+            source_system=unwrap(facts.source_system),
             imported_at=(
                 record.imported_at.value.isoformat()
                 if record.imported_at is not None
@@ -350,11 +463,20 @@ class MedicationHistoryDto:
                 AmendmentDto.from_value(item) for item in record.amendments
             ),
             updates_profile=record.updates_profile,
+            profile_updates=_profile_updates_json(record, original=False),
+            original_facts=_original_facts_json(record),
+            fact_corrections=_fact_corrections_json(record),
             additional_notes=tuple(
-                CategorizedNoteDto.from_value(note) for note in record.additional_notes
+                CategorizedNoteDto.from_value(
+                    cast(CategorizedNote, element.value), element_id=element.id
+                )
+                for element in record.fact_elements("additional_notes")
             ),
             billing_additions=tuple(
-                BillingAdditionDto.from_value(ba) for ba in record.billing_additions
+                BillingAdditionDto.from_value(
+                    cast(BillingAddition, element.value), element_id=element.id
+                )
+                for element in record.fact_elements("billing_additions")
             ),
             tracing_reports=tuple(
                 TracingReportDto.from_value(report) for report in record.tracing_reports
@@ -369,13 +491,13 @@ class MedicationHistoryDto:
                 if record.finalized_by is not None
                 else None
             ),
-            delay_reason=unwrap(record.delay_reason),
+            delay_reason=unwrap(facts.delay_reason),
             recorded_by=(
                 str(record.recorded_by.value)
                 if record.recorded_by is not None
                 else None
             ),
-            review_result=unwrap(record.review_result),
+            review_result=unwrap(facts.review_result),
             recorded_at=(
                 record.recorded_at.value.isoformat()
                 if record.recorded_at is not None

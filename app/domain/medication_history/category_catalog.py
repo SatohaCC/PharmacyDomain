@@ -200,7 +200,7 @@ class MedicationHistoryCategoryCatalog(AggregateRoot[CategoryCatalogId]):
             else:
                 has_in_additional = any(
                     note.medium_category_code == req.code and note.has_content
-                    for note in record.additional_notes
+                    for note in record.effective_facts.additional_notes
                 )
                 if not has_in_additional:
                     raise RequiredCategoryMissingError(

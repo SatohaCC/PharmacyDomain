@@ -114,6 +114,12 @@ class ExternalCorrectionTimestamp(BaseAwareTimestamp):
     timestamp_name: ClassVar[str] = "外部訂正日時"
 
 
+class FactCorrectionTimestamp(BaseAwareTimestamp):
+    """薬歴事実訂正を記録したUTC日時。"""
+
+    timestamp_name: ClassVar[str] = "事実訂正日時"
+
+
 class FinalizationDelayReason(BaseNormalizedString):
     """薬歴確定の遅延理由（1〜200文字）。"""
 

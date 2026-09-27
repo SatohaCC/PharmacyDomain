@@ -159,7 +159,8 @@ def _assess_dispensed_and_counseled_date(
     """
     del source
     return _recorded_if(
-        dispensing.dispensed_date is not None and record.counseled_at is not None
+        dispensing.dispensed_date is not None
+        and record.effective_facts.counseled_at is not None
     )
 
 
@@ -187,11 +188,12 @@ def _assess_pharmacist_names(
     無関係なスタッフの氏名がスナップショットに入っていることもある。
     最終鑑査者は第五号の対象ではないので問わない。
     """
-    if record.counselor_id is None:
+    counselor_id = record.effective_facts.counselor_id
+    if counselor_id is None:
         return StatutoryItemState.MISSING
     return _recorded_if(
         source.find_pharmacist(dispensing.dispenser_id) is not None
-        and source.find_pharmacist(record.counselor_id) is not None
+        and source.find_pharmacist(counselor_id) is not None
     )
 
 

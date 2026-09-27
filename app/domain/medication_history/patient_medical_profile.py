@@ -152,7 +152,8 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
         for record in records:
             if not record.is_projection_eligible:
                 continue
-            if record.counselor_id is None or record.counseled_at is None:
+            facts = record.effective_facts
+            if facts.counselor_id is None or facts.counseled_at is None:
                 raise MedicationHistoryDomainError(
                     "頭書きへ投影する薬歴には実際の指導者と指導日時が必要です。"
                 )
@@ -165,7 +166,7 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
             )
             raw_events.append(
                 (
-                    record.counseled_at.value,
+                    facts.counseled_at.value,
                     audit_time,
                     str(record.id.value),
                     record,
@@ -202,12 +203,13 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
         self._ensure_same_patient(record)
         if not record.is_projection_eligible:
             raise UnfinalizedRecordProjectionError()
-        if record.counselor_id is None or record.counseled_at is None:
+        facts = record.effective_facts
+        if facts.counselor_id is None or facts.counseled_at is None:
             raise MedicationHistoryDomainError(
                 "頭書きへの投影には実際の指導者と指導日時が必要です。"
             )
         provenance = _provenance_of(record)
-        return self._apply_intents(record.profile_updates, provenance)
+        return self._apply_intents(facts.profile_updates, provenance)
 
     def _apply_intents(
         self, intents: ProfileUpdateIntents, provenance: ProfileProvenance
@@ -404,12 +406,13 @@ def _provenance_of(record: MedicationHistoryRecord) -> ProfileProvenance:
     登録日は服薬指導日時のUTC日付とする。頭書きは監査で「誰がいつ登録したか」を
     示すためのものなので、投影を実行した時刻ではなく指導の時刻を根拠にする。
     """
-    if record.counselor_id is None or record.counseled_at is None:
+    facts = record.effective_facts
+    if facts.counselor_id is None or facts.counseled_at is None:
         raise MedicationHistoryDomainError(
             "頭書きの由来には実際の指導者と指導日時が必要です。"
         )
     return ProfileProvenance(
         source_record_id=record.id,
-        recorded_by=record.counselor_id,
-        recorded_on=record.counseled_at.value.date(),
+        recorded_by=facts.counselor_id,
+        recorded_on=facts.counseled_at.value.date(),
     )

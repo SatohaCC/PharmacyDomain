@@ -9,9 +9,10 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date, datetime
 from http import HTTPStatus
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import Field
@@ -24,6 +25,9 @@ from app.application.medication_history.amend_medication_history import (
     AmendMedicationHistoryCommand,
 )
 from app.application.medication_history.category_catalog import CategoryCatalogDto
+from app.application.medication_history.correct_medication_history_fact import (
+    CorrectMedicationHistoryFactCommand,
+)
 from app.application.medication_history.finalize_medication_history import (
     FinalizeMedicationHistoryCommand,
 )
@@ -155,6 +159,15 @@ class AmendMedicationHistoryRequest(RequestModel):
     amended_by: str
     reason: str
     amended_soap: SoapInput
+
+
+class CorrectMedicationHistoryFactRequest(RequestModel):
+    """確定済み薬歴の事実訂正。訂正者と時刻はサーバ側で決める。"""
+
+    target: str
+    operation: Literal["replace", "retract", "append"] = "replace"
+    reason: str
+    value: object | None = None
 
 
 class AddFollowUpRequest(RequestModel):
@@ -433,6 +446,31 @@ async def amend_medication_history(
             amended_soap=body.amended_soap,
         )
     )
+
+
+@router.post(
+    "/medication-histories/{record_id}/corrections",
+    status_code=HTTPStatus.CREATED,
+    response_model=MedicationHistoryDto,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def correct_medication_history_fact(
+    corporate_id: str,
+    record_id: str,
+    body: CorrectMedicationHistoryFactRequest,
+    use_cases: MedicationHistoryUseCasesDep,
+) -> MedicationHistoryDto:
+    """原本を保ったまま事実訂正を追記し、頭書きを再投影する。"""
+    command = CorrectMedicationHistoryFactCommand(
+        corporate_id=corporate_id,
+        record_id=record_id,
+        target=body.target,
+        operation=body.operation,
+        reason=body.reason,
+    )
+    if "value" in body.model_fields_set:
+        command = replace(command, value=body.value)
+    return await use_cases.correct_fact.execute(command)
 
 
 @router.post(

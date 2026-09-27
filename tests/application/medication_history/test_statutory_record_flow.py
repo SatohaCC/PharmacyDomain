@@ -34,11 +34,13 @@ from app.domain.medication_history.primitives import (
     StatutoryItemState,
     StatutoryRecordBlocker,
 )
+from app.domain.staff.primitives import StaffId
 from tests.application.medication_history.helpers import (
     MedicationHistoryFixture,
     create_fixture,
     create_start_command,
 )
+from tests.domain.medication_history.test_fact_correction import _correct
 from tests.factories.medication_history_factory import (
     create_independent_follow_up_record,
     create_nsips_draft_record,
@@ -87,6 +89,35 @@ class Test調剤録代替の確認:
         assert len(result.assessments) == len(StatutoryDispensingRecordItem)
         assert result.blockers == ()
         assert result.substitutes_dispensing_record
+
+    async def test_tc43_指導者訂正後の薬剤師を調剤録の判定へ渡す(self) -> None:
+        fixture = create_fixture()
+        original = finalize_record_with_review(
+            create_record(
+                corporate_id=fixture.corporate_id,
+                store_id=fixture.store_id,
+                patient_id=fixture.patient_id,
+                dispensing_id=fixture.dispensing.id,
+                prescription_id=fixture.dispensing.prescription_id,
+                counselor_id=fixture.counselor_id,
+            )
+        )
+        corrected_counselor = StaffId.generate()
+        corrected = _correct(original, target="counselor_id", value=corrected_counselor)
+        await fixture.record_repository.save(corrected)
+
+        result = await fixture.verify_statutory_record.execute(
+            _query(fixture, str(original.id.value))
+        )
+
+        assert corrected_counselor in fixture.statutory_source.requested_staff_ids[-1]
+        assert (
+            original.counselor_id
+            not in fixture.statutory_source.requested_staff_ids[-1]
+        )
+        assert (
+            StatutoryDispensingRecordItem.PHARMACIST_NAMES.value in result.missing_items
+        )
 
     async def test_tc32_独立フォローアップは調剤録の代替判定対象にならない(
         self,
