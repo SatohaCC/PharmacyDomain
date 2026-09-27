@@ -334,13 +334,15 @@ class RebuildPatientMedicalProfileUseCase:
             permission=Permission.MANAGE_PATIENT,
         )
         patient_id = PatientId.parse(command.patient_id)
-        records = await self._record_repository.list_by_patient(
+        records = await self._record_repository.list_for_profile_projection(
             corporate_id=corporate_id, patient_id=patient_id
         )
         rebuilt = PatientMedicalProfile.rebuild_from(
             corporate_id=corporate_id,
             patient_id=patient_id,
-            records=tuple(record for record in records if record.is_finalized),
+            records=tuple(
+                record for record in records if record.is_projection_eligible
+            ),
         )
         existing = await self._profile_repository.get_by_patient(
             corporate_id=corporate_id, patient_id=patient_id

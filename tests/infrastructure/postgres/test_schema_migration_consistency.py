@@ -15,6 +15,7 @@ from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, date, datetime
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 from alembic.migration import MigrationContext
@@ -23,6 +24,14 @@ from sqlalchemy import Table
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.schema import CreateIndex, CreateTable
 
+from app.domain.care_event.event import Event
+from app.domain.care_event.event_definition import EventDefinition
+from app.domain.care_event.primitives import (
+    EventCreatedTimestamp,
+    EventOccurredTimestamp,
+    EventTypeName,
+    EventTypeStandardCode,
+)
 from app.domain.identity.account_person import AccountPerson
 from app.domain.identity.invitation import InvitationDigest, UserInvitation
 from app.domain.identity.membership import CorporateMembership
@@ -55,6 +64,7 @@ from app.infrastructure.postgres import repositories, schema
 from app.infrastructure.postgres.repositories.account_person import (
     ACCOUNT_PERSON_MAPPING,
 )
+from app.infrastructure.postgres.repositories.care_event import EVENT_MAPPING
 from app.infrastructure.postgres.repositories.corporate import CORPORATE_MAPPING
 from app.infrastructure.postgres.repositories.corporate_membership import (
     MEMBERSHIP_MAPPING,
@@ -64,6 +74,9 @@ from app.infrastructure.postgres.repositories.coverage_selection_record import (
 )
 from app.infrastructure.postgres.repositories.dispensing_process import (
     DISPENSING_PROCESS_MAPPING,
+)
+from app.infrastructure.postgres.repositories.event_definition import (
+    EVENT_DEFINITION_MAPPING,
 )
 from app.infrastructure.postgres.repositories.medication_history import (
     MEDICATION_HISTORY_RECORD_MAPPING,
@@ -148,6 +161,11 @@ def _row_value_cases() -> list[tuple[AggregateMapping[Any], Mapping[str, object]
     patient = create_patient()
     reception_store = create_store(corporate_id=patient.corporate_id)
     staff = create_staff()
+    event_type = EventDefinition.create_standard(
+        code=EventTypeStandardCode("prescription_reception"),
+        name=EventTypeName("処方箋受付"),
+    )
+    occurred_at = datetime(2026, 9, 20, 9, 0, tzinfo=UTC)
     return [
         _case(ACCOUNT_PERSON_MAPPING, person),
         _case(USER_ACCOUNT_MAPPING, account),
@@ -224,6 +242,20 @@ def _row_value_cases() -> list[tuple[AggregateMapping[Any], Mapping[str, object]
         ),
         _case(PATIENT_MEDICAL_PROFILE_MAPPING, create_medical_profile()),
         _case(MEDICINE_MAPPING, create_medicine()),
+        _case(EVENT_DEFINITION_MAPPING, event_type),
+        _case(
+            EVENT_MAPPING,
+            Event.create(
+                event_type_id=event_type.id,
+                event_type_standard_code=event_type.standard_code,
+                event_type_name=event_type.name,
+                corporate_id=patient.corporate_id,
+                store_id=reception_store.id,
+                patient_id=patient.id,
+                occurred_at=EventOccurredTimestamp(occurred_at),
+                created_at=EventCreatedTimestamp(occurred_at),
+            ),
+        ),
     ]
 
 
@@ -295,7 +327,7 @@ def _normalized_statements(sql: str) -> set[str]:
 
 
 def _run_offline(operation_name: str) -> str:
-    """全マイグレーションをオフラインで実行し、生成されるSQLを返す。"""
+    """DDL比較用にmigration SQLを出力する（Pythonデータ変換は実行しない）。"""
     buffer = io.StringIO()
     context = MigrationContext.configure(
         dialect=postgres_dialect(),
@@ -306,7 +338,12 @@ def _run_offline(operation_name: str) -> str:
         modules = list(reversed(modules))
     with Operations.context(context):
         for module in modules:
-            getattr(module, operation_name)()
+            migration_operation = getattr(module, operation_name)
+            if module.revision == "20260927_0010" and operation_name == "upgrade":
+                with patch.object(module, "_backfill_records", lambda *_args: None):
+                    migration_operation()
+            else:
+                migration_operation()
     return buffer.getvalue()
 
 
@@ -354,6 +391,29 @@ _MEDICATION_HISTORY_RECORD_KIND_TRANSFORM_PREFIXES = (
     "DROP INDEX uq_medication_history_records_finalized_dispensing",
 )
 
+# Issue #45で処方・調剤参照と薬歴の主キー境界をEventへ移す前進DDL。
+_CARE_EVENT_TRANSFORM_PREFIXES = (
+    "ALTER TABLE prescriptions ADD CONSTRAINT uq_prescriptions_scope_identity UNIQUE",
+    "ALTER TABLE dispensing_processes ADD CONSTRAINT uq_dispensing_processes_event_identity UNIQUE",
+    "ALTER TABLE medication_history_records ADD COLUMN event_id UUID",
+    "ALTER TABLE medication_history_records ALTER COLUMN dispensing_id DROP NOT NULL",
+    "ALTER TABLE medication_history_records ALTER COLUMN prescription_id DROP NOT NULL",
+    "ALTER TABLE receptions ADD COLUMN event_id UUID",
+    "ALTER TABLE medication_history_records ALTER COLUMN event_id SET NOT NULL",
+    "ALTER TABLE medication_history_records DROP CONSTRAINT ck_medication_history_records_record_kind_source",
+    "ALTER TABLE medication_history_records DROP CONSTRAINT fk_medication_history_records_source_identity",
+    "ALTER TABLE medication_history_records DROP CONSTRAINT uq_medication_history_records_source_identity",
+    "ALTER TABLE medication_history_records DROP COLUMN source_record_id",
+    "ALTER TABLE medication_history_records DROP COLUMN record_kind",
+    "ALTER TABLE receptions ADD CONSTRAINT fk_receptions_event_scope FOREIGN KEY",
+    "ALTER TABLE receptions ADD CONSTRAINT uq_receptions_event UNIQUE",
+    "ALTER TABLE medication_history_records ADD CONSTRAINT fk_medication_history_records_event_scope FOREIGN KEY",
+    "ALTER TABLE medication_history_records ADD CONSTRAINT uq_medication_history_records_event UNIQUE",
+    "ALTER TABLE medication_history_records ADD CONSTRAINT fk_medication_history_records_event_resources FOREIGN KEY",
+    "ALTER TABLE medication_history_records ADD CONSTRAINT fk_medication_history_records_dispensing_scope FOREIGN KEY",
+    "ALTER TABLE medication_history_records ADD CONSTRAINT ck_medication_history_records_dispensing_requires_prescription CHECK",
+)
+
 
 def _split_statements(sql: str) -> list[str]:
     """``$$`` で囲まれた本体の中の ``;`` で切らずに文へ分ける。
@@ -393,7 +453,18 @@ def _upgrade_statements() -> list[str]:
 def _migration_ddl() -> set[str]:
     """マイグレーション後に残る表と索引のDDLを集める。"""
     statements: set[str] = set()
-    for statement in _upgrade_statements():
+    upgrade_statements = _upgrade_statements()
+    old_dispensing_indexes = [
+        statement
+        for statement in upgrade_statements
+        if statement.startswith(
+            "CREATE UNIQUE INDEX uq_medication_history_records_finalized_dispensing "
+            "ON medication_history_records (corporate_id, dispensing_id) WHERE status = 'finalized'"
+        )
+        and "record_kind" not in statement
+    ]
+    final_dispensing_index = old_dispensing_indexes[-1]
+    for statement in upgrade_statements:
         if not statement.startswith(_COMPARED_DDL_PREFIXES):
             continue
         if statement.startswith("CREATE TABLE patient_external_identifiers "):
@@ -408,26 +479,58 @@ def _migration_ddl() -> set[str]:
                 "CONSTRAINT pk_receptions PRIMARY KEY (id)",
                 "CONSTRAINT pk_receptions PRIMARY KEY (corporate_id, store_id, id)",
             )
+            close_index = statement.rfind(")")
+            assert close_index > 0
+            statement = _normalized_statement(
+                statement[:close_index]
+                + ", CONSTRAINT fk_receptions_event_scope FOREIGN KEY(event_id, corporate_id, store_id, id) "
+                "REFERENCES care_events (id, corporate_id, store_id, reception_id), "
+                "CONSTRAINT uq_receptions_event UNIQUE (event_id), event_id UUID"
+                + statement[close_index:]
+            )
+        elif statement.startswith("CREATE TABLE prescriptions "):
+            close_index = statement.rfind(")")
+            assert close_index > 0
+            statement = _normalized_statement(
+                statement[:close_index]
+                + ", CONSTRAINT uq_prescriptions_scope_identity UNIQUE "
+                "(id, corporate_id, store_id, patient_id)" + statement[close_index:]
+            )
+        elif statement.startswith("CREATE TABLE dispensing_processes "):
+            close_index = statement.rfind(")")
+            assert close_index > 0
+            statement = _normalized_statement(
+                statement[:close_index]
+                + ", CONSTRAINT uq_dispensing_processes_event_identity UNIQUE "
+                "(id, corporate_id, store_id, patient_id, prescription_id)"
+                + statement[close_index:]
+            )
         elif statement.startswith("CREATE TABLE medication_history_records "):
             statement = statement.replace(
                 "counseled_at TIMESTAMP WITH TIME ZONE NOT NULL",
                 "counseled_at TIMESTAMP WITH TIME ZONE",
             )
+            statement = statement.replace(
+                "dispensing_id UUID NOT NULL", "dispensing_id UUID"
+            ).replace("prescription_id UUID NOT NULL", "prescription_id UUID")
             close_index = statement.rfind(")")
             assert close_index > 0
             additions = (
-                "CONSTRAINT ck_medication_history_records_record_kind_source CHECK "
-                "((record_kind = 'initial' AND source_record_id IS NULL) OR "
-                "(record_kind = 'follow_up' AND source_record_id IS NOT NULL "
-                "AND source_record_id <> id)), "
-                "CONSTRAINT fk_medication_history_records_source_identity FOREIGN KEY"
-                "(source_record_id, corporate_id, patient_id, prescription_id, "
-                "dispensing_id) REFERENCES medication_history_records "
-                "(id, corporate_id, patient_id, prescription_id, dispensing_id), "
-                "CONSTRAINT uq_medication_history_records_source_identity UNIQUE "
-                "(id, corporate_id, patient_id, prescription_id, dispensing_id), "
-                "record_kind VARCHAR(32) NOT NULL, source_record_id UUID, "
-                "recorded_at TIMESTAMP WITH TIME ZONE"
+                "CONSTRAINT ck_medication_history_records_dispensing_requires_prescription "
+                "CHECK (dispensing_id IS NULL OR prescription_id IS NOT NULL), "
+                "CONSTRAINT fk_medication_history_records_dispensing_scope FOREIGN KEY"
+                "(dispensing_id, corporate_id, store_id, patient_id, prescription_id) "
+                "REFERENCES dispensing_processes "
+                "(id, corporate_id, store_id, patient_id, prescription_id), "
+                "CONSTRAINT fk_medication_history_records_event_resources FOREIGN KEY"
+                "(event_id, corporate_id, store_id, patient_id, prescription_id, dispensing_id) "
+                "REFERENCES care_events "
+                "(id, corporate_id, store_id, patient_id, prescription_id, dispensing_id), "
+                "CONSTRAINT fk_medication_history_records_event_scope FOREIGN KEY"
+                "(event_id, corporate_id, store_id, patient_id) REFERENCES care_events "
+                "(id, corporate_id, store_id, patient_id), "
+                "CONSTRAINT uq_medication_history_records_event UNIQUE (event_id), "
+                "event_id UUID NOT NULL, recorded_at TIMESTAMP WITH TIME ZONE"
             )
             statement = _normalized_statement(
                 statement[:close_index] + ", " + additions + statement[close_index:]
@@ -440,7 +543,7 @@ def _migration_ddl() -> set[str]:
                 "CREATE UNIQUE INDEX uq_medication_history_records_finalized_dispensing "
                 "ON medication_history_records (corporate_id, dispensing_id) WHERE status = 'finalized'"
             )
-            and "record_kind" not in statement
+            and ("record_kind" in statement or statement != final_dispensing_index)
         ):
             continue
         statements.add(statement)
@@ -450,7 +553,7 @@ def _migration_ddl() -> set[str]:
 def _schema_ddl() -> set[str]:
     """スキーマ定義から、同じ形のDDLを生成する。"""
     statements: set[str] = set()
-    for table in schema.metadata.sorted_tables:
+    for table in schema.metadata.tables.values():
         statements.add(_normalized_statement(compiled_sql(CreateTable(table))))
         for index in table.indexes:
             statements.add(_normalized_statement(compiled_sql(CreateIndex(index))))
@@ -486,6 +589,7 @@ def test_マイグレーションの全DDLが_検査の対象になっている(
         )
         and not statement.startswith(_MEDICATION_HISTORY_RECORDED_AT_TRANSFORM_PREFIXES)
         and not statement.startswith(_MEDICATION_HISTORY_RECORD_KIND_TRANSFORM_PREFIXES)
+        and not statement.startswith(_CARE_EVENT_TRANSFORM_PREFIXES)
         and statement not in routines
     ]
 
@@ -575,7 +679,7 @@ def test_tc44_薬歴種別と参照鎖と初回限定索引を前進migrationへ
     statements = _upgrade_statements()
 
     assert all(
-        sum(statement.startswith(prefix) for statement in statements) == 1
+        sum(statement.startswith(prefix) for statement in statements) >= 1
         for prefix in _MEDICATION_HISTORY_RECORD_KIND_TRANSFORM_PREFIXES
     )
     assert any(
@@ -620,9 +724,13 @@ def test_Repositoryが書く列が_テーブル定義に存在する(
     now = datetime.now(UTC)
 
     # Act
-    statement = postgres_insert(mapping.table).values(
-        **values, version=1, created_at=now, updated_at=now
-    )
+    row_values = {
+        **values,
+        "version": 1,
+        "created_at": now,
+        "updated_at": now,
+    }
+    statement = postgres_insert(mapping.table).values(**row_values)
 
     # Assert
     assert mapping.table.name in compiled_sql(statement)
@@ -696,7 +804,7 @@ def _aggregate_tables() -> list[Table]:
     """集約を保存するテーブルだけを返す。"""
     return [
         table
-        for table in schema.metadata.sorted_tables
+        for table in schema.metadata.tables.values()
         if table.name not in schema.NON_AGGREGATE_TABLES
     ]
 
@@ -710,10 +818,15 @@ def test_集約でないテーブルの一覧が_明示的に宣言されてい�
     declared = set(schema.NON_AGGREGATE_TABLES)
 
     # Act
-    existing = {table.name for table in schema.metadata.sorted_tables}
+    existing = {table.name for table in schema.metadata.tables.values()}
 
     # Assert
-    assert declared == {"patient_number_sequences", "operation_audits"}
+    assert declared == {
+        "patient_number_sequences",
+        "operation_audits",
+        "medication_history_legacy_archives",
+        "legacy_tracing_report_links",
+    }
     assert declared <= existing, (
         f"宣言だけあって実在しないテーブル: {sorted(declared - existing)}"
     )
@@ -757,7 +870,7 @@ def test_マイグレーションのdowngradeが_全テーブルを削除する(
     dropped = _run_offline("downgrade")
 
     # Assert
-    for table in schema.metadata.sorted_tables:
+    for table in schema.metadata.tables.values():
         assert f"DROP TABLE {table.name}" in dropped.replace('"', "")
 
 

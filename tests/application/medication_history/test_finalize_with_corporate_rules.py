@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from dataclasses import replace
 
 import pytest
 
@@ -11,9 +11,14 @@ from app.application.medication_history.finalize_medication_history import (
     FinalizeMedicationHistoryUseCase,
 )
 from app.application.medication_history.inputs import (
-    AddFollowUpCommand,
     LabeledNoteInput,
     SoapInput,
+)
+from app.domain.care_event.primitives import (
+    EventId,
+    EventTypeId,
+    EventTypeName,
+    EventTypeStandardCode,
 )
 from app.domain.medication_history.category_catalog import (
     MedicationHistoryCategoryCatalog,
@@ -23,6 +28,7 @@ from app.domain.medication_history.primitives import (
     CategoryCatalogId,
     MajorCategoryCode,
     MajorCategoryName,
+    MedicationHistoryRecordId,
     MediumCategoryCode,
     MediumCategoryName,
 )
@@ -181,8 +187,26 @@ async def test_finalize_fails_when_corporate_required_categories_missing(
     assert "P（指導計画）" in str(exc_info.value)
 
 
-async def test_tc29_法人の初回必須区分を_フォローアップには要求しない() -> None:
-    """INITIAL は P を要求し、FOLLOW_UP は S だけでレビュー確定できる。"""
+@pytest.mark.parametrize(
+    ("standard_code", "event_name"),
+    (
+        (EventTypeStandardCode("prescription_reception"), "処方箋受付"),
+        (
+            EventTypeStandardCode("medication_period_follow_up"),
+            "服薬期間中フォローアップ",
+        ),
+        (EventTypeStandardCode("telephone_follow_up"), "電話フォローアップ"),
+        (EventTypeStandardCode("in_person_consultation"), "来局相談"),
+        (EventTypeStandardCode("home_visit"), "在宅訪問"),
+        (EventTypeStandardCode("online_medication_guidance"), "オンライン服薬指導"),
+        (None, "法人独自イベント"),
+    ),
+)
+async def test_tc45_29_法人必須区分は_Event種別によらず適用される(
+    standard_code: EventTypeStandardCode | None,
+    event_name: str,
+) -> None:
+    """Eventの種別に関わらず、法人が必須にしたP区分を確定時に要求する。"""
     fixture = create_fixture()
     soap_code = MajorCategoryCode("soap")
     await fixture.category_catalog_repository.save(
@@ -213,35 +237,33 @@ async def test_tc29_法人の初回必須区分を_フォローアップには�
         )
     )
 
-    initial = await fixture.start.execute(create_start_command(fixture))
-    await fixture.finalize.execute(
-        FinalizeMedicationHistoryCommand(
-            corporate_id=str(fixture.corporate_id.value),
-            record_id=initial.id,
-            review_result="assessment_and_instruction_recorded",
-        )
+    command = create_start_command(
+        fixture,
+        soap=SoapInput(subjective=(LabeledNoteInput(text="眠気は軽減した。"),)),
     )
-    followed_up_at = fixture.clock.now() + timedelta(days=3)
-    follow_up = await fixture.add_follow_up.execute(
-        AddFollowUpCommand(
-            corporate_id=str(fixture.corporate_id.value),
-            record_id=initial.id,
-            store_id=str(fixture.store_id.value),
-            patient_id=str(fixture.patient_id.value),
-            counselor_id=str(fixture.counselor_id.value),
-            followed_up_at=followed_up_at,
-            method="telephone",
-            soap=SoapInput(subjective=(LabeledNoteInput(text="眠気は軽減した。"),)),
-        )
+    event_id = EventId.parse(command.event_id)
+    event = fixture.event_repository.items[event_id]
+    fixture.event_repository.items[event_id] = replace(
+        event,
+        event_type_id=EventTypeId.generate(),
+        event_type_standard_code=standard_code,
+        event_type_name=EventTypeName(event_name),
+        prescription_id=None,
+        dispensing_id=None,
     )
-    fixture.clock.advance(followed_up_at - fixture.clock.now() + timedelta(hours=1))
+    draft = await fixture.start.execute(replace(command, dispensing_id=None))
 
-    finalized = await fixture.finalize.execute(
-        FinalizeMedicationHistoryCommand(
-            corporate_id=str(fixture.corporate_id.value),
-            record_id=follow_up.id,
-            review_result="no_additional_recordable_items",
+    with pytest.raises(RequiredCategoryMissingError, match="P"):
+        await fixture.finalize.execute(
+            FinalizeMedicationHistoryCommand(
+                corporate_id=str(fixture.corporate_id.value),
+                record_id=draft.id,
+                review_result="no_additional_recordable_items",
+            )
         )
-    )
 
-    assert finalized.status == "finalized"
+    saved_draft = await fixture.record_repository.get(
+        corporate_id=fixture.corporate_id,
+        record_id=MedicationHistoryRecordId.parse(draft.id),
+    )
+    assert saved_draft is not None and not saved_draft.is_finalized

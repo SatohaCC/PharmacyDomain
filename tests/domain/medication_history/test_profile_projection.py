@@ -42,7 +42,6 @@ from tests.factories.medication_history_factory import (
     create_allergy_intent,
     create_concurrent_intent,
     create_condition_intent,
-    create_follow_up,
     create_generic_preference_intents,
     create_lifestyle_intents,
     create_record,
@@ -250,24 +249,22 @@ class Test再構築の一致:
         assert ordered.generic_preference.preference is GenericPreferenceType.REFUSES
         assert ordered.generic_preference.provenance.source_record_id == later_record.id
 
-        parent = replace(
-            earlier_record,
-            profile_updates=create_generic_preference_intents(
-                GenericPreferenceType.ACCEPTS
-            ),
-            follow_ups=(
-                create_follow_up(
-                    followed_up_at=occurred_at,
-                    profile_updates=create_generic_preference_intents(
-                        GenericPreferenceType.REFUSES
-                    ),
+        legacy_child = replace(
+            create_record(
+                corporate_id=_CORPORATE_ID,
+                patient_id=_PATIENT_ID,
+                counseled_at=occurred_at,
+                profile_updates=create_generic_preference_intents(
+                    GenericPreferenceType.REFUSES
                 ),
             ),
+            status=MedicationHistoryStatus.LEGACY_RECORDED,
+            recorded_at=FollowUpRecordedTimestamp(registered_at + timedelta(minutes=2)),
         )
         legacy_child_projection = PatientMedicalProfile.rebuild_from(
             corporate_id=_CORPORATE_ID,
             patient_id=_PATIENT_ID,
-            records=(parent,),
+            records=(earlier_record, legacy_child),
         )
 
         assert legacy_child_projection.generic_preference is not None
@@ -277,7 +274,7 @@ class Test再構築の一致:
         )
         assert (
             legacy_child_projection.generic_preference.provenance.source_record_id
-            == parent.id
+            == legacy_child.id
         )
 
 

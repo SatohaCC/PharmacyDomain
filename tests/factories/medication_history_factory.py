@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 
+from app.domain.care_event.primitives import EventId
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.primitives import DispensingId
@@ -31,7 +32,6 @@ from app.domain.medication_history.primitives import (
     LifestyleNote,
     MedicationHistoryImportTimestamp,
     MedicationHistoryRecordId,
-    MedicationHistoryRecordKind,
     MedicationHistoryReviewResult,
     MedicationHistorySourceSystem,
     MedicationHistoryStatus,
@@ -258,6 +258,7 @@ def create_record(
     corporate_id: CorporateId | None = None,
     store_id: StoreId | None = None,
     patient_id: PatientId | None = None,
+    event_id: EventId | None = None,
     dispensing_id: DispensingId | None = None,
     prescription_id: PrescriptionId | None = None,
     counselor_id: StaffId | None = None,
@@ -273,6 +274,7 @@ def create_record(
 ) -> MedicationHistoryRecord:
     """薬歴を下書き状態で組み立てる。"""
     return MedicationHistoryRecord.start(
+        event_id=event_id if event_id is not None else EventId.generate(),
         corporate_id=corporate_id
         if corporate_id is not None
         else CorporateId.generate(),
@@ -344,15 +346,15 @@ def create_independent_follow_up_record(
     draft = replace(
         source,
         id=MedicationHistoryRecordId.generate(),
+        event_id=EventId.generate(),
         store_id=store_id or StoreId.generate(),
-        record_kind=MedicationHistoryRecordKind.FOLLOW_UP,
-        source_record_id=source.id,
+        dispensing_id=None,
+        prescription_id=None,
         counseled_at=CounselingTimestamp(occurred_at),
         billing_additions=(),
         profile_updates=profile_updates or ProfileUpdateIntents(),
         status=MedicationHistoryStatus.DRAFT,
         amendments=(),
-        follow_ups=(),
         tracing_reports=(),
         finalized_at=None,
         finalized_by=None,
@@ -572,7 +574,6 @@ def create_tracing_report(
     fee_category: TracingReportFeeCategory = TracingReportFeeCategory.FEE_2,
     delivery_method: TracingReportDeliveryMethod = TracingReportDeliveryMethod.FAX,
     content: str = "残薬が14日分確認されたため、次回処方時の日数調整をご検討ください。",
-    follow_up_id: FollowUpId | None = None,
     response: TracingReportResponse | None = None,
 ) -> TracingReport:
     """トレーシングレポートのテストデータを組み立てる。"""
@@ -586,7 +587,6 @@ def create_tracing_report(
         fee_category=fee_category,
         delivery_method=delivery_method,
         content=TracingReportContent(content),
-        follow_up_id=follow_up_id,
         response=response,
     )
 

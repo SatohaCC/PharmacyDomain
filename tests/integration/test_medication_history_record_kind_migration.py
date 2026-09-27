@@ -29,6 +29,7 @@ from tests.factories.medication_history_factory import (
     finalize_record_with_review,
 )
 from tests.infrastructure.postgres.helpers import ordered_migrations
+from tests.integration.medication_history_helpers import legacy_medication_history_table
 
 _TARGET_REVISION = "20260926_0008"
 
@@ -37,13 +38,15 @@ def _old_row_values(record: MedicationHistoryRecord) -> dict[str, object]:
     """旧スキーマで保存されていた検索列とpayloadを作る。"""
     values = MEDICATION_HISTORY_RECORD_MAPPING.row_values(record)
     values.pop("recorded_at", None)
-    values.pop("record_kind")
-    values.pop("source_record_id")
+    values.pop("event_id", None)
+    values.pop("record_kind", None)
+    values.pop("source_record_id", None)
     payload = values["payload"]
     assert isinstance(payload, dict)
     payload.pop("recorded_at", None)
-    payload.pop("record_kind")
-    payload.pop("source_record_id")
+    payload.pop("event_id", None)
+    payload.pop("record_kind", None)
+    payload.pop("source_record_id", None)
     now = datetime(2026, 9, 20, tzinfo=UTC)
     values.update(version=4, created_at=now, updated_at=now)
     return values
@@ -99,7 +102,11 @@ async def test_tc44_0008前進migrationが既存薬歴を保持して初回と�
             def migrate(sync_connection: Connection) -> None:
                 _, target = _prepare_preceding_schema(sync_connection)
                 sync_connection.execute(
-                    insert(schema.medication_history_records).values(**old_values)
+                    insert(
+                        legacy_medication_history_table(
+                            has_record_kind=False, has_recorded_at=False
+                        )
+                    ).values(**old_values)
                 )
                 _run_revision(
                     sync_connection,
@@ -157,6 +164,10 @@ async def test_tc45_0008後退migrationはフォローアップを保護し初�
 ) -> None:
     """フォローアップが残る場合は拒否し、除去後の旧スキーマ移行は成功する。"""
     source = finalize_record_with_review(create_record())
+    source_dispensing_id = source.dispensing_id
+    source_prescription_id = source.prescription_id
+    assert source_dispensing_id is not None
+    assert source_prescription_id is not None
     follow_up = create_independent_follow_up_record(source)
 
     async with engine.connect() as connection:
@@ -175,10 +186,26 @@ async def test_tc45_0008後退migrationはフォローアップを保護し初�
                     follow_up
                 )
                 follow_up_values.pop("recorded_at", None)
+                follow_up_values.pop("event_id", None)
+                follow_up_values["record_kind"] = "follow_up"
+                follow_up_values["source_record_id"] = source.id.value
+                follow_up_values["dispensing_id"] = source_dispensing_id.value
+                follow_up_values["prescription_id"] = source_prescription_id.value
+                follow_up_payload = follow_up_values["payload"]
+                assert isinstance(follow_up_payload, dict)
+                follow_up_payload.pop("event_id", None)
+                follow_up_payload["record_kind"] = "follow_up"
+                follow_up_payload["source_record_id"] = str(source.id.value)
+                follow_up_payload["dispensing_id"] = str(source_dispensing_id.value)
+                follow_up_payload["prescription_id"] = str(source_prescription_id.value)
                 now = datetime(2026, 9, 20, tzinfo=UTC)
                 follow_up_values.update(version=1, created_at=now, updated_at=now)
                 sync_connection.execute(
-                    insert(schema.medication_history_records).values(**follow_up_values)
+                    insert(
+                        legacy_medication_history_table(
+                            has_record_kind=True, has_recorded_at=False
+                        )
+                    ).values(**follow_up_values)
                 )
 
                 with (

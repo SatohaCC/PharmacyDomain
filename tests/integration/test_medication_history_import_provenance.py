@@ -19,6 +19,7 @@ from tests.factories.medication_history_factory import (
     create_record,
 )
 from tests.infrastructure.postgres.helpers import ordered_migrations
+from tests.integration.medication_history_helpers import save_history_with_event
 
 
 @pytest.mark.asyncio
@@ -42,10 +43,10 @@ async def test_tc22_NULL指導日時の薬歴を保存して一覧順を決定�
     )
 
     async with PostgresUnitOfWork(session_factory) as work:
-        repository = PostgresRepositorySet.create(work).medication_history
-        await repository.save(draft_earlier)
-        await repository.save(draft_later)
-        await repository.save(counseled)
+        repositories = PostgresRepositorySet.create(work)
+        await save_history_with_event(repositories, draft_earlier)
+        await save_history_with_event(repositories, draft_later)
+        await save_history_with_event(repositories, counseled)
         await work.commit()
 
     async with PostgresUnitOfWork(session_factory) as work:
@@ -65,7 +66,7 @@ async def test_tc22_NULL指導日時の薬歴を保存して一覧順を決定�
     assert first[1].counseled_at is None and first[2].counseled_at is None
     assert [record.id for record in first] == [record.id for record in second]
     assert [record.id.value for record in first[1:]] == sorted(
-        (draft_earlier.id.value, draft_later.id.value), reverse=True
+        (draft_earlier.id.value, draft_later.id.value)
     )
 
 
@@ -78,7 +79,7 @@ async def test_tc23_NULL可能化migrationは_既存の指導日時を保持す�
     expected_counseled_at = record.counseled_at
     assert expected_counseled_at is not None
     async with PostgresUnitOfWork(session_factory) as work:
-        await PostgresRepositorySet.create(work).medication_history.save(record)
+        await save_history_with_event(PostgresRepositorySet.create(work), record)
         await work.commit()
 
     async with engine.begin() as connection:
@@ -118,7 +119,7 @@ async def test_tc24_NULL指導日時の下書きがあると_downgradeはデー�
 ) -> None:
     record = create_nsips_draft_record()
     async with PostgresUnitOfWork(session_factory) as work:
-        await PostgresRepositorySet.create(work).medication_history.save(record)
+        await save_history_with_event(PostgresRepositorySet.create(work), record)
         await work.commit()
 
     migration = next(

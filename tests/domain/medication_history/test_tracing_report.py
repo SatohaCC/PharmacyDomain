@@ -8,10 +8,8 @@ import pytest
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.medication_history.exceptions import (
     DuplicatedTracingReportIdError,
-    FollowUpNotFoundError,
     TracingReportAlreadyRespondedError,
     TracingReportDateBeforeCounselingError,
-    TracingReportDateBeforeFollowUpError,
     TracingReportNotFoundError,
     TracingReportOnDraftError,
     TracingReportResponseDateBeforeProvidedError,
@@ -20,7 +18,6 @@ from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
 from app.domain.medication_history.primitives import (
-    FollowUpId,
     PhysicianName,
     PrescriberActionType,
     TracingReportCategory,
@@ -31,7 +28,6 @@ from app.domain.medication_history.primitives import (
 )
 from tests.factories.medication_history_factory import (
     COUNSELED_AT,
-    create_follow_up,
     create_record,
     create_tracing_report,
     create_tracing_report_response,
@@ -91,22 +87,6 @@ class TestTracingReportDomain:
         assert updated.tracing_reports[0].id == rep1.id
         assert updated.tracing_reports[1].id == rep2.id
 
-    def test_add_tracing_report_linked_to_follow_up(self) -> None:
-        """TC-DOM-03: フォローアップに紐付けたトレーシングレポートを追加できる。"""
-        follow_up_time = COUNSELED_AT + timedelta(days=3)
-        fu = create_follow_up(followed_up_at=follow_up_time)
-        record = _finalized_record().add_follow_up(fu)
-
-        report = create_tracing_report(
-            provided_at=follow_up_time + timedelta(hours=2),
-            follow_up_id=fu.id,
-            category=TracingReportCategory.ADVERSE_REACTION,
-        )
-
-        updated = record.add_tracing_report(report)
-        assert len(updated.tracing_reports) == 1
-        assert updated.tracing_reports[0].follow_up_id == fu.id
-
     def test_add_tracing_report_on_draft_raises_error(self) -> None:
         """TC-DOM-04: 下書き状態の薬歴への追加は拒否される。"""
         draft_record = create_record()  # 未確定
@@ -122,33 +102,6 @@ class TestTracingReportDomain:
         report = create_tracing_report(provided_at=past_time)
 
         with pytest.raises(TracingReportDateBeforeCounselingError):
-            record.add_tracing_report(report)
-
-    def test_add_tracing_report_with_unknown_follow_up_raises_error(self) -> None:
-        """TC-DOM-06: 存在しないフォローアップ参照は拒否される。"""
-        record = _finalized_record()
-        unknown_fu_id = FollowUpId.generate()
-        report = create_tracing_report(
-            provided_at=COUNSELED_AT + timedelta(days=1),
-            follow_up_id=unknown_fu_id,
-        )
-
-        with pytest.raises(FollowUpNotFoundError):
-            record.add_tracing_report(report)
-
-    def test_add_tracing_report_before_follow_up_date_raises_error(self) -> None:
-        """TC-DOM-07: 紐付け先フォローアップ日時より前の提供日時は拒否される。"""
-        fu = create_follow_up(followed_up_at=COUNSELED_AT + timedelta(days=3))
-        record = _finalized_record().add_follow_up(fu)
-
-        # フォローアップより前だが服薬指導より後の日時
-        report_time = COUNSELED_AT + timedelta(days=2)
-        report = create_tracing_report(
-            provided_at=report_time,
-            follow_up_id=fu.id,
-        )
-
-        with pytest.raises(TracingReportDateBeforeFollowUpError):
             record.add_tracing_report(report)
 
     def test_add_tracing_report_with_duplicate_id_raises_error(self) -> None:

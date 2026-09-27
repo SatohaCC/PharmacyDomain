@@ -171,32 +171,10 @@ def test_調剤開始コマンドへのマッピングと分割情報() -> None:
     assert cmd_split.split_reason == "long_term_storage"
 
 
-def test_tc11_NSIPS由来Commandへ処方要約をSOAP本文として生成しない() -> None:
-    """NSIPS由来情報を薬剤師が書いたSOAP本文として作らない。"""
+def test_tc11_NSIPSデータマッパーは薬歴Commandを作らない() -> None:
+    """NSIPS受付を薬歴の自動記載へ変換しない。"""
     mapper = NsipsDataMapper()
-    bundle = _create_sample_bundle()
-
-    cmd = mapper.to_medication_history_command(
-        bundle,
-        corporate_id="corp-1",
-        store_id="store-1",
-        dispensing_id="disp-1",
-    )
-
-    assert cmd.corporate_id == "corp-1"
-    assert cmd.store_id == "store-1"
-    assert cmd.dispensing_id == "disp-1"
-    assert cmd.counselor_id is None
-    assert cmd.counseled_at is None
-    assert cmd.source_system == "NSIPS"
-    assert cmd.method is None
-    assert cmd.soap.subjective == ()
-    assert cmd.soap.objective == ()
-    assert cmd.soap.assessment == ()
-    assert cmd.soap.plan == ()
-    assert cmd.handbook_status is None
-    assert cmd.residual_drug is None
-    assert cmd.information_sheet_provided is None
+    assert not hasattr(mapper, "to_medication_history_command")
 
 
 def test_tc08_保険区分と給付割合の不明を既定値で埋めない() -> None:
@@ -306,61 +284,3 @@ def test_tc18_提供された処方医カナを保持する() -> None:
 
     assert command.prescriber.last_name_kana == "ヤマダ"
     assert command.prescriber.first_name_kana == "ハナコ"
-
-
-def test_tc24_保険と算定事実を薬歴の臨床記載へ混ぜない() -> None:
-    """受信保険と算定加算はSOAPの臨床記載へ転記しない。"""
-    bundle = _create_sample_bundle(
-        insurance=NsipsInsuranceInfo(
-            insurer_number="138001",
-            insured_symbol="記号A",
-            insured_number="番号123",
-        ),
-        additions=(
-            NsipsAdditionInfo(
-                code="140000110",
-                name="特定薬剤管理指導加算２",
-                points=100,
-                quantity=2,
-            ),
-        ),
-    )
-
-    command = NsipsDataMapper.to_medication_history_command(
-        bundle,
-        corporate_id="corp-1",
-        store_id="store-1",
-        dispensing_id="disp-1",
-    )
-    objective = "\n".join(note.text for note in command.soap.objective)
-
-    assert "保険情報:" not in objective
-    assert "特定薬剤管理指導加算２" not in objective
-    assert len(command.billing_additions or ()) == 1
-
-
-def test_tc27_加算の点数と数量を別々に保持する() -> None:
-    """加算コード・名称に対応する点数と数量をコマンドで保持する。"""
-    bundle = _create_sample_bundle(
-        additions=(
-            NsipsAdditionInfo(
-                code="140000110",
-                name="特定薬剤管理指導加算２",
-                points=100,
-                quantity=2,
-            ),
-        ),
-    )
-
-    command = NsipsDataMapper.to_medication_history_command(
-        bundle,
-        corporate_id="corp-1",
-        store_id="store-1",
-        dispensing_id="disp-1",
-    )
-
-    [addition] = command.billing_additions or ()
-    assert addition.code == "140000110"
-    assert addition.name == "特定薬剤管理指導加算２"
-    assert getattr(addition, "points", None) == 100
-    assert getattr(addition, "quantity", None) == 2

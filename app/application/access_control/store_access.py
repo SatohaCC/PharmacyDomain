@@ -18,6 +18,7 @@ class StoreOperation(StrEnum):
     VERIFY_DISPENSING = "verify_dispensing"
     COMPLETE_DISPENSING = "complete_dispensing"
     READ_HISTORY = "read_history"
+    CREATE_EVENT = "create_event"
     START_HISTORY = "start_history"
     FINALIZE_HISTORY = "finalize_history"
     AMEND_HISTORY = "amend_history"
@@ -44,6 +45,8 @@ STORE_OPERATION_KINDS: Final[Mapping[StoreOperation, StoreOperationKind]] = {
     StoreOperation.RECORD_RECEPTION: StoreOperationKind.NEW_WORK,
     StoreOperation.REGISTER_PRESCRIPTION: StoreOperationKind.NEW_WORK,
     StoreOperation.START_DISPENSING: StoreOperationKind.NEW_WORK,
+    # Eventは店舗で新しく開始した患者対応の記録であり、新規業務として扱う。
+    StoreOperation.CREATE_EVENT: StoreOperationKind.NEW_WORK,
     # 薬歴の作成は、その店舗で新しく始める業務である。調剤の記録から投影される
     # 頭書きの元になるので、閉局した店舗で増えてはいけない。
     StoreOperation.START_HISTORY: StoreOperationKind.NEW_WORK,

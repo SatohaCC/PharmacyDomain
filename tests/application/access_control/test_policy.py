@@ -20,6 +20,16 @@ from app.domain.corporate.primitives import CorporateId
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
+def test_tc45_06_Event種別管理と参照に必要な権限が定義されている() -> None:
+    expected = {
+        "manage_event_definition",
+        "view_event",
+        "manage_event",
+    }
+
+    assert expected <= {permission.value for permission in Permission}
+
+
 def test_permission_classification_incomplete_raises_runtime_error() -> None:
     # Arrange
     from app.application.access_control.policy import (

@@ -30,7 +30,6 @@ from tests.application.medication_history.helpers import (
 )
 from tests.factories.medication_history_factory import (
     COUNSELED_AT,
-    create_follow_up,
     create_independent_follow_up_record,
     finalize_record_with_review,
 )
@@ -91,41 +90,6 @@ class TestRecordTracingReportUseCase:
         assert loaded is not None
         assert len(loaded.tracing_reports) == 1
 
-    async def test_record_tracing_report_with_follow_up_success(self) -> None:
-        """TC-APP-02: フォローアップIDを指定してトレーシングレポートを記録できる。"""
-        fixture = create_fixture()
-        record_id = await _create_and_finalize_record(fixture)
-
-        # 旧形式の内包フォローアップを残した薬歴を用意する。
-        fu_time = COUNSELED_AT + timedelta(days=3)
-        record = await fixture.record_repository.get(
-            corporate_id=fixture.corporate_id,
-            record_id=MedicationHistoryRecordId.parse(record_id),
-        )
-        assert record is not None
-        follow_up = create_follow_up(followed_up_at=fu_time)
-        await fixture.record_repository.save(record.add_follow_up(follow_up))
-        follow_up_id = str(follow_up.id.value)
-
-        command = RecordTracingReportCommand(
-            corporate_id=str(fixture.corporate_id.value),
-            record_id=record_id,
-            reporter_id=str(fixture.counselor_id.value),
-            provided_at=fu_time + timedelta(hours=2),
-            medical_institution_name="総合医療センター",
-            physician_name="山田太郎",
-            category="adverse_reaction",
-            fee_category="fee_2",
-            delivery_method="electronic",
-            content="フォローアップで副作用の兆候を確認したため報告。",
-            follow_up_id=follow_up_id,
-        )
-
-        dto = await fixture.record_tracing_report.execute(command)
-
-        assert len(dto.tracing_reports) == 1
-        assert dto.tracing_reports[0].follow_up_id == follow_up_id
-
     async def test_tc34_独立フォローアップのトレーシングレポートは自身の薬歴に属する(
         self,
     ) -> None:
@@ -170,7 +134,6 @@ class TestRecordTracingReportUseCase:
         )
         assert dto.id == str(follow_up.id.value)
         assert len(dto.tracing_reports) == 1
-        assert dto.tracing_reports[0].follow_up_id is None
         assert updated_follow_up is not None
         assert len(updated_follow_up.tracing_reports) == 1
         assert unchanged_source is not None

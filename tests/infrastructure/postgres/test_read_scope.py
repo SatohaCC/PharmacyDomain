@@ -46,7 +46,7 @@ def _compiled(table: Table, statement: Select[Any]) -> str:
 def test_全てのテーブルに読取範囲が宣言されている() -> None:
     """宣言を忘れたテーブルは、店舗ロールに無条件で見えてしまう。"""
     # Act
-    existing = {table.name for table in schema.metadata.sorted_tables}
+    existing = {table.name for table in schema.metadata.tables.values()}
 
     # Assert
     assert set(READ_SCOPE_KINDS) == existing, (
@@ -107,6 +107,26 @@ def test_店舗の記録は_法人と許可店舗の両方で絞られる() -> N
     # Assert
     assert "prescriptions.corporate_id = " in compiled
     assert "prescriptions.store_id IN " in compiled
+
+
+def test_TC45_19_Eventは法人と許可店舗の両方で絞られる() -> None:
+    table = schema.metadata.tables.get("care_events")
+    assert table is not None, "Eventテーブルが未定義"
+
+    compiled = _compiled(table, select(table))
+
+    assert "care_events.corporate_id = " in compiled
+    assert "care_events.store_id IN " in compiled
+
+
+def test_TC45_07_Event種別は標準と自法人の行だけで絞られる() -> None:
+    table = schema.metadata.tables.get("event_definitions")
+    assert table is not None, "Event種別テーブルが未定義"
+
+    compiled = _compiled(table, select(table))
+
+    assert "event_definitions.corporate_id IS NULL" in compiled
+    assert "event_definitions.corporate_id = " in compiled
 
 
 def test_法人表は_自法人の行だけに絞られる() -> None:

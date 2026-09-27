@@ -18,6 +18,8 @@ class ReadScopeKind(StrEnum):
     GLOBAL = "global"
     #: 自法人の行だけ。
     CORPORATE = "corporate"
+    #: 非テナント標準行と自法人の行を同じ一覧で読む。
+    CORPORATE_OR_GLOBAL = "corporate_or_global"
     #: 自法人かつ許可店舗の行だけ。
     STORE = "store"
     #: ``corporates`` 自身。行のIDが自法人であること。
@@ -64,6 +66,10 @@ READ_SCOPE_KINDS: Final[Mapping[str, ReadScopeKind]] = {
     "receptions": ReadScopeKind.STORE,
     "store_manager_assignments": ReadScopeKind.STORE,
     "operation_audits": ReadScopeKind.STORE,
+    "event_definitions": ReadScopeKind.CORPORATE_OR_GLOBAL,
+    "care_events": ReadScopeKind.STORE,
+    "medication_history_legacy_archives": ReadScopeKind.STORE,
+    "legacy_tracing_report_links": ReadScopeKind.CORPORATE,
 }
 
 
@@ -99,6 +105,13 @@ class RepositoryReadScope:
             return statement
         if kind is ReadScopeKind.CORPORATE_ITSELF:
             return statement.where(table.c.id == self.corporate_id)
+        if kind is ReadScopeKind.CORPORATE_OR_GLOBAL:
+            return statement.where(
+                or_(
+                    table.c.corporate_id.is_(None),
+                    table.c.corporate_id == self.corporate_id,
+                )
+            )
         if kind is ReadScopeKind.OWN_PERSON:
             return statement.where(table.c.id == self.person_id)
         if kind is ReadScopeKind.OWN_ACCOUNT:

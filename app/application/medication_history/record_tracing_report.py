@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
-from app.application.common.optional_conversion import build_optional
 from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
 )
@@ -16,7 +15,6 @@ from app.application.medication_history.support import (
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history.primitives import (
-    FollowUpId,
     MedicationHistoryRecordId,
     PhysicianName,
     TracingReportCategory,
@@ -93,7 +91,6 @@ class RecordTracingReportUseCase:
                 "トレーシングレポートの提供手段",
             ),
             content=TracingReportContent(command.content),
-            follow_up_id=build_optional(command.follow_up_id, FollowUpId.parse),
         )
 
         updated_record = record.add_tracing_report(report)

@@ -12,6 +12,7 @@ from collections.abc import Iterator
 from dataclasses import replace
 from datetime import datetime, timedelta
 from http import HTTPStatus
+from types import SimpleNamespace
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -20,9 +21,24 @@ from fastapi.testclient import TestClient
 from pydantic import TypeAdapter
 
 from app.application.access_control.policy import AuthorizationService
+from app.application.care_event.create_event import CreateEventUseCase
+from app.application.care_event.event_definition import (
+    CreateEventDefinitionUseCase,
+    ListEventDefinitionsUseCase,
+    UpdateEventDefinitionUseCase,
+)
+from app.application.care_event.get_event import GetEventUseCase
+from app.application.care_event.list_related_candidates import (
+    ListRelatedEventCandidatesUseCase,
+)
+from app.application.composition.care_event_references import (
+    EventMedicationHistoryReferenceAdapter,
+    EventReceptionReferenceAdapter,
+)
 from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.medication_history.get_follow_up_sources import (
-    GetFollowUpSourcesUseCase,
+from app.application.dispensing.get_dispensing import GetDispensingUseCase
+from app.application.medication_history.get_medication_history import (
+    GetFollowUpSourceUseCase,
 )
 from app.application.medication_history.get_medication_history_view import (
     CurrentPatientProfileBoundary,
@@ -36,6 +52,8 @@ from app.application.medication_history.inputs import (
     ResidualDrugInput,
     SoapInput,
 )
+from app.domain.care_event.event_definition import EventDefinition
+from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
 from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history.primitives import StatutoryDispensingRecordItem
 from app.domain.medication_history.value_objects import SoapRecord
@@ -51,6 +69,7 @@ from app.domain.reception.reception import (
     ReceptionSourceData,
 )
 from app.domain.staff.primitives import StaffId
+from app.infrastructure.di.bundles.care_event import CareEventUseCases
 from app.infrastructure.di.bundles.clinical import (
     DispensingUseCases,
     MedicationHistoryUseCases,
@@ -58,6 +77,7 @@ from app.infrastructure.di.bundles.clinical import (
 )
 from app.presentational.app_factory import create_app
 from app.presentational.dependencies import (
+    get_care_event_use_cases,
     get_dispensing_use_cases,
     get_medication_history_use_cases,
     get_prescription_use_cases,
@@ -80,6 +100,13 @@ from tests.factories.medication_history_factory import (
     create_nsips_draft_record,
 )
 from tests.factories.prescription_factory import create_response, start_inquiry
+from tests.fakes.fake_event_patient_boundary import FakeEventPatientBoundary
+from tests.fakes.in_memory_dispensing_process_repository import (
+    InMemoryDispensingProcessRepository,
+)
+from tests.fakes.in_memory_event_definition_repository import (
+    InMemoryEventDefinitionRepository,
+)
 from tests.fakes.stub_actor_context_provider import (
     VALID_TOKEN,
     StubActorContextProvider,
@@ -496,6 +523,75 @@ def history_client(
     history_fixture: history_helpers.MedicationHistoryFixture,
     current_patient_profile_reader: _HttpCurrentPatientProfileReader,
 ) -> Iterator[TestClient]:
+    event_definitions = InMemoryEventDefinitionRepository()
+    standard_definitions = (
+        EventDefinition.create_standard(
+            code=EventTypeStandardCode("prescription_reception"),
+            name=EventTypeName("処方箋受付"),
+        ),
+        EventDefinition.create_standard(
+            code=EventTypeStandardCode("medication_period_follow_up"),
+            name=EventTypeName("服薬期間中フォローアップ"),
+        ),
+    )
+    for definition in standard_definitions:
+        event_definitions.items[definition.id] = definition
+    event_patient = FakeEventPatientBoundary()
+    event_patient.register(
+        corporate_id=history_fixture.corporate_id,
+        patient_id=history_fixture.patient_id,
+    )
+    event_history = EventMedicationHistoryReferenceAdapter(
+        history_fixture.record_repository
+    )
+    dispensing_repository = InMemoryDispensingProcessRepository()
+    dispensing_repository.items[history_fixture.dispensing.id] = (
+        history_fixture.dispensing
+    )
+    dispensing_use_cases = SimpleNamespace(
+        get=GetDispensingUseCase(
+            dispensing_repository,
+            history_fixture.corporate_access,
+        )
+    )
+    event_use_cases = CareEventUseCases(
+        create=CreateEventUseCase(
+            event_repository=history_fixture.event_repository,
+            event_definition_repository=event_definitions,
+            patient_boundary=event_patient,
+            corporate_access=history_fixture.corporate_access,
+            store_operations=history_fixture.store_operations,
+            clock=history_fixture.clock,
+            reception_boundary=EventReceptionReferenceAdapter(
+                history_fixture.reception_repository
+            ),
+            medication_history=event_history,
+        ),
+        get=GetEventUseCase(
+            history_fixture.event_repository,
+            event_history,
+            history_fixture.corporate_access,
+            history_fixture.store_operations,
+        ),
+        create_definition=CreateEventDefinitionUseCase(
+            event_definitions,
+            history_fixture.corporate_access,
+        ),
+        list_definitions=ListEventDefinitionsUseCase(
+            event_definitions,
+            history_fixture.corporate_access,
+        ),
+        update_definition=UpdateEventDefinitionUseCase(
+            event_definitions,
+            history_fixture.corporate_access,
+        ),
+        list_related_candidates=ListRelatedEventCandidatesUseCase(
+            history_fixture.event_repository,
+            event_patient,
+            history_fixture.corporate_access,
+            history_fixture.store_operations,
+        ),
+    )
     view_use_case = GetMedicationHistoryViewUseCase(
         history_fixture.record_repository,
         current_patient_profile_reader,
@@ -510,24 +606,28 @@ def history_client(
         finalize=history_fixture.finalize,
         amend=history_fixture.amend,
         get=history_fixture.get,
+        get_follow_up_source=GetFollowUpSourceUseCase(
+            history_fixture.record_repository,
+            history_fixture.corporate_access,
+        ),
         list_by_patient=history_fixture.list_by_patient,
         get_medical_profile=history_fixture.get_profile,
         rebuild_medical_profile=history_fixture.rebuild_profile,
         verify_statutory_record=history_fixture.verify_statutory_record,
         get_category_catalog=history_fixture.get_category_catalog,
         update_category_catalog=history_fixture.update_category_catalog,
-        add_follow_up=history_fixture.add_follow_up,
-        get_follow_up_sources=GetFollowUpSourcesUseCase(
-            history_fixture.follow_up_source_boundary,
-            history_fixture.corporate_access,
-            history_fixture.store_operations,
-        ),
         record_tracing_report=history_fixture.record_tracing_report,
         record_tracing_report_response=history_fixture.record_tracing_report_response,
         get_view=view_use_case,
     )
     app = create_app(actor_provider=StubActorContextProvider(history_fixture.actor))
-    app.dependency_overrides.update({get_medication_history_use_cases: lambda: bundle})
+    app.dependency_overrides.update(
+        {
+            get_medication_history_use_cases: lambda: bundle,
+            get_care_event_use_cases: lambda: event_use_cases,
+            get_dispensing_use_cases: lambda: dispensing_use_cases,
+        }
+    )
     yield TestClient(app)
     app.dependency_overrides.clear()
 
@@ -569,9 +669,11 @@ def _start_history_body(
     fixture: history_helpers.MedicationHistoryFixture,
 ) -> dict[str, Any]:
     command = history_helpers.create_start_command(fixture)
+    assert command.dispensing_id is not None
     return StartMedicationHistoryRequest(
         store_id=command.store_id,
         dispensing_id=command.dispensing_id,
+        occurred_at=fixture.clock.now(),
         method=command.method or "face_to_face",
         soap=command.soap,
         handbook_status=command.handbook_status or HandbookStatusInput(presented=True),
@@ -639,6 +741,7 @@ def test_tc10b_HTTP部分SOAP初回保存と再保存は同じIDを更新する(
     partial_body = {
         "store_id": str(history_fixture.store_id.value),
         "dispensing_id": str(history_fixture.dispensing.id.value),
+        "occurred_at": history_fixture.clock.now().isoformat(),
         "soap": TypeAdapter(SoapInput).dump_python(
             SoapInput(
                 subjective=(LabeledNoteInput(text=authored_text),),
@@ -718,6 +821,7 @@ def test_HTTP初回保存は受付由来情報を引き継ぎSOAP本文を薬剤
         "store_id": str(store_id.value),
         "dispensing_id": str(history_fixture.dispensing.id.value),
         "reception_id": str(reception_id.value),
+        "occurred_at": history_fixture.clock.now().isoformat(),
         "soap": TypeAdapter(SoapInput).dump_python(
             SoapInput(subjective=(LabeledNoteInput(text=authored_text),)),
             mode="json",
@@ -761,15 +865,34 @@ def test_HTTP初回保存は受付由来情報を引き継ぎSOAP本文を薬剤
     assert len(history_fixture.record_repository.items) == 1
 
 
-def test_tc12_HTTP白紙の初回保存は_薬歴を作らない(
+def test_tc45_25_HTTP白紙の初回保存は_Event付き下書きを作る(
     history_client: TestClient,
     history_fixture: history_helpers.MedicationHistoryFixture,
 ) -> None:
     corporate_id = str(history_fixture.corporate_id.value)
     body = _start_history_body(history_fixture)
     body["soap"] = TypeAdapter(SoapInput).dump_python(SoapInput(), mode="json")
+    body["occurred_at"] = history_fixture.clock.now().isoformat()
     response = history_client.post(
         f"/corporates/{corporate_id}/medication-histories",
+        json=body,
+        headers=_HEADERS,
+    )
+
+    assert response.status_code == HTTPStatus.CREATED, response.text
+    assert response.json()["status"] == "draft"
+    assert response.json()["event_id"]
+    assert len(history_fixture.record_repository.items) == 1
+
+
+def test_tc45_37_旧初回APIはEvent発生日時の省略を拒否する(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    body = _start_history_body(history_fixture)
+    body.pop("occurred_at", None)
+    response = history_client.post(
+        f"/corporates/{history_fixture.corporate_id.value}/medication-histories",
         json=body,
         headers=_HEADERS,
     )
@@ -1263,17 +1386,27 @@ def test_tc44_08_HTTPフォローアップは登録者とサーバー登録日�
     assert response.status_code == HTTPStatus.CREATED, response.text
     result = response.json()
     assert result["id"] != record_id
-    assert result["record_kind"] == "follow_up"
-    assert result["source_record_id"] == record_id
+    assert result["event_id"]
+    assert "record_kind" not in result
+    assert "source_record_id" not in result
     assert result["store_id"] == str(history_fixture.store_id.value)
     assert result["patient_id"] == str(history_fixture.patient_id.value)
     assert result["status"] == "draft"
     assert result["recorded_by"] == str(history_fixture.counselor_id.value)
     assert result["recorded_at"] == expected_recorded_at.isoformat()
     assert result["recorded_at"] != result["counseled_at"]
-    assert history_fixture.clock.calls == 1
+    assert history_fixture.clock.calls == 2
     assert "reviewed_by" not in result
     assert "reviewed_at" not in result
+    event = next(
+        item
+        for item in history_fixture.event_repository.items.values()
+        if str(item.id.value) == result["event_id"]
+    )
+    assert event.related_event_id is not None
+    assert str(event.related_event_id.value) == started.json()["event_id"]
+    assert event.occurred_at is not None
+    assert event.occurred_at.value == datetime.fromisoformat(body["followed_up_at"])
 
 
 @pytest.mark.parametrize("field_name", ("recorded_at", "recorded_by"))
@@ -1310,11 +1443,11 @@ def test_tc44_09_HTTPフォローアップ監査値の本文指定を拒否す�
     assert history_fixture.record_repository.items == {}
 
 
-def test_未確定の下書き薬歴にフォローアップを追加すると422が返る(
+def test_未確定の下書き薬歴をフォローアップ元に指定すると404が返る(
     history_client: TestClient,
     history_fixture: history_helpers.MedicationHistoryFixture,
 ) -> None:
-    """TC-HTTP-02: 未確定（下書き）の薬歴にフォローアップを追加すると 422 UNPROCESSABLE_CONTENT。"""
+    """フォローアップ元として利用できない下書き薬歴は見つからないものとして扱う。"""
     # Arrange
     corporate_id = str(history_fixture.corporate_id.value)
     started = history_client.post(
@@ -1344,8 +1477,8 @@ def test_未確定の下書き薬歴にフォローアップを追加すると42
     )
 
     # Assert
-    assert response.status_code == HTTPStatus.UNPROCESSABLE_CONTENT, response.text
-    assert response.json()["code"]
+    assert response.status_code == HTTPStatus.NOT_FOUND, response.text
+    assert response.json()["code"] == "MEDICATION_HISTORY_NOT_FOUND"
 
 
 def test_tc36_フォローアップの実施店舗と患者は必須でOpenAPIにも反映する(
@@ -1384,7 +1517,7 @@ def test_tc37_薬歴のフォローアップ候補は専用のメタデータ経
 
     response = history_client.get(
         f"/corporates/{corporate_id}/patients/{history_fixture.patient_id.value}"
-        "/medication-histories/follow-up-sources",
+        "/events/related-candidates",
         params={"store_id": str(history_fixture.store_id.value)},
         headers=_HEADERS,
     )
@@ -1393,7 +1526,7 @@ def test_tc37_薬歴のフォローアップ候補は専用のメタデータ経
     assert response.json() == []
     schema = history_client.get("/openapi.json").json()
     operation = schema["paths"][
-        "/corporates/{corporate_id}/patients/{patient_id}/medication-histories/follow-up-sources"
+        "/corporates/{corporate_id}/patients/{patient_id}/events/related-candidates"
     ]["get"]
     assert operation["responses"]["200"]["content"]["application/json"]["schema"]
 

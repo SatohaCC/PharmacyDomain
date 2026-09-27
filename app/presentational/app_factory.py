@@ -22,6 +22,7 @@ from app.presentational.authentication import (
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
 from app.presentational.errors import register_error_handlers
 from app.presentational.routers import (
+    care_event,
     corporate,
     coverage,
     dispensing,
@@ -102,6 +103,7 @@ def create_app(
         prescription.router,
         dispensing.router,
         medication_history.router,
+        care_event.router,
         medicine_catalog.router,
         nsips.router,
     ):

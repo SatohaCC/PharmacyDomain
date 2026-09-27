@@ -18,6 +18,7 @@ from datetime import UTC, date, datetime
 import pytest
 
 import tests.fakes
+from app.domain.care_event.primitives import EventId
 from app.domain.corporate.primitives import CorporateId
 from app.domain.coverage.exceptions import CoveragePeriodConflictError
 from app.domain.coverage.patient_coverage import PatientCoverage
@@ -712,6 +713,28 @@ async def test_薬歴保存_同一調剤に確定済が2件目だと_拒否さ�
     _MEDICATION_HISTORY_REPOSITORIES,
     ids=lambda cls: cls.__name__,
 )
+async def test_薬歴保存_同一Eventに2件目を作れない(
+    repository_type: type[MedicationHistoryRepository],
+) -> None:
+    """Eventと薬歴は一対一であり、下書きでも重複を許さない。"""
+    # Arrange
+    repository = repository_type()
+    corporate_id = CorporateId.generate()
+    event_id = EventId.generate()
+    await repository.save(create_record(corporate_id=corporate_id, event_id=event_id))
+
+    # Act / Assert
+    with pytest.raises(MedicationHistoryAlreadyExistsError):
+        await repository.save(
+            create_record(corporate_id=corporate_id, event_id=event_id)
+        )
+
+
+@pytest.mark.parametrize(
+    "repository_type",
+    _MEDICATION_HISTORY_REPOSITORIES,
+    ids=lambda cls: cls.__name__,
+)
 async def test_薬歴保存_下書きは_同一調剤に複数あってよい(
     repository_type: type[MedicationHistoryRepository],
 ) -> None:
@@ -785,7 +808,7 @@ async def test_薬歴の調剤検索_下書きは_返らない(
 async def test_tc39_薬歴の調剤検索は_複数フォローアップより初回を返す(
     repository_type: type[MedicationHistoryRepository],
 ) -> None:
-    """FOLLOW_UP が新しくても調剤の初回薬歴を返す。"""
+    """処方箋受付Event以外の薬歴を調剤検索へ混ぜない。"""
     repository = repository_type()
     corporate_id, dispensing_id = CorporateId.generate(), DispensingId.generate()
     initial = finalize_record_with_review(
@@ -797,7 +820,7 @@ async def test_tc39_薬歴の調剤検索は_複数フォローアップより�
         finalized=True,
     )
 
-    # 後から追加された FOLLOW_UP を先に保存し、Repository が種別で選ぶことを確認する。
+    # 調剤を持たない別Eventの薬歴を先に保存する。
     await repository.save(first_follow_up)
     await repository.save(initial)
 
@@ -808,7 +831,7 @@ async def test_tc39_薬歴の調剤検索は_複数フォローアップより�
 
     assert actual is not None
     assert actual.id == initial.id
-    assert actual.record_kind.value == "initial"
+    assert actual.event_id == initial.event_id
 
 
 @pytest.mark.parametrize(
@@ -816,10 +839,10 @@ async def test_tc39_薬歴の調剤検索は_複数フォローアップより�
     _MEDICATION_HISTORY_REPOSITORIES,
     ids=lambda cls: cls.__name__,
 )
-async def test_薬歴一覧_指導日時の降順で返る(
+async def test_薬歴一覧_指導日時の昇順で返る(
     repository_type: type[MedicationHistoryRepository],
 ) -> None:
-    """画面は新しい順に見る。頭書きの再構築側が昇順へ並べ替えるので依存しない。"""
+    """患者の経過確認と頭書き再構築に使えるよう、古い順で返す。"""
     # Arrange
     repository = repository_type()
     corporate_id, patient_id = CorporateId.generate(), PatientId.generate()
@@ -844,7 +867,7 @@ async def test_薬歴一覧_指導日時の降順で返る(
         timestamp.value.day
         for timestamp in counseled_timestamps
         if timestamp is not None
-    ] == [20, 10, 1]
+    ] == [1, 10, 20]
 
 
 @pytest.mark.parametrize(

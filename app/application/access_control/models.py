@@ -49,6 +49,9 @@ class Permission(StrEnum):
     MANAGE_DISPENSING = "manage_dispensing"
     VIEW_MEDICATION_HISTORY = "view_medication_history"
     MANAGE_MEDICATION_HISTORY = "manage_medication_history"
+    VIEW_EVENT = "view_event"
+    MANAGE_EVENT = "manage_event"
+    MANAGE_EVENT_DEFINITION = "manage_event_definition"
 
 
 @dataclass(frozen=True, kw_only=True)

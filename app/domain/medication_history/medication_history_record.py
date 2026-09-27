@@ -14,18 +14,15 @@ from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import Self
 
+from app.domain.care_event.primitives import EventId
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.primitives import DispensingId
 from app.domain.foundation.entity import AggregateRoot
 from app.domain.medication_history.exceptions import (
-    DuplicatedFollowUpIdError,
     DuplicatedTracingReportIdError,
     FinalizationDateBeforeCounselingError,
     FinalizationDelayReasonRequiredError,
     FinalizationStaffRequiredError,
-    FollowUpDateBeforeCounselingError,
-    FollowUpNotFoundError,
-    FollowUpOnDraftError,
     MedicationHistoryAlreadyFinalizedError,
     MedicationHistoryDomainError,
     MedicationHistoryNotFinalizedError,
@@ -33,7 +30,6 @@ from app.domain.medication_history.exceptions import (
     SoapContentRequiredError,
     TracingReportAlreadyRespondedError,
     TracingReportDateBeforeCounselingError,
-    TracingReportDateBeforeFollowUpError,
     TracingReportNotFoundError,
     TracingReportOnDraftError,
     TracingReportResponseDateBeforeProvidedError,
@@ -46,10 +42,9 @@ from app.domain.medication_history.primitives import (
     ExternalCorrectionTimestamp,
     FinalizationDelayReason,
     FinalizedTimestamp,
-    FollowUpRecordedTimestamp,
     MedicationHistoryImportTimestamp,
+    MedicationHistoryRecordedTimestamp,
     MedicationHistoryRecordId,
-    MedicationHistoryRecordKind,
     MedicationHistoryReviewResult,
     MedicationHistorySourceSystem,
     MedicationHistoryStatus,
@@ -59,7 +54,6 @@ from app.domain.medication_history.value_objects import (
     BillingAddition,
     CategorizedNote,
     ExternalPrescriptionCorrection,
-    FollowUpRecord,
     HandbookStatus,
     MedicationHistoryAmendment,
     ProfileUpdateIntents,
@@ -80,13 +74,12 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     """1回の服薬指導の記録を管理する集約ルート。"""
 
     id: MedicationHistoryRecordId
-    record_kind: MedicationHistoryRecordKind = MedicationHistoryRecordKind.INITIAL
-    source_record_id: MedicationHistoryRecordId | None = None
+    event_id: EventId
     corporate_id: CorporateId
     store_id: StoreId
     patient_id: PatientId
-    dispensing_id: DispensingId
-    prescription_id: PrescriptionId
+    dispensing_id: DispensingId | None
+    prescription_id: PrescriptionId | None
     counselor_id: StaffId | None
     counseled_at: CounselingTimestamp | None
     method: CounselingMethod | None
@@ -101,10 +94,9 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     source_system: MedicationHistorySourceSystem | None = None
     imported_at: MedicationHistoryImportTimestamp | None = None
     recorded_by: StaffId | None = None
-    recorded_at: FollowUpRecordedTimestamp | None = None
+    recorded_at: MedicationHistoryRecordedTimestamp | None = None
     status: MedicationHistoryStatus = MedicationHistoryStatus.DRAFT
     amendments: tuple[MedicationHistoryAmendment, ...] = ()
-    follow_ups: tuple[FollowUpRecord, ...] = ()
     tracing_reports: tuple[TracingReport, ...] = ()
     finalized_at: FinalizedTimestamp | None = None
     finalized_by: StaffId | None = None
@@ -123,37 +115,12 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         SOAP の充足は**確定済のときだけ**課す。下書きの途中で
         全セクションを要求すると、聞き取りながら書き足す運用ができない。
         """
-        self._ensure_record_kind_and_source_are_consistent()
-        self._ensure_follow_up_has_no_billing_additions()
         self._ensure_counseling_provenance_is_valid()
         self._ensure_amendments_only_after_finalized()
         self._ensure_finalized_soap_is_complete()
         self._ensure_finalized_review_has_authored_evidence()
         self._ensure_finalized_items_are_assessed()
         self._ensure_finalization_metadata_is_valid()
-
-    def _ensure_record_kind_and_source_are_consistent(self) -> None:
-        """初回薬歴と参照元の有無を一致させ、自己参照を拒否する。"""
-        if self.record_kind is MedicationHistoryRecordKind.INITIAL:
-            if self.source_record_id is not None:
-                raise MedicationHistoryDomainError(
-                    "初回薬歴には参照元を設定できません。"
-                )
-            return
-        if self.source_record_id is None or self.source_record_id == self.id:
-            raise MedicationHistoryDomainError(
-                "フォローアップ薬歴には自分以外の参照元が必要です。"
-            )
-
-    def _ensure_follow_up_has_no_billing_additions(self) -> None:
-        """初回調剤に対する加算をフォローアップへ重ねない。"""
-        if (
-            self.record_kind is MedicationHistoryRecordKind.FOLLOW_UP
-            and self.billing_additions
-        ):
-            raise MedicationHistoryDomainError(
-                "フォローアップ薬歴に初回調剤の算定加算は記録できません。"
-            )
 
     def _ensure_finalized_items_are_assessed(self) -> None:
         """確定前に確認が必要な項目が未記録でないことを検証する。"""
@@ -162,14 +129,6 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         required_items: list[tuple[str, object | None]] = [
             ("服薬指導方法", self.method)
         ]
-        if self.record_kind is MedicationHistoryRecordKind.INITIAL:
-            required_items.extend(
-                (
-                    ("お薬手帳の活用状況", self.handbook_status),
-                    ("残薬状況", self.residual_drug),
-                    ("情報提供文書の交付", self.information_sheet_provided),
-                )
-            )
         missing_items = tuple(label for label, value in required_items if value is None)
         if missing_items:
             raise MedicationHistoryUnassessedItemsError(missing_items=missing_items)
@@ -179,8 +138,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         if not self.status.is_finalized or self.review_result is None:
             return
         if (
-            self.record_kind is MedicationHistoryRecordKind.FOLLOW_UP
-            and self.review_result
+            self.review_result
             is MedicationHistoryReviewResult.NO_ADDITIONAL_RECORDABLE_ITEMS
         ):
             return
@@ -211,7 +169,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
 
     def _ensure_finalization_metadata_is_valid(self) -> None:
         """確定メタデータと真正性を検証する。"""
-        if self.status.is_finalized:
+        if self.status is MedicationHistoryStatus.FINALIZED:
             if self.finalized_at is None or self.finalized_by is None:
                 raise FinalizationStaffRequiredError()
             if self.counseled_at is None or self.counselor_id is None:
@@ -225,7 +183,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
                 and self.delay_reason is None
             ):
                 raise FinalizationDelayReasonRequiredError()
-        else:
+        elif self.status is MedicationHistoryStatus.DRAFT:
             if (
                 self.finalized_at is not None
                 or self.finalized_by is not None
@@ -235,6 +193,13 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
                 raise MedicationHistoryDomainError(
                     "下書き状態の薬歴に確定メタデータは設定できません。"
                 )
+        elif (
+            self.finalized_at is not None
+            or self.finalized_by is not None
+            or self.delay_reason is not None
+            or self.review_result is not None
+        ):
+            raise MedicationHistoryDomainError("移行記録に確定監査値は設定できません。")
 
     def _ensure_counseling_provenance_is_valid(self) -> None:
         """指導実績と、薬剤師記載または旧NSIPS下書きの由来を検証する。"""
@@ -267,6 +232,14 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         return self.status.is_finalized
 
     @property
+    def is_projection_eligible(self) -> bool:
+        """頭書き再構築へ含める確定済または移行済み記録か。"""
+        return self.status in {
+            MedicationHistoryStatus.FINALIZED,
+            MedicationHistoryStatus.LEGACY_RECORDED,
+        }
+
+    @property
     def effective_soap(self) -> SoapRecord:
         """現時点で有効なSOAP。追記があれば最後の追記の内容。
 
@@ -289,11 +262,12 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     def start(
         cls,
         *,
+        event_id: EventId,
         corporate_id: CorporateId,
         store_id: StoreId,
         patient_id: PatientId,
-        dispensing_id: DispensingId,
-        prescription_id: PrescriptionId,
+        dispensing_id: DispensingId | None,
+        prescription_id: PrescriptionId | None,
         counselor_id: StaffId | None,
         counseled_at: CounselingTimestamp | None,
         method: CounselingMethod | None,
@@ -307,15 +281,12 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         source_system: MedicationHistorySourceSystem | None = None,
         imported_at: MedicationHistoryImportTimestamp | None = None,
         recorded_by: StaffId | None = None,
-        recorded_at: FollowUpRecordedTimestamp | None = None,
-        record_kind: MedicationHistoryRecordKind = MedicationHistoryRecordKind.INITIAL,
-        source_record_id: MedicationHistoryRecordId | None = None,
+        recorded_at: MedicationHistoryRecordedTimestamp | None = None,
     ) -> Self:
         """服薬指導の記録を下書きとして起こす。"""
         return cls(
             id=MedicationHistoryRecordId.generate(),
-            record_kind=record_kind,
-            source_record_id=source_record_id,
+            event_id=event_id,
             corporate_id=corporate_id,
             store_id=store_id,
             patient_id=patient_id,
@@ -491,26 +462,8 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
 
     def _ensure_not_finalized(self) -> None:
         """確定済でないことを保証する。"""
-        if self.is_finalized:
+        if self.status is not MedicationHistoryStatus.DRAFT:
             raise MedicationHistoryAlreadyFinalizedError()
-
-    def add_follow_up(self, follow_up: FollowUpRecord) -> Self:
-        """確定済の薬歴に服薬期間中フォローアップ記録を追加する。
-
-        Raises:
-            FollowUpOnDraftError: 薬歴が未確定（下書き）の場合。
-            FollowUpDateBeforeCounselingError: 初回指導日時より前のフォローアップ日時の場合。
-            DuplicatedFollowUpIdError: 同一のフォローアップIDが既に存在する場合。
-        """
-        if not self.is_finalized:
-            raise FollowUpOnDraftError()
-        if self.counseled_at is None:
-            raise MedicationHistoryDomainError("確定済の薬歴に指導日時がありません。")
-        if follow_up.followed_up_at.value < self.counseled_at.value:
-            raise FollowUpDateBeforeCounselingError()
-        if any(existing.id == follow_up.id for existing in self.follow_ups):
-            raise DuplicatedFollowUpIdError()
-        return replace(self, follow_ups=(*self.follow_ups, follow_up))
 
     def add_tracing_report(self, report: TracingReport) -> Self:
         """確定済の薬歴に処方医へのトレーシングレポート提供記録を追加する。
@@ -518,8 +471,6 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         Raises:
             TracingReportOnDraftError: 薬歴が未確定（下書き）の場合。
             TracingReportDateBeforeCounselingError: 初回指導日時より前の提供日時の場合。
-            FollowUpNotFoundError: 指定されたフォローアップIDが存在しない場合。
-            TracingReportDateBeforeFollowUpError: 紐付けられたフォローアップ日時より前の提供日時の場合。
             DuplicatedTracingReportIdError: 同一のレポートIDが既に存在する場合。
         """
         if not self.is_finalized:
@@ -528,14 +479,6 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             raise MedicationHistoryDomainError("確定済の薬歴に指導日時がありません。")
         if report.provided_at.value < self.counseled_at.value:
             raise TracingReportDateBeforeCounselingError()
-        if report.follow_up_id is not None:
-            matching_follow_up = next(
-                (fu for fu in self.follow_ups if fu.id == report.follow_up_id), None
-            )
-            if matching_follow_up is None:
-                raise FollowUpNotFoundError()
-            if report.provided_at.value < matching_follow_up.followed_up_at.value:
-                raise TracingReportDateBeforeFollowUpError()
         if any(existing.id == report.id for existing in self.tracing_reports):
             raise DuplicatedTracingReportIdError()
         return replace(self, tracing_reports=(*self.tracing_reports, report))

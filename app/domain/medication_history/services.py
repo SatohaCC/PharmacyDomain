@@ -14,7 +14,6 @@ from app.domain.dispensing.primitives import DispensingProcessStatus
 from app.domain.medication_history.exceptions import (
     CounselorQualificationError,
     MedicationHistoryAlreadyExistsError,
-    MedicationHistoryDomainError,
     PatientMedicalProfileAlreadyExistsError,
     StatutoryRecordSourceMismatchError,
 )
@@ -25,7 +24,6 @@ from app.domain.medication_history.patient_medical_profile import (
     PatientMedicalProfile,
 )
 from app.domain.medication_history.primitives import (
-    MedicationHistoryRecordKind,
     StatutoryDispensingRecordItem,
     StatutoryItemState,
     StatutoryRecordBlocker,
@@ -78,16 +76,13 @@ class MedicationHistoryUniquenessService:
 
         同じ集約IDの現在行は候補から除外し、自身の状態変更を妨げない。
         """
-        if (
-            not record.is_finalized
-            or record.record_kind is MedicationHistoryRecordKind.FOLLOW_UP
-        ):
+        if not record.is_finalized or record.dispensing_id is None:
             return
         for existing in existing_records:
             if (
                 existing.id == record.id
                 or not existing.is_finalized
-                or existing.record_kind is MedicationHistoryRecordKind.FOLLOW_UP
+                or existing.dispensing_id is None
             ):
                 continue
             if (
@@ -324,10 +319,6 @@ class StatutoryDispensingRecordService:
         Raises:
             StatutoryRecordSourceMismatchError: 3者が同じ1件を指していない場合。
         """
-        if record.record_kind is MedicationHistoryRecordKind.FOLLOW_UP:
-            raise MedicationHistoryDomainError(
-                "独立したフォローアップ薬歴は調剤録の代替確認に使えません。"
-            )
         self._ensure_same_subject(record, dispensing, source)
         return StatutoryRecordSufficiency(
             assessments=tuple(

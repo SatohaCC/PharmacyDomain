@@ -42,7 +42,6 @@ from app.domain.medication_history.primitives import (
     CounselingTimestamp,
     FinalizedTimestamp,
     MedicationHistoryImportTimestamp,
-    MedicationHistoryRecordKind,
     MedicationHistoryReviewResult,
     MedicationHistorySourceSystem,
 )
@@ -1620,9 +1619,11 @@ async def test_tc47_処方メタデータ差分は重複扱いせず訂正を要
         review_result=MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED,
     )
     await fixture.medication_history_repo.save(finalized_history)
+    dispensing_id = history.dispensing_id
+    assert dispensing_id is not None
     original_dispensing = await fixture.dispensing_repo.get(
         corporate_id=fixture.corporate_id,
-        dispensing_id=history.dispensing_id,
+        dispensing_id=dispensing_id,
     )
     assert original_dispensing is not None
     original_prescription = await fixture.prescription_repo.get_by_document_number(
@@ -2076,7 +2077,8 @@ async def test_issue36_tc33_U再取込の加算比較は新しいFOLLOW_UPでは
     )
     await fixture.medication_history_repo.save(initial)
     await fixture.medication_history_repo.save(follow_up)
-    assert follow_up.record_kind is MedicationHistoryRecordKind.FOLLOW_UP
+    assert follow_up.dispensing_id is None
+    assert follow_up.prescription_id is None
 
     difference = await fixture.use_case._detect_bundle_differences(
         corporate_id=fixture.corporate_id,

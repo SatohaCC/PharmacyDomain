@@ -17,6 +17,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.application.access_control.models import ActorContext
 from app.application.access_control.policy import AuthorizationService
 from app.application.identity.resolve_actor import VerifiedSubject
+from app.infrastructure.di.bundles.care_event import CareEventUseCases
 from app.infrastructure.di.bundles.clinical import (
     DispensingUseCases,
     MedicationHistoryUseCases,
@@ -210,6 +211,11 @@ def get_medication_history_use_cases(scope: _Scope) -> MedicationHistoryUseCases
     return scope.use_cases.medication_history
 
 
+def get_care_event_use_cases(scope: _Scope) -> CareEventUseCases:
+    """業務Eventコンテキストのユースケース束を返す。"""
+    return scope.use_cases.care_event
+
+
 def get_medicine_catalog_use_cases(scope: _Scope) -> MedicineCatalogUseCases:
     """医薬品マスタコンテキストのユースケース束を返す。"""
     return scope.use_cases.medicine_catalog
@@ -235,6 +241,7 @@ DispensingUseCasesDep = Annotated[DispensingUseCases, Depends(get_dispensing_use
 MedicationHistoryUseCasesDep = Annotated[
     MedicationHistoryUseCases, Depends(get_medication_history_use_cases)
 ]
+CareEventUseCasesDep = Annotated[CareEventUseCases, Depends(get_care_event_use_cases)]
 MedicineCatalogUseCasesDep = Annotated[
     MedicineCatalogUseCases, Depends(get_medicine_catalog_use_cases)
 ]
@@ -246,6 +253,7 @@ IntegrationUseCasesDep = Annotated[
 __all__ = [
     "STATE_ATTRIBUTE",
     "Actor",
+    "CareEventUseCasesDep",
     "CorporateUseCasesDep",
     "CoverageUseCasesDep",
     "DispensingUseCasesDep",
@@ -260,6 +268,7 @@ __all__ = [
     "StoreUseCasesDep",
     "bearer_scheme",
     "get_actor_context",
+    "get_care_event_use_cases",
     "get_composition_root",
     "get_corporate_use_cases",
     "get_coverage_use_cases",

@@ -39,7 +39,6 @@ from app.domain.medication_history.value_objects import (
     AllergyRecord,
     ConcurrentMedicationRecord,
     FamilyPharmacistAgreement,
-    FollowUpRecord,
     GenericPreference,
     LifestyleProfile,
     MedicalConditionRecord,
@@ -138,79 +137,51 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
         patient_id: PatientId,
         records: tuple[MedicationHistoryRecord, ...],
     ) -> Self:
-        """確定済薬歴の列および紐づくフォローアップから頭書きを再構築する。
+        """確定済薬歴の時系列から頭書きを再構築する。
 
-        指導日時・フォローアップ日時の昇順、次に登録日時の昇順ですべての差分を
-        畳み込む。頭書きは薬歴からの投影なので、確定済薬歴が残ってさえいれば
-        投影を作り直せる。再構築は履歴からの復元を担い、薬歴と頭書きの保存を
-        原子的にする責務は Unit of Work が担う。
+        指導日時の昇順、同時刻は確定日時または移行記録の登録日時、最後に薬歴IDで
+        決定して差分を畳み込む。頭書きは薬歴からの投影なので、投影対象の薬歴が
+        残っていれば再構築できる。薬歴と頭書きの保存を原子的にする責務はUnit of
+        Workが担う。
         """
         profile = cls.empty_for(corporate_id=corporate_id, patient_id=patient_id)
 
-        @dataclass(frozen=True)
-        class _ProfileEvent:
-            occurred_at: datetime
-            recorded_at: datetime | None
-            event_order: int
-            event_id: str
-            record: MedicationHistoryRecord
-            follow_up: FollowUpRecord | None = None
-
-        raw_events: list[_ProfileEvent] = []
+        raw_events: list[
+            tuple[datetime, datetime | None, str, MedicationHistoryRecord]
+        ] = []
         for record in records:
-            if not record.is_finalized:
+            if not record.is_projection_eligible:
                 continue
             if record.counselor_id is None or record.counseled_at is None:
                 raise MedicationHistoryDomainError(
-                    "確定済の薬歴には実際の指導者と指導日時が必要です。"
+                    "頭書きへ投影する薬歴には実際の指導者と指導日時が必要です。"
                 )
+            audit_time = (
+                record.finalized_at.value
+                if record.finalized_at is not None
+                else record.recorded_at.value
+                if record.recorded_at is not None
+                else None
+            )
             raw_events.append(
-                _ProfileEvent(
-                    occurred_at=record.counseled_at.value,
-                    recorded_at=(
-                        record.recorded_at.value
-                        if record.recorded_at is not None
-                        else None
-                    ),
-                    event_order=0,
-                    event_id=str(record.id.value),
-                    record=record,
+                (
+                    record.counseled_at.value,
+                    audit_time,
+                    str(record.id.value),
+                    record,
                 )
             )
-            for follow_up in record.follow_ups:
-                raw_events.append(
-                    _ProfileEvent(
-                        occurred_at=follow_up.followed_up_at.value,
-                        recorded_at=(
-                            follow_up.recorded_at.value
-                            if follow_up.recorded_at is not None
-                            else (
-                                record.recorded_at.value
-                                if record.recorded_at is not None
-                                else None
-                            )
-                        ),
-                        event_order=1,
-                        event_id=str(follow_up.id.value),
-                        record=record,
-                        follow_up=follow_up,
-                    )
-                )
 
         raw_events.sort(
-            key=lambda ev: (
-                ev.occurred_at,
-                ev.recorded_at is not None,
-                ev.recorded_at or ev.occurred_at,
-                ev.event_order,
-                ev.event_id,
+            key=lambda item: (
+                item[0],
+                item[1] is None,
+                item[1] or item[0],
+                item[2],
             )
         )
-        for ev in raw_events:
-            if ev.follow_up is not None:
-                profile = profile.apply_follow_up(ev.record, ev.follow_up)
-            else:
-                profile = profile.apply(ev.record)
+        for _, _, _, record in raw_events:
+            profile = profile.apply(record)
         return profile
 
     # ------------------------------------------------------------------
@@ -229,7 +200,7 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
             ConcurrentMedicationNotFoundError: 終了対象の併用薬が無い場合。
         """
         self._ensure_same_patient(record)
-        if not record.is_finalized:
+        if not record.is_projection_eligible:
             raise UnfinalizedRecordProjectionError()
         if record.counselor_id is None or record.counseled_at is None:
             raise MedicationHistoryDomainError(
@@ -237,22 +208,6 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
             )
         provenance = _provenance_of(record)
         return self._apply_intents(record.profile_updates, provenance)
-
-    def apply_follow_up(
-        self, record: MedicationHistoryRecord, follow_up: FollowUpRecord
-    ) -> Self:
-        """フォローアップ記録の頭書き差分を適用する。
-
-        Raises:
-            ProfilePatientMismatchError: 別の患者・法人の薬歴である場合。
-            UnfinalizedRecordProjectionError: 未確定の薬歴である場合。
-            ConcurrentMedicationNotFoundError: 終了対象の併用薬が無い場合。
-        """
-        self._ensure_same_patient(record)
-        if not record.is_finalized:
-            raise UnfinalizedRecordProjectionError()
-        provenance = _provenance_of_follow_up(record, follow_up)
-        return self._apply_intents(follow_up.profile_updates, provenance)
 
     def _apply_intents(
         self, intents: ProfileUpdateIntents, provenance: ProfileProvenance
@@ -457,15 +412,4 @@ def _provenance_of(record: MedicationHistoryRecord) -> ProfileProvenance:
         source_record_id=record.id,
         recorded_by=record.counselor_id,
         recorded_on=record.counseled_at.value.date(),
-    )
-
-
-def _provenance_of_follow_up(
-    record: MedicationHistoryRecord, follow_up: FollowUpRecord
-) -> ProfileProvenance:
-    """フォローアップ記録から由来を組み立てる。"""
-    return ProfileProvenance(
-        source_record_id=record.id,
-        recorded_by=follow_up.counselor_id,
-        recorded_on=follow_up.followed_up_at.value.date(),
     )

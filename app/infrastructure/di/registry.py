@@ -7,6 +7,10 @@ from typing import cast
 from app.application.access_control.policy import AuthorizationService
 from app.application.common.clock import Clock
 from app.application.corporate.corporate_access import CorporateAccessService
+from app.infrastructure.di.bundles.care_event import (
+    CareEventUseCases,
+    build_care_event_use_cases,
+)
 from app.infrastructure.di.bundles.clinical import (
     DispensingUseCases,
     MedicationHistoryUseCases,
@@ -172,6 +176,16 @@ class PostgresUseCaseRegistry:
         return cast(MedicationHistoryUseCases, self._cache["medication_history"])
 
     @property
+    def care_event(self) -> CareEventUseCases:
+        if "care_event" not in self._cache:
+            self._cache["care_event"] = build_care_event_use_cases(
+                self._repositories,
+                self._corporate_access,
+                self._clock,
+            )
+        return cast(CareEventUseCases, self._cache["care_event"])
+
+    @property
     def medicine_catalog(self) -> MedicineCatalogUseCases:
         if "medicine_catalog" not in self._cache:
             self._cache["medicine_catalog"] = build_medicine_catalog_use_cases(
@@ -208,6 +222,7 @@ PostgresUseCaseRegistry.__annotations__ = {
     "prescription": PrescriptionUseCases,
     "dispensing": DispensingUseCases,
     "medication_history": MedicationHistoryUseCases,
+    "care_event": CareEventUseCases,
     "medicine_catalog": MedicineCatalogUseCases,
     "integration": IntegrationUseCases,
 }

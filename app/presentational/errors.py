@@ -73,6 +73,10 @@ from app.application.staff.exceptions import (
     StaffNotFoundError as StaffApplicationNotFoundError,
 )
 from app.application.store.exceptions import StoreNotFoundError
+from app.domain.care_event.exceptions import (
+    EventAlreadyAssociatedError,
+    EventDefinitionAlreadyExistsError,
+)
 from app.domain.corporate.exceptions import CorporateNameAlreadyExistsError
 from app.domain.coverage.exceptions import (
     CoverageDeactivationAlreadyFixedError,
@@ -104,6 +108,7 @@ from app.domain.prescription.exceptions import (
     InquiryNotFoundError,
     PrescriptionDocumentNumberAlreadyExistsError,
 )
+from app.domain.reception.exceptions import ReceptionEventAlreadyAssociatedError
 from app.domain.shared.preservation import PreservationPolicyNotFoundError
 from app.domain.staff.exceptions import (
     AffiliationDateConflictError,
@@ -234,6 +239,8 @@ _STATUS_BY_EXCEPTION: Final[Mapping[type[BaseException], HTTPStatus]] = {
     CoverageDeactivationAlreadyFixedError: HTTPStatus.CONFLICT,
     CoveragePeriodConflictError: HTTPStatus.CONFLICT,
     DispensingAlreadyExistsError: HTTPStatus.CONFLICT,
+    EventAlreadyAssociatedError: HTTPStatus.CONFLICT,
+    EventDefinitionAlreadyExistsError: HTTPStatus.CONFLICT,
     MedicationHistoryAlreadyExistsError: HTTPStatus.CONFLICT,
     MedicationHistoryAlreadyFinalizedError: HTTPStatus.CONFLICT,
     PatientMedicalProfileAlreadyExistsError: HTTPStatus.CONFLICT,
@@ -243,6 +250,7 @@ _STATUS_BY_EXCEPTION: Final[Mapping[type[BaseException], HTTPStatus]] = {
     InquiryAlreadyResolvedError: HTTPStatus.CONFLICT,
     PrescriptionDocumentNumberAlreadyExistsError: HTTPStatus.CONFLICT,
     AffiliationDateConflictError: HTTPStatus.CONFLICT,
+    ReceptionEventAlreadyAssociatedError: HTTPStatus.CONFLICT,
     ConcurrentStoreConflictError: HTTPStatus.CONFLICT,
     StaffCodeAlreadyExistsError: HTTPStatus.CONFLICT,
     InsurancePharmacyNumberAlreadyExistsError: HTTPStatus.CONFLICT,

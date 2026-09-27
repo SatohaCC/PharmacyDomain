@@ -12,13 +12,6 @@ from app.application.dispensing.inputs import (
 from app.application.dispensing.start_dispensing import StartDispensingCommand
 from app.application.integration.nsips.exceptions import NsipsParseError
 from app.application.integration.nsips.models import NsipsBundle
-from app.application.medication_history.inputs import (
-    BillingAdditionInput,
-    SoapInput,
-)
-from app.application.medication_history.start_medication_history import (
-    StartMedicationHistoryCommand,
-)
 from app.application.patient.register_patient import RegisterPatientCommand
 from app.application.prescription.inputs import (
     DepartmentInput,
@@ -319,40 +312,6 @@ class NsipsDataMapper:
             dispensed_rps=tuple(dispensed_rps),
             total_split_count=total_split,
             split_reason=split_reason,
-        )
-
-    @staticmethod
-    def to_medication_history_command(
-        bundle: NsipsBundle,
-        *,
-        corporate_id: str,
-        store_id: str,
-        dispensing_id: str,
-    ) -> StartMedicationHistoryCommand:
-        """薬歴Commandへ由来情報だけを写し、SOAP本文は生成しない。"""
-
-        billing_additions = tuple(
-            BillingAdditionInput(
-                code=add.code,
-                name=add.name,
-                points=add.points,
-                quantity=add.quantity,
-            )
-            for add in bundle.additions
-        )
-
-        return StartMedicationHistoryCommand(
-            corporate_id=corporate_id,
-            store_id=store_id,
-            dispensing_id=dispensing_id,
-            method=None,
-            soap=SoapInput(),
-            handbook_status=None,
-            residual_drug=None,
-            information_sheet_provided=None,
-            profile_updates=None,
-            billing_additions=billing_additions,
-            source_system="NSIPS",
         )
 
     @staticmethod

@@ -169,17 +169,13 @@ def test_子エンティティのハッシュはIDに基づく() -> None:
     assert len({report1, report2}) == 1
 
 
-def test_子エンティティを含む薬歴のCodec可逆性() -> None:
-    """TC-07: TracingReport / FollowUpRecord を含む薬歴のエンコード・デコード可逆性。"""
+def test_トレーシングレポートを含む薬歴のCodec可逆性() -> None:
+    """トレーシングレポートは薬歴に属し、旧子フォローアップは現役payloadに含めない。"""
     record = finalize_record_with_review(create_record())
     report = create_tracing_report(
         provided_at=COUNSELED_AT + timedelta(days=1),
     )
-    follow_up = create_follow_up(
-        followed_up_at=COUNSELED_AT + timedelta(days=1),
-    )
-
-    record = record.add_follow_up(follow_up).add_tracing_report(report)
+    record = record.add_tracing_report(report)
 
     encoded = encode_aggregate(record)
     decoded = decode_aggregate(encoded, MedicationHistoryRecord)
@@ -187,5 +183,4 @@ def test_子エンティティを含む薬歴のCodec可逆性() -> None:
     assert decoded == record
     assert len(decoded.tracing_reports) == 1
     assert decoded.tracing_reports[0] == report
-    assert len(decoded.follow_ups) == 1
-    assert decoded.follow_ups[0] == follow_up
+    assert "follow_ups" not in encoded

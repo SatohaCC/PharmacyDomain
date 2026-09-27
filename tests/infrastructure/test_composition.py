@@ -31,6 +31,7 @@ from app.application.composition.resolved_actor_guard import (
 from app.application.composition.staff_integrity import StaffAssignmentWriteGuard
 from app.application.identity.resolve_actor import UnavailableIdentityError
 from app.domain.identity.primitives import AccountPersonId, UserAccountId
+from app.infrastructure.di.bundles.care_event import CareEventUseCases
 from app.infrastructure.di.bundles.clinical import (
     DispensingUseCases,
     MedicationHistoryUseCases,
@@ -229,6 +230,7 @@ def test_ユースケース束の一覧が_登録簿の項目と一致する() -
     # Arrange
     registry_bundles = set(get_type_hints(PostgresUseCaseRegistry).values())
     declared_bundles: set[type[object]] = {
+        CareEventUseCases,
         CorporateUseCases,
         CoverageUseCases,
         DispensingUseCases,

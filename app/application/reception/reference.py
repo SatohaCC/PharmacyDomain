@@ -21,8 +21,8 @@ class MedicationHistoryAssociationReference:
 
     id: MedicationHistoryRecordId
     patient_id: PatientId
-    dispensing_id: DispensingId
-    prescription_id: PrescriptionId
+    dispensing_id: DispensingId | None
+    prescription_id: PrescriptionId | None
 
 
 class MedicationHistoryAssociationBoundary(Protocol):

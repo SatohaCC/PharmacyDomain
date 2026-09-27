@@ -6,8 +6,14 @@ from dataclasses import dataclass
 
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
+from app.application.common.exceptions import NotFoundError
 from app.application.common.optional_conversion import unwrap
+from app.application.medication_history.reference import (
+    MedicationHistoryEventBoundary,
+    MedicationHistoryEventReference,
+)
 from app.application.medication_history.support import load_record_or_raise
+from app.domain.care_event.primitives import EventId
 from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
@@ -19,7 +25,6 @@ from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.value_objects import (
     BillingAddition,
     CategorizedNote,
-    FollowUpRecord,
     HandbookStatus,
     LabeledNote,
     MedicationHistoryAmendment,
@@ -155,60 +160,6 @@ class CategorizedNoteDto:
 
 
 @dataclass(frozen=True, kw_only=True)
-class FollowUpDto:
-    """服薬期間中のフォローアップ出力DTO。"""
-
-    id: str
-    counselor_id: str
-    followed_up_at: str
-    method: str | None
-    soap: SoapDto
-    handbook_status: HandbookStatusDto | None
-    residual_drug: ResidualDrugDto | None
-    information_sheet_provided: bool | None
-    source_system: str | None
-    additional_notes: tuple[CategorizedNoteDto, ...] = ()
-    updates_profile: bool = False
-    recorded_at: str | None = None
-    recorded_by: str | None = None
-
-    @classmethod
-    def from_value(cls, value: FollowUpRecord) -> FollowUpDto:
-        """フォローアップ値オブジェクトからDTOを生成する。"""
-        return cls(
-            id=str(value.id.value),
-            counselor_id=str(value.counselor_id.value),
-            followed_up_at=value.followed_up_at.value.isoformat(),
-            method=unwrap(value.method),
-            soap=SoapDto.from_value(value.soap),
-            handbook_status=(
-                HandbookStatusDto.from_value(value.handbook_status)
-                if value.handbook_status is not None
-                else None
-            ),
-            residual_drug=(
-                ResidualDrugDto.from_value(value.residual_drug)
-                if value.residual_drug is not None
-                else None
-            ),
-            information_sheet_provided=value.information_sheet_provided,
-            source_system=unwrap(value.source_system),
-            additional_notes=tuple(
-                CategorizedNoteDto.from_value(note) for note in value.additional_notes
-            ),
-            updates_profile=not value.profile_updates.is_empty,
-            recorded_at=(
-                value.recorded_at.value.isoformat()
-                if value.recorded_at is not None
-                else None
-            ),
-            recorded_by=(
-                str(value.recorded_by.value) if value.recorded_by is not None else None
-            ),
-        )
-
-
-@dataclass(frozen=True, kw_only=True)
 class TracingReportResponseDto:
     """トレーシングレポートに対する処方医返答の出力DTO。"""
 
@@ -243,7 +194,6 @@ class TracingReportDto:
     fee_category: str
     delivery_method: str
     content: str
-    follow_up_id: str | None = None
     response: TracingReportResponseDto | None = None
 
     @classmethod
@@ -259,11 +209,6 @@ class TracingReportDto:
             fee_category=value.fee_category.value,
             delivery_method=value.delivery_method.value,
             content=value.content.value,
-            follow_up_id=(
-                str(value.follow_up_id.value)
-                if value.follow_up_id is not None
-                else None
-            ),
             response=(
                 TracingReportResponseDto.from_value(value.response)
                 if value.response is not None
@@ -300,10 +245,13 @@ class MedicationHistoryDto:
     corporate_id: str
     store_id: str
     patient_id: str
-    dispensing_id: str
-    prescription_id: str
-    record_kind: str
-    source_record_id: str | None
+    event_id: str
+    event_type_id: str | None
+    event_type_name: str | None
+    event_occurred_at: str | None
+    event_occurred_at_is_unknown: bool
+    dispensing_id: str | None
+    prescription_id: str | None
     counselor_id: str | None
     counseled_at: str | None
     method: str | None
@@ -321,7 +269,6 @@ class MedicationHistoryDto:
     updates_profile: bool
     additional_notes: tuple[CategorizedNoteDto, ...] = ()
     billing_additions: tuple[BillingAdditionDto, ...] = ()
-    follow_ups: tuple[FollowUpDto, ...] = ()
     tracing_reports: tuple[TracingReportDto, ...] = ()
     finalized_at: str | None = None
     finalized_by: str | None = None
@@ -331,19 +278,41 @@ class MedicationHistoryDto:
     recorded_at: str | None = None
 
     @classmethod
-    def from_entity(cls, record: MedicationHistoryRecord) -> MedicationHistoryDto:
+    def from_entity(
+        cls,
+        record: MedicationHistoryRecord,
+        *,
+        event: MedicationHistoryEventReference | None = None,
+    ) -> MedicationHistoryDto:
         """薬歴集約からDTOを生成する。"""
         return cls(
             id=str(record.id.value),
             corporate_id=str(record.corporate_id.value),
             store_id=str(record.store_id.value),
             patient_id=str(record.patient_id.value),
-            dispensing_id=str(record.dispensing_id.value),
-            prescription_id=str(record.prescription_id.value),
-            record_kind=record.record_kind.value,
-            source_record_id=(
-                str(record.source_record_id.value)
-                if record.source_record_id is not None
+            event_id=str(record.event_id.value),
+            event_type_id=(
+                str(event.event_type_id.value) if event is not None else None
+            ),
+            event_type_name=(
+                event.event_type_name.value if event is not None else None
+            ),
+            event_occurred_at=(
+                event.occurred_at.value.isoformat()
+                if event is not None and event.occurred_at is not None
+                else None
+            ),
+            event_occurred_at_is_unknown=(
+                event is not None and event.occurred_at is None
+            ),
+            dispensing_id=(
+                str(record.dispensing_id.value)
+                if record.dispensing_id is not None
+                else None
+            ),
+            prescription_id=(
+                str(record.prescription_id.value)
+                if record.prescription_id is not None
                 else None
             ),
             counselor_id=(
@@ -387,7 +356,6 @@ class MedicationHistoryDto:
             billing_additions=tuple(
                 BillingAdditionDto.from_value(ba) for ba in record.billing_additions
             ),
-            follow_ups=tuple(FollowUpDto.from_value(fu) for fu in record.follow_ups),
             tracing_reports=tuple(
                 TracingReportDto.from_value(report) for report in record.tracing_reports
             ),
@@ -431,9 +399,11 @@ class GetMedicationHistoryUseCase:
         self,
         repository: MedicationHistoryRepository,
         corporate_access: CorporateAccessBoundary,
+        event_reference: MedicationHistoryEventBoundary | None = None,
     ) -> None:
         self._repository = repository
         self._corporate_access = corporate_access
+        self._event_reference = event_reference
 
     async def execute(self, query: GetMedicationHistoryQuery) -> MedicationHistoryDto:
         """指定法人の薬歴をDTOで返す。エンティティは返さない。"""
@@ -447,7 +417,61 @@ class GetMedicationHistoryUseCase:
             corporate_id=corporate_id,
             record_id=MedicationHistoryRecordId.parse(query.record_id),
         )
-        return MedicationHistoryDto.from_entity(record)
+        event = (
+            await self._event_reference.get(
+                corporate_id=corporate_id,
+                event_id=record.event_id,
+            )
+            if self._event_reference is not None
+            else None
+        )
+        return MedicationHistoryDto.from_entity(record, event=event)
+
+
+@dataclass(frozen=True, kw_only=True)
+class FollowUpSourceDto:
+    """店舗横断フォローアップ作成に必要な元Eventの参照情報。"""
+
+    event_id: EventId
+    patient_id: PatientId
+
+
+@dataclass(frozen=True, kw_only=True)
+class GetFollowUpSourceQuery:
+    """確定済み薬歴をフォローアップの関連元として解決する入力。"""
+
+    corporate_id: str
+    record_id: str
+
+
+class GetFollowUpSourceUseCase:
+    """確定済み薬歴から本文を読まず関連Eventだけを取り出す。"""
+
+    def __init__(
+        self,
+        repository: MedicationHistoryRepository,
+        corporate_access: CorporateAccessBoundary,
+    ) -> None:
+        self._repository = repository
+        self._corporate_access = corporate_access
+
+    async def execute(self, query: GetFollowUpSourceQuery) -> FollowUpSourceDto:
+        """確定済み元薬歴のEvent参照を返し、他店舗本文は取得しない。"""
+        corporate_id = CorporateId.parse(query.corporate_id)
+        await self._corporate_access.require_active(
+            corporate_id=corporate_id,
+            permission=Permission.VIEW_MEDICATION_HISTORY,
+        )
+        source = await self._repository.get_finalized_source_for_follow_up(
+            corporate_id=corporate_id,
+            record_id=MedicationHistoryRecordId.parse(query.record_id),
+        )
+        if source is None:
+            raise NotFoundError(
+                "指定された確定済み薬歴が見つかりません。",
+                code="MEDICATION_HISTORY_NOT_FOUND",
+            )
+        return FollowUpSourceDto(event_id=source.event_id, patient_id=source.patient_id)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -459,15 +483,17 @@ class ListMedicationHistoriesQuery:
 
 
 class ListMedicationHistoriesByPatientUseCase:
-    """患者の薬歴を服薬指導日時の降順で返す。"""
+    """患者の薬歴を服薬指導日時の昇順で返す。"""
 
     def __init__(
         self,
         repository: MedicationHistoryRepository,
         corporate_access: CorporateAccessBoundary,
+        event_reference: MedicationHistoryEventBoundary | None = None,
     ) -> None:
         self._repository = repository
         self._corporate_access = corporate_access
+        self._event_reference = event_reference
 
     async def execute(
         self, query: ListMedicationHistoriesQuery
@@ -482,4 +508,15 @@ class ListMedicationHistoriesByPatientUseCase:
             corporate_id=corporate_id,
             patient_id=PatientId.parse(query.patient_id),
         )
-        return tuple(MedicationHistoryDto.from_entity(record) for record in records)
+        result: list[MedicationHistoryDto] = []
+        for record in records:
+            event = (
+                await self._event_reference.get(
+                    corporate_id=corporate_id,
+                    event_id=record.event_id,
+                )
+                if self._event_reference is not None
+                else None
+            )
+            result.append(MedicationHistoryDto.from_entity(record, event=event))
+        return tuple(result)

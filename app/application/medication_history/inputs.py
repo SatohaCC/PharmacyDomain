@@ -201,26 +201,6 @@ class ProfileUpdateInput:
 
 
 @dataclass(frozen=True, kw_only=True)
-class AddFollowUpCommand:
-    """服薬期間中のフォローアップ追加コマンド。"""
-
-    corporate_id: str
-    record_id: str
-    store_id: str
-    patient_id: str
-    counselor_id: str
-    followed_up_at: datetime
-    method: str | None
-    soap: SoapInput = field(default_factory=SoapInput)
-    handbook_status: HandbookStatusInput | None = None
-    residual_drug: ResidualDrugInput | None = None
-    information_sheet_provided: bool | None = None
-    profile_updates: ProfileUpdateInput | None = None
-    additional_notes: tuple[CategorizedNoteInput, ...] = ()
-    source_system: str | None = None
-
-
-@dataclass(frozen=True, kw_only=True)
 class RecordTracingReportCommand:
     """処方医への服薬情報等提供（トレーシングレポート）記録コマンド。"""
 
@@ -234,7 +214,6 @@ class RecordTracingReportCommand:
     fee_category: str
     delivery_method: str
     content: str
-    follow_up_id: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)

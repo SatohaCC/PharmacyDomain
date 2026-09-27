@@ -118,6 +118,7 @@ paths = ["app"]
     "app.domain.prescription",
     "app.domain.dispensing",
     "app.domain.medication_history",
+    "app.domain.care_event",
     "app.domain.medicine_catalog",
     "app.application",
     "fastapi",
@@ -136,6 +137,7 @@ paths = ["app"]
     "app.domain.prescription",
     "app.domain.dispensing",
     "app.domain.medication_history",
+    "app.domain.care_event",
     "app.domain.medicine_catalog",
     "app.application",
     "fastapi",
@@ -167,6 +169,7 @@ paths = ["app"]
 "app.presentational" = ["sqlalchemy"]
 # Application共通基盤はDomain層や個別Applicationコンテキストに依存しない。
 "app.application.common" = [
+    "app.application.care_event",
     "app.application.identity",
     "app.domain",
     "app.application.access_control",
@@ -187,6 +190,7 @@ paths = ["app"]
 ]
 # 認可基盤は個別コンテキストに依存しない（leafを維持する）。
 "app.application.access_control" = [
+    "app.application.care_event",
     "app.application.corporate",
     "app.application.store",
     "app.application.staff",
@@ -202,6 +206,7 @@ paths = ["app"]
 ]
 # Corporate は他のApplicationコンテキストに依存しない。
 "app.application.corporate" = [
+    "app.application.care_event",
     "app.application.store",
     "app.application.staff",
     "app.application.patient",
@@ -216,6 +221,7 @@ paths = ["app"]
 ]
 # Store は Staff にも法人コンテキストの実装にも依存しない。
 "app.application.store" = [
+    "app.application.care_event",
     "app.application.staff",
     "app.application.corporate",
     "app.application.patient",
@@ -230,6 +236,7 @@ paths = ["app"]
 ]
 # Staff は法人コンテキストの実装に依存しない（Store への依存は一方向で許可）。
 "app.application.staff" = [
+    "app.application.care_event",
     "app.application.corporate",
     "app.application.patient",
     "app.application.coverage",
@@ -243,6 +250,7 @@ paths = ["app"]
 ]
 # Patient は他のApplicationコンテキストに依存しない。
 "app.application.patient" = [
+    "app.application.care_event",
     "app.application.corporate",
     "app.application.store",
     "app.application.staff",
@@ -257,6 +265,7 @@ paths = ["app"]
 ]
 # Coverage は法人・PatientのApplication実装に依存せず、ID参照と境界Protocolだけを使う。
 "app.application.coverage" = [
+    "app.application.care_event",
     "app.application.corporate",
     "app.application.store",
     "app.application.staff",
@@ -271,6 +280,7 @@ paths = ["app"]
 ]
 # Receptionは他コンテキストのApplication実装へ依存せず、参照Boundaryへ依存する。
 "app.application.reception" = [
+    "app.application.care_event",
     "app.application.corporate",
     "app.application.store",
     "app.application.staff",
@@ -285,6 +295,7 @@ paths = ["app"]
 ]
 # Prescriptionは他コンテキストのApplication実装へ依存せず、参照Boundaryへ依存する。
 "app.application.prescription" = [
+    "app.application.care_event",
     "app.application.corporate",
     "app.application.store",
     "app.application.staff",
@@ -299,6 +310,7 @@ paths = ["app"]
 ]
 # Dispensingは他コンテキストのApplication実装へ依存せず、参照Boundaryへ依存する。
 "app.application.dispensing" = [
+    "app.application.care_event",
     "app.application.corporate",
     "app.application.store",
     "app.application.staff",
@@ -313,6 +325,7 @@ paths = ["app"]
 ]
 # MedicationHistoryは他コンテキストのApplication実装へ依存せず、参照Boundaryへ依存する。
 "app.application.medication_history" = [
+    "app.application.care_event",
     "app.application.corporate",
     "app.application.store",
     "app.application.staff",
@@ -325,6 +338,26 @@ paths = ["app"]
     "app.application.medicine_catalog",
     "app.application.identity",
 ]
+# care_eventは境界ProtocolとDomain ID参照を使い、他コンテキストのApplication実装へ依存しない。
+"app.application.care_event" = [
+    "app.application.corporate",
+    "app.application.store",
+    "app.application.staff",
+    "app.application.patient",
+    "app.application.coverage",
+    "app.application.reception",
+    "app.application.prescription",
+    "app.application.dispensing",
+    "app.application.medication_history",
+    "app.application.medicine_catalog",
+    "app.application.identity",
+    "app.application.integration",
+    "app.application.composition",
+    "fastapi",
+    "sqlalchemy",
+]
+# NSIPS取込はEventや薬歴を自動生成せず、受付の受信時刻を実施時刻に使わない。
+"app.application.integration" = ["app.application.care_event"]
 # Identityは店舗・スタッフ・法人の識別子だけを参照し、集約とRepositoryへは依存しない。
 # 逆向き（Store → Identity）は禁止する。操作者の識別子は Shared Kernel にあるので、
 # 店舗の状態変更履歴が Identity を知る必要はない。双方向にすると、どちらの
@@ -355,6 +388,7 @@ paths = ["app"]
 "app.domain.corporate" = ["app.domain.identity"]
 # 医薬品マスタのApplicationは、どのコンテキストのApplication実装にも依存しない。
 "app.application.medicine_catalog" = [
+    "app.application.care_event",
     "app.application.corporate",
     "app.application.store",
     "app.application.staff",
@@ -369,6 +403,7 @@ paths = ["app"]
 ]
 # Identityは他の個別Applicationコンテキストに依存しない。
 "app.application.identity" = [
+    "app.application.care_event",
     "app.application.corporate",
     "app.application.store",
     "app.application.staff",

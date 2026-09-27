@@ -17,7 +17,6 @@ from app.application.medication_history.finalize_medication_history import (
     FinalizeMedicationHistoryCommand,
 )
 from app.application.medication_history.get_medication_history import (
-    FollowUpDto,
     GetMedicationHistoryQuery,
     MedicationHistoryDto,
 )
@@ -39,7 +38,6 @@ from tests.application.medication_history.helpers import (
     create_start_command,
 )
 from tests.factories.medication_history_factory import (
-    create_follow_up,
     create_independent_follow_up_record,
     create_record,
 )
@@ -184,19 +182,11 @@ def test_tc44_10と12_監査日時と登録者をDTOへ変換する() -> None:
         recorded_at=recorded_at,
         recorded_by=recorded_by,
     )
-    nested = create_follow_up(recorded_at=recorded_at, recorded_by=recorded_by)
-    legacy_nested = create_follow_up()
-
     record_dto = MedicationHistoryDto.from_entity(record)
-    nested_dto = FollowUpDto.from_value(nested)
-    legacy_nested_dto = FollowUpDto.from_value(legacy_nested)
 
     assert record_dto.recorded_at == recorded_at.value.isoformat()
     assert record_dto.recorded_by == str(recorded_by.value)
-    assert nested_dto.recorded_at == recorded_at.value.isoformat()
-    assert nested_dto.recorded_by == str(recorded_by.value)
-    assert legacy_nested_dto.recorded_at is None
-    assert legacy_nested_dto.recorded_by is None
+    assert record_dto.event_id == str(record.event_id.value)
     assert not hasattr(record_dto, "reviewed_at")
     assert not hasattr(record_dto, "reviewed_by")
 

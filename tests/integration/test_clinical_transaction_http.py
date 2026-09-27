@@ -50,6 +50,7 @@ from app.domain.medication_history.medication_history_record import (
 )
 from app.domain.medication_history.primitives import MedicationHistoryStatus
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
+from app.domain.patient.primitives import PatientId
 from app.domain.prescription.prescription import Prescription
 from app.domain.prescription.primitives import PrescriptionStatus
 from app.domain.staff.primitives import (
@@ -71,6 +72,7 @@ from tests.factories.medication_history_factory import (
     create_allergy_intent,
     create_record,
 )
+from tests.factories.persistence_factory import create_patient
 from tests.factories.prescription_factory import create_prescription
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store
@@ -80,6 +82,7 @@ from tests.fakes.stub_actor_context_provider import (
     StubActorContextProvider,
 )
 from tests.infrastructure.postgres.helpers import create_corporate
+from tests.integration.medication_history_helpers import save_history_with_event
 from tests.integration.test_identity_persistence import _person
 
 #: 一時的に張る拒否制約の名前。後始末できたことを名前で確かめる。
@@ -120,6 +123,11 @@ async def setup_clinical(
     """
     corporate = create_corporate("臨床トランザクション薬局")
     store = create_store(corporate_id=corporate.id)
+    patient_id = PatientId.generate()
+    patient = replace(
+        create_patient(corporate_id=corporate.id),
+        id=patient_id,
+    )
     person = _person()
     account = UserAccount(
         id=UserAccountId.generate(),
@@ -128,16 +136,21 @@ async def setup_clinical(
     )
     # 受付済のままでは調剤済へ遷移できない。実運用でも調剤開始前に確定させる。
     prescription = replace(
-        create_prescription(corporate_id=corporate.id).ready_for_dispensing(),
-        store_id=store.id,
+        create_prescription(
+            corporate_id=corporate.id,
+            store_id=store.id,
+            patient_id=patient_id,
+        ).ready_for_dispensing(),
     )
     process = replace(
         verify_passed(
             create_dispensing(
-                corporate_id=corporate.id, prescription_id=prescription.id
+                corporate_id=corporate.id,
+                store_id=store.id,
+                patient_id=patient_id,
+                prescription_id=prescription.id,
             )
         ),
-        store_id=store.id,
     )
     pharmacist = replace(
         create_staff(corporate_id=corporate.id),
@@ -163,17 +176,23 @@ async def setup_clinical(
     record = create_record(
         corporate_id=corporate.id,
         store_id=store.id,
+        dispensing_id=process.id,
+        prescription_id=prescription.id,
+        patient_id=patient_id,
         counselor_id=pharmacist.id,
         counseled_at=_CLOCK.now(),
         # 差分が空でも頭書きは保存されるが、それでは「何が投影されたか」を
         # 確かめられない。アレルギーを1件持たせる。
         profile_updates=ProfileUpdateIntents(new_allergies=(create_allergy_intent(),)),
     )
+    if not with_prescription:
+        record = replace(record, dispensing_id=None, prescription_id=None)
 
     async with PostgresUnitOfWork(session_factory) as work:
         repositories = PostgresRepositorySet.create(work)
         await repositories.corporate.save(corporate)
         await repositories.store.save(store)
+        await repositories.patient.save(patient)
         await repositories.account_person.save(person)
         await repositories.user_account.save(account)
         await repositories.staff.save(pharmacist)
@@ -188,7 +207,7 @@ async def setup_clinical(
         if with_prescription:
             await repositories.prescription.save(prescription)
         await repositories.dispensing.save(process)
-        await repositories.medication_history.save(record)
+        await save_history_with_event(repositories, record)
         await work.commit()
 
     return ClinicalFixture(

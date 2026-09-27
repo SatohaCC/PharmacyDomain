@@ -188,7 +188,14 @@ store_manager_assignments = Table(
 
 #: 集約ではないテーブル。payload と version を持たない。
 #: 増やすときは tests/infrastructure/postgres の表と揃える。
-NON_AGGREGATE_TABLES = frozenset({"patient_number_sequences", "operation_audits"})
+NON_AGGREGATE_TABLES = frozenset(
+    {
+        "patient_number_sequences",
+        "operation_audits",
+        "medication_history_legacy_archives",
+        "legacy_tracing_report_links",
+    }
+)
 
 # 集約は payload（JSONB）を正とし、検索・一意性制約に要る値だけを列へ複製する。
 # version は楽観ロック用で、集約ではなく行の世代を表す。
@@ -414,6 +421,7 @@ receptions = Table(
     Column("id", UUID(as_uuid=True), nullable=False),
     Column("corporate_id", UUID(as_uuid=True), nullable=False),
     Column("store_id", UUID(as_uuid=True), nullable=False),
+    Column("event_id", UUID(as_uuid=True), nullable=True),
     Column("payload", JSONB, nullable=False),
     Column("version", Integer, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
@@ -477,6 +485,207 @@ coverage_selection_records = Table(
 )
 
 # --------------------------------------------------------------------------
+# 業務Event
+# --------------------------------------------------------------------------
+
+event_definitions = Table(
+    "event_definitions",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, nullable=False),
+    Column("corporate_id", UUID(as_uuid=True), nullable=True),
+    Column("standard_code", String(80), nullable=True),
+    Column("name", String(200), nullable=False),
+    Column("is_active", Boolean, nullable=False),
+    Column("payload", JSONB, nullable=False),
+    Column("version", Integer, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint(
+        "(corporate_id IS NULL AND standard_code IS NOT NULL) OR "
+        "(corporate_id IS NOT NULL AND standard_code IS NULL)",
+        name="standard_or_corporate",
+    ),
+    Index(
+        "uq_event_definitions_standard_code",
+        "standard_code",
+        unique=True,
+        postgresql_where=text("corporate_id IS NULL"),
+    ),
+    Index(
+        "uq_event_definitions_corporate_active_name",
+        "corporate_id",
+        "name",
+        unique=True,
+        postgresql_where=text("corporate_id IS NOT NULL AND is_active"),
+    ),
+    UniqueConstraint("id", "corporate_id", name="uq_event_definitions_identity_scope"),
+)
+
+# Eventから処方箋・調剤の範囲を複合FKで照合する。
+prescriptions.append_constraint(
+    UniqueConstraint(
+        "id",
+        "corporate_id",
+        "store_id",
+        "patient_id",
+        name="uq_prescriptions_scope_identity",
+    )
+)
+dispensing_processes.append_constraint(
+    UniqueConstraint(
+        "id",
+        "corporate_id",
+        "store_id",
+        "patient_id",
+        "prescription_id",
+        name="uq_dispensing_processes_event_identity",
+    )
+)
+
+care_events = Table(
+    "care_events",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, nullable=False),
+    Column("event_type_id", UUID(as_uuid=True), nullable=False),
+    Column("event_definition_corporate_id", UUID(as_uuid=True), nullable=True),
+    Column("event_type_standard_code", String(80), nullable=True),
+    Column("event_type_name", String(200), nullable=False),
+    Column("corporate_id", UUID(as_uuid=True), nullable=False),
+    Column("store_id", UUID(as_uuid=True), nullable=False),
+    Column("patient_id", UUID(as_uuid=True), nullable=False),
+    Column("occurred_at", DateTime(timezone=True), nullable=True),
+    Column("occurred_at_is_unknown", Boolean, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("related_event_id", UUID(as_uuid=True), nullable=True),
+    Column("reception_id", UUID(as_uuid=True), nullable=True),
+    Column("prescription_id", UUID(as_uuid=True), nullable=True),
+    Column("dispensing_id", UUID(as_uuid=True), nullable=True),
+    Column("payload", JSONB, nullable=False),
+    Column("version", Integer, nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint(
+        "id", "corporate_id", "patient_id", name="uq_care_events_scope_identity"
+    ),
+    UniqueConstraint(
+        "id",
+        "corporate_id",
+        "store_id",
+        "patient_id",
+        name="uq_care_events_full_scope_identity",
+    ),
+    UniqueConstraint(
+        "id",
+        "corporate_id",
+        "store_id",
+        "patient_id",
+        "prescription_id",
+        "dispensing_id",
+        name="uq_care_events_resource_identity",
+    ),
+    UniqueConstraint(
+        "id",
+        "corporate_id",
+        "store_id",
+        "reception_id",
+        name="uq_care_events_reception_identity",
+    ),
+    ForeignKeyConstraint(
+        ["event_type_id"],
+        ["event_definitions.id"],
+        name="fk_care_events_event_type",
+    ),
+    ForeignKeyConstraint(
+        ["event_type_id", "event_definition_corporate_id"],
+        ["event_definitions.id", "event_definitions.corporate_id"],
+        name="fk_care_events_event_type_scope",
+    ),
+    ForeignKeyConstraint(
+        ["related_event_id", "corporate_id", "patient_id"],
+        ["care_events.id", "care_events.corporate_id", "care_events.patient_id"],
+        name="fk_care_events_related_scope",
+    ),
+    ForeignKeyConstraint(
+        ["corporate_id", "store_id", "reception_id"],
+        ["receptions.corporate_id", "receptions.store_id", "receptions.id"],
+        name="fk_care_events_reception_scope",
+    ),
+    ForeignKeyConstraint(
+        ["prescription_id", "corporate_id", "store_id", "patient_id"],
+        [
+            "prescriptions.id",
+            "prescriptions.corporate_id",
+            "prescriptions.store_id",
+            "prescriptions.patient_id",
+        ],
+        name="fk_care_events_prescription_scope",
+    ),
+    ForeignKeyConstraint(
+        [
+            "dispensing_id",
+            "corporate_id",
+            "store_id",
+            "patient_id",
+            "prescription_id",
+        ],
+        [
+            "dispensing_processes.id",
+            "dispensing_processes.corporate_id",
+            "dispensing_processes.store_id",
+            "dispensing_processes.patient_id",
+            "dispensing_processes.prescription_id",
+        ],
+        name="fk_care_events_dispensing_scope",
+    ),
+    CheckConstraint(
+        "(occurred_at IS NOT NULL AND NOT occurred_at_is_unknown) OR "
+        "(occurred_at IS NULL AND occurred_at_is_unknown)",
+        name="occurred_at_known_state",
+    ),
+    CheckConstraint(
+        "event_definition_corporate_id IS NULL OR "
+        "event_definition_corporate_id = corporate_id",
+        name="event_type_corporate_scope",
+    ),
+    CheckConstraint(
+        "related_event_id IS NULL OR related_event_id <> id", name="not_self_related"
+    ),
+    CheckConstraint(
+        "dispensing_id IS NULL OR prescription_id IS NOT NULL",
+        name="dispensing_requires_prescription",
+    ),
+    Index(
+        "ix_care_events_corporate_store_patient_occurred_at",
+        "corporate_id",
+        "store_id",
+        "patient_id",
+        "occurred_at",
+        "id",
+    ),
+    Index(
+        "uq_care_events_reception",
+        "corporate_id",
+        "store_id",
+        "reception_id",
+        unique=True,
+        postgresql_where=text("reception_id IS NOT NULL"),
+    ),
+)
+
+receptions.append_constraint(
+    ForeignKeyConstraint(
+        ["event_id", "corporate_id", "store_id", "id"],
+        [
+            "care_events.id",
+            "care_events.corporate_id",
+            "care_events.store_id",
+            "care_events.reception_id",
+        ],
+        name="fk_receptions_event_scope",
+    )
+)
+receptions.append_constraint(UniqueConstraint("event_id", name="uq_receptions_event"))
+
+# --------------------------------------------------------------------------
 # 薬歴
 # --------------------------------------------------------------------------
 
@@ -487,11 +696,10 @@ medication_history_records = Table(
     Column("corporate_id", UUID(as_uuid=True), nullable=False),
     Column("store_id", UUID(as_uuid=True), nullable=False),
     Column("patient_id", UUID(as_uuid=True), nullable=False),
-    Column("dispensing_id", UUID(as_uuid=True), nullable=False),
-    Column("prescription_id", UUID(as_uuid=True), nullable=False),
+    Column("event_id", UUID(as_uuid=True), nullable=False),
+    Column("dispensing_id", UUID(as_uuid=True), nullable=True),
+    Column("prescription_id", UUID(as_uuid=True), nullable=True),
     Column("status", String(32), nullable=False),
-    Column("record_kind", String(32), nullable=False),
-    Column("source_record_id", UUID(as_uuid=True), nullable=True),
     Column("counseled_at", DateTime(timezone=True), nullable=True),
     Column("recorded_at", DateTime(timezone=True), nullable=True),
     Column("payload", JSONB, nullable=False),
@@ -504,36 +712,117 @@ medication_history_records = Table(
         "patient_id",
         "counseled_at",
     ),
-    UniqueConstraint(
-        "id",
-        "corporate_id",
-        "patient_id",
-        "prescription_id",
-        "dispensing_id",
-        name="uq_medication_history_records_source_identity",
-    ),
     ForeignKeyConstraint(
         [
-            "source_record_id",
+            "event_id",
             "corporate_id",
+            "store_id",
+            "patient_id",
+        ],
+        [
+            "care_events.id",
+            "care_events.corporate_id",
+            "care_events.store_id",
+            "care_events.patient_id",
+        ],
+        name="fk_medication_history_records_event_scope",
+    ),
+    UniqueConstraint("event_id", name="uq_medication_history_records_event"),
+    ForeignKeyConstraint(
+        [
+            "event_id",
+            "corporate_id",
+            "store_id",
             "patient_id",
             "prescription_id",
             "dispensing_id",
         ],
         [
-            "medication_history_records.id",
-            "medication_history_records.corporate_id",
-            "medication_history_records.patient_id",
-            "medication_history_records.prescription_id",
-            "medication_history_records.dispensing_id",
+            "care_events.id",
+            "care_events.corporate_id",
+            "care_events.store_id",
+            "care_events.patient_id",
+            "care_events.prescription_id",
+            "care_events.dispensing_id",
         ],
-        name="fk_medication_history_records_source_identity",
+        name="fk_medication_history_records_event_resources",
+    ),
+    ForeignKeyConstraint(
+        [
+            "dispensing_id",
+            "corporate_id",
+            "store_id",
+            "patient_id",
+            "prescription_id",
+        ],
+        [
+            "dispensing_processes.id",
+            "dispensing_processes.corporate_id",
+            "dispensing_processes.store_id",
+            "dispensing_processes.patient_id",
+            "dispensing_processes.prescription_id",
+        ],
+        name="fk_medication_history_records_dispensing_scope",
     ),
     CheckConstraint(
-        "(record_kind = 'initial' AND source_record_id IS NULL) OR "
-        "(record_kind = 'follow_up' AND source_record_id IS NOT NULL "
-        "AND source_record_id <> id)",
-        name="record_kind_source",
+        "dispensing_id IS NULL OR prescription_id IS NOT NULL",
+        name="dispensing_requires_prescription",
+    ),
+)
+
+# 旧FollowUpRecordと旧payloadを監査・API互換のために保管する移行アーカイブ。
+# 現行薬歴の読み書き対象にはせず、migrationのみが追記する。
+medication_history_legacy_archives = Table(
+    "medication_history_legacy_archives",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, nullable=False),
+    Column("legacy_record_id", UUID(as_uuid=True), nullable=False),
+    Column("legacy_parent_record_id", UUID(as_uuid=True), nullable=True),
+    Column("corporate_id", UUID(as_uuid=True), nullable=False),
+    Column("store_id", UUID(as_uuid=True), nullable=False),
+    Column("patient_id", UUID(as_uuid=True), nullable=False),
+    Column("event_id", UUID(as_uuid=True), nullable=False),
+    Column("archive_kind", String(32), nullable=False),
+    Column("original_payload", JSONB, nullable=False),
+    Column("archived_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint(
+        "legacy_record_id", name="uq_medication_history_legacy_archives_record"
+    ),
+    CheckConstraint(
+        "(archive_kind = 'record' AND legacy_parent_record_id IS NULL) OR "
+        "(archive_kind = 'follow_up' AND legacy_parent_record_id IS NOT NULL)",
+        name="archive_kind_parent",
+    ),
+    ForeignKeyConstraint(
+        ["event_id"],
+        ["care_events.id"],
+        name="fk_medication_history_legacy_archives_event",
+    ),
+)
+
+legacy_tracing_report_links = Table(
+    "legacy_tracing_report_links",
+    metadata,
+    Column("corporate_id", UUID(as_uuid=True), nullable=False),
+    Column("legacy_parent_record_id", UUID(as_uuid=True), nullable=False),
+    Column("legacy_tracing_report_id", UUID(as_uuid=True), nullable=False),
+    Column("target_record_id", UUID(as_uuid=True), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    PrimaryKeyConstraint(
+        "corporate_id",
+        "legacy_parent_record_id",
+        "legacy_tracing_report_id",
+        name="pk_legacy_tracing_report_links",
+    ),
+    ForeignKeyConstraint(
+        ["legacy_parent_record_id"],
+        ["medication_history_records.id"],
+        name="fk_legacy_tracing_report_links_parent",
+    ),
+    ForeignKeyConstraint(
+        ["target_record_id"],
+        ["medication_history_records.id"],
+        name="fk_legacy_tracing_report_links_target",
     ),
 )
 
@@ -545,7 +834,7 @@ Index(
     unique=True,
     postgresql_where=(
         (medication_history_records.c.status == "finalized")
-        & (medication_history_records.c.record_kind == "initial")
+        & medication_history_records.c.dispensing_id.is_not(None)
     ),
 )
 
@@ -684,4 +973,140 @@ SCHEMA_ROUTINES: Final[tuple[str, ...]] = (
     END;
     $$""",
     "CREATE TRIGGER operation_audit_immutable BEFORE UPDATE OR DELETE ON operation_audits FOR EACH ROW EXECUTE FUNCTION prevent_audit_mutation()",
+    """CREATE OR REPLACE FUNCTION protect_care_event_identity() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+        IF TG_OP = 'DELETE' THEN
+            RAISE EXCEPTION '業務Eventは削除できません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_care_events_immutable';
+        END IF;
+        IF NEW.id IS DISTINCT FROM OLD.id OR NEW.event_type_id IS DISTINCT FROM OLD.event_type_id OR NEW.event_definition_corporate_id IS DISTINCT FROM OLD.event_definition_corporate_id OR NEW.event_type_standard_code IS DISTINCT FROM OLD.event_type_standard_code OR NEW.event_type_name IS DISTINCT FROM OLD.event_type_name OR NEW.corporate_id IS DISTINCT FROM OLD.corporate_id OR NEW.store_id IS DISTINCT FROM OLD.store_id OR NEW.patient_id IS DISTINCT FROM OLD.patient_id OR NEW.created_at IS DISTINCT FROM OLD.created_at OR NEW.related_event_id IS DISTINCT FROM OLD.related_event_id OR NEW.reception_id IS DISTINCT FROM OLD.reception_id OR NEW.prescription_id IS DISTINCT FROM OLD.prescription_id OR NEW.dispensing_id IS DISTINCT FROM OLD.dispensing_id OR (NEW.payload - 'occurred_at') IS DISTINCT FROM (OLD.payload - 'occurred_at') THEN
+            RAISE EXCEPTION '業務Eventの内容と参照は変更できません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_care_events_immutable';
+        END IF;
+        IF OLD.occurred_at_is_unknown AND OLD.occurred_at IS NULL AND NOT NEW.occurred_at_is_unknown AND NEW.occurred_at IS NOT NULL THEN
+            RETURN NEW;
+        END IF;
+        RAISE EXCEPTION '業務Eventの発生日時は時刻不明から一度だけ確定できます。' USING ERRCODE = '23514', CONSTRAINT = 'ck_care_events_immutable';
+    END;
+    $$""",
+    "CREATE TRIGGER care_events_immutable BEFORE UPDATE OR DELETE ON care_events FOR EACH ROW EXECUTE FUNCTION protect_care_event_identity()",
+    """CREATE OR REPLACE FUNCTION protect_reception_event_association() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+        IF OLD.event_id IS NOT NULL AND NEW.event_id IS DISTINCT FROM OLD.event_id THEN
+            RAISE EXCEPTION '受付のEvent関連は付け替えできません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_receptions_event_immutable';
+        END IF;
+        RETURN NEW;
+    END;
+    $$""",
+    "CREATE TRIGGER receptions_event_immutable BEFORE UPDATE ON receptions FOR EACH ROW EXECUTE FUNCTION protect_reception_event_association()",
+    """CREATE OR REPLACE FUNCTION prevent_legacy_archive_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+        RAISE EXCEPTION '移行アーカイブは追記専用です。' USING ERRCODE = '23514', CONSTRAINT = 'ck_medication_history_legacy_archive_immutable';
+    END;
+    $$""",
+    "CREATE TRIGGER medication_history_legacy_archives_immutable BEFORE UPDATE OR DELETE ON medication_history_legacy_archives FOR EACH ROW EXECUTE FUNCTION prevent_legacy_archive_mutation()",
+    "CREATE TRIGGER legacy_tracing_report_links_immutable BEFORE UPDATE OR DELETE ON legacy_tracing_report_links FOR EACH ROW EXECUTE FUNCTION prevent_legacy_archive_mutation()",
+    """CREATE OR REPLACE FUNCTION check_care_event_type_scope() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+        IF NEW.event_definition_corporate_id IS NULL THEN
+            IF NOT EXISTS (
+                SELECT 1 FROM event_definitions
+                WHERE id = NEW.event_type_id AND corporate_id IS NULL
+            ) THEN
+                RAISE EXCEPTION '標準Event種別の定義が存在しないか、法人が一致しません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_care_events_event_type_scope';
+            END IF;
+        ELSE
+            IF NOT EXISTS (
+                SELECT 1 FROM event_definitions
+                WHERE id = NEW.event_type_id AND corporate_id = NEW.corporate_id
+            ) THEN
+                RAISE EXCEPTION '法人固有Event種別の定義が存在しないか、法人が一致しません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_care_events_event_type_scope';
+            END IF;
+        END IF;
+        RETURN NEW;
+    END;
+    $$""",
+    "CREATE TRIGGER care_events_event_type_scope_guard BEFORE INSERT OR UPDATE ON care_events FOR EACH ROW EXECUTE FUNCTION check_care_event_type_scope()",
+    """CREATE OR REPLACE FUNCTION check_care_event_reception_consistency() RETURNS trigger LANGUAGE plpgsql AS $$
+    DECLARE
+        v_reception RECORD;
+    BEGIN
+        IF NEW.reception_id IS NULL THEN
+            RETURN NEW;
+        END IF;
+
+        SELECT payload
+        INTO v_reception
+        FROM receptions
+        WHERE corporate_id = NEW.corporate_id
+          AND store_id = NEW.store_id
+          AND id = NEW.reception_id
+        FOR KEY SHARE;
+
+        IF NOT FOUND THEN
+            RETURN NEW;
+        END IF;
+
+        IF NULLIF(v_reception.payload->>'patient_id', '')::uuid IS DISTINCT FROM NEW.patient_id
+           OR NULLIF(v_reception.payload->>'prescription_id', '')::uuid IS DISTINCT FROM NEW.prescription_id
+           OR NULLIF(v_reception.payload->>'dispensing_id', '')::uuid IS DISTINCT FROM NEW.dispensing_id THEN
+            RAISE EXCEPTION '受付と業務Eventの患者・処方・調剤参照が一致しません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_care_events_reception_resources';
+        END IF;
+        RETURN NEW;
+    END;
+    $$""",
+    "CREATE TRIGGER care_events_reception_resources_guard BEFORE INSERT OR UPDATE ON care_events FOR EACH ROW EXECUTE FUNCTION check_care_event_reception_consistency()",
+    """CREATE OR REPLACE FUNCTION check_reception_care_event_consistency() RETURNS trigger LANGUAGE plpgsql AS $$
+    DECLARE
+        v_event RECORD;
+    BEGIN
+        IF NEW.event_id IS NULL THEN
+            RETURN NEW;
+        END IF;
+
+        SELECT patient_id, prescription_id, dispensing_id
+        INTO v_event
+        FROM care_events
+        WHERE id = NEW.event_id
+        FOR KEY SHARE;
+
+        IF NOT FOUND THEN
+            RETURN NEW;
+        END IF;
+
+        IF NULLIF(NEW.payload->>'patient_id', '')::uuid IS DISTINCT FROM v_event.patient_id
+           OR NULLIF(NEW.payload->>'prescription_id', '')::uuid IS DISTINCT FROM v_event.prescription_id
+           OR NULLIF(NEW.payload->>'dispensing_id', '')::uuid IS DISTINCT FROM v_event.dispensing_id THEN
+            RAISE EXCEPTION '受付と業務Eventの患者・処方・調剤参照が一致しません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_receptions_event_resources';
+        END IF;
+        RETURN NEW;
+    END;
+    $$""",
+    "CREATE TRIGGER receptions_event_resources_guard BEFORE INSERT OR UPDATE ON receptions FOR EACH ROW EXECUTE FUNCTION check_reception_care_event_consistency()",
+    """CREATE OR REPLACE FUNCTION check_medication_history_event_resources() RETURNS trigger LANGUAGE plpgsql AS $$
+    DECLARE
+        v_event RECORD;
+    BEGIN
+        SELECT prescription_id, dispensing_id, corporate_id, store_id, patient_id
+        INTO v_event
+        FROM care_events
+        WHERE id = NEW.event_id;
+
+        IF NOT FOUND THEN
+            RAISE EXCEPTION '関連する業務Eventが存在しません。' USING ERRCODE = '23503', CONSTRAINT = 'fk_medication_history_records_event_scope';
+        END IF;
+
+        IF NEW.corporate_id IS DISTINCT FROM v_event.corporate_id
+           OR NEW.store_id IS DISTINCT FROM v_event.store_id
+           OR NEW.patient_id IS DISTINCT FROM v_event.patient_id THEN
+            RAISE EXCEPTION '薬歴と業務Eventの所属範囲が一致しません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_medication_history_records_event_scope';
+        END IF;
+
+        IF NEW.prescription_id IS DISTINCT FROM v_event.prescription_id
+           OR NEW.dispensing_id IS DISTINCT FROM v_event.dispensing_id THEN
+            RAISE EXCEPTION '薬歴と業務Eventの処方・調剤参照が一致しません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_medication_history_records_event_resources';
+        END IF;
+
+        RETURN NEW;
+    END;
+    $$""",
+    "CREATE TRIGGER medication_history_event_resources_guard BEFORE INSERT OR UPDATE ON medication_history_records FOR EACH ROW EXECUTE FUNCTION check_medication_history_event_resources()",
 )

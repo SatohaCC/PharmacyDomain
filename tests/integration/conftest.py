@@ -85,10 +85,17 @@ async def _ensure_schema(engine: AsyncEngine) -> None:
 
 async def _truncate_all(engine: AsyncEngine) -> None:
     """全テーブルを空にして、テスト間の独立を作る。"""
-    table_names = ", ".join(table.name for table in metadata.sorted_tables)
+    table_names = ", ".join(
+        table.name
+        for table in metadata.tables.values()
+        if table.name != "event_definitions"
+    )
     async with engine.begin() as connection:
         await connection.execute(
             text(f"TRUNCATE {table_names} RESTART IDENTITY CASCADE")
+        )
+        await connection.execute(
+            text("DELETE FROM event_definitions WHERE corporate_id IS NOT NULL")
         )
 
 

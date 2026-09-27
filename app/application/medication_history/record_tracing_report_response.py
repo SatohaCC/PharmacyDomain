@@ -53,6 +53,20 @@ class RecordTracingReportResponseUseCase:
             record_id=MedicationHistoryRecordId.parse(command.record_id),
         )
 
+        tracing_report_id = TracingReportId.parse(command.tracing_report_id)
+        if not any(report.id == tracing_report_id for report in record.tracing_reports):
+            target_record_id = await self._repository.get_legacy_report_target(
+                corporate_id=corporate_id,
+                legacy_parent_record_id=record.id,
+                tracing_report_id=command.tracing_report_id,
+            )
+            if target_record_id is not None:
+                record = await load_record_or_raise(
+                    self._repository,
+                    corporate_id=corporate_id,
+                    record_id=target_record_id,
+                )
+
         response = TracingReportResponse(
             responded_at=TracingReportTimestamp(command.responded_at),
             content=TracingReportResponseContent(command.content),
@@ -66,7 +80,7 @@ class RecordTracingReportResponseUseCase:
         )
 
         updated_record = record.record_tracing_report_response(
-            TracingReportId.parse(command.tracing_report_id), response
+            tracing_report_id, response
         )
         await self._repository.save(updated_record)
         return MedicationHistoryDto.from_entity(updated_record)

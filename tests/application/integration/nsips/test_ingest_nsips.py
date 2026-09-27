@@ -715,7 +715,6 @@ async def test_tc09_既存受付に明示関連付けした薬歴も自動更新
     assert len(fixture.medication_history_repo.items) == 1
     saved = fixture.medication_history_repo.items[authored_record.id]
     assert saved.soap == authored_soap
-    assert saved.follow_ups == authored_record.follow_ups
     updated_reception = await fixture.reception_repo.get(
         corporate_id=fixture.corporate_id,
         store_id=fixture.store_id,

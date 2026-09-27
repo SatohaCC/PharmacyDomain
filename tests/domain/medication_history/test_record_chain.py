@@ -1,169 +1,78 @@
-"""独立したフォローアップ薬歴の種別と集約不変条件を検証する。"""
+"""Eventと薬歴の1対1参照および移行記録の性質を検証する。"""
 
 from dataclasses import replace
+from datetime import timedelta
 
 import pytest
 
+from app.domain.care_event.primitives import EventId
 from app.domain.medication_history.exceptions import (
-    MedicationHistoryAlreadyExistsError,
-    MedicationHistoryDomainError,
-    SoapContentRequiredError,
+    MedicationHistoryAlreadyFinalizedError,
 )
+from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
 from app.domain.medication_history.primitives import (
-    BillingAdditionCode,
-    BillingAdditionName,
-    CounselingNote,
-    CounselingTimestamp,
-    MajorCategoryCode,
-    MedicationHistoryRecordKind,
-    MedicationHistoryReviewResult,
-    MediumCategoryCode,
-)
-from app.domain.medication_history.services import MedicationHistoryUniquenessService
-from app.domain.medication_history.value_objects import (
-    BillingAddition,
-    CategorizedNote,
-    SoapRecord,
+    FollowUpRecordedTimestamp,
+    GenericPreferenceType,
+    MedicationHistoryStatus,
 )
 from tests.factories.medication_history_factory import (
     COUNSELED_AT,
-    create_independent_follow_up_record,
-    create_note,
+    create_generic_preference_intents,
     create_record,
-    finalize_record_with_review,
 )
 
 
-def test_tc04_薬歴種別と参照元の組み合わせを検証する() -> None:
-    """INITIALは参照なし、FOLLOW_UPは参照ありで、自身への参照は禁止する。"""
-    source = create_record()
+def test_tc45_21_Event薬歴は薬歴用調剤情報なしで作成できる() -> None:
+    event_id = EventId.generate()
 
-    with pytest.raises(MedicationHistoryDomainError):
-        replace(
-            source,
-            record_kind=MedicationHistoryRecordKind.INITIAL,
-            source_record_id=source.id,
-        )
-    with pytest.raises(MedicationHistoryDomainError):
-        replace(
-            source,
-            record_kind=MedicationHistoryRecordKind.FOLLOW_UP,
-            source_record_id=None,
-        )
-    with pytest.raises(MedicationHistoryDomainError):
-        replace(
-            source,
-            record_kind=MedicationHistoryRecordKind.FOLLOW_UP,
-            source_record_id=source.id,
-        )
-
-
-def test_tc05_独立フォローアップは初回調剤の加算を持てない() -> None:
-    source = create_record()
-    follow_up = create_independent_follow_up_record(source)
-    addition = BillingAddition(
-        code=BillingAdditionCode("test"), name=BillingAdditionName("初回加算")
+    record = replace(
+        create_record(),
+        event_id=event_id,
+        dispensing_id=None,
+        prescription_id=None,
     )
 
-    with pytest.raises(MedicationHistoryDomainError):
-        replace(follow_up, billing_additions=(addition,))
+    assert record.event_id == event_id
+    assert record.dispensing_id is None
+    assert record.prescription_id is None
 
 
-def test_tc06_S節だけの独立フォローアップをレビュー付きで確定できる() -> None:
-    source = finalize_record_with_review(create_record())
-    draft = replace(
-        create_independent_follow_up_record(source),
-        soap=SoapRecord(subjective=(create_note("服用状況を確認した。"),)),
-        handbook_status=None,
-        residual_drug=None,
-        information_sheet_provided=None,
-    )
-
-    finalized = finalize_record_with_review(
-        draft,
-        review_result=MedicationHistoryReviewResult.NO_ADDITIONAL_RECORDABLE_ITEMS,
-    )
-
-    assert finalized.is_finalized
-    assert finalized.record_kind is MedicationHistoryRecordKind.FOLLOW_UP
-    assert finalized.source_record_id == source.id
-    assert len(finalized.soap.subjective) == 1
-
-
-def test_tc06_追加メモだけの独立フォローアップをレビュー付きで確定できる() -> None:
-    source = finalize_record_with_review(create_record())
-    draft = replace(
-        create_independent_follow_up_record(source),
-        soap=SoapRecord(),
-        additional_notes=(
-            CategorizedNote(
-                major_category_code=MajorCategoryCode("follow_up"),
-                medium_category_code=MediumCategoryCode("memo"),
-                text=CounselingNote("服用状況を確認し、変化なし。"),
-            ),
+def test_tc45_50_旧子要素から移行した記録は確定監査値なしで頭書きへ投影できる() -> None:
+    recorded_at = COUNSELED_AT + timedelta(days=4)
+    legacy_record = replace(
+        create_record(
+            profile_updates=create_generic_preference_intents(
+                GenericPreferenceType.REFUSES
+            )
         ),
-        handbook_status=None,
-        residual_drug=None,
-        information_sheet_provided=None,
+        status=MedicationHistoryStatus.LEGACY_RECORDED,
+        recorded_at=FollowUpRecordedTimestamp(recorded_at),
     )
 
-    finalized = finalize_record_with_review(
-        draft,
-        review_result=MedicationHistoryReviewResult.NO_ADDITIONAL_RECORDABLE_ITEMS,
+    profile = PatientMedicalProfile.rebuild_from(
+        corporate_id=legacy_record.corporate_id,
+        patient_id=legacy_record.patient_id,
+        records=(legacy_record,),
     )
 
-    assert finalized.is_finalized
-    assert finalized.soap.is_empty
-    assert finalized.additional_notes[0].has_content
+    assert legacy_record.is_projection_eligible
+    assert not legacy_record.is_finalized
+    assert legacy_record.finalized_at is None
+    assert profile.generic_preference is not None
+    assert profile.generic_preference.preference is GenericPreferenceType.REFUSES
+    assert profile.generic_preference.provenance.source_record_id == legacy_record.id
 
 
-def test_tc06_SOAPと追加メモが空なら独立フォローアップを確定できない() -> None:
-    source = finalize_record_with_review(create_record())
-    draft = replace(
-        create_independent_follow_up_record(source),
-        soap=SoapRecord(),
-        handbook_status=None,
-        residual_drug=None,
-        information_sheet_provided=None,
+def test_tc45_50_移行記録を通常の下書き更新や確定に使えない() -> None:
+    legacy_record = replace(
+        create_record(),
+        status=MedicationHistoryStatus.LEGACY_RECORDED,
     )
 
-    with pytest.raises(SoapContentRequiredError):
-        finalize_record_with_review(draft)
-
-
-def test_tc07_同一調剤の一意性は初回薬歴だけに適用する() -> None:
-    source = finalize_record_with_review(create_record())
-    another_initial = finalize_record_with_review(
-        replace(
-            create_record(corporate_id=source.corporate_id),
-            dispensing_id=source.dispensing_id,
+    with pytest.raises(MedicationHistoryAlreadyFinalizedError):
+        legacy_record.update_draft_soap(legacy_record.soap)
+    with pytest.raises(MedicationHistoryAlreadyFinalizedError):
+        legacy_record.finalize(
+            finalized_at=legacy_record.finalized_at,
+            finalized_by=legacy_record.recorded_by,
         )
-    )
-    first_follow_up = create_independent_follow_up_record(source, finalized=True)
-    second_follow_up = create_independent_follow_up_record(source, finalized=True)
-    service = MedicationHistoryUniquenessService()
-
-    with pytest.raises(MedicationHistoryAlreadyExistsError):
-        service.ensure_no_conflict(another_initial, (source,))
-
-    service.ensure_no_conflict(first_follow_up, (source,))
-    service.ensure_no_conflict(second_follow_up, (source, first_follow_up))
-
-
-def test_tc08_旧薬歴は種別指定が無ければ初回として扱う() -> None:
-    record = create_record()
-
-    assert record.record_kind is MedicationHistoryRecordKind.INITIAL
-    assert record.source_record_id is None
-
-
-def test_tc12_後続時刻は参照元より後の値として保持できる() -> None:
-    source = finalize_record_with_review(create_record())
-    follow_up = create_independent_follow_up_record(
-        source, counseled_at=COUNSELED_AT.replace(day=25)
-    )
-
-    assert follow_up.counseled_at == CounselingTimestamp(COUNSELED_AT.replace(day=25))
-    assert follow_up.counseled_at is not None
-    assert source.counseled_at is not None
-    assert follow_up.counseled_at.value > source.counseled_at.value

@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 
+from app.domain.care_event.primitives import EventId
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.primitives import DispensingId
 from app.domain.foundation.entity import AggregateRoot
 from app.domain.medication_history.primitives import MedicationHistoryRecordId
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import PrescriptionId
+from app.domain.reception.exceptions import ReceptionEventAlreadyAssociatedError
 from app.domain.reception.primitives import (
     ReceptionFieldPath,
     ReceptionFingerprint,
@@ -64,3 +66,10 @@ class Reception(AggregateRoot[ReceptionId]):
     medication_history_id: MedicationHistoryRecordId | None = None
     source_data: ReceptionSourceData | None = None
     source_data_history: tuple[ReceptionSourceData, ...] = ()
+    event_id: EventId | None = None
+
+    def associate_event(self, event_id: EventId) -> Reception:
+        """受付に対応する業務Eventを一意に関連付ける。"""
+        if self.event_id is not None and self.event_id != event_id:
+            raise ReceptionEventAlreadyAssociatedError()
+        return replace(self, event_id=event_id)

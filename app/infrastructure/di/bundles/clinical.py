@@ -9,6 +9,9 @@ from dataclasses import dataclass
 
 from app.application.access_control.policy import AuthorizationService
 from app.application.common.clock import Clock
+from app.application.composition.care_event_references import (
+    MedicationHistoryEventReferenceAdapter,
+)
 from app.application.composition.dispensing_references import (
     DispensingStaffQualificationAdapter,
     DispensingStoreReferenceAdapter,
@@ -20,6 +23,7 @@ from app.application.composition.medication_history_patient_profile import (
 from app.application.composition.medication_history_references import (
     CounselorQualificationAdapter,
     DispensingSourceAdapter,
+    MedicationHistoryEventOccurrenceAdapter,
     MedicationHistoryStoreReferenceAdapter,
     ReceptionMedicationHistorySourceAdapter,
     StatutoryRecordSourceAdapter,
@@ -46,9 +50,6 @@ from app.application.dispensing.record_dispensed_content import (
 )
 from app.application.dispensing.start_dispensing import StartDispensingUseCase
 from app.application.dispensing.verify_dispensing import VerifyDispensingUseCase
-from app.application.medication_history.add_follow_up import (
-    AddFollowUpUseCase,
-)
 from app.application.medication_history.amend_medication_history import (
     AmendMedicationHistoryUseCase,
 )
@@ -59,10 +60,8 @@ from app.application.medication_history.category_catalog import (
 from app.application.medication_history.finalize_medication_history import (
     FinalizeMedicationHistoryUseCase,
 )
-from app.application.medication_history.get_follow_up_sources import (
-    GetFollowUpSourcesUseCase,
-)
 from app.application.medication_history.get_medication_history import (
+    GetFollowUpSourceUseCase,
     GetMedicationHistoryUseCase,
     ListMedicationHistoriesByPatientUseCase,
 )
@@ -267,14 +266,13 @@ class MedicationHistoryUseCases:
     finalize: FinalizeMedicationHistoryUseCase
     amend: AmendMedicationHistoryUseCase
     get: GetMedicationHistoryUseCase
+    get_follow_up_source: GetFollowUpSourceUseCase
     list_by_patient: ListMedicationHistoriesByPatientUseCase
     get_medical_profile: GetPatientMedicalProfileUseCase
     rebuild_medical_profile: RebuildPatientMedicalProfileUseCase
     verify_statutory_record: VerifyStatutoryRecordUseCase
     get_category_catalog: GetCategoryCatalogUseCase
     update_category_catalog: UpdateCategoryCatalogUseCase
-    add_follow_up: AddFollowUpUseCase
-    get_follow_up_sources: GetFollowUpSourcesUseCase
     record_tracing_report: RecordTracingReportUseCase
     record_tracing_report_response: RecordTracingReportResponseUseCase
     get_view: GetMedicationHistoryViewUseCase
@@ -312,7 +310,12 @@ def build_medication_history_use_cases(
             counselor_qualification,
             counselor,
             unit_of_work,
-            ReceptionMedicationHistorySourceAdapter(repositories.reception),
+            event_reference=MedicationHistoryEventReferenceAdapter(repositories.event),
+            store_operations=store_operations,
+            clock=clock,
+            reception_source=ReceptionMedicationHistorySourceAdapter(
+                repositories.reception
+            ),
         ),
         update_draft=UpdateMedicationHistoryDraftUseCase(
             record_repository, corporate_access
@@ -326,6 +329,9 @@ def build_medication_history_use_cases(
             staff_qualification=counselor_qualification,
             counselor_service=counselor,
             clock=clock,
+            event_occurrence=MedicationHistoryEventOccurrenceAdapter(
+                repositories.event
+            ),
         ),
         amend=AmendMedicationHistoryUseCase(
             record_repository,
@@ -334,9 +340,19 @@ def build_medication_history_use_cases(
             counselor,
             clock,
         ),
-        get=GetMedicationHistoryUseCase(record_repository, corporate_access),
+        get=GetMedicationHistoryUseCase(
+            record_repository,
+            corporate_access,
+            MedicationHistoryEventReferenceAdapter(repositories.event),
+        ),
+        get_follow_up_source=GetFollowUpSourceUseCase(
+            record_repository,
+            corporate_access,
+        ),
         list_by_patient=ListMedicationHistoriesByPatientUseCase(
-            record_repository, corporate_access
+            record_repository,
+            corporate_access,
+            MedicationHistoryEventReferenceAdapter(repositories.event),
         ),
         get_medical_profile=GetPatientMedicalProfileUseCase(
             profile_repository, corporate_access
@@ -362,21 +378,6 @@ def build_medication_history_use_cases(
         update_category_catalog=UpdateCategoryCatalogUseCase(
             catalog_repository,
             corporate_access,
-        ),
-        add_follow_up=AddFollowUpUseCase(
-            record_repository,
-            corporate_access,
-            counselor_qualification,
-            counselor,
-            unit_of_work,
-            store_operations,
-            record_repository,
-            clock,
-        ),
-        get_follow_up_sources=GetFollowUpSourcesUseCase(
-            record_repository,
-            corporate_access,
-            store_operations,
         ),
         record_tracing_report=RecordTracingReportUseCase(
             record_repository,

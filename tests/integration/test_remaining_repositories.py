@@ -69,6 +69,9 @@ from app.infrastructure.postgres.repositories.patient_external_identifier import
 from app.infrastructure.postgres.repositories.patient_medical_profile import (
     PostgresPatientMedicalProfileRepository,
 )
+from app.infrastructure.postgres.repositories.repository_set import (
+    PostgresRepositorySet,
+)
 from app.infrastructure.postgres.repositories.staff import PostgresStaffRepository
 from app.infrastructure.postgres.repositories.store import PostgresStoreRepository
 from tests.factories.medication_history_factory import (
@@ -87,6 +90,7 @@ from tests.factories.persistence_factory import (
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store
 from tests.infrastructure.postgres.helpers import create_corporate
+from tests.integration.medication_history_helpers import save_history_event
 
 
 async def _committed_corporate(
@@ -631,24 +635,32 @@ async def test_同一調剤の確定済薬歴の重複が_業務例外になる(
     corporate_id = CorporateId.generate()
     first = finalize_record_with_review(create_record(corporate_id=corporate_id))
     duplicate = finalize_record_with_review(
-        create_record(corporate_id=corporate_id, dispensing_id=first.dispensing_id)
+        create_record(
+            corporate_id=corporate_id,
+            store_id=first.store_id,
+            patient_id=first.patient_id,
+            dispensing_id=first.dispensing_id,
+            prescription_id=first.prescription_id,
+        )
     )
 
     unit_of_work = PostgresUnitOfWork(session_factory)
     async with unit_of_work:
-        repository = PostgresMedicationHistoryRepository(unit_of_work)
-        await repository.save(first)
-        await repository.save(
-            create_independent_follow_up_record(first, finalized=True)
-        )
-        await repository.save(
-            create_independent_follow_up_record(first, finalized=True)
-        )
+        repositories = PostgresRepositorySet.create(unit_of_work)
+        await save_history_event(repositories, first)
+        await repositories.medication_history.save(first)
+        first_follow_up = create_independent_follow_up_record(first, finalized=True)
+        await save_history_event(repositories, first_follow_up)
+        await repositories.medication_history.save(first_follow_up)
+        second_follow_up = create_independent_follow_up_record(first, finalized=True)
+        await save_history_event(repositories, second_follow_up)
+        await repositories.medication_history.save(second_follow_up)
         await unit_of_work.commit()
 
     # Act & Assert
     conflict = PostgresUnitOfWork(session_factory)
     async with conflict:
+        await save_history_event(PostgresRepositorySet.create(conflict), duplicate)
         with pytest.raises(MedicationHistoryAlreadyExistsError):
             await PostgresMedicationHistoryRepository(conflict).save(duplicate)
 
@@ -664,13 +676,18 @@ async def test_下書きの薬歴は_同じ調剤に何件でも作れる(
 
     # Act
     for _ in range(3):
+        record = create_record(
+            corporate_id=corporate_id,
+            store_id=first.store_id,
+            patient_id=first.patient_id,
+            dispensing_id=first.dispensing_id,
+            prescription_id=first.prescription_id,
+        )
         unit_of_work = PostgresUnitOfWork(session_factory)
         async with unit_of_work:
-            await PostgresMedicationHistoryRepository(unit_of_work).save(
-                create_record(
-                    corporate_id=corporate_id, dispensing_id=first.dispensing_id
-                )
-            )
+            repositories = PostgresRepositorySet.create(unit_of_work)
+            await save_history_event(repositories, record)
+            await repositories.medication_history.save(record)
             await unit_of_work.commit()
 
     # Assert
