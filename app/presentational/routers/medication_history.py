@@ -20,6 +20,7 @@ from pydantic import Field
 from app.application.care_event.create_event import CreateEventCommand
 from app.application.care_event.get_event import GetEventQuery
 from app.application.common.exceptions import NotFoundError
+from app.application.common.pagination import Page
 from app.application.dispensing.get_dispensing import GetDispensingQuery
 from app.application.medication_history.amend_medication_history import (
     AmendMedicationHistoryCommand,
@@ -58,6 +59,13 @@ from app.application.medication_history.inputs import (
     ResidualDrugInput,
     SoapInput,
     UpdateCategoryCatalogCommand,
+)
+from app.application.medication_history.list_pending_external_corrections import (
+    ListPendingExternalCorrectionsQuery,
+    PendingExternalCorrectionDto,
+)
+from app.application.medication_history.review_external_prescription_correction import (
+    ReviewExternalPrescriptionCorrectionCommand,
 )
 from app.application.medication_history.start_medication_history import (
     StartMedicationHistoryCommand,
@@ -168,6 +176,20 @@ class CorrectMedicationHistoryFactRequest(RequestModel):
     operation: Literal["replace", "retract", "append"] = "replace"
     reason: str
     value: object | None = None
+
+
+class ReviewExternalPrescriptionCorrectionRequest(RequestModel):
+    """外部訂正判断の入力。監査担当者と処理時刻は指定できない。"""
+
+    decision: Literal[
+        "amend",
+        "no_action",
+        "investigating",
+        "match_reregistered_prescription",
+    ]
+    reason: str
+    amended_soap: SoapInput | None = None
+    matched_prescription_id: str | None = None
 
 
 class AddFollowUpRequest(RequestModel):
@@ -356,6 +378,55 @@ async def get_medication_history_view(
         GetMedicationHistoryViewQuery(
             corporate_id=corporate_id,
             record_id=record_id,
+        )
+    )
+
+
+@router.get(
+    "/medication-history-external-corrections",
+)
+async def list_external_prescription_corrections(
+    corporate_id: str,
+    use_cases: MedicationHistoryUseCasesDep,
+    store_id: str | None = None,
+    status: Literal["pending", "investigating", "resolved"] | None = None,
+    cursor: str | None = None,
+    limit: int = Query(default=50, ge=1, le=100),
+) -> Page[PendingExternalCorrectionDto]:
+    """薬歴の外部訂正を法人・店舗・状態でページ取得する。"""
+    return await use_cases.list_external_corrections.execute(
+        ListPendingExternalCorrectionsQuery(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            status=status,
+            cursor=cursor,
+            limit=limit,
+        )
+    )
+
+
+@router.post(
+    "/medication-histories/{record_id}/external-corrections/{correction_id}/reviews",
+    response_model=MedicationHistoryDto,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def review_external_prescription_correction(
+    corporate_id: str,
+    record_id: str,
+    correction_id: str,
+    body: ReviewExternalPrescriptionCorrectionRequest,
+    use_cases: MedicationHistoryUseCasesDep,
+) -> MedicationHistoryDto:
+    """外部訂正に理由付き判断を記録し、元の確定記録は保持する。"""
+    return await use_cases.review_external_correction.execute(
+        ReviewExternalPrescriptionCorrectionCommand(
+            corporate_id=corporate_id,
+            record_id=record_id,
+            correction_id=correction_id,
+            decision=body.decision,
+            reason=body.reason,
+            amended_soap=body.amended_soap,
+            matched_prescription_id=body.matched_prescription_id,
         )
     )
 

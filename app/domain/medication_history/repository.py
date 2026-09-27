@@ -20,7 +20,12 @@ from app.domain.medication_history.patient_medical_profile import (
 from app.domain.medication_history.primitives import (
     MedicationHistoryRecordId,
 )
+from app.domain.medication_history.value_objects import (
+    ExternalCorrectionStatus,
+    ExternalPrescriptionCorrection,
+)
 from app.domain.patient.primitives import PatientId
+from app.domain.store.primitives import StoreId
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -29,6 +34,14 @@ class FinalizedMedicationHistorySource:
 
     event_id: EventId
     patient_id: PatientId
+
+
+@dataclass(frozen=True, kw_only=True)
+class MedicationHistoryExternalCorrectionMatch:
+    """検索条件に一致した外部訂正と、その帰属薬歴。"""
+
+    record: MedicationHistoryRecord
+    correction: ExternalPrescriptionCorrection
 
 
 class MedicationHistoryRepository(Protocol):
@@ -96,6 +109,27 @@ class MedicationHistoryRepository(Protocol):
         patient_id: PatientId,
     ) -> list[MedicationHistoryRecord]:
         """頭書き再投影専用に、同一法人・患者の全店舗の記録を返す。"""
+        ...
+
+    async def list_external_corrections(
+        self,
+        *,
+        corporate_id: CorporateId,
+        store_id: StoreId | None,
+        statuses: tuple[ExternalCorrectionStatus, ...],
+        after: tuple[str, str] | None,
+        limit: int,
+    ) -> list[MedicationHistoryExternalCorrectionMatch]:
+        """法人・店舗・状態を絞り、訂正ID順で次のページを返す。"""
+        ...
+
+    async def delete_unperformed_draft(
+        self,
+        *,
+        corporate_id: CorporateId,
+        record_id: MedicationHistoryRecordId,
+    ) -> bool:
+        """指導者・指導日時がなく未確定の薬歴だけを破棄する。"""
         ...
 
     async def save(self, record: MedicationHistoryRecord) -> None:

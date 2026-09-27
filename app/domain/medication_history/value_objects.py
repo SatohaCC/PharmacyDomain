@@ -14,6 +14,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
+from enum import StrEnum
 from typing import ClassVar, Self
 
 from app.domain.foundation.entity import Entity
@@ -710,13 +711,51 @@ class MedicationHistoryAmendment(ValueObject):
     reason: AmendmentReason
     amended_by: StaffId
     amended_at: AmendmentTimestamp
+    amendment_id: str | None = None
 
     _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
         "amended_soap": "修正後のSOAP",
         "reason": "追記理由",
         "amended_by": "追記者",
         "amended_at": "追記日時",
+        "amendment_id": "追記ID",
     }
+
+
+class ExternalCorrectionKind(StrEnum):
+    """外部処方訂正の通知種別。"""
+
+    UPDATE = "update"
+    DELETE = "delete"
+
+
+class ExternalCorrectionStatus(StrEnum):
+    """外部処方訂正の確認状態。"""
+
+    PENDING = "pending"
+    INVESTIGATING = "investigating"
+    RESOLVED = "resolved"
+
+
+class ExternalCorrectionDecision(StrEnum):
+    """外部処方訂正への判断。"""
+
+    AMEND = "amend"
+    NO_ACTION = "no_action"
+    INVESTIGATING = "investigating"
+    MATCH_REREGISTERED_PRESCRIPTION = "match_reregistered_prescription"
+
+
+@dataclass(frozen=True, kw_only=True)
+class ExternalCorrectionReviewEvent(ValueObject):
+    """外部訂正に対する判断の監査イベント。"""
+
+    decision: ExternalCorrectionDecision
+    reason: str
+    reviewed_by: StaffId
+    reviewed_at: ExternalCorrectionTimestamp
+    amendment_id: str | None = None
+    matched_prescription_id: PrescriptionId | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -734,6 +773,9 @@ class ExternalPrescriptionCorrection(ValueObject):
     details: str | None = None
     acknowledged_at: ExternalCorrectionTimestamp | None = None
     acknowledged_by: StaffId | None = None
+    kind: ExternalCorrectionKind = ExternalCorrectionKind.UPDATE
+    status: ExternalCorrectionStatus = ExternalCorrectionStatus.PENDING
+    review_events: tuple[ExternalCorrectionReviewEvent, ...] = ()
 
     _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
         "correction_id": "訂正ID",

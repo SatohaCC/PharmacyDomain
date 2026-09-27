@@ -31,6 +31,8 @@ from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.value_objects import (
     BillingAddition,
     CategorizedNote,
+    ExternalCorrectionReviewEvent,
+    ExternalPrescriptionCorrection,
     HandbookStatus,
     LabeledNote,
     MedicationHistoryAmendment,
@@ -228,6 +230,7 @@ class AmendmentDto:
     reason: str
     amended_by: str
     amended_at: str
+    amendment_id: str | None = None
 
     @classmethod
     def from_value(cls, value: MedicationHistoryAmendment) -> AmendmentDto:
@@ -237,6 +240,83 @@ class AmendmentDto:
             reason=value.reason.value,
             amended_by=str(value.amended_by.value),
             amended_at=value.amended_at.value.isoformat(),
+            amendment_id=value.amendment_id,
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
+class ExternalCorrectionReviewEventDto:
+    """外部訂正への判断イベントDTO。"""
+
+    decision: str
+    reason: str
+    reviewed_by: str
+    reviewed_at: str
+    matched_prescription_id: str | None
+    amendment_id: str | None = None
+
+    @classmethod
+    def from_value(
+        cls, value: ExternalCorrectionReviewEvent
+    ) -> ExternalCorrectionReviewEventDto:
+        """レビューイベントから監査表示用DTOを生成する。"""
+        event = value
+        return cls(
+            decision=event.decision.value,
+            reason=event.reason,
+            reviewed_by=str(event.reviewed_by.value),
+            reviewed_at=event.reviewed_at.value.isoformat(),
+            amendment_id=event.amendment_id,
+            matched_prescription_id=(
+                str(event.matched_prescription_id.value)
+                if event.matched_prescription_id is not None
+                else None
+            ),
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
+class ExternalPrescriptionCorrectionDto:
+    """外部処方訂正の受信事実と判断履歴DTO。"""
+
+    correction_id: str
+    kind: str
+    status: str
+    corrected_at: str
+    source_document_number: str
+    reason: str
+    details: str | None
+    acknowledged_by: str | None
+    acknowledged_at: str | None
+    review_events: tuple[ExternalCorrectionReviewEventDto, ...]
+
+    @classmethod
+    def from_value(
+        cls, value: ExternalPrescriptionCorrection
+    ) -> ExternalPrescriptionCorrectionDto:
+        """訂正証跡から旧確認表現も含むDTOを生成する。"""
+        return cls(
+            correction_id=value.correction_id,
+            kind=value.kind.value,
+            status=("resolved" if value.is_acknowledged else value.status.value),
+            corrected_at=value.corrected_at.value.isoformat(),
+            source_document_number=value.source_document_number,
+            reason=value.reason,
+            details=value.details,
+            acknowledged_by=(
+                str(value.acknowledged_by.value)
+                if value.acknowledged_by is not None
+                else None
+            ),
+            acknowledged_at=(
+                value.acknowledged_at.value.isoformat()
+                if value.acknowledged_at is not None
+                else None
+            ),
+            review_events=tuple(
+                ExternalCorrectionReviewEventDto.from_value(event)
+                for event in value.review_events
+            ),
         )
 
 
@@ -375,6 +455,7 @@ class MedicationHistoryDto:
     source_system: str | None
     imported_at: str | None
     amendments: tuple[AmendmentDto, ...]
+    external_corrections: tuple[ExternalPrescriptionCorrectionDto, ...]
     updates_profile: bool
     profile_updates: dict[str, object]
     original_facts: dict[str, object]
@@ -461,6 +542,10 @@ class MedicationHistoryDto:
             ),
             amendments=tuple(
                 AmendmentDto.from_value(item) for item in record.amendments
+            ),
+            external_corrections=tuple(
+                ExternalPrescriptionCorrectionDto.from_value(item)
+                for item in record.external_corrections
             ),
             updates_profile=record.updates_profile,
             profile_updates=_profile_updates_json(record, original=False),

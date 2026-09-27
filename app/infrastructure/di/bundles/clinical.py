@@ -75,11 +75,17 @@ from app.application.medication_history.get_patient_medical_profile import (
     GetPatientMedicalProfileUseCase,
     RebuildPatientMedicalProfileUseCase,
 )
+from app.application.medication_history.list_pending_external_corrections import (
+    ListPendingExternalCorrectionsUseCase,
+)
 from app.application.medication_history.record_tracing_report import (
     RecordTracingReportUseCase,
 )
 from app.application.medication_history.record_tracing_report_response import (
     RecordTracingReportResponseUseCase,
+)
+from app.application.medication_history.review_external_prescription_correction import (
+    ReviewExternalPrescriptionCorrectionUseCase,
 )
 from app.application.medication_history.start_medication_history import (
     StartMedicationHistoryUseCase,
@@ -280,6 +286,8 @@ class MedicationHistoryUseCases:
     record_tracing_report: RecordTracingReportUseCase
     record_tracing_report_response: RecordTracingReportResponseUseCase
     get_view: GetMedicationHistoryViewUseCase
+    list_external_corrections: ListPendingExternalCorrectionsUseCase
+    review_external_correction: ReviewExternalPrescriptionCorrectionUseCase
 
 
 def build_medication_history_use_cases(
@@ -408,6 +416,16 @@ def build_medication_history_use_cases(
             record_repository,
             MedicationHistoryPatientProfileAdapter(repositories.patient),
             corporate_access,
+        ),
+        list_external_corrections=ListPendingExternalCorrectionsUseCase(
+            record_repository, corporate_access
+        ),
+        review_external_correction=ReviewExternalPrescriptionCorrectionUseCase(
+            record_repository,
+            corporate_access,
+            counselor_qualification,
+            repositories.prescription,
+            clock,
         ),
     )
 

@@ -127,7 +127,7 @@ async def test_tc45_56_Alembicの成功済みmigration再実行はデータを�
         await _run_alembic(postgres_settings.database_url, "upgrade", "head")
         await _run_alembic(postgres_settings.database_url, "upgrade", "head")
         current = await _run_alembic(postgres_settings.database_url, "current")
-        assert "20260927_0010" in current
+        assert "20260927_0011" in current
         async with engine.connect() as connection:
             after = (
                 await connection.execute(

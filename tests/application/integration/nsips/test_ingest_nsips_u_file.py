@@ -31,7 +31,7 @@ from app.application.reception.associate_reception_medication_history import (
     AssociateReceptionMedicationHistoryCommand,
     AssociateReceptionMedicationHistoryUseCase,
 )
-from app.domain.dispensing.primitives import DispensingId
+from app.domain.dispensing.primitives import DispensingId, DispensingProcessStatus
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
@@ -40,6 +40,7 @@ from app.domain.medication_history.primitives import (
     BillingAdditionName,
     CounselingMethod,
     CounselingTimestamp,
+    ExternalCorrectionTimestamp,
     FinalizedTimestamp,
     MedicationHistoryImportTimestamp,
     MedicationHistoryReviewResult,
@@ -47,6 +48,9 @@ from app.domain.medication_history.primitives import (
 )
 from app.domain.medication_history.value_objects import (
     BillingAddition,
+    ExternalCorrectionDecision,
+    ExternalCorrectionKind,
+    ExternalCorrectionStatus,
     HandbookStatus,
     ResidualDrugRecord,
 )
@@ -59,6 +63,7 @@ from app.domain.patient.primitives import (
 from app.domain.prescription.primitives import (
     PrescriptionDocumentNumber,
     PrescriptionId,
+    PrescriptionStatus,
 )
 from app.domain.reception.primitives import ReceptionId
 from app.domain.reception.reception import ReceptionSourceData
@@ -69,12 +74,14 @@ from tests.application.integration.nsips.helpers import (
     create_fixture,
     execute_structured_test_command,
 )
+from tests.factories.dispensing_factory import complete_dispensing
 from tests.factories.medication_history_factory import (
     create_independent_follow_up_record,
     create_record,
     create_soap,
     finalize_record_with_review,
 )
+from tests.factories.prescription_factory import create_prescription
 
 
 async def _save_history_after_pharmacist_writing(
@@ -2088,3 +2095,669 @@ async def test_issue36_tc33_U再取込の加算比較は新しいFOLLOW_UPでは
     )
 
     assert difference is None
+
+
+@pytest.mark.asyncio
+async def test_TC33_TC34_削除通知は実績を保って保留し同じ通知の再送で増えない() -> None:
+    """正規化済みD通知で取消可能な実作業を止め、削除監査を冪等に記録する。"""
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    original_bundle = _structured_bundle_for_non_prescription_correction(
+        document_number="DOC-DELETE-CORRECTION"
+    )
+    initial = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            structured_bundle=original_bundle,
+        ),
+    )
+    history = await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    history = history.update_draft(
+        method=CounselingMethod.FACE_TO_FACE,
+        handbook_status=HandbookStatus(presented=True),
+        residual_drug=ResidualDrugRecord.none_remaining(),
+        information_sheet_provided=False,
+    ).finalize(
+        counselor_id=fixture.pharmacist_id,
+        counseled_at=CounselingTimestamp(fixture.clock.now()),
+        finalized_at=FinalizedTimestamp(fixture.clock.now()),
+        finalized_by=fixture.pharmacist_id,
+        review_result=MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED,
+    )
+    await fixture.medication_history_repo.save(history)
+    assert initial.prescription_id is not None
+    assert initial.dispensing_id is not None
+    prescription_id = PrescriptionId.parse(initial.prescription_id)
+    dispensing_id = DispensingId.parse(initial.dispensing_id)
+
+    deletion_bundle = replace(
+        original_bundle, correction_kind=ExternalCorrectionKind.DELETE
+    )
+    deletion_command = IngestNsipsCommand(
+        corporate_id=str(fixture.corporate_id.value),
+        store_id=str(fixture.store_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
+        reception_id=str(reception_id.value),
+        structured_bundle=deletion_bundle,
+    )
+    first = await execute_structured_test_command(fixture, deletion_command)
+
+    saved_prescription = await fixture.prescription_repo.get(
+        corporate_id=fixture.corporate_id, prescription_id=prescription_id
+    )
+    saved_dispensing = await fixture.dispensing_repo.get(
+        corporate_id=fixture.corporate_id, dispensing_id=dispensing_id
+    )
+    saved_history = await fixture.medication_history_repo.get(
+        corporate_id=fixture.corporate_id, record_id=history.id
+    )
+    assert saved_prescription is not None
+    assert saved_prescription.status.value == "cancelled"
+    assert saved_dispensing is not None
+    assert saved_dispensing.status.value == "cancelled"
+    assert saved_history is not None
+    assert saved_history.soap == history.soap
+    assert saved_history.finalized_at == history.finalized_at
+    assert len(saved_history.external_corrections) == 1
+    assert saved_history.external_corrections[0].kind is ExternalCorrectionKind.DELETE
+    assert saved_history.has_pending_correction_review is True
+    assert first.has_pending_correction_review is True
+
+    resent = await execute_structured_test_command(fixture, deletion_command)
+    reloaded_history = await fixture.medication_history_repo.get(
+        corporate_id=fixture.corporate_id, record_id=history.id
+    )
+    assert resent.is_duplicate is True
+    assert reloaded_history is not None
+    assert reloaded_history.external_corrections == saved_history.external_corrections
+
+
+@pytest.mark.asyncio
+async def test_TC14_完了済み処方と調剤は削除通知後も終端状態を保つ() -> None:
+    """完了した処方・調剤は削除通知で取消さず、薬歴に訂正を記録する。"""
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    original_bundle = _structured_bundle_for_non_prescription_correction(
+        document_number="DOC-DELETE-TERMINAL-STATE"
+    )
+    initial = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            structured_bundle=original_bundle,
+        ),
+    )
+    history = await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    history = history.update_draft(
+        method=CounselingMethod.FACE_TO_FACE,
+        handbook_status=HandbookStatus(presented=True),
+        residual_drug=ResidualDrugRecord.none_remaining(),
+        information_sheet_provided=False,
+    ).finalize(
+        counselor_id=fixture.pharmacist_id,
+        counseled_at=CounselingTimestamp(fixture.clock.now()),
+        finalized_at=FinalizedTimestamp(fixture.clock.now()),
+        finalized_by=fixture.pharmacist_id,
+        review_result=MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED,
+    )
+    await fixture.medication_history_repo.save(history)
+    assert initial.prescription_id is not None
+    assert initial.dispensing_id is not None
+    prescription_id = PrescriptionId.parse(initial.prescription_id)
+    dispensing_id = DispensingId.parse(initial.dispensing_id)
+    prescription = await fixture.prescription_repo.get(
+        corporate_id=fixture.corporate_id, prescription_id=prescription_id
+    )
+    dispensing = await fixture.dispensing_repo.get(
+        corporate_id=fixture.corporate_id, dispensing_id=dispensing_id
+    )
+    assert prescription is not None
+    assert prescription.status is PrescriptionStatus.READY_FOR_DISPENSING
+    assert dispensing is not None
+
+    await fixture.prescription_repo.save(prescription.complete_dispensing())
+    await fixture.dispensing_repo.save(complete_dispensing(dispensing))
+
+    result = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            structured_bundle=replace(
+                original_bundle, correction_kind=ExternalCorrectionKind.DELETE
+            ),
+        ),
+    )
+
+    saved_prescription = await fixture.prescription_repo.get(
+        corporate_id=fixture.corporate_id, prescription_id=prescription_id
+    )
+    saved_dispensing = await fixture.dispensing_repo.get(
+        corporate_id=fixture.corporate_id, dispensing_id=dispensing_id
+    )
+    saved_history = await fixture.medication_history_repo.get(
+        corporate_id=fixture.corporate_id, record_id=history.id
+    )
+    assert saved_prescription is not None
+    assert saved_prescription.status is PrescriptionStatus.DISPENSED
+    assert saved_dispensing is not None
+    assert saved_dispensing.status is DispensingProcessStatus.COMPLETED
+    assert saved_history is not None
+    assert saved_history.soap == history.soap
+    assert saved_history.finalized_at == history.finalized_at
+    assert len(saved_history.external_corrections) == 1
+    assert saved_history.external_corrections[0].kind is ExternalCorrectionKind.DELETE
+    assert saved_history.has_pending_correction_review is True
+    assert result.has_pending_correction_review is True
+
+
+@pytest.mark.asyncio
+async def test_TC10_指導も調剤実績もない下書きは削除通知時に破棄する() -> None:
+    """未指導かつ未完了の下書きを削除し、Receptionの参照も外す。"""
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    original_bundle = _structured_bundle_for_non_prescription_correction(
+        document_number="DOC-DELETE-EMPTY-DRAFT"
+    )
+    initial = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            structured_bundle=original_bundle,
+        ),
+    )
+    draft = await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    draft = replace(draft, counselor_id=None, counseled_at=None)
+    await fixture.medication_history_repo.save(draft)
+    delete_command = IngestNsipsCommand(
+        corporate_id=str(fixture.corporate_id.value),
+        store_id=str(fixture.store_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
+        reception_id=str(reception_id.value),
+        structured_bundle=replace(
+            original_bundle, correction_kind=ExternalCorrectionKind.DELETE
+        ),
+    )
+
+    result = await execute_structured_test_command(fixture, delete_command)
+
+    assert (
+        await fixture.medication_history_repo.get(
+            corporate_id=fixture.corporate_id, record_id=draft.id
+        )
+        is None
+    )
+    reception = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=reception_id,
+    )
+    assert reception is not None
+    assert reception.medication_history_id is None
+    assert result.has_pending_correction_review is False
+
+
+@pytest.mark.asyncio
+async def test_TC11_指導日時がある下書きは削除通知でも保持する() -> None:
+    """指導者と指導日時の記録がある下書きは保留訂正として残す。"""
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    bundle = _structured_bundle_for_non_prescription_correction(
+        document_number="DOC-DELETE-COUNSELED-DRAFT"
+    )
+    initial = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            structured_bundle=bundle,
+        ),
+    )
+    draft = await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+
+    result = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            structured_bundle=replace(
+                bundle, correction_kind=ExternalCorrectionKind.DELETE
+            ),
+        ),
+    )
+
+    saved = await fixture.medication_history_repo.get(
+        corporate_id=fixture.corporate_id, record_id=draft.id
+    )
+    assert saved is not None
+    assert len(saved.external_corrections) == 1
+    assert result.has_pending_correction_review is True
+
+
+@pytest.mark.asyncio
+async def test_TC12_交付済み調剤に関連する下書きは削除通知でも保持する() -> None:
+    """薬剤交付の実績がある薬歴は未確定でも削除対象にしない。"""
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    bundle = _structured_bundle_for_non_prescription_correction(
+        document_number="DOC-DELETE-COMPLETED-DRAFT"
+    )
+    initial = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            structured_bundle=bundle,
+        ),
+    )
+    draft = await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    assert initial.dispensing_id is not None
+    dispensing_id = DispensingId.parse(initial.dispensing_id)
+    dispensing = await fixture.dispensing_repo.get(
+        corporate_id=fixture.corporate_id, dispensing_id=dispensing_id
+    )
+    assert dispensing is not None
+    await fixture.dispensing_repo.save(complete_dispensing(dispensing))
+
+    result = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            structured_bundle=replace(
+                bundle, correction_kind=ExternalCorrectionKind.DELETE
+            ),
+        ),
+    )
+
+    saved = await fixture.medication_history_repo.get(
+        corporate_id=fixture.corporate_id, record_id=draft.id
+    )
+    assert saved is not None
+    assert len(saved.external_corrections) == 1
+    assert result.has_pending_correction_review is True
+
+
+@pytest.mark.asyncio
+async def test_TC32_同じ訂正を異なる受付IDで再送しても処方を重ねない() -> None:
+    """外部内容指紋が同じなら受付IDが異なっても既存訂正を再利用する。"""
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    original_bundle = _structured_bundle_for_non_prescription_correction(
+        document_number="DOC-NEW-RECEPTION-RESEND"
+    )
+    initial = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            structured_bundle=original_bundle,
+        ),
+    )
+    history = await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    history = history.update_draft(
+        method=CounselingMethod.FACE_TO_FACE,
+        handbook_status=HandbookStatus(presented=True),
+        residual_drug=ResidualDrugRecord.none_remaining(),
+        information_sheet_provided=False,
+    ).finalize(
+        counselor_id=fixture.pharmacist_id,
+        counseled_at=CounselingTimestamp(fixture.clock.now()),
+        finalized_at=FinalizedTimestamp(fixture.clock.now()),
+        finalized_by=fixture.pharmacist_id,
+        review_result=MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED,
+    )
+    await fixture.medication_history_repo.save(history)
+    correction_bundle = replace(
+        original_bundle,
+        prescription=replace(original_bundle.prescription, doctor_name="変更後の医師"),
+        correction_kind=ExternalCorrectionKind.UPDATE,
+    )
+    first_correction = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            structured_bundle=correction_bundle,
+        ),
+    )
+    assert first_correction.has_pending_correction_review is True
+    prescription_count = len(fixture.prescription_repo.items)
+    second_reception_id = ReceptionId.generate()
+
+    resent = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(second_reception_id.value),
+            structured_bundle=correction_bundle,
+        ),
+    )
+
+    saved_history = await fixture.medication_history_repo.get(
+        corporate_id=fixture.corporate_id, record_id=history.id
+    )
+    assert resent.is_duplicate is True
+    assert len(fixture.prescription_repo.items) == prescription_count
+    assert saved_history is not None
+    assert len(saved_history.external_corrections) == 1
+
+
+@pytest.mark.asyncio
+async def test_TC31_解決済みの外部訂正を再送しても保留へ戻さない() -> None:
+    """U/B訂正を解決した後に同一通知が再送されても、解決済み状態を維持し保留に戻さない。"""
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    original_bundle = _structured_bundle_for_non_prescription_correction(
+        document_number="DOC-TC31-RESOLVED-RESEND"
+    )
+    initial = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            structured_bundle=original_bundle,
+        ),
+    )
+    history = await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    history = history.update_draft(
+        method=CounselingMethod.FACE_TO_FACE,
+        handbook_status=HandbookStatus(presented=True),
+        residual_drug=ResidualDrugRecord.none_remaining(),
+        information_sheet_provided=False,
+    ).finalize(
+        counselor_id=fixture.pharmacist_id,
+        counseled_at=CounselingTimestamp(fixture.clock.now()),
+        finalized_at=FinalizedTimestamp(fixture.clock.now()),
+        finalized_by=fixture.pharmacist_id,
+        review_result=MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED,
+    )
+    await fixture.medication_history_repo.save(history)
+
+    # 訂正を受信
+    correction_bundle = replace(
+        original_bundle,
+        prescription=replace(original_bundle.prescription, doctor_name="変更後の医師"),
+        correction_kind=ExternalCorrectionKind.UPDATE,
+    )
+    first_correction = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            structured_bundle=correction_bundle,
+        ),
+    )
+    assert first_correction.has_pending_correction_review is True
+
+    # 薬剤師が外部訂正を解決（NO_ACTION）
+    saved_history = await fixture.medication_history_repo.get(
+        corporate_id=fixture.corporate_id, record_id=history.id
+    )
+    assert saved_history is not None
+    resolved_history = saved_history.review_external_correction(
+        correction_id=saved_history.external_corrections[0].correction_id,
+        decision=ExternalCorrectionDecision.NO_ACTION,
+        reason="内容を確認し、薬歴への反映は不要と判断した。",
+        reviewed_by=fixture.pharmacist_id,
+        reviewed_at=ExternalCorrectionTimestamp(fixture.clock.now()),
+    )
+    await fixture.medication_history_repo.save(resolved_history)
+    assert resolved_history.has_pending_correction_review is False
+    assert (
+        resolved_history.external_corrections[0].status
+        is ExternalCorrectionStatus.RESOLVED
+    )
+
+    # 同一通知を同一受付IDで再送
+    resent_same_reception = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            structured_bundle=correction_bundle,
+        ),
+    )
+    assert resent_same_reception.has_pending_correction_review is False
+
+    # 別受付IDで再送
+    second_reception_id = ReceptionId.generate()
+    resent_new_reception = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(second_reception_id.value),
+            structured_bundle=correction_bundle,
+        ),
+    )
+    assert resent_new_reception.has_pending_correction_review is False
+
+    reloaded_history = await fixture.medication_history_repo.get(
+        corporate_id=fixture.corporate_id, record_id=history.id
+    )
+    assert reloaded_history is not None
+    assert len(reloaded_history.external_corrections) == 1
+    assert (
+        reloaded_history.external_corrections[0].status
+        is ExternalCorrectionStatus.RESOLVED
+    )
+    assert len(reloaded_history.external_corrections[0].review_events) == 1
+
+
+@pytest.mark.asyncio
+async def test_TC35_削除保留を再登録処方と照合して解決する() -> None:
+    """D-fileの削除保留を再登録処方との照合判断で解決する。"""
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    bundle = _structured_bundle_for_non_prescription_correction(
+        document_number="DOC-TC35-DELETE-RESOLVE"
+    )
+    initial = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            structured_bundle=bundle,
+        ),
+    )
+    history = await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    finalized = history.update_draft(
+        method=CounselingMethod.FACE_TO_FACE,
+        handbook_status=HandbookStatus(presented=True),
+        residual_drug=ResidualDrugRecord.none_remaining(),
+        information_sheet_provided=False,
+    ).finalize(
+        counselor_id=fixture.pharmacist_id,
+        counseled_at=CounselingTimestamp(fixture.clock.now()),
+        finalized_at=FinalizedTimestamp(fixture.clock.now()),
+        finalized_by=fixture.pharmacist_id,
+        review_result=MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED,
+    )
+    await fixture.medication_history_repo.save(finalized)
+
+    # D-file削除通知を受信
+    delete_result = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            structured_bundle=replace(
+                bundle, correction_kind=ExternalCorrectionKind.DELETE
+            ),
+        ),
+    )
+    assert delete_result.has_pending_correction_review is True
+
+    # 薬歴に削除訂正が保留として記録されていることを確認
+    pending_history = await fixture.medication_history_repo.get(
+        corporate_id=fixture.corporate_id, record_id=finalized.id
+    )
+    assert pending_history is not None
+    assert pending_history.external_corrections[0].kind is ExternalCorrectionKind.DELETE
+    assert (
+        pending_history.external_corrections[0].status
+        is ExternalCorrectionStatus.PENDING
+    )
+
+    # 再登録された処方箋を準備
+    reregistered_rx = create_prescription(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        patient_id=finalized.patient_id,
+    )
+    await fixture.prescription_repo.save(reregistered_rx)
+
+    # 照合判断（MATCH_REREGISTERED_PRESCRIPTION）で解決
+    resolved = pending_history.review_external_correction(
+        correction_id=pending_history.external_corrections[0].correction_id,
+        decision=ExternalCorrectionDecision.MATCH_REREGISTERED_PRESCRIPTION,
+        reason="再登録処方箋との一致を確認し解決した。",
+        reviewed_by=fixture.pharmacist_id,
+        reviewed_at=ExternalCorrectionTimestamp(fixture.clock.now()),
+        matched_prescription_id=reregistered_rx.id,
+    )
+    await fixture.medication_history_repo.save(resolved)
+
+    # 検証: 削除元の薬歴・原本SOAPは完全に保護され、照合先処方IDが監査記録される
+    assert resolved.soap == finalized.soap
+    assert resolved.has_pending_correction_review is False
+    assert resolved.external_corrections[0].status is ExternalCorrectionStatus.RESOLVED
+    review_event = resolved.external_corrections[0].review_events[-1]
+    assert (
+        review_event.decision
+        is ExternalCorrectionDecision.MATCH_REREGISTERED_PRESCRIPTION
+    )
+    assert review_event.matched_prescription_id == reregistered_rx.id
+
+
+@pytest.mark.asyncio
+async def test_TC35_削除保留を薬歴追記訂正で解決する() -> None:
+    """削除保留の薬歴へ追記訂正を追加し、削除事実と原本を保持して解決する。"""
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    bundle = _structured_bundle_for_non_prescription_correction(
+        document_number="DOC-TC35-DELETE-AMEND"
+    )
+    initial = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            structured_bundle=bundle,
+        ),
+    )
+    history = await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    finalized = history.update_draft(
+        method=CounselingMethod.FACE_TO_FACE,
+        handbook_status=HandbookStatus(presented=True),
+        residual_drug=ResidualDrugRecord.none_remaining(),
+        information_sheet_provided=False,
+    ).finalize(
+        counselor_id=fixture.pharmacist_id,
+        counseled_at=CounselingTimestamp(fixture.clock.now()),
+        finalized_at=FinalizedTimestamp(fixture.clock.now()),
+        finalized_by=fixture.pharmacist_id,
+        review_result=MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED,
+    )
+    await fixture.medication_history_repo.save(finalized)
+
+    deletion_result = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            dispenser_staff_id=str(fixture.pharmacist_id.value),
+            reception_id=str(reception_id.value),
+            structured_bundle=replace(
+                bundle, correction_kind=ExternalCorrectionKind.DELETE
+            ),
+        ),
+    )
+    assert deletion_result.has_pending_correction_review is True
+
+    pending = await fixture.medication_history_repo.get(
+        corporate_id=fixture.corporate_id, record_id=finalized.id
+    )
+    assert pending is not None
+    correction = pending.external_corrections[0]
+    assert correction.kind is ExternalCorrectionKind.DELETE
+    assert correction.status is ExternalCorrectionStatus.PENDING
+
+    amended = pending.review_external_correction(
+        correction_id=correction.correction_id,
+        decision=ExternalCorrectionDecision.AMEND,
+        reason="削除された処方内容を確認し、患者への説明を追記した。",
+        reviewed_by=fixture.pharmacist_id,
+        reviewed_at=ExternalCorrectionTimestamp(fixture.clock.now()),
+        amended_soap=create_soap(subjective="削除された処方内容の説明を追記。"),
+    )
+    await fixture.medication_history_repo.save(amended)
+
+    assert amended.soap == finalized.soap
+    assert amended.has_pending_correction_review is False
+    assert amended.external_corrections[0].status is ExternalCorrectionStatus.RESOLVED
+    assert len(amended.amendments) == 1
+    assert amended.amendments[0].amended_soap.subjective[0].text.value == (
+        "削除された処方内容の説明を追記。"
+    )
+    event = amended.external_corrections[0].review_events[-1]
+    assert event.decision is ExternalCorrectionDecision.AMEND
+    assert event.amendment_id == amended.amendments[0].amendment_id

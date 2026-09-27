@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
+from app.domain.medication_history.value_objects import ExternalCorrectionKind
+
 
 @dataclass(frozen=True, kw_only=True)
 class NsipsPatientInfo:
@@ -105,3 +107,4 @@ class NsipsBundle:
     dispensed_date: date | None = None
     insurance: NsipsInsuranceInfo | None = None
     additions: tuple[NsipsAdditionInfo, ...] = ()
+    correction_kind: ExternalCorrectionKind | None = None

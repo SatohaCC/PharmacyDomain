@@ -9,8 +9,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import cast
+from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, case, delete, func, literal, or_, select, true
+from sqlalchemy.dialects.postgresql import JSONB, JSONPATH
+from sqlalchemy.sql import cast as sql_cast
 
 from app.domain.care_event.primitives import EventId
 from app.domain.corporate.primitives import CorporateId
@@ -28,9 +31,14 @@ from app.domain.medication_history.primitives import (
 )
 from app.domain.medication_history.repository import (
     FinalizedMedicationHistorySource,
+    MedicationHistoryExternalCorrectionMatch,
     MedicationHistoryRepository,
 )
+from app.domain.medication_history.value_objects import (
+    ExternalCorrectionStatus,
+)
 from app.domain.patient.primitives import PatientId
+from app.domain.store.primitives import StoreId
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,
@@ -203,6 +211,111 @@ class PostgresMedicationHistoryRepository(
         ]
         return _sort_timeline(records)
 
+    async def list_external_corrections(
+        self,
+        *,
+        corporate_id: CorporateId,
+        store_id: StoreId | None,
+        statuses: tuple[ExternalCorrectionStatus, ...],
+        after: tuple[str, str] | None,
+        limit: int,
+    ) -> list[MedicationHistoryExternalCorrectionMatch]:
+        """JSONB展開後に法人・店舗・状態・複合cursorをDBで絞る。"""
+        table = medication_history_records
+        elements = (
+            func.jsonb_array_elements(table.c.payload["external_corrections"])
+            .table_valued("value")
+            .lateral("external_correction")
+        )
+        value = sql_cast(elements.c.value, JSONB)
+        status_value = func.coalesce(
+            value["status"].as_string(),
+            case(
+                (value["acknowledged_at"].as_string().is_not(None), "resolved"),
+                else_="pending",
+            ),
+        )
+        requested_statuses = tuple(status.value for status in statuses)
+        jsonpath = _correction_jsonpath(statuses)
+        statement = (
+            select(*table.c, value.label("external_correction"))
+            .select_from(table.join(elements, true()))
+            .where(
+                table.c.corporate_id == corporate_id.value,
+                table.c.status == MedicationHistoryStatus.FINALIZED.value,
+                table.c.payload.op("@?")(sql_cast(literal(jsonpath), JSONPATH)),
+                status_value.in_(requested_statuses),
+            )
+        )
+        if store_id is not None:
+            statement = statement.where(table.c.store_id == store_id.value)
+        if after is not None:
+            try:
+                after_record_id = UUID(after[0])
+            except ValueError as exc:
+                raise ValueError("一覧cursorの薬歴IDが不正です。") from exc
+            correction_id_value = value["correction_id"].as_string()
+            statement = statement.where(
+                or_(
+                    table.c.id > after_record_id,
+                    and_(
+                        table.c.id == after_record_id,
+                        correction_id_value > after[1],
+                    ),
+                )
+            )
+        statement = statement.order_by(
+            table.c.id, value["correction_id"].as_string()
+        ).limit(limit)
+        result = await self.session.execute(statement)
+        matches: list[MedicationHistoryExternalCorrectionMatch] = []
+        for row in result.mappings().all():
+            record = MEDICATION_HISTORY_RECORD_MAPPING.decode(
+                cast(Mapping[str, object], row)
+            )
+            raw_correction = row["external_correction"]
+            correction_id = cast(dict[str, object], raw_correction).get("correction_id")
+            correction = next(
+                (
+                    item
+                    for item in record.external_corrections
+                    if item.correction_id == correction_id
+                ),
+                None,
+            )
+            if correction is None:
+                continue
+            matches.append(
+                MedicationHistoryExternalCorrectionMatch(
+                    record=record, correction=correction
+                )
+            )
+        return matches
+
+    async def delete_unperformed_draft(
+        self,
+        *,
+        corporate_id: CorporateId,
+        record_id: MedicationHistoryRecordId,
+    ) -> bool:
+        """未指導・未確定DRAFTを条件付きDELETEで破棄する。"""
+        statement = (
+            delete(medication_history_records)
+            .where(
+                medication_history_records.c.id == record_id.value,
+                medication_history_records.c.corporate_id == corporate_id.value,
+                medication_history_records.c.status
+                == MedicationHistoryStatus.DRAFT.value,
+                medication_history_records.c.counseled_at.is_(None),
+                medication_history_records.c.payload["counselor_id"]
+                .as_string()
+                .is_(None),
+            )
+            .returning(medication_history_records.c.id)
+        )
+        result = await self.session.execute(statement)
+        return result.scalar_one_or_none() is not None
+
     async def save(self, record: MedicationHistoryRecord) -> None:
         """同一調剤セッションの確定済薬歴の重複を原子的に拒否して保存する。"""
         await self.save_with_conflict_map(
@@ -243,3 +356,13 @@ def _sort_timeline(
         )
 
     return sorted(records, key=key)
+
+
+def _correction_jsonpath(statuses: tuple[ExternalCorrectionStatus, ...]) -> str:
+    """未移行の確認済みpayloadも含めてJSONB GINで候補を絞るpathを作る。"""
+    clauses = [f'@.status == "{status.value}"' for status in statuses]
+    if ExternalCorrectionStatus.PENDING in statuses:
+        clauses.append("(!exists(@.status) && !exists(@.acknowledged_at))")
+    if ExternalCorrectionStatus.RESOLVED in statuses:
+        clauses.append("(!exists(@.status) && exists(@.acknowledged_at))")
+    return "$.external_corrections[*] ? (" + " || ".join(clauses) + ")"
