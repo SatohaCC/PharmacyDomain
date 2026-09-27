@@ -66,6 +66,8 @@ LIFECYCLE_DIALECTS: dict[str, str] = {
     "UserInvitation": "status_enum",
     "StaffPersonLink": "none",
     "MedicationHistoryCategoryCatalog": "none",
+    "EventDefinition": "active_flag",
+    "Event": "none",
 }
 
 #: ``active_flag`` 方言の集約について、無効化後に一意キーを再利用できるか。
@@ -77,6 +79,8 @@ ACTIVE_FLAG_KEY_REUSE: dict[str, bool] = {
     "PatientExternalIdentifier": True,
     # 過去の調剤録・監査の追跡を壊さないため、スタッフコードは再利用させない。
     "Staff": False,
+    # Eventには作成時の種別名を保持するため、無効化後の表示名再利用を許す。
+    "EventDefinition": True,
 }
 
 #: ``dated_activation`` 方言として認めるフィールド名の組。

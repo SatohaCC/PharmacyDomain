@@ -30,7 +30,7 @@ from tests.fakes.in_memory_store_repository import InMemoryStoreRepository
 
 #: 各業務の区分。実装の表とは独立に書く。
 #:
-#: 受付・処方箋の登録・調剤の開始・薬歴の作成は、その店舗で新しく始まる業務。
+#: 受付・処方箋の登録・調剤の開始・薬歴・Eventの作成は、その店舗で新しく始まる業務。
 #: 調剤の記録から確定まで、薬歴の確定・訂正は、既に始まった業務の続き。過去の
 #: 薬歴の参照だけが店舗状態で止まらない。
 _EXPECTED_KINDS: dict[StoreOperation, StoreOperationKind] = {
@@ -38,6 +38,7 @@ _EXPECTED_KINDS: dict[StoreOperation, StoreOperationKind] = {
     StoreOperation.REGISTER_PRESCRIPTION: StoreOperationKind.NEW_WORK,
     StoreOperation.START_DISPENSING: StoreOperationKind.NEW_WORK,
     StoreOperation.START_HISTORY: StoreOperationKind.NEW_WORK,
+    StoreOperation.CREATE_EVENT: StoreOperationKind.NEW_WORK,
     StoreOperation.RECORD_DISPENSING: StoreOperationKind.CONTINUING,
     StoreOperation.VERIFY_DISPENSING: StoreOperationKind.CONTINUING,
     StoreOperation.COMPLETE_DISPENSING: StoreOperationKind.CONTINUING,
@@ -72,6 +73,14 @@ def test_全ての業務に区分が与えられている() -> None:
 def test_業務の区分が_業務の性質と一致する() -> None:
     """判定の式ではなく、どの業務が新規業務かという分類そのものを固定する。"""
     assert dict(STORE_OPERATION_KINDS) == _EXPECTED_KINDS
+
+
+def test_tc45_20_Event作成は新規業務で管理薬剤師の在任を要する() -> None:
+    assert (
+        STORE_OPERATION_KINDS.get(StoreOperation.CREATE_EVENT)
+        is StoreOperationKind.NEW_WORK
+    )
+    assert MANAGER_REQUIRED_BY_KIND.get(StoreOperationKind.NEW_WORK) is True
 
 
 def test_全ての区分に_拒否される状態が定義されている() -> None:
@@ -118,6 +127,8 @@ async def test_店舗状態と管理薬剤師の在任で操作可否が決ま�
         stores, create_vendor_corporate_access(), managers, FakeClock()
     )
     kind = _EXPECTED_KINDS[operation]
+    actual_kind = STORE_OPERATION_KINDS.get(operation)
+    assert actual_kind is not None, f"{operation}に店舗業務の区分がありません。"
 
     # Act & Assert
     if status in _FORBIDDEN[kind]:

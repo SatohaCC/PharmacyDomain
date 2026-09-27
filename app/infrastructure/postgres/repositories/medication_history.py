@@ -7,15 +7,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import datetime
-from typing import Any, cast
+from datetime import UTC, datetime
+from typing import cast
 
 from sqlalchemy import select
 
-from app.application.medication_history.reference import (
-    MedicationHistoryFollowUpSource,
-    MedicationHistoryFollowUpSourceBoundary,
-)
+from app.domain.care_event.primitives import EventId
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.primitives import DispensingId
 from app.domain.medication_history.exceptions import (
@@ -26,36 +23,39 @@ from app.domain.medication_history.medication_history_record import (
 )
 from app.domain.medication_history.primitives import (
     MedicationHistoryRecordId,
-    MedicationHistoryRecordKind,
     MedicationHistoryStatus,
+    TracingReportId,
 )
-from app.domain.medication_history.repository import MedicationHistoryRepository
+from app.domain.medication_history.repository import (
+    FinalizedMedicationHistorySource,
+    MedicationHistoryRepository,
+)
 from app.domain.patient.primitives import PatientId
-from app.domain.prescription.primitives import PrescriptionId
-from app.domain.store.primitives import StoreId
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,
 )
-from app.infrastructure.postgres.schema import medication_history_records
+from app.infrastructure.postgres.schema import (
+    legacy_tracing_report_links,
+    medication_history_records,
+)
 
 
 def _history_record_columns(record: MedicationHistoryRecord) -> dict[str, object]:
     """検索・一意性制約に使う列を薬歴から導く。"""
     return {
         "id": record.id.value,
+        "event_id": record.event_id.value,
         "corporate_id": record.corporate_id.value,
         "store_id": record.store_id.value,
         "patient_id": record.patient_id.value,
-        "dispensing_id": record.dispensing_id.value,
-        "prescription_id": record.prescription_id.value,
-        "status": record.status.value,
-        "record_kind": record.record_kind.value,
-        "source_record_id": (
-            record.source_record_id.value
-            if record.source_record_id is not None
-            else None
+        "dispensing_id": (
+            record.dispensing_id.value if record.dispensing_id is not None else None
         ),
+        "prescription_id": (
+            record.prescription_id.value if record.prescription_id is not None else None
+        ),
+        "status": record.status.value,
         "counseled_at": (
             record.counseled_at.value if record.counseled_at is not None else None
         ),
@@ -76,7 +76,6 @@ MEDICATION_HISTORY_RECORD_MAPPING = AggregateMapping(
 class PostgresMedicationHistoryRepository(
     PostgresRepositoryBase,
     MedicationHistoryRepository,
-    MedicationHistoryFollowUpSourceBoundary,
 ):
     """薬歴集約を PostgreSQL へ保存・検索する。"""
 
@@ -109,10 +108,66 @@ class PostgresMedicationHistoryRepository(
                 medication_history_records.c.dispensing_id == dispensing_id.value,
                 medication_history_records.c.status
                 == MedicationHistoryStatus.FINALIZED.value,
-                medication_history_records.c.record_kind
-                == MedicationHistoryRecordKind.INITIAL.value,
             ),
         )
+
+    async def get_by_event(
+        self, *, corporate_id: CorporateId, event_id: EventId
+    ) -> MedicationHistoryRecord | None:
+        """Eventに関連する薬歴を法人範囲内で取得する。"""
+        return await self.find_one(
+            MEDICATION_HISTORY_RECORD_MAPPING,
+            select(medication_history_records).where(
+                medication_history_records.c.corporate_id == corporate_id.value,
+                medication_history_records.c.event_id == event_id.value,
+            ),
+        )
+
+    async def get_finalized_source_for_follow_up(
+        self,
+        *,
+        corporate_id: CorporateId,
+        record_id: MedicationHistoryRecordId,
+    ) -> FinalizedMedicationHistorySource | None:
+        """確定済薬歴を店舗横断で照会し、本文を読まずに関連元だけ返す。"""
+        result = await self.session.execute(
+            select(
+                medication_history_records.c.event_id,
+                medication_history_records.c.patient_id,
+            ).where(
+                medication_history_records.c.id == record_id.value,
+                medication_history_records.c.corporate_id == corporate_id.value,
+                medication_history_records.c.status
+                == MedicationHistoryStatus.FINALIZED.value,
+            )
+        )
+        row = result.mappings().one_or_none()
+        if row is None:
+            return None
+        return FinalizedMedicationHistorySource(
+            event_id=EventId(row["event_id"]),
+            patient_id=PatientId(row["patient_id"]),
+        )
+
+    async def get_legacy_report_target(
+        self,
+        *,
+        corporate_id: CorporateId,
+        legacy_parent_record_id: MedicationHistoryRecordId,
+        tracing_report_id: str,
+    ) -> MedicationHistoryRecordId | None:
+        """移行前の親IDとレポートIDから、追記対象の子薬歴を返す。"""
+        result = await self.session.execute(
+            select(legacy_tracing_report_links.c.target_record_id).where(
+                legacy_tracing_report_links.c.corporate_id == corporate_id.value,
+                legacy_tracing_report_links.c.legacy_parent_record_id
+                == legacy_parent_record_id.value,
+                legacy_tracing_report_links.c.legacy_tracing_report_id
+                == TracingReportId.parse(tracing_report_id).value,
+            )
+        )
+        target_id = result.scalar_one_or_none()
+        return MedicationHistoryRecordId(target_id) if target_id is not None else None
 
     async def list_by_patient(
         self,
@@ -120,20 +175,34 @@ class PostgresMedicationHistoryRepository(
         corporate_id: CorporateId,
         patient_id: PatientId,
     ) -> list[MedicationHistoryRecord]:
-        """患者の薬歴タイムラインを実施・登録時刻の降順で返す。"""
-        return await self.find_all(
+        """患者の薬歴タイムラインを指導日時の昇順で返す。"""
+        records = await self.find_all(
             MEDICATION_HISTORY_RECORD_MAPPING,
-            select(medication_history_records)
-            .where(
+            select(medication_history_records).where(
+                medication_history_records.c.corporate_id == corporate_id.value,
+                medication_history_records.c.patient_id == patient_id.value,
+            ),
+        )
+        return _sort_timeline(records)
+
+    async def list_for_profile_projection(
+        self,
+        *,
+        corporate_id: CorporateId,
+        patient_id: PatientId,
+    ) -> list[MedicationHistoryRecord]:
+        """頭書き投影の内部処理向けに、店舗読取範囲を越えて全履歴を読む。"""
+        result = await self.session.execute(
+            select(medication_history_records).where(
                 medication_history_records.c.corporate_id == corporate_id.value,
                 medication_history_records.c.patient_id == patient_id.value,
             )
-            .order_by(
-                medication_history_records.c.counseled_at.desc().nulls_last(),
-                medication_history_records.c.recorded_at.desc().nulls_last(),
-                medication_history_records.c.id.desc(),
-            ),
         )
+        records = [
+            MEDICATION_HISTORY_RECORD_MAPPING.decode(cast(Mapping[str, object], row))
+            for row in result.mappings().all()
+        ]
+        return _sort_timeline(records)
 
     async def save(self, record: MedicationHistoryRecord) -> None:
         """同一調剤セッションの確定済薬歴の重複を原子的に拒否して保存する。"""
@@ -142,101 +211,37 @@ class PostgresMedicationHistoryRepository(
             record,
             conflicts={
                 "uq_medication_history_records_finalized_dispensing": MedicationHistoryAlreadyExistsError,
+                "uq_medication_history_records_event": MedicationHistoryAlreadyExistsError,
             },
         )
 
-    async def get_source_reference(
-        self,
-        *,
-        corporate_id: CorporateId,
-        patient_id: PatientId,
-        record_id: MedicationHistoryRecordId,
-    ) -> MedicationHistoryFollowUpSource | None:
-        """店舗読取範囲を越える本文を読まず、指定薬歴の参照メタデータを取る。"""
-        result = await self.session.execute(
-            select(
-                medication_history_records.c.id,
-                medication_history_records.c.corporate_id,
-                medication_history_records.c.patient_id,
-                medication_history_records.c.store_id,
-                medication_history_records.c.dispensing_id,
-                medication_history_records.c.prescription_id,
-                medication_history_records.c.record_kind,
-                medication_history_records.c.source_record_id,
-                medication_history_records.c.status,
-                medication_history_records.c.counseled_at,
-            ).where(
-                medication_history_records.c.id == record_id.value,
-                medication_history_records.c.corporate_id == corporate_id.value,
-                medication_history_records.c.patient_id == patient_id.value,
-            )
+
+def _sort_timeline(
+    records: list[MedicationHistoryRecord],
+) -> list[MedicationHistoryRecord]:
+    """指導日時、監査日時、薬歴IDで昇順に固定する。下書きは最後に置く。"""
+    maximum = datetime.max.replace(tzinfo=UTC)
+
+    def key(
+        record: MedicationHistoryRecord,
+    ) -> tuple[bool, bool, datetime, bool, datetime, str]:
+        counseled_at = (
+            record.counseled_at.value if record.counseled_at is not None else maximum
         )
-        row = result.mappings().one_or_none()
+        audit_at = (
+            record.finalized_at.value
+            if record.finalized_at is not None
+            else record.recorded_at.value
+            if record.recorded_at is not None
+            else maximum
+        )
         return (
-            _follow_up_source_from_row(cast(Mapping[str, Any], row))
-            if row is not None
-            else None
+            not record.is_projection_eligible,
+            record.counseled_at is None,
+            counseled_at,
+            record.finalized_at is None and record.recorded_at is None,
+            audit_at,
+            str(record.id.value),
         )
 
-    async def list_confirmed_sources(
-        self,
-        *,
-        corporate_id: CorporateId,
-        patient_id: PatientId,
-    ) -> tuple[MedicationHistoryFollowUpSource, ...]:
-        """指定患者の確定済み参照候補を本文なしで新しい順に列挙する。"""
-        result = await self.session.execute(
-            select(
-                medication_history_records.c.id,
-                medication_history_records.c.corporate_id,
-                medication_history_records.c.patient_id,
-                medication_history_records.c.store_id,
-                medication_history_records.c.dispensing_id,
-                medication_history_records.c.prescription_id,
-                medication_history_records.c.record_kind,
-                medication_history_records.c.source_record_id,
-                medication_history_records.c.status,
-                medication_history_records.c.counseled_at,
-            )
-            .where(
-                medication_history_records.c.corporate_id == corporate_id.value,
-                medication_history_records.c.patient_id == patient_id.value,
-                medication_history_records.c.status
-                == MedicationHistoryStatus.FINALIZED.value,
-                medication_history_records.c.counseled_at.is_not(None),
-            )
-            .order_by(
-                medication_history_records.c.counseled_at.desc(),
-                medication_history_records.c.id.desc(),
-            )
-        )
-        return tuple(
-            _follow_up_source_from_row(cast(Mapping[str, Any], row))
-            for row in result.mappings().all()
-        )
-
-
-def _follow_up_source_from_row(
-    row: Mapping[str, Any],
-) -> MedicationHistoryFollowUpSource:
-    """payload列を含まない行を値オブジェクトへ変換する。"""
-    raw_source_id = row["source_record_id"]
-    raw_counseled_at = row["counseled_at"]
-    return MedicationHistoryFollowUpSource(
-        record_id=MedicationHistoryRecordId.parse(str(row["id"])),
-        corporate_id=CorporateId.parse(str(row["corporate_id"])),
-        patient_id=PatientId.parse(str(row["patient_id"])),
-        store_id=StoreId.parse(str(row["store_id"])),
-        dispensing_id=DispensingId.parse(str(row["dispensing_id"])),
-        prescription_id=PrescriptionId.parse(str(row["prescription_id"])),
-        record_kind=MedicationHistoryRecordKind(str(row["record_kind"])),
-        source_record_id=(
-            MedicationHistoryRecordId.parse(str(raw_source_id))
-            if raw_source_id is not None
-            else None
-        ),
-        status=MedicationHistoryStatus(str(row["status"])),
-        counseled_at=(
-            cast(datetime, raw_counseled_at) if raw_counseled_at is not None else None
-        ),
-    )
+    return sorted(records, key=key)

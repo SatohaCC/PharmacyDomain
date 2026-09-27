@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 
 from app.application.access_control.boundary import CorporateAccessBoundary
@@ -14,6 +14,7 @@ from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
 )
 from app.application.medication_history.reference import (
+    MedicationHistoryEventOccurrenceBoundary,
     StaffQualificationBoundary,
 )
 from app.application.medication_history.support import load_record_or_raise, parse_enum
@@ -46,6 +47,7 @@ class FinalizeMedicationHistoryCommand:
     corporate_id: str
     record_id: str
     counseled_at: datetime | None = None
+    event_occurred_at: datetime | None = None
     delay_reason: str | None = None
     review_result: str | None = None
 
@@ -77,6 +79,7 @@ class FinalizeMedicationHistoryUseCase:
         staff_qualification: StaffQualificationBoundary | None = None,
         counselor_service: CounselorQualificationService | None = None,
         clock: Clock | None = None,
+        event_occurrence: MedicationHistoryEventOccurrenceBoundary | None = None,
     ) -> None:
         self._record_repository = record_repository
         self._profile_repository = profile_repository
@@ -86,6 +89,7 @@ class FinalizeMedicationHistoryUseCase:
         self._staff_qualification = staff_qualification
         self._counselor_service = counselor_service
         self._clock = clock
+        self._event_occurrence = event_occurrence
 
     async def execute(
         self, command: FinalizeMedicationHistoryCommand
@@ -192,6 +196,17 @@ class FinalizeMedicationHistoryUseCase:
             if catalog is not None:
                 catalog.validate_record_compliance(record)
 
+        if self._event_occurrence is not None:
+            await self._event_occurrence.resolve_unknown_occurrence(
+                corporate_id=corporate_id,
+                event_id=record.event_id,
+                occurred_at=command.event_occurred_at,
+            )
+        elif command.event_occurred_at is not None:
+            raise MedicationHistoryDomainError(
+                "Eventの発生日時を確認する保存境界がありません。"
+            )
+
         finalized = record.finalize(
             counselor_id=counselor_id,
             counseled_at=counseled_at,
@@ -205,18 +220,20 @@ class FinalizeMedicationHistoryUseCase:
         return MedicationHistoryDto.from_entity(finalized)
 
     async def _project_to_profile(self, record: MedicationHistoryRecord) -> None:
-        """確定した薬歴の差分を頭書きへ適用して保存する。
-
-        頭書きが未作成のときは空から作る。Repository の ``None`` は欠損ではなく
-        「まだ投影されていない」を意味する。
-        """
-        profile = await self._profile_repository.get_by_patient(
+        """患者の全店舗の投影対象から頭書きを再構築して保存する。"""
+        records = await self._record_repository.list_for_profile_projection(
             corporate_id=record.corporate_id,
             patient_id=record.patient_id,
         )
-        if profile is None:
-            profile = PatientMedicalProfile.empty_for(
-                corporate_id=record.corporate_id,
-                patient_id=record.patient_id,
-            )
-        await self._profile_repository.save(profile.apply(record))
+        rebuilt = PatientMedicalProfile.rebuild_from(
+            corporate_id=record.corporate_id,
+            patient_id=record.patient_id,
+            records=tuple(item for item in records if item.is_projection_eligible),
+        )
+        existing = await self._profile_repository.get_by_patient(
+            corporate_id=record.corporate_id,
+            patient_id=record.patient_id,
+        )
+        if existing is not None:
+            rebuilt = replace(rebuilt, id=existing.id)
+        await self._profile_repository.save(rebuilt)

@@ -41,6 +41,9 @@ def _reception_columns(reception: Reception) -> dict[str, object]:
         "id": reception.id.value,
         "corporate_id": reception.corporate_id.value,
         "store_id": reception.store_id.value,
+        "event_id": reception.event_id.value
+        if reception.event_id is not None
+        else None,
     }
 
 

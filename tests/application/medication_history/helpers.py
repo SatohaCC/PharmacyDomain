@@ -11,11 +11,13 @@ from app.application.access_control.models import (
     ResolvedActorContext,
 )
 from app.application.access_control.policy import AuthorizationService
+from app.application.composition.care_event_references import (
+    MedicationHistoryEventReferenceAdapter,
+)
 from app.application.composition.medication_history_references import (
     ReceptionMedicationHistorySourceAdapter,
 )
 from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.medication_history.add_follow_up import AddFollowUpUseCase
 from app.application.medication_history.amend_medication_history import (
     AmendMedicationHistoryUseCase,
 )
@@ -58,6 +60,15 @@ from app.application.medication_history.update_medication_history_draft import (
 from app.application.medication_history.verify_statutory_record import (
     VerifyStatutoryRecordUseCase,
 )
+from app.domain.care_event.event import Event
+from app.domain.care_event.primitives import (
+    EventCreatedTimestamp,
+    EventId,
+    EventOccurredTimestamp,
+    EventTypeId,
+    EventTypeName,
+    EventTypeStandardCode,
+)
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.identity.primitives import AccountPersonId, UserAccountId
@@ -66,6 +77,8 @@ from app.domain.medication_history.services import (
     StatutoryDispensingRecordService,
 )
 from app.domain.patient.primitives import PatientId
+from app.domain.reception.primitives import ReceptionFingerprint, ReceptionId
+from app.domain.reception.reception import Reception, ReceptionSourceData
 from app.domain.staff.primitives import (
     PharmacistLicenseNumber,
     PharmacistProfile,
@@ -82,6 +95,7 @@ from tests.fakes.fake_clock import FakeClock
 from tests.fakes.fake_medication_history_store_operations import (
     FakeMedicationHistoryStoreOperations,
 )
+from tests.fakes.in_memory_event_repository import InMemoryEventRepository
 from tests.fakes.in_memory_medication_history_repository import (
     InMemoryMedicationHistoryCategoryCatalogRepository,
     InMemoryMedicationHistoryRepository,
@@ -95,7 +109,6 @@ from tests.fakes.medication_history_reference_boundaries import (
     FakeDispensingSource,
     FakeMedicationHistoryStoreReference,
     FakeStatutoryRecordSource,
-    InMemoryMedicationHistoryFollowUpSourceBoundary,
 )
 from tests.fakes.null_unit_of_work import NullUnitOfWork
 
@@ -140,9 +153,7 @@ class MedicationHistoryFixture:
     verify_statutory_record: VerifyStatutoryRecordUseCase
     get_category_catalog: GetCategoryCatalogUseCase
     update_category_catalog: UpdateCategoryCatalogUseCase
-    add_follow_up: AddFollowUpUseCase
     store_operations: FakeMedicationHistoryStoreOperations
-    follow_up_source_boundary: InMemoryMedicationHistoryFollowUpSourceBoundary
     record_tracing_report: RecordTracingReportUseCase
     record_tracing_report_response: RecordTracingReportResponseUseCase
     record_repository: InMemoryMedicationHistoryRepository
@@ -162,6 +173,8 @@ class MedicationHistoryFixture:
     patient_id: PatientId
     counselor_id: StaffId
     dispensing: DispensingProcess
+    event_repository: InMemoryEventRepository
+    event_type_id: EventTypeId
 
 
 def create_resolved_actor(
@@ -226,9 +239,8 @@ def create_fixture(
     clock = FakeClock()
     corporate_repository = AutoProvisioningCorporateRepository()
     store_operations = FakeMedicationHistoryStoreOperations()
-    follow_up_source_boundary = InMemoryMedicationHistoryFollowUpSourceBoundary(
-        record_repository
-    )
+    event_repository = InMemoryEventRepository()
+    event_type_id = EventTypeId.generate()
     resolved_actor = actor or create_resolved_actor(
         staff_id=counselor_id,
         role=store_role or ActorRole.VENDOR_SYSTEM_ADMIN,
@@ -252,7 +264,12 @@ def create_fixture(
             staff_qualification,
             CounselorQualificationService(),
             NullUnitOfWork(),
-            ReceptionMedicationHistorySourceAdapter(reception_repository),
+            event_reference=MedicationHistoryEventReferenceAdapter(event_repository),
+            store_operations=store_operations,
+            clock=clock,
+            reception_source=ReceptionMedicationHistorySourceAdapter(
+                reception_repository
+            ),
         ),
         update_draft=UpdateMedicationHistoryDraftUseCase(
             record_repository, corporate_access
@@ -297,18 +314,7 @@ def create_fixture(
         update_category_catalog=UpdateCategoryCatalogUseCase(
             category_catalog_repository, corporate_access
         ),
-        add_follow_up=AddFollowUpUseCase(
-            record_repository,
-            corporate_access,
-            staff_qualification,
-            CounselorQualificationService(),
-            NullUnitOfWork(),
-            store_operations,
-            follow_up_source_boundary,
-            clock,
-        ),
         store_operations=store_operations,
-        follow_up_source_boundary=follow_up_source_boundary,
         record_tracing_report=RecordTracingReportUseCase(
             record_repository,
             corporate_access,
@@ -336,6 +342,8 @@ def create_fixture(
         patient_id=patient_id,
         counselor_id=counselor_id,
         dispensing=dispensing,
+        event_repository=event_repository,
+        event_type_id=event_type_id,
     )
 
 
@@ -370,12 +378,25 @@ def create_start_command(
     counseled_at: datetime | None = None,
 ) -> StartMedicationHistoryCommand:
     """薬歴作成コマンドを組み立てる。"""
+    dispensing_process = dispensing if dispensing is not None else fixture.dispensing
+    event = Event.create(
+        event_type_id=fixture.event_type_id,
+        event_type_standard_code=EventTypeStandardCode("prescription_reception"),
+        event_type_name=EventTypeName("処方箋受付"),
+        corporate_id=fixture.corporate_id,
+        store_id=dispensing_process.store_id,
+        patient_id=dispensing_process.patient_id,
+        occurred_at=EventOccurredTimestamp(fixture.clock.now()),
+        created_at=EventCreatedTimestamp(fixture.clock.now()),
+        prescription_id=dispensing_process.prescription_id,
+        dispensing_id=dispensing_process.id,
+    )
+    fixture.event_repository.items[event.id] = event
     return StartMedicationHistoryCommand(
         corporate_id=str(fixture.corporate_id.value),
-        store_id=str(fixture.store_id.value),
-        dispensing_id=str(
-            (dispensing if dispensing is not None else fixture.dispensing).id.value
-        ),
+        store_id=str(dispensing_process.store_id.value),
+        event_id=str(event.id.value),
+        dispensing_id=str(dispensing_process.id.value),
         method="face_to_face",
         soap=soap if soap is not None else create_soap_input(),
         handbook_status=(
@@ -400,9 +421,32 @@ def create_start_command(
 def create_nsips_start_command(
     fixture: MedicationHistoryFixture,
 ) -> StartMedicationHistoryCommand:
-    """NSIPS由来の初回薬歴コマンドを作る。"""
-    return replace(
-        create_start_command(fixture),
-        source_system="NSIPS",
-        imported_at=fixture.clock.now(),
+    """Receptionを経由するNSIPS由来の初回薬歴コマンドを作る。"""
+    command = create_start_command(fixture)
+    event_id = EventId.parse(command.event_id)
+    event = replace(
+        fixture.event_repository.items[event_id],
+        reception_id=ReceptionId.generate(),
     )
+    fixture.event_repository.items[event.id] = event
+    if event.reception_id is None:
+        raise AssertionError("テスト用Reception IDが作成されていません。")
+    reception = Reception(
+        id=event.reception_id,
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        patient_id=fixture.patient_id,
+        latest_fingerprint=ReceptionFingerprint("0" * 64),
+        field_fingerprints=(),
+        prescription_id=fixture.dispensing.prescription_id,
+        dispensing_id=fixture.dispensing.id,
+        source_data=ReceptionSourceData(
+            bundle_json="{}",
+            imported_at=fixture.clock.now(),
+        ),
+        event_id=event.id,
+    )
+    fixture.reception_repository.items[
+        (fixture.corporate_id, fixture.store_id, reception.id)
+    ] = reception
+    return replace(command, reception_id=str(reception.id.value))

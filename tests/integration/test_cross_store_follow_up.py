@@ -63,6 +63,10 @@ from tests.fakes.stub_actor_context_provider import (
     VALID_TOKEN,
     StubActorContextProvider,
 )
+from tests.integration.medication_history_helpers import (
+    save_history_event,
+    save_history_with_event,
+)
 from tests.integration.test_clinical_transaction_http import (
     ClinicalFixture,
     _client,
@@ -372,7 +376,7 @@ async def test_tc38_tc46_B店Actorは独立薬歴だけを読み_他店下書き
         prescription_id=source.prescription_id,
     )
     async with PostgresUnitOfWork(session_factory) as work:
-        await PostgresRepositorySet.create(work).medication_history.save(hidden_draft)
+        await save_history_with_event(PostgresRepositorySet.create(work), hidden_draft)
         await work.commit()
     operator = await _save_store_operator(
         engine, session_factory, corporate_id=clinical.corporate_id
@@ -384,7 +388,7 @@ async def test_tc38_tc46_B店Actorは独立薬歴だけを読み_他店下書き
     ) as client:
         candidates = await client.get(
             f"/corporates/{clinical.corporate_id.value}"
-            f"/patients/{source.patient_id.value}/medication-histories/follow-up-sources",
+            f"/patients/{source.patient_id.value}/events/related-candidates",
             params={"store_id": str(operator.store.id.value)},
         )
         body = _follow_up_body(operator)
@@ -399,6 +403,9 @@ async def test_tc38_tc46_B店Actorは独立薬歴だけを読み_他店下書き
         one = await client.get(
             f"/corporates/{clinical.corporate_id.value}"
             f"/medication-histories/{follow_up_id}"
+        )
+        follow_up_event = await client.get(
+            f"/corporates/{clinical.corporate_id.value}/events/{one.json()['event_id']}"
         )
         listed = await client.get(
             f"/corporates/{clinical.corporate_id.value}"
@@ -417,10 +424,27 @@ async def test_tc38_tc46_B店Actorは独立薬歴だけを読み_他店下書き
         )
 
     assert candidates.status_code == 200, candidates.text
-    assert [item["record_id"] for item in candidates.json()] == [str(source.id.value)]
+    candidate_rows = candidates.json()
+    assert {item["event_id"] for item in candidate_rows} == {
+        str(source.event_id.value),
+        str(hidden_draft.event_id.value),
+    }
+    assert all(
+        set(item)
+        == {
+            "event_id",
+            "store_id",
+            "event_type_name",
+            "occurred_at",
+            "occurred_at_is_unknown",
+            "created_at",
+        }
+        for item in candidate_rows
+    )
     assert one.status_code == 200, one.text
     assert one.json()["store_id"] == str(operator.store.id.value)
-    assert one.json()["source_record_id"] == str(source.id.value)
+    assert follow_up_event.status_code == 200, follow_up_event.text
+    assert follow_up_event.json()["related_event_id"] == str(source.event_id.value)
     assert one.json()["soap"]["subjective"][0]["text"] == "服用後の変化を確認した。"
     assert listed.status_code == 200, listed.text
     assert [item["id"] for item in listed.json()] == [follow_up_id]
@@ -558,9 +582,11 @@ async def _saved_cross_store_pair(
         finalized=True,
     )
     async with PostgresUnitOfWork(session_factory) as work:
-        repository = PostgresRepositorySet.create(work).medication_history
-        await repository.save(source)
-        await repository.save(follow_up)
+        repositories = PostgresRepositorySet.create(work)
+        await save_history_event(repositories, source)
+        await repositories.medication_history.save(source)
+        await save_history_event(repositories, follow_up)
+        await repositories.medication_history.save(follow_up)
         await work.commit()
     return source, follow_up
 
@@ -574,11 +600,13 @@ async def test_tc41_follow_up複合外部キーが参照元と法人患者処方
     assert source.store_id != follow_up.store_id
 
     invalid_updates: tuple[tuple[str, dict[str, object]], ...] = (
-        ("source_record_id = :value", {"value": uuid4()}),
+        ("event_id = :value", {"value": uuid4()}),
         ("corporate_id = :value", {"value": uuid4()}),
         ("patient_id = :value", {"value": uuid4()}),
-        ("prescription_id = :value", {"value": uuid4()}),
-        ("dispensing_id = :value", {"value": uuid4()}),
+        (
+            "prescription_id = :prescription_id, dispensing_id = :dispensing_id",
+            {"prescription_id": uuid4(), "dispensing_id": uuid4()},
+        ),
     )
     for assignment, values in invalid_updates:
         async with engine.begin() as connection:
@@ -598,11 +626,14 @@ async def test_tc42_薬歴種別と参照元の組み合わせをDBのCHECK制�
 ) -> None:
     """初回に参照元を付ける変更とフォローアップ参照を外す変更を拒否する。"""
     source, follow_up = await _saved_cross_store_pair(session_factory)
-    invalid_updates = (
-        "record_kind = 'initial'",
-        "source_record_id = NULL",
+    invalid_updates: tuple[tuple[str, dict[str, object]], ...] = (
+        ("event_id = NULL", {}),
+        (
+            "event_id = :source_event_id",
+            {"source_event_id": source.event_id.value},
+        ),
     )
-    for assignment in invalid_updates:
+    for assignment, values in invalid_updates:
         async with engine.begin() as connection:
             with pytest.raises(IntegrityError):
                 await connection.execute(
@@ -610,7 +641,7 @@ async def test_tc42_薬歴種別と参照元の組み合わせをDBのCHECK制�
                         f"UPDATE medication_history_records SET {assignment} "
                         "WHERE id = :record_id"
                     ),
-                    {"record_id": follow_up.id.value},
+                    {**values, "record_id": follow_up.id.value},
                 )
     async with PostgresUnitOfWork(session_factory) as work:
         stored_source = await PostgresRepositorySet.create(work).medication_history.get(

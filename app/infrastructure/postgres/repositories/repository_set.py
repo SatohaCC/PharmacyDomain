@@ -19,6 +19,7 @@ from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.repositories.account_person import (
     PostgresAccountPersonRepository,
 )
+from app.infrastructure.postgres.repositories.care_event import PostgresEventRepository
 from app.infrastructure.postgres.repositories.corporate import (
     PostgresCorporateRepository,
 )
@@ -30,6 +31,9 @@ from app.infrastructure.postgres.repositories.coverage_selection_record import (
 )
 from app.infrastructure.postgres.repositories.dispensing_process import (
     PostgresDispensingProcessRepository,
+)
+from app.infrastructure.postgres.repositories.event_definition import (
+    PostgresEventDefinitionRepository,
 )
 from app.infrastructure.postgres.repositories.medication_history import (
     PostgresMedicationHistoryRepository,
@@ -96,6 +100,8 @@ class PostgresRepositorySet:
     coverage_selection_record: PostgresCoverageSelectionRecordRepository
     prescription: PostgresPrescriptionRepository
     dispensing: PostgresDispensingProcessRepository
+    event: PostgresEventRepository
+    event_definition: PostgresEventDefinitionRepository
     medication_history: PostgresMedicationHistoryRepository
     medication_history_category_catalog: (
         PostgresMedicationHistoryCategoryCatalogRepository
@@ -127,6 +133,8 @@ class PostgresRepositorySet:
             ),
             prescription=PostgresPrescriptionRepository(unit_of_work),
             dispensing=PostgresDispensingProcessRepository(unit_of_work),
+            event=PostgresEventRepository(unit_of_work),
+            event_definition=PostgresEventDefinitionRepository(unit_of_work),
             medication_history=PostgresMedicationHistoryRepository(unit_of_work),
             medication_history_category_catalog=(
                 PostgresMedicationHistoryCategoryCatalogRepository(unit_of_work)

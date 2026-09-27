@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from app.application.prescription.inputs import DepartmentInput
 from app.infrastructure.di.registry import PostgresUseCaseRegistry
 from app.presentational.routers import (
+    care_event,
     corporate,
     coverage,
     dispensing,
@@ -33,6 +34,7 @@ from app.presentational.routers import (
 
 #: 登録簿の束と、それを公開するルータモジュールの対応。
 _ROUTER_FOR_BUNDLE: Final[Mapping[str, ModuleType]] = {
+    "care_event": care_event,
     "corporate": corporate,
     "identity": identity,
     "store": store,

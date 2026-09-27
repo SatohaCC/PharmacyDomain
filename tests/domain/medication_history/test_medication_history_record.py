@@ -284,12 +284,7 @@ class TestSOAPと確定:
         with pytest.raises(MedicationHistoryUnassessedItemsError) as error:
             finalize_record_with_review(unassessed)
 
-        assert error.value.missing_items == (
-            "服薬指導方法",
-            "お薬手帳の活用状況",
-            "残薬状況",
-            "情報提供文書の交付",
-        )
+        assert error.value.missing_items == ("服薬指導方法",)
         completed = unassessed.update_draft(
             method=CounselingMethod.FACE_TO_FACE,
             handbook_status=HandbookStatus(presented=True),
@@ -297,6 +292,13 @@ class TestSOAPと確定:
             information_sheet_provided=False,
         )
         assert finalize_record_with_review(completed).is_finalized
+        method_only = replace(
+            create_record(),
+            handbook_status=None,
+            residual_drug=None,
+            information_sheet_provided=None,
+        )
+        assert finalize_record_with_review(method_only).is_finalized
 
     def test_下書きでは_SOAPが空でも構築できる(self) -> None:
         """聞き取りながら書き足す運用を壊さない。"""
@@ -553,6 +555,7 @@ class Test追記:
         with pytest.raises(MedicationHistoryNotFinalizedError):
             type(amended)(
                 id=amended.id,
+                event_id=amended.event_id,
                 corporate_id=amended.corporate_id,
                 store_id=amended.store_id,
                 patient_id=amended.patient_id,

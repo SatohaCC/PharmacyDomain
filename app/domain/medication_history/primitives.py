@@ -81,10 +81,13 @@ class CounselingTimestamp(BaseAwareTimestamp):
     timestamp_name: ClassVar[str] = "服薬指導日時"
 
 
-class FollowUpRecordedTimestamp(BaseAwareTimestamp):
-    """フォローアップをシステムへ登録したUTC時刻。"""
+class MedicationHistoryRecordedTimestamp(BaseAwareTimestamp):
+    """薬歴をシステムへ登録したUTC時刻。"""
 
-    timestamp_name: ClassVar[str] = "フォローアップ登録日時"
+    timestamp_name: ClassVar[str] = "薬歴登録日時"
+
+
+FollowUpRecordedTimestamp = MedicationHistoryRecordedTimestamp
 
 
 class MedicationHistoryImportTimestamp(BaseAwareTimestamp):
@@ -128,24 +131,22 @@ class MedicationHistoryStatus(StrEnum):
 
     DRAFT = "draft"
     FINALIZED = "finalized"
+    LEGACY_RECORDED = "legacy_recorded"
 
     @property
     def label(self) -> str:
         """画面表示・帳票出力用の日本語名称。"""
-        labels = {self.DRAFT: "下書き", self.FINALIZED: "確定済"}
+        labels = {
+            self.DRAFT: "下書き",
+            self.FINALIZED: "確定済",
+            self.LEGACY_RECORDED: "移行記録",
+        }
         return labels[self]
 
     @property
     def is_finalized(self) -> bool:
         """確定済か。"""
         return self is MedicationHistoryStatus.FINALIZED
-
-
-class MedicationHistoryRecordKind(StrEnum):
-    """初回薬歴か、過去薬歴を参照するフォローアップ薬歴か。"""
-
-    INITIAL = "initial"
-    FOLLOW_UP = "follow_up"
 
 
 class MedicationHistoryReviewResult(StrEnum):

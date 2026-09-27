@@ -26,6 +26,10 @@ from app.infrastructure.postgres.repositories.repository_set import (
 )
 from tests.factories.medication_history_factory import create_record
 from tests.infrastructure.postgres.helpers import ordered_migrations
+from tests.integration.medication_history_helpers import (
+    legacy_medication_history_table,
+    save_history_event,
+)
 
 _TARGET_REVISION = "20260926_0009"
 
@@ -58,16 +62,22 @@ def _legacy_row_values(record: MedicationHistoryRecord) -> dict[str, object]:
     """登録日時検索列・payloadのない旧薬歴行を組み立てる。"""
     values = MEDICATION_HISTORY_RECORD_MAPPING.row_values(record)
     values.pop("recorded_at", None)
+    values.pop("event_id", None)
+    values["record_kind"] = "initial"
+    values["source_record_id"] = None
     payload = values["payload"]
     assert isinstance(payload, dict)
     payload.pop("recorded_at", None)
+    payload.pop("event_id", None)
+    payload["record_kind"] = "initial"
+    payload["source_record_id"] = None
     now = datetime(2026, 9, 20, tzinfo=UTC)
     values.update(version=3, created_at=now, updated_at=now)
     return values
 
 
 @pytest.mark.asyncio
-async def test_tc44_15_PostgreSQL一覧は登録日時とIDで同時刻を並べる(
+async def test_tc45_41_PostgreSQL一覧は同一指導日時を昇順の登録日時_IDで並べる(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     occurred_at = datetime(2026, 8, 24, 5, 0, tzinfo=UTC)
@@ -104,6 +114,7 @@ async def test_tc44_15_PostgreSQL一覧は登録日時とIDで同時刻を並べ
     async with PostgresUnitOfWork(session_factory) as work:
         repository = PostgresRepositorySet.create(work).medication_history
         for record in reversed(records):
+            await save_history_event(PostgresRepositorySet.create(work), record)
             await repository.save(record)
         await work.commit()
 
@@ -115,12 +126,11 @@ async def test_tc44_15_PostgreSQL一覧は登録日時とIDで同時刻を並べ
         )
 
     assert [record.id for record in actual] == [
+        first_registered.id,
         *sorted(
             (second_registered.id, tied_registered.id),
             key=lambda item: item.value,
-            reverse=True,
         ),
-        first_registered.id,
         legacy.id,
     ]
 
@@ -175,7 +185,11 @@ async def test_tc44_17_migrationは既存行を保ち登録日時列を追加し
             def migrate(sync_connection: Connection) -> None:
                 _, target = _prepare_preceding_schema(sync_connection)
                 sync_connection.execute(
-                    insert(schema.medication_history_records).values(**old_values)
+                    insert(
+                        legacy_medication_history_table(
+                            has_record_kind=True, has_recorded_at=False
+                        )
+                    ).values(**old_values)
                 )
                 _run_revision(sync_connection, operation="upgrade", modules=[target])
 
@@ -195,10 +209,22 @@ async def test_tc44_17_migrationは既存行を保ち登録日時列を追加し
                 assert old_row["counseled_at"] == expected_old_counseled_at
 
                 new_values = MEDICATION_HISTORY_RECORD_MAPPING.row_values(new_record)
+                new_values.pop("event_id", None)
+                new_values["record_kind"] = "initial"
+                new_values["source_record_id"] = None
+                new_payload = new_values["payload"]
+                assert isinstance(new_payload, dict)
+                new_payload.pop("event_id", None)
+                new_payload["record_kind"] = "initial"
+                new_payload["source_record_id"] = None
                 now = datetime(2026, 9, 20, tzinfo=UTC)
                 new_values.update(version=1, created_at=now, updated_at=now)
                 sync_connection.execute(
-                    insert(schema.medication_history_records).values(**new_values)
+                    insert(
+                        legacy_medication_history_table(
+                            has_record_kind=True, has_recorded_at=True
+                        )
+                    ).values(**new_values)
                 )
                 inserted = (
                     sync_connection.execute(

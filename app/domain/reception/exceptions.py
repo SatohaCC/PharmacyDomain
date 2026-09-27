@@ -15,3 +15,10 @@ class CoverageSelectionInvalidError(ReceptionDomainError):
 
     default_message = "適用資格選択の構成が不正です。"
     default_code = "COVERAGE_SELECTION_INVALID"
+
+
+class ReceptionEventAlreadyAssociatedError(ReceptionDomainError):
+    """受付に別のEventがすでに関連付いている場合の例外。"""
+
+    default_message = "受付にはすでに別のEventが関連付いています。"
+    default_code = "RECEPTION_EVENT_ALREADY_ASSOCIATED"

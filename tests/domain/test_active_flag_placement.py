@@ -26,6 +26,7 @@ import app.domain
 #: 集約ルートの ``active_flag`` 方言（``LIFECYCLE_DIALECTS``）に対応する。
 #: 期間（``*_on`` / ``*_date``）から導出できる子レコードをここへ足してはならない。
 ALLOWED_ACTIVE_FLAG_OWNERS: dict[str, str] = {
+    "EventDefinition": "集約ルート。法人独自種別の無効化を表す active_flag 方言",
     "Staff": "集約ルート。無効化方言は active_flag（スタッフコードの再利用は不可）",
     "PatientExternalIdentifier": (
         "集約ルート。無効化方言は active_flag（外部IDは無効化後に再利用可）"

@@ -12,19 +12,61 @@ from datetime import datetime
 from typing import Protocol
 
 from app.application.medication_history.inputs import BillingAdditionInput
+from app.domain.care_event.primitives import (
+    EventId,
+    EventOccurredTimestamp,
+    EventTypeId,
+    EventTypeName,
+)
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.primitives import DispensingId
 from app.domain.medication_history.primitives import (
     MedicationHistoryRecordId,
-    MedicationHistoryRecordKind,
-    MedicationHistoryStatus,
 )
 from app.domain.medication_history.value_objects import StatutoryRecordSource
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import PrescriptionId
+from app.domain.reception.primitives import ReceptionId
 from app.domain.staff.primitives import StaffId, StaffQualifications
 from app.domain.store.primitives import StoreId
+
+
+@dataclass(frozen=True, kw_only=True)
+class MedicationHistoryEventReference:
+    """薬歴作成に必要なEventの識別情報。"""
+
+    id: EventId
+    corporate_id: CorporateId
+    store_id: StoreId
+    patient_id: PatientId
+    event_type_id: EventTypeId
+    event_type_standard_code: str | None
+    event_type_name: EventTypeName
+    occurred_at: EventOccurredTimestamp | None
+    reception_id: ReceptionId | None
+    prescription_id: PrescriptionId | None
+    dispensing_id: DispensingId | None
+
+
+class MedicationHistoryEventBoundary(Protocol):
+    """Eventと薬歴の境界で使うEvent参照。"""
+
+    async def get(
+        self, *, corporate_id: CorporateId, event_id: EventId
+    ) -> MedicationHistoryEventReference | None: ...
+
+
+class MedicationHistoryEventOccurrenceBoundary(Protocol):
+    """時刻不明で移行したEventの発生日時を確定する境界。"""
+
+    async def resolve_unknown_occurrence(
+        self,
+        *,
+        corporate_id: CorporateId,
+        event_id: EventId,
+        occurred_at: datetime | None,
+    ) -> None: ...
 
 
 class StoreReferenceBoundary(Protocol):
@@ -76,6 +118,7 @@ class ReceptionMedicationHistorySource:
     patient_id: PatientId
     prescription_id: PrescriptionId | None
     dispensing_id: DispensingId | None
+    event_id: EventId | None
     medication_history_id: MedicationHistoryRecordId | None
     source_system: str | None
     imported_at: datetime | None
@@ -105,45 +148,6 @@ class ReceptionMedicationHistoryBoundary(Protocol):
         medication_history_id: MedicationHistoryRecordId,
     ) -> None:
         """受付を初回保存した薬歴へ関連付ける。"""
-        ...
-
-
-@dataclass(frozen=True, kw_only=True)
-class MedicationHistoryFollowUpSource:
-    """フォローアップ元選択に必要な薬歴メタデータだけを表す。"""
-
-    record_id: MedicationHistoryRecordId
-    corporate_id: CorporateId
-    patient_id: PatientId
-    store_id: StoreId
-    dispensing_id: DispensingId
-    prescription_id: PrescriptionId
-    record_kind: MedicationHistoryRecordKind
-    source_record_id: MedicationHistoryRecordId | None
-    status: MedicationHistoryStatus
-    counseled_at: datetime | None
-
-
-class MedicationHistoryFollowUpSourceBoundary(Protocol):
-    """店舗横断候補から本文を除いた参照元メタデータを取得する。"""
-
-    async def get_source_reference(
-        self,
-        *,
-        corporate_id: CorporateId,
-        patient_id: PatientId,
-        record_id: MedicationHistoryRecordId,
-    ) -> MedicationHistoryFollowUpSource | None:
-        """指定患者の薬歴を状態を含むメタデータだけで取得する。"""
-        ...
-
-    async def list_confirmed_sources(
-        self,
-        *,
-        corporate_id: CorporateId,
-        patient_id: PatientId,
-    ) -> tuple[MedicationHistoryFollowUpSource, ...]:
-        """指定患者の確定済薬歴をメタデータだけで列挙する。"""
         ...
 
 

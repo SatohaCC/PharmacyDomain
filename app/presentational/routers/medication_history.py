@@ -16,6 +16,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from pydantic import Field
 
+from app.application.care_event.create_event import CreateEventCommand
+from app.application.care_event.get_event import GetEventQuery
+from app.application.common.exceptions import NotFoundError
+from app.application.dispensing.get_dispensing import GetDispensingQuery
 from app.application.medication_history.amend_medication_history import (
     AmendMedicationHistoryCommand,
 )
@@ -23,11 +27,8 @@ from app.application.medication_history.category_catalog import CategoryCatalogD
 from app.application.medication_history.finalize_medication_history import (
     FinalizeMedicationHistoryCommand,
 )
-from app.application.medication_history.get_follow_up_sources import (
-    FollowUpSourceDto,
-    GetFollowUpSourcesQuery,
-)
 from app.application.medication_history.get_medication_history import (
+    GetFollowUpSourceQuery,
     GetMedicationHistoryQuery,
     ListMedicationHistoriesQuery,
     MedicationHistoryDto,
@@ -42,7 +43,6 @@ from app.application.medication_history.get_patient_medical_profile import (
     RebuildPatientMedicalProfileCommand,
 )
 from app.application.medication_history.inputs import (
-    AddFollowUpCommand,
     BillingAdditionInput,
     CategorizedNoteInput,
     HandbookStatusInput,
@@ -66,6 +66,8 @@ from app.application.medication_history.verify_statutory_record import (
     VerifyStatutoryRecordQuery,
 )
 from app.presentational.dependencies import (
+    CareEventUseCasesDep,
+    DispensingUseCasesDep,
     MedicationHistoryUseCasesDep,
     get_actor_context,
 )
@@ -91,12 +93,27 @@ class StartMedicationHistoryRequest(RequestModel):
     store_id: str
     dispensing_id: str
     reception_id: str | None = None
-    soap: SoapInput
+    soap: SoapInput = Field(default_factory=SoapInput)
     method: str | None = None
     handbook_status: HandbookStatusInput | None = None
     residual_drug: ResidualDrugInput | None = None
     information_sheet_provided: bool | None = None
     profile_updates: ProfileUpdateInput | None = None
+    counselor_id: str | None = None
+    counseled_at: datetime | None = None
+    occurred_at: datetime
+
+
+class StartEventMedicationHistoryRequest(RequestModel):
+    """既存Eventから薬歴下書きを起こす入力。"""
+
+    soap: SoapInput = Field(default_factory=SoapInput)
+    method: str | None = None
+    handbook_status: HandbookStatusInput | None = None
+    residual_drug: ResidualDrugInput | None = None
+    information_sheet_provided: bool | None = None
+    profile_updates: ProfileUpdateInput | None = None
+    additional_notes: tuple[CategorizedNoteInput, ...] = ()
     counselor_id: str | None = None
     counseled_at: datetime | None = None
 
@@ -127,6 +144,7 @@ class FinalizeMedicationHistoryRequest(RequestModel):
     """薬歴確定の入力。"""
 
     counseled_at: datetime | None = None
+    event_occurred_at: datetime | None = None
     delay_reason: str | None = None
     review_result: str | None = None
 
@@ -166,7 +184,6 @@ class RecordTracingReportRequest(RequestModel):
     fee_category: str
     delivery_method: str
     content: str
-    follow_up_id: str | None = None
 
 
 class RecordTracingReportResponseRequest(RequestModel):
@@ -202,12 +219,51 @@ async def start_medication_history(
     corporate_id: str,
     body: StartMedicationHistoryRequest,
     use_cases: MedicationHistoryUseCasesDep,
+    event_use_cases: CareEventUseCasesDep,
+    dispensing_use_cases: DispensingUseCasesDep,
 ) -> MedicationHistoryDto:
-    """薬剤師が記入した薬歴を初回保存する。"""
+    """既存の初回薬歴入口をEvent作成と薬歴起票へ接続する。"""
+    dispensing = await dispensing_use_cases.get.execute(
+        GetDispensingQuery(
+            corporate_id=corporate_id,
+            dispensing_id=body.dispensing_id,
+        )
+    )
+    definitions = await event_use_cases.list_definitions.execute(corporate_id)
+    definition = next(
+        (
+            item
+            for item in definitions
+            if item.standard_code == "prescription_reception"
+        ),
+        None,
+    )
+    if definition is None:
+        raise RuntimeError("標準の処方箋受付Event種別が登録されていません。")
+    event = await event_use_cases.create.execute(
+        CreateEventCommand(
+            corporate_id=corporate_id,
+            store_id=body.store_id,
+            patient_id=dispensing.patient_id,
+            event_type_id=definition.id,
+            occurred_at=body.occurred_at,
+            reception_id=body.reception_id,
+            prescription_id=dispensing.prescription_id,
+            dispensing_id=dispensing.id,
+        )
+    )
+    if event.medication_history_id is not None:
+        return await use_cases.get.execute(
+            GetMedicationHistoryQuery(
+                corporate_id=corporate_id,
+                record_id=event.medication_history_id,
+            )
+        )
     return await use_cases.start.execute(
         StartMedicationHistoryCommand(
             corporate_id=corporate_id,
             store_id=body.store_id,
+            event_id=event.event_id,
             dispensing_id=body.dispensing_id,
             reception_id=body.reception_id,
             method=body.method,
@@ -218,6 +274,42 @@ async def start_medication_history(
             profile_updates=body.profile_updates,
             counselor_id=body.counselor_id,
             counseled_at=body.counseled_at,
+        )
+    )
+
+
+@router.post(
+    "/events/{event_id}/medication-history",
+    status_code=HTTPStatus.CREATED,
+    response_model=MedicationHistoryDto,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def start_event_medication_history(
+    corporate_id: str,
+    event_id: str,
+    body: StartEventMedicationHistoryRequest,
+    use_cases: MedicationHistoryUseCasesDep,
+    event_use_cases: CareEventUseCasesDep,
+) -> MedicationHistoryDto:
+    """指定Eventに対する共通薬歴下書きを作成する。"""
+    event = await event_use_cases.get.execute(
+        GetEventQuery(corporate_id=corporate_id, event_id=event_id)
+    )
+    return await use_cases.start.execute(
+        StartMedicationHistoryCommand(
+            corporate_id=corporate_id,
+            store_id=event.store_id,
+            event_id=event.event_id,
+            dispensing_id=event.dispensing_id,
+            method=body.method,
+            soap=body.soap,
+            handbook_status=body.handbook_status,
+            residual_drug=body.residual_drug,
+            information_sheet_provided=body.information_sheet_provided,
+            profile_updates=body.profile_updates,
+            counselor_id=body.counselor_id,
+            counseled_at=body.counseled_at,
+            reception_id=event.reception_id,
         )
     )
 
@@ -312,6 +404,7 @@ async def finalize_medication_history(
             corporate_id=corporate_id,
             record_id=record_id,
             counseled_at=body.counseled_at if body is not None else None,
+            event_occurred_at=(body.event_occurred_at if body is not None else None),
             delay_reason=body.delay_reason if body is not None else None,
             review_result=body.review_result if body is not None else None,
         )
@@ -357,23 +450,52 @@ async def add_follow_up(
     record_id: str,
     body: AddFollowUpRequest,
     use_cases: MedicationHistoryUseCasesDep,
+    event_use_cases: CareEventUseCasesDep,
 ) -> MedicationHistoryDto:
-    """服薬期間中のフォローアップ記録を追加する。"""
-    return await use_cases.add_follow_up.execute(
-        AddFollowUpCommand(
+    """旧フォローアップ入口から独立Eventと薬歴を作成する。"""
+    source = await use_cases.get_follow_up_source.execute(
+        GetFollowUpSourceQuery(corporate_id=corporate_id, record_id=record_id)
+    )
+    if str(source.patient_id.value) != body.patient_id:
+        raise NotFoundError(
+            "指定された確定済み薬歴が見つかりません。",
+            code="MEDICATION_HISTORY_NOT_FOUND",
+        )
+    definition = next(
+        (
+            item
+            for item in await event_use_cases.list_definitions.execute(corporate_id)
+            if item.standard_code == "medication_period_follow_up"
+        ),
+        None,
+    )
+    if definition is None:
+        raise RuntimeError("標準の服薬期間中フォローアップEvent種別がありません。")
+    event = await event_use_cases.create.execute(
+        CreateEventCommand(
             corporate_id=corporate_id,
-            record_id=record_id,
             store_id=body.store_id,
             patient_id=body.patient_id,
-            counselor_id=body.counselor_id,
-            followed_up_at=body.followed_up_at,
+            event_type_id=definition.id,
+            occurred_at=body.followed_up_at,
+            related_event_id=str(source.event_id.value),
+        )
+    )
+    return await use_cases.start.execute(
+        StartMedicationHistoryCommand(
+            corporate_id=corporate_id,
+            store_id=body.store_id,
+            event_id=event.event_id,
+            dispensing_id=None,
             method=body.method,
             soap=body.soap,
-            additional_notes=body.additional_notes,
             handbook_status=body.handbook_status,
             residual_drug=body.residual_drug,
             information_sheet_provided=body.information_sheet_provided,
             profile_updates=body.profile_updates,
+            additional_notes=body.additional_notes,
+            counselor_id=body.counselor_id,
+            counseled_at=body.followed_up_at,
         )
     )
 
@@ -407,7 +529,6 @@ async def record_tracing_report(
             fee_category=body.fee_category,
             delivery_method=body.delivery_method,
             content=body.content,
-            follow_up_id=body.follow_up_id,
         )
     )
 
@@ -459,26 +580,6 @@ async def verify_statutory_record(
     """
     return await use_cases.verify_statutory_record.execute(
         VerifyStatutoryRecordQuery(corporate_id=corporate_id, record_id=record_id)
-    )
-
-
-@router.get(
-    "/patients/{patient_id}/medication-histories/follow-up-sources",
-    response_model=tuple[FollowUpSourceDto, ...],
-)
-async def get_follow_up_sources(
-    corporate_id: str,
-    patient_id: str,
-    store_id: Annotated[str, Query()],
-    use_cases: MedicationHistoryUseCasesDep,
-) -> tuple[FollowUpSourceDto, ...]:
-    """独立フォローアップの参照候補を本文なしで返す。"""
-    return await use_cases.get_follow_up_sources.execute(
-        GetFollowUpSourcesQuery(
-            corporate_id=corporate_id,
-            patient_id=patient_id,
-            store_id=store_id,
-        )
     )
 
 

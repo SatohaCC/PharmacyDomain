@@ -7,6 +7,7 @@ from app.application.access_control.store_access import (
     StoreOperationBoundary,
 )
 from app.application.common.organization_lock import OrganizationLock
+from app.domain.care_event.event import Event
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
@@ -44,6 +45,9 @@ class ClinicalStoreWriteGuard:
                 if is_new
                 else StoreOperation.RECORD_DISPENSING
             )
+        elif isinstance(aggregate, Event):
+            permission = Permission.MANAGE_EVENT
+            operation = StoreOperation.CREATE_EVENT
         elif isinstance(aggregate, CoverageSelectionRecord):
             permission = Permission.MANAGE_RECEPTION
             operation = StoreOperation.RECORD_RECEPTION

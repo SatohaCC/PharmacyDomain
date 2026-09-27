@@ -54,6 +54,7 @@ _EXPECTED_INGEST_ROW_COUNTS: dict[str, int] = {
     "receptions": 1,
     "prescriptions": 1,
     "dispensing_processes": 1,
+    "care_events": 0,
     "medication_history_records": 0,
 }
 

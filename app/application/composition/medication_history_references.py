@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import datetime
 
 from app.application.common.exceptions import NotFoundError
 from app.application.composition.reference_support import load_store_in_corporate
@@ -16,17 +17,21 @@ from app.application.medication_history.exceptions import (
 from app.application.medication_history.inputs import BillingAdditionInput
 from app.application.medication_history.reference import (
     DispensingReferenceBoundary,
+    MedicationHistoryEventOccurrenceBoundary,
     ReceptionMedicationHistoryBoundary,
     ReceptionMedicationHistorySource,
     StaffQualificationBoundary,
     StatutoryRecordSourceBoundary,
     StoreReferenceBoundary,
 )
+from app.domain.care_event.primitives import EventId, EventOccurredTimestamp
+from app.domain.care_event.repository import EventRepository
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.primitives import DispensingId
 from app.domain.dispensing.repository import DispensingProcessRepository
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.medication_history.exceptions import MedicationHistoryDomainError
 from app.domain.medication_history.primitives import MedicationHistoryRecordId
 from app.domain.medication_history.value_objects import (
     StatutoryInquiryRecord,
@@ -119,6 +124,7 @@ class ReceptionMedicationHistorySourceAdapter(ReceptionMedicationHistoryBoundary
             patient_id=reception.patient_id,
             prescription_id=reception.prescription_id,
             dispensing_id=reception.dispensing_id,
+            event_id=reception.event_id,
             medication_history_id=reception.medication_history_id,
             source_system="NSIPS" if source_data is not None else None,
             imported_at=source_data.imported_at if source_data is not None else None,
@@ -169,6 +175,40 @@ class ReceptionMedicationHistorySourceAdapter(ReceptionMedicationHistoryBoundary
         await self._repository.save(
             replace(reception, medication_history_id=medication_history_id)
         )
+
+
+class MedicationHistoryEventOccurrenceAdapter(MedicationHistoryEventOccurrenceBoundary):
+    """Event Repositoryを使い、時刻不明のEventだけ発生日時を確定する。"""
+
+    def __init__(self, repository: EventRepository) -> None:
+        self._repository = repository
+
+    async def resolve_unknown_occurrence(
+        self,
+        *,
+        corporate_id: CorporateId,
+        event_id: EventId,
+        occurred_at: datetime | None,
+    ) -> None:
+        event = await self._repository.get(
+            corporate_id=corporate_id,
+            event_id=event_id,
+        )
+        if event is None:
+            raise MedicationHistoryDomainError("薬歴に関連するEventが見つかりません。")
+        if event.occurred_at is None:
+            if occurred_at is None:
+                raise MedicationHistoryDomainError(
+                    "時刻不明のEventを含む薬歴の確定には、確認済みの発生日時が必要です。"
+                )
+            await self._repository.save(
+                event.resolve_unknown_occurrence(EventOccurredTimestamp(occurred_at))
+            )
+            return
+        if occurred_at is not None:
+            raise MedicationHistoryDomainError(
+                "登録済みのEvent発生日時は変更できません。"
+            )
 
 
 class CounselorQualificationAdapter(StaffQualificationBoundary):

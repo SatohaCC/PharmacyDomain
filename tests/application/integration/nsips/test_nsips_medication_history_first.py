@@ -9,6 +9,9 @@ from decimal import Decimal
 import pytest
 
 from app.application.access_control.policy import AuthorizationService
+from app.application.composition.care_event_references import (
+    MedicationHistoryEventReferenceAdapter,
+)
 from app.application.composition.medication_history_references import (
     CounselorQualificationAdapter,
     DispensingSourceAdapter,
@@ -38,6 +41,14 @@ from app.application.medication_history.start_medication_history import (
 from app.application.patient.get_patient import GetPatientQuery, GetPatientUseCase
 from app.application.patient.register_patient import RegisterPatientUseCase
 from app.application.reception.exceptions import ReceptionCoverageSelectionError
+from app.domain.care_event.event import Event
+from app.domain.care_event.primitives import (
+    EventCreatedTimestamp,
+    EventOccurredTimestamp,
+    EventTypeId,
+    EventTypeName,
+    EventTypeStandardCode,
+)
 from app.domain.coverage.exceptions import CoveragePeriodConflictError
 from app.domain.dispensing.exceptions import DispensingOutsidePrescriptionPeriodError
 from app.domain.dispensing.primitives import DispensingId
@@ -52,6 +63,10 @@ from tests.application.integration.nsips.helpers import (
     execute_structured_test_command,
 )
 from tests.application.medication_history.helpers import create_resolved_actor
+from tests.fakes.fake_medication_history_store_operations import (
+    FakeMedicationHistoryStoreOperations,
+)
+from tests.fakes.in_memory_event_repository import InMemoryEventRepository
 
 # ==============================================================================
 # 1. 合成入力の構文解析回帰（対象NSIPS版の仕様適合を示さない）
@@ -238,86 +253,11 @@ def test_処方日と調剤日の独立マッピング() -> None:
     assert disp_cmd.dispensed_date == date(2026, 9, 22)
 
 
-def test_加算は構造化情報に保ち処方要約をSOAPへ写さない() -> None:
-    """NSIPS由来の加算は構造化し、処方・調剤内容はSOAPへ自動転記しない。"""
+def test_NSIPS入力から薬歴起票Commandを直接生成しない() -> None:
+    """受信したNSIPS情報はReceptionに保ち、薬剤師記載を自動生成しない。"""
     mapper = NsipsDataMapper()
-    bundle = NsipsBundle(
-        header_version="1.0",
-        patient=NsipsPatientInfo(
-            external_patient_id="P-1001",
-            kanji_name="山田太郎",
-            kana_name="ヤマダタロウ",
-            birth_date=date(1980, 1, 1),
-            gender="1",
-        ),
-        prescription=NsipsPrescriptionInfo(
-            document_number="DOC-001",
-            issued_date=date(2026, 9, 20),
-            institution_code="1310001",
-            institution_name="中央診療所",
-            department_code="01",
-            department_name="内科",
-            doctor_name="佐藤医師",
-            rps=(
-                NsipsRpInfo(
-                    rp_number=1,
-                    group_name="内服",
-                    instructions="1日3回毎食後",
-                    dispensing_quantity=14,
-                    medicines=(
-                        NsipsMedicineInfo(
-                            medicine_code="610406001",
-                            medicine_name="アムロジピン",
-                            dosage=Decimal("1"),
-                            unit="錠",
-                        ),
-                    ),
-                    preparation_method="PACKAGE_UNIT",
-                ),
-            ),
-        ),
-        dispensed_date=date(2026, 9, 22),
-        insurance=NsipsInsuranceInfo(
-            insurer_number="138001",
-            insured_symbol="記号A",
-            insured_number="番号123",
-        ),
-        additions=(
-            NsipsAdditionInfo(
-                code="140000110",
-                name="特定薬剤管理指導加算２",
-                points=100,
-                quantity=1,
-            ),
-        ),
-    )
-
-    hist_cmd = mapper.to_medication_history_command(
-        bundle,
-        corporate_id="corp-1",
-        store_id="store-1",
-        dispensing_id="disp-1",
-    )
-    assert hist_cmd.billing_additions is not None
-    assert len(hist_cmd.billing_additions) == 1
-    assert hist_cmd.billing_additions[0].code == "140000110"
-    assert hist_cmd.billing_additions[0].name == "特定薬剤管理指導加算２"
-
-    # SOAP Objectiveにも受信した処方・調剤の要約を自動生成しない。
-    obj_text = "\n".join(note.text for note in hist_cmd.soap.objective)
-    assert "特定薬剤管理指導加算２" not in obj_text
-    assert "保険情報:" not in obj_text
-    assert "アムロジピン" not in obj_text
-    assert "1日3回毎食後" not in obj_text
-    assert "一包化" not in obj_text
-    assert "PACKAGE_UNIT" not in obj_text
-    assert hist_cmd.method is None
-    assert hist_cmd.handbook_status is None
-    assert hist_cmd.residual_drug is None
-    assert hist_cmd.information_sheet_provided is None
-    assert getattr(hist_cmd, "source_system", None) == "NSIPS"
-    assert getattr(hist_cmd.billing_additions[0], "points", None) == 100
-    assert getattr(hist_cmd.billing_additions[0], "quantity", None) == 1
+    assert not hasattr(mapper, "to_medication_history_command")
+    assert not hasattr(NsipsDataMapper, "to_medication_history_command")
 
 
 # ==============================================================================
@@ -390,6 +330,23 @@ async def test_tc12_合成入力による受付取込は薬歴を作らず取込
     # 5. 薬剤師が本文を記載して初回保存した時点でのみ薬歴を作り、
     #    受付の由来情報を引き継ぐ。記載者はActor由来で、指導実績とは別。
     reception_id = str(reception.id.value)
+    event = Event.create(
+        event_type_id=EventTypeId.generate(),
+        event_type_standard_code=EventTypeStandardCode("prescription_reception"),
+        event_type_name=EventTypeName("処方箋受付"),
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        patient_id=PatientId.parse(result.patient_id),
+        occurred_at=EventOccurredTimestamp(fixture.clock.now()),
+        created_at=EventCreatedTimestamp(fixture.clock.now()),
+        reception_id=reception.id,
+        prescription_id=PrescriptionId.parse(result.prescription_id),
+        dispensing_id=DispensingId.parse(result.dispensing_id),
+    )
+    reception = replace(reception, event_id=event.id)
+    await fixture.reception_repo.save(reception)
+    event_repository = InMemoryEventRepository()
+    event_repository.items[event.id] = event
     start = StartMedicationHistoryUseCase(
         repository=fixture.medication_history_repo,
         corporate_access=CorporateAccessService(
@@ -401,6 +358,9 @@ async def test_tc12_合成入力による受付取込は薬歴を作らず取込
         staff_qualification=CounselorQualificationAdapter(fixture.staff_repo),
         counselor_service=CounselorQualificationService(),
         unit_of_work=fixture.unit_of_work,
+        event_reference=MedicationHistoryEventReferenceAdapter(event_repository),
+        store_operations=FakeMedicationHistoryStoreOperations(),
+        clock=fixture.clock,
         reception_source=ReceptionMedicationHistorySourceAdapter(
             fixture.reception_repo
         ),
@@ -408,6 +368,7 @@ async def test_tc12_合成入力による受付取込は薬歴を作らず取込
     start_command = StartMedicationHistoryCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
+        event_id=str(event.id.value),
         dispensing_id=result.dispensing_id,
         reception_id=reception_id,
         method=None,

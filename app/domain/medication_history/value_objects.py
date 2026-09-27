@@ -839,7 +839,6 @@ class TracingReport(Entity[TracingReportId]):
     fee_category: TracingReportFeeCategory
     delivery_method: TracingReportDeliveryMethod
     content: TracingReportContent
-    follow_up_id: FollowUpId | None = None
     response: TracingReportResponse | None = None
 
     _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
@@ -852,7 +851,6 @@ class TracingReport(Entity[TracingReportId]):
         "fee_category": "算定区分",
         "delivery_method": "提供手段",
         "content": "提供内容",
-        "follow_up_id": "契機フォローアップID",
         "response": "医師返答",
     }
 

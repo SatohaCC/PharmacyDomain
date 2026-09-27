@@ -14,7 +14,6 @@ from typing import Any
 import pytest
 
 import app.domain
-from app.application.medication_history.get_medication_history import FollowUpDto
 from app.domain.corporate.corporate import Corporate
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.exceptions import VerificationStatusMismatchError
@@ -34,7 +33,6 @@ from app.domain.medication_history.medication_history_record import (
 from app.domain.medication_history.primitives import (
     FinalizedTimestamp,
     FollowUpRecordedTimestamp,
-    MedicationHistoryRecordKind,
     MedicationHistoryReviewResult,
     MedicationHistorySourceSystem,
     MedicationHistoryStatus,
@@ -107,7 +105,6 @@ from app.infrastructure.postgres.codec import (
 )
 from tests.factories.dispensing_factory import create_dispensing, verify_passed
 from tests.factories.medication_history_factory import (
-    create_follow_up,
     create_independent_follow_up_record,
     create_nsips_draft_record,
     create_record,
@@ -676,30 +673,17 @@ def test_TC24_薬歴集約のcodec往復と後方互換復元() -> None:
     assert "reviewed_by" not in reencoded
 
 
-def test_tc44_13_登録日時payloadの往復と旧フォローアップ子要素を復元する() -> None:
+def test_tc44_13_登録日時payloadの往復と現役payloadの入れ子記録廃止() -> None:
     recorded_at = FollowUpRecordedTimestamp(datetime(2026, 8, 25, 3, 0, tzinfo=UTC))
     record = dataclasses.replace(create_record(), recorded_at=recorded_at)
 
-    restored_record = decode_aggregate(
-        encode_aggregate(record), MedicationHistoryRecord
-    )
+    payload = encode_aggregate(record)
+    restored_record = decode_aggregate(payload, MedicationHistoryRecord)
 
     assert restored_record.recorded_at == recorded_at
-
-    follow_up = create_follow_up()
-    with_follow_up = dataclasses.replace(record, follow_ups=(follow_up,))
-    legacy_nested_payload = encode_aggregate(with_follow_up)
-    nested_payload = legacy_nested_payload["follow_ups"]
-    assert isinstance(nested_payload, list) and isinstance(nested_payload[0], dict)
-    nested_payload[0].pop("recorded_at", None)
-    nested_payload[0].pop("recorded_by", None)
-
-    restored_legacy = decode_aggregate(legacy_nested_payload, MedicationHistoryRecord)
-    dto = FollowUpDto.from_value(restored_legacy.follow_ups[0])
-
-    assert dto.recorded_at is None
-    assert dto.recorded_by is None
-    assert restored_legacy.follow_ups[0].followed_up_at == follow_up.followed_up_at
+    assert restored_record.event_id == record.event_id
+    assert "event_id" in payload
+    assert "follow_ups" not in payload
 
 
 def test_TC23_薬歴の未記録状態をcodec往復し旧payloadも復元する() -> None:
@@ -751,8 +735,8 @@ def test_tc21_取込下書きをcodec往復し旧payloadも読み込める() -> 
     assert legacy.counseled_at is not None
 
 
-def test_tc43_薬歴種別と参照元を往復し旧payloadを初回として復元する() -> None:
-    """独立 FOLLOW_UP は参照を保持し、旧 JSONB は INITIAL の既定値で読む。"""
+def test_tc43_独立した服薬記録はEventと任意の調剤情報を往復する() -> None:
+    """Event参照は必須で、処方・調剤情報はEvent種別によって省略できる。"""
     initial = create_record()
     follow_up = create_independent_follow_up_record(initial)
 
@@ -760,15 +744,8 @@ def test_tc43_薬歴種別と参照元を往復し旧payloadを初回として�
         encode_aggregate(follow_up), MedicationHistoryRecord
     )
 
-    assert restored_follow_up.record_kind is MedicationHistoryRecordKind.FOLLOW_UP
-    assert restored_follow_up.source_record_id == initial.id
+    assert restored_follow_up.event_id == follow_up.event_id
+    assert restored_follow_up.event_id != initial.event_id
+    assert restored_follow_up.dispensing_id is None
+    assert restored_follow_up.prescription_id is None
     assert restored_follow_up.store_id == follow_up.store_id
-
-    legacy_payload = encode_aggregate(initial)
-    legacy_payload.pop("record_kind")
-    legacy_payload.pop("source_record_id")
-    restored_initial = decode_aggregate(legacy_payload, MedicationHistoryRecord)
-
-    assert restored_initial.record_kind is MedicationHistoryRecordKind.INITIAL
-    assert restored_initial.source_record_id is None
-    assert restored_initial.soap == initial.soap

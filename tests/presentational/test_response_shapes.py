@@ -101,6 +101,86 @@ def test_応答モデルの一覧が_空でない() -> None:
     assert len(models) > 20
 
 
+def test_tc45_60_Event公開APIが_OpenAPIに反映される() -> None:
+    """承認されたEvent・種別・薬歴入口を生成クライアントへ公開する。"""
+    openapi = create_app().openapi()
+    required_routes = {
+        ("get", "/corporates/{corporate_id}/event-definitions"),
+        ("post", "/corporates/{corporate_id}/event-definitions"),
+        (
+            "patch",
+            "/corporates/{corporate_id}/event-definitions/{event_type_id}",
+        ),
+        ("post", "/corporates/{corporate_id}/events"),
+        ("get", "/corporates/{corporate_id}/events/{event_id}"),
+        (
+            "get",
+            "/corporates/{corporate_id}/patients/{patient_id}/events/related-candidates",
+        ),
+        (
+            "post",
+            "/corporates/{corporate_id}/events/{event_id}/medication-history",
+        ),
+    }
+
+    assert required_routes <= {
+        (method, path)
+        for path, methods in openapi["paths"].items()
+        for method in methods
+    }
+
+
+def _request_schema(openapi: dict[str, Any], path: str) -> dict[str, Any]:
+    """Event作成のOpenAPI本文Schemaを返す。"""
+    assert path in openapi["paths"]
+    operation = openapi["paths"][path]["post"]
+    schema = operation["requestBody"]["content"]["application/json"]["schema"]
+    reference = schema.get("$ref")
+    if reference is not None:
+        name = reference.rsplit("/", maxsplit=1)[-1]
+        schema = openapi["components"]["schemas"][name]
+    return typing.cast(dict[str, Any], schema)
+
+
+def test_tc45_11_Event作成では発生日時が必須である() -> None:
+    openapi = create_app().openapi()
+    schema = _request_schema(openapi, "/corporates/{corporate_id}/events")
+
+    assert "occurred_at" in schema.get("required", [])
+
+
+def test_tc45_12_Event作成本文から登録日時とActorを指定できない() -> None:
+    openapi = create_app().openapi()
+    schema = _request_schema(openapi, "/corporates/{corporate_id}/events")
+    properties = set(schema.get("properties", {}))
+
+    assert not {"created_at", "actor", "actor_id"} & properties
+
+
+def test_tc45_60_Event作成と取得の応答にEvent情報と薬歴有無がある() -> None:
+    openapi = create_app().openapi()
+    path = "/corporates/{corporate_id}/events"
+    assert path in openapi["paths"]
+    operation = openapi["paths"][path]["post"]
+    response_schema = operation["responses"]["201"]["content"]["application/json"][
+        "schema"
+    ]
+    reference = response_schema.get("$ref")
+    if reference is not None:
+        name = reference.rsplit("/", maxsplit=1)[-1]
+        response_schema = openapi["components"]["schemas"][name]
+
+    assert {
+        "event_id",
+        "event_type_id",
+        "event_type_name",
+        "occurred_at",
+        "created_at",
+        "related_event_id",
+        "medication_history_id",
+    } <= set(response_schema.get("properties", {}))
+
+
 @pytest.mark.parametrize(
     ("route", "model"), _response_models(), ids=lambda item: str(item)
 )

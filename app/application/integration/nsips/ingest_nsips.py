@@ -61,7 +61,6 @@ from app.domain.medication_history.medication_history_record import (
 from app.domain.medication_history.primitives import (
     ExternalCorrectionTimestamp,
     MedicationHistoryRecordId,
-    MedicationHistoryRecordKind,
 )
 from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.value_objects import ExternalPrescriptionCorrection
@@ -780,6 +779,7 @@ class IngestNsipsUseCase:
                 if (
                     matching_record is not None
                     and matching_record.prescription_id == existing_prescription.id
+                    and matching_record.dispensing_id is not None
                 ):
                     matching_history_id_str = str(matching_record.id.value)
                     matching_dispensing_id_str = str(
@@ -1162,6 +1162,9 @@ class IngestNsipsUseCase:
         if not self._is_quantity_only_correction(existing, incoming_rps):
             return False
 
+        if record.dispensing_id is None:
+            return False
+
         dispensing = await self._dispensing_repo.get(
             corporate_id=existing.corporate_id,
             dispensing_id=record.dispensing_id,
@@ -1327,7 +1330,7 @@ class IngestNsipsUseCase:
                     item
                     for item in histories
                     if item.prescription_id == existing.id
-                    and item.record_kind is MedicationHistoryRecordKind.INITIAL
+                    and item.dispensing_id is not None
                 ),
                 None,
             )
@@ -1348,9 +1351,13 @@ class IngestNsipsUseCase:
                 if incoming_additions != existing_additions:
                     differences.append("additions変更")
 
-                dispensing = await self._dispensing_repo.get(
-                    corporate_id=corporate_id,
-                    dispensing_id=matching_history.dispensing_id,
+                dispensing = (
+                    await self._dispensing_repo.get(
+                        corporate_id=corporate_id,
+                        dispensing_id=matching_history.dispensing_id,
+                    )
+                    if matching_history.dispensing_id is not None
+                    else None
                 )
                 if dispensing is not None:
                     if (

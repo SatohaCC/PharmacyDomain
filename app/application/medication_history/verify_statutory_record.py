@@ -21,6 +21,7 @@ from app.application.medication_history.reference import (
 )
 from app.application.medication_history.support import load_record_or_raise
 from app.domain.corporate.primitives import CorporateId
+from app.domain.medication_history.exceptions import MedicationHistoryDomainError
 from app.domain.medication_history.primitives import (
     MedicationHistoryRecordId,
     StatutoryRecordBlocker,
@@ -152,6 +153,10 @@ class VerifyStatutoryRecordUseCase:
             corporate_id=corporate_id,
             record_id=MedicationHistoryRecordId.parse(query.record_id),
         )
+        if record.dispensing_id is None or record.prescription_id is None:
+            raise MedicationHistoryDomainError(
+                "調剤録の代替確認は処方箋受付Eventに関連する薬歴だけで行えます。"
+            )
         dispensing = await self._dispensing_source.get_or_raise(
             corporate_id=corporate_id,
             dispensing_id=record.dispensing_id,

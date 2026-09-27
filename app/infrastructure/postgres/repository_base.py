@@ -372,9 +372,11 @@ class PostgresRepositoryBase:
         )
         next_version = 1 if expected_version is None else expected_version + 1
         assignments = {**values, "version": next_version, "updated_at": now}
+        insert_values = {**assignments}
+        insert_values.setdefault("created_at", now)
 
         conflict_elements = [table.c[name] for name in conflict_columns]
-        statement = postgres_insert(table).values(**assignments, created_at=now)
+        statement = postgres_insert(table).values(**insert_values)
         if expected_version is None:
             statement = statement.on_conflict_do_nothing(
                 index_elements=conflict_elements

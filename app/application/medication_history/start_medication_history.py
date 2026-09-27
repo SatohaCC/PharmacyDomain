@@ -7,6 +7,11 @@ from datetime import datetime
 
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission, ResolvedActorContext
+from app.application.access_control.store_access import (
+    StoreOperation,
+    StoreOperationBoundary,
+)
+from app.application.common.clock import Clock
 from app.application.common.exceptions import AuthorizationError, NotFoundError
 from app.application.common.optional_conversion import build_optional
 from app.application.common.unit_of_work import UnitOfWork
@@ -15,6 +20,7 @@ from app.application.medication_history.get_medication_history import (
 )
 from app.application.medication_history.inputs import (
     BillingAdditionInput,
+    CategorizedNoteInput,
     HandbookStatusInput,
     ProfileUpdateInput,
     ResidualDrugInput,
@@ -22,22 +28,25 @@ from app.application.medication_history.inputs import (
 )
 from app.application.medication_history.reference import (
     DispensingReferenceBoundary,
+    MedicationHistoryEventBoundary,
     ReceptionMedicationHistoryBoundary,
     StaffQualificationBoundary,
     StoreReferenceBoundary,
 )
 from app.application.medication_history.support import (
+    build_additional_notes,
     build_handbook_status,
     build_profile_updates,
     build_residual_drug,
     build_soap,
     parse_enum,
 )
+from app.domain.care_event.primitives import EventId
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.primitives import DispensingId
 from app.domain.medication_history.exceptions import (
+    MedicationHistoryAlreadyExistsError,
     MedicationHistoryDomainError,
-    SoapContentRequiredError,
 )
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
@@ -48,6 +57,7 @@ from app.domain.medication_history.primitives import (
     CounselingMethod,
     CounselingTimestamp,
     MedicationHistoryImportTimestamp,
+    MedicationHistoryRecordedTimestamp,
     MedicationHistorySourceSystem,
 )
 from app.domain.medication_history.repository import MedicationHistoryRepository
@@ -59,11 +69,12 @@ from app.domain.store.primitives import StoreId
 
 @dataclass(frozen=True, kw_only=True)
 class StartMedicationHistoryCommand:
-    """薬歴作成の入力データ。指導日時は含めない。"""
+    """Eventに対する薬歴作成入力。指導日時は任意の明示値とする。"""
 
     corporate_id: str
     store_id: str
-    dispensing_id: str
+    event_id: str
+    dispensing_id: str | None
     method: str | None
     soap: SoapInput
     handbook_status: HandbookStatusInput | None
@@ -71,6 +82,7 @@ class StartMedicationHistoryCommand:
     information_sheet_provided: bool | None = None
     profile_updates: ProfileUpdateInput | None = None
     billing_additions: tuple[BillingAdditionInput, ...] | None = None
+    additional_notes: tuple[CategorizedNoteInput, ...] = ()
     source_system: str | None = None
     imported_at: datetime | None = None
     counselor_id: str | None = None
@@ -90,6 +102,9 @@ class StartMedicationHistoryUseCase:
         staff_qualification: StaffQualificationBoundary,
         counselor_service: CounselorQualificationService,
         unit_of_work: UnitOfWork,
+        event_reference: MedicationHistoryEventBoundary,
+        store_operations: StoreOperationBoundary,
+        clock: Clock,
         reception_source: ReceptionMedicationHistoryBoundary | None = None,
     ) -> None:
         self._repository = repository
@@ -99,6 +114,9 @@ class StartMedicationHistoryUseCase:
         self._staff_qualification = staff_qualification
         self._counselor_service = counselor_service
         self._unit_of_work = unit_of_work
+        self._event_reference = event_reference
+        self._store_operations = store_operations
+        self._clock = clock
         self._reception_source = reception_source
 
     async def execute(
@@ -106,9 +124,8 @@ class StartMedicationHistoryUseCase:
     ) -> MedicationHistoryDto:
         """境界と集約外の不変条件を確認して下書きを保存する。
 
-        **患者・処方箋は調剤セッションから決まる。** Commandで受け取ると、調剤と
-        食い違う薬歴を作れてしまう。ここから取る限り調剤との一致は
-        **構築の形で保証される**ので、判定を重ねて置かない。
+        Eventから患者・処方箋・調剤を引く。Eventを持たない薬歴や、本文から
+        関連IDだけを差し替えた薬歴は作れない。
 
         記載者は信頼済みActorから決める。指導実績は明示入力された場合だけ記録し、
         記載者や保存時刻から推定しない。
@@ -118,22 +135,101 @@ class StartMedicationHistoryUseCase:
             corporate_id=corporate_id,
             permission=Permission.MANAGE_MEDICATION_HISTORY,
         )
+        event_id = EventId.parse(command.event_id)
+        event = await self._event_reference.get(
+            corporate_id=corporate_id,
+            event_id=event_id,
+        )
+        if event is None:
+            raise NotFoundError(
+                "指定されたEventが見つかりません。", code="EVENT_NOT_FOUND"
+            )
+        if event.corporate_id != corporate_id:
+            raise NotFoundError(
+                "指定されたEventが見つかりません。", code="EVENT_NOT_FOUND"
+            )
         store_id = StoreId.parse(command.store_id)
+        if event.store_id != store_id:
+            raise MedicationHistoryDomainError(
+                "薬歴の店舗は関連Eventの店舗と一致させてください。"
+            )
         await self._store_reference.require_exists(
             corporate_id=corporate_id, store_id=store_id
         )
-        dispensing = await self._dispensing_reference.get_or_raise(
+        await self._store_operations.require_allowed(
             corporate_id=corporate_id,
-            dispensing_id=DispensingId.parse(command.dispensing_id),
+            store_id=store_id,
+            operation=StoreOperation.START_HISTORY,
         )
-        if dispensing.store_id != store_id:
+        existing = await self._repository.get_by_event(
+            corporate_id=corporate_id,
+            event_id=event_id,
+        )
+        if existing is not None:
+            raise MedicationHistoryAlreadyExistsError()
+        is_prescription_reception = (
+            event.event_type_standard_code == "prescription_reception"
+        )
+        if event.reception_id is not None and not is_prescription_reception:
             raise MedicationHistoryDomainError(
-                "初回薬歴の店舗は調剤セッションの店舗と一致させてください。"
+                "受付に関連付けたEventは処方箋受付種別である必要があります。"
+            )
+        if command.dispensing_id is not None and not is_prescription_reception:
+            raise MedicationHistoryDomainError(
+                "調剤セッションIDは処方箋受付Eventの薬歴だけに指定できます。"
+            )
+        history_dispensing_id = (
+            event.dispensing_id if is_prescription_reception else None
+        )
+        history_prescription_id = (
+            event.prescription_id if is_prescription_reception else None
+        )
+        command_dispensing_id = (
+            DispensingId.parse(command.dispensing_id)
+            if command.dispensing_id is not None
+            else None
+        )
+        if (
+            command_dispensing_id is not None
+            and command_dispensing_id != history_dispensing_id
+        ):
+            raise MedicationHistoryDomainError(
+                "薬歴の調剤セッションは関連Eventと一致させてください。"
+            )
+        dispensing = (
+            await self._dispensing_reference.get_or_raise(
+                corporate_id=corporate_id,
+                dispensing_id=history_dispensing_id,
+            )
+            if history_dispensing_id is not None
+            else None
+        )
+        if dispensing is not None and (
+            dispensing.store_id != store_id
+            or dispensing.patient_id != event.patient_id
+            or dispensing.prescription_id != history_prescription_id
+        ):
+            raise MedicationHistoryDomainError(
+                "Eventと調剤セッションの患者・店舗・処方が一致しません。"
             )
         source_system = command.source_system
         imported_at_value = command.imported_at
         addition_inputs = command.billing_additions or ()
-        if command.reception_id is not None:
+        if event.reception_id is None and (
+            source_system is not None
+            or imported_at_value is not None
+            or command.billing_additions is not None
+        ):
+            raise MedicationHistoryDomainError(
+                "受付由来情報はReception Eventからだけ引き継げます。"
+            )
+        if command.reception_id is not None and command.reception_id != (
+            str(event.reception_id.value) if event.reception_id is not None else None
+        ):
+            raise MedicationHistoryDomainError(
+                "薬歴の受付は関連Eventと一致させてください。"
+            )
+        if event.reception_id is not None:
             self._unit_of_work.ensure_active()
             if self._reception_source is None:
                 raise NotFoundError(
@@ -142,18 +238,22 @@ class StartMedicationHistoryUseCase:
             reception_source = await self._reception_source.get_for_initial_save(
                 corporate_id=corporate_id,
                 store_id=store_id,
-                reception_id=command.reception_id,
+                reception_id=str(event.reception_id.value),
             )
             if reception_source is None:
                 raise NotFoundError(
                     "指定された受付が見つかりません。", code="RECEPTION_NOT_FOUND"
                 )
+            if reception_source.event_id != event.id:
+                raise MedicationHistoryDomainError(
+                    "受付と薬歴起票のEventが一致しません。"
+                )
             if (
-                reception_source.patient_id != dispensing.patient_id
-                or reception_source.dispensing_id != dispensing.id
+                reception_source.patient_id != event.patient_id
+                or reception_source.dispensing_id != event.dispensing_id
                 or (
                     reception_source.prescription_id is not None
-                    and reception_source.prescription_id != dispensing.prescription_id
+                    and reception_source.prescription_id != event.prescription_id
                 )
             ):
                 raise MedicationHistoryDomainError(
@@ -236,15 +336,14 @@ class StartMedicationHistoryUseCase:
         )
 
         soap = build_soap(command.soap)
-        if not soap.has_content:
-            raise SoapContentRequiredError()
 
         record = MedicationHistoryRecord.start(
+            event_id=event.id,
             corporate_id=corporate_id,
             store_id=store_id,
-            patient_id=dispensing.patient_id,
-            dispensing_id=dispensing.id,
-            prescription_id=dispensing.prescription_id,
+            patient_id=event.patient_id,
+            dispensing_id=history_dispensing_id,
+            prescription_id=history_prescription_id,
             counselor_id=counselor_id,
             counseled_at=counseled_at,
             method=(
@@ -266,17 +365,19 @@ class StartMedicationHistoryUseCase:
             information_sheet_provided=command.information_sheet_provided,
             profile_updates=build_profile_updates(command.profile_updates),
             billing_additions=additions,
+            additional_notes=build_additional_notes(command.additional_notes),
             source_system=build_optional(source_system, MedicationHistorySourceSystem),
             imported_at=imported_at,
             recorded_by=recorded_by,
+            recorded_at=MedicationHistoryRecordedTimestamp(self._clock.now()),
         )
         await self._repository.save(record)
-        if command.reception_id is not None:
+        if event.reception_id is not None:
             assert self._reception_source is not None
             await self._reception_source.associate_medication_history(
                 corporate_id=corporate_id,
                 store_id=store_id,
-                reception_id=command.reception_id,
+                reception_id=str(event.reception_id.value),
                 medication_history_id=record.id,
             )
-        return MedicationHistoryDto.from_entity(record)
+        return MedicationHistoryDto.from_entity(record, event=event)
