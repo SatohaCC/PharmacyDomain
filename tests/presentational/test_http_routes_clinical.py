@@ -37,6 +37,9 @@ from app.application.composition.care_event_references import (
 )
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.application.dispensing.get_dispensing import GetDispensingUseCase
+from app.application.medication_history.correct_medication_history_fact import (
+    CorrectMedicationHistoryFactUseCase,
+)
 from app.application.medication_history.get_medication_history import (
     GetFollowUpSourceUseCase,
 )
@@ -56,6 +59,7 @@ from app.domain.care_event.event_definition import EventDefinition
 from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
 from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history.primitives import StatutoryDispensingRecordItem
+from app.domain.medication_history.services import CounselorQualificationService
 from app.domain.medication_history.value_objects import SoapRecord
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import (
@@ -107,6 +111,7 @@ from tests.fakes.in_memory_dispensing_process_repository import (
 from tests.fakes.in_memory_event_definition_repository import (
     InMemoryEventDefinitionRepository,
 )
+from tests.fakes.null_unit_of_work import NullUnitOfWork
 from tests.fakes.stub_actor_context_provider import (
     VALID_TOKEN,
     StubActorContextProvider,
@@ -605,6 +610,17 @@ def history_client(
         update_draft=history_fixture.update_draft,
         finalize=history_fixture.finalize,
         amend=history_fixture.amend,
+        correct_fact=CorrectMedicationHistoryFactUseCase(
+            record_repository=history_fixture.record_repository,
+            profile_repository=history_fixture.profile_repository,
+            corporate_access=history_fixture.corporate_access,
+            unit_of_work=NullUnitOfWork(),
+            staff_qualification=history_fixture.staff_qualification,
+            counselor_service=CounselorQualificationService(),
+            category_catalog_repository=history_fixture.category_catalog_repository,
+            store_operations=history_fixture.store_operations,
+            clock=history_fixture.clock,
+        ),
         get=history_fixture.get,
         get_follow_up_source=GetFollowUpSourceUseCase(
             history_fixture.record_repository,

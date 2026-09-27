@@ -162,8 +162,9 @@ class VerifyStatutoryRecordUseCase:
             dispensing_id=record.dispensing_id,
         )
         staff_ids = {dispensing.dispenser_id}
-        if record.counselor_id is not None:
-            staff_ids.add(record.counselor_id)
+        counselor_id = record.effective_facts.counselor_id
+        if counselor_id is not None:
+            staff_ids.add(counselor_id)
         source = await self._statutory_source.build(
             corporate_id=corporate_id,
             patient_id=record.patient_id,

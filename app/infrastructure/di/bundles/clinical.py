@@ -57,6 +57,9 @@ from app.application.medication_history.category_catalog import (
     GetCategoryCatalogUseCase,
     UpdateCategoryCatalogUseCase,
 )
+from app.application.medication_history.correct_medication_history_fact import (
+    CorrectMedicationHistoryFactUseCase,
+)
 from app.application.medication_history.finalize_medication_history import (
     FinalizeMedicationHistoryUseCase,
 )
@@ -265,6 +268,7 @@ class MedicationHistoryUseCases:
     update_draft: UpdateMedicationHistoryDraftUseCase
     finalize: FinalizeMedicationHistoryUseCase
     amend: AmendMedicationHistoryUseCase
+    correct_fact: CorrectMedicationHistoryFactUseCase
     get: GetMedicationHistoryUseCase
     get_follow_up_source: GetFollowUpSourceUseCase
     list_by_patient: ListMedicationHistoriesByPatientUseCase
@@ -339,6 +343,17 @@ def build_medication_history_use_cases(
             counselor_qualification,
             counselor,
             clock,
+        ),
+        correct_fact=CorrectMedicationHistoryFactUseCase(
+            record_repository=record_repository,
+            profile_repository=profile_repository,
+            corporate_access=corporate_access,
+            unit_of_work=unit_of_work,
+            staff_qualification=counselor_qualification,
+            counselor_service=counselor,
+            category_catalog_repository=catalog_repository,
+            store_operations=store_operations,
+            clock=clock,
         ),
         get=GetMedicationHistoryUseCase(
             record_repository,

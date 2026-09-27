@@ -23,6 +23,10 @@ from typing import (
 )
 
 from app.domain.foundation.primitives.base import DomainPrimitive
+from app.domain.medication_history.fact_correction import (
+    FACT_ARRAY_TYPES,
+    FACT_FIELD_TYPES,
+)
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
@@ -95,6 +99,38 @@ def decode_aggregate(
             for name, item in payload.items()
             if name not in {"reviewed_at", "reviewed_by"}
         }
+        raw_corrections = compatible_payload.get("fact_corrections")
+        if isinstance(raw_corrections, list):
+            prepared: list[object] = []
+            for index, raw in enumerate(raw_corrections):
+                if not isinstance(raw, dict):
+                    raise PersistenceMappingError(
+                        "薬歴の事実訂正はオブジェクトである必要があります。"
+                    )
+                field_name = raw.get("field_name")
+                value_type = (
+                    FACT_ARRAY_TYPES.get(field_name)
+                    if isinstance(field_name, str)
+                    else None
+                ) or (
+                    FACT_FIELD_TYPES.get(field_name)
+                    if isinstance(field_name, str)
+                    else None
+                )
+                if value_type is None:
+                    raise PersistenceMappingError(
+                        "薬歴の事実訂正対象が正しくありません。"
+                    )
+                item = dict(raw)
+                for key in ("before", "after"):
+                    if item.get(key) is not None:
+                        item[key] = _decode(
+                            item[key],
+                            value_type,
+                            context=f"MedicationHistoryRecord.fact_corrections[{index}].{key}",
+                        )
+                prepared.append(item)
+            compatible_payload = {**compatible_payload, "fact_corrections": prepared}
     decoded = _decode(
         compatible_payload, aggregate_type, context=aggregate_type.__name__
     )

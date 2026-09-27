@@ -544,3 +544,79 @@ async def test_HTTP経由の薬歴確定で頭書きが保存できなければ_
     assert refinalized.status is MedicationHistoryStatus.FINALIZED
     assert profile is not None
     assert len(profile.allergies) == 1
+
+
+async def test_tc39_事実訂正中の頭書き保存失敗は薬歴と監査も巻き戻す(
+    engine: AsyncEngine, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    """訂正後の再投影失敗が、追記イベントだけを残さないことを確認する。"""
+    fixture = await setup_clinical(engine, session_factory)
+    url = (
+        f"/corporates/{fixture.corporate_id.value}"
+        f"/medication-histories/{fixture.record.id.value}/corrections"
+    )
+    async with _client(fixture) as client:
+        finalized = await client.post(
+            f"/corporates/{fixture.corporate_id.value}"
+            f"/medication-histories/{fixture.record.id.value}/finalization",
+            json={"review_result": "assessment_and_instruction_recorded"},
+        )
+    assert finalized.status_code == 200, finalized.text
+    version_before = await _version(
+        engine, "medication_history_records", fixture.record.id.value
+    )
+    audit_count_before = await _count(engine, "operation_audits")
+    async with PostgresUnitOfWork(session_factory) as work:
+        repositories = PostgresRepositorySet.create(work)
+        record_before = await repositories.medication_history.get(
+            corporate_id=fixture.corporate_id, record_id=fixture.record.id
+        )
+        profile_before = await repositories.patient_medical_profile.get_by_patient(
+            corporate_id=fixture.corporate_id,
+            patient_id=fixture.record.patient_id,
+        )
+    assert record_before is not None
+    assert profile_before is not None
+    correction_route = (
+        "/corporates/{corporate_id}/medication-histories/{record_id}/corrections"
+    )
+    assert "post" in fixture.app.openapi()["paths"].get(correction_route, {}), (
+        "事実訂正ルートが必要"
+    )
+    payload = {
+        "target": "information_sheet_provided",
+        "operation": "replace",
+        "value": True,
+        "reason": "患者への確認結果を訂正した。",
+    }
+
+    async with reject_profile_writes(engine), _client(fixture) as client:
+        failed = await client.post(url, json=payload)
+
+    assert failed.status_code == 500, failed.text
+    assert (
+        await _version(engine, "medication_history_records", fixture.record.id.value)
+        == version_before
+    )
+    assert await _count(engine, "operation_audits") == audit_count_before
+    async with PostgresUnitOfWork(session_factory) as work:
+        repositories = PostgresRepositorySet.create(work)
+        record_after = await repositories.medication_history.get(
+            corporate_id=fixture.corporate_id, record_id=fixture.record.id
+        )
+        profile_after = await repositories.patient_medical_profile.get_by_patient(
+            corporate_id=fixture.corporate_id,
+            patient_id=fixture.record.patient_id,
+        )
+    assert record_after is not None
+    assert profile_after is not None
+    assert record_after.fact_corrections == ()
+    assert profile_after.allergies == profile_before.allergies
+
+    async with _client(fixture) as client:
+        retried = await client.post(url, json=payload)
+    assert retried.status_code == 201, retried.text
+    assert (
+        await _version(engine, "medication_history_records", fixture.record.id.value)
+        == version_before + 1
+    )
