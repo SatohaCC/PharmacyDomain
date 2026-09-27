@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -28,6 +28,9 @@ from app.domain.identity.staff_person_link import StaffPersonLink
 from app.domain.identity.user_account import UserAccount
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
+)
+from app.domain.medication_history.patient_medical_profile import (
+    PatientMedicalProfile,
 )
 from app.domain.medication_history.primitives import (
     MedicationHistoryRecordId,
@@ -54,6 +57,7 @@ from tests.factories.medication_history_factory import (
     create_allergy_intent,
     create_independent_follow_up_record,
     create_record,
+    create_retract_allergy_intent,
     finalize_record_with_review,
 )
 from tests.factories.staff_factory import create_staff
@@ -563,6 +567,215 @@ async def test_tc47_店舗オペレータは頭書きを再構築できず_法�
         "ペニシリン系",
         "そば",
     }
+
+
+async def _retroactive_follow_up_fixture(
+    engine: AsyncEngine,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> tuple[ClinicalFixture, MedicationHistoryRecord, StoreOperatorFixture]:
+    """Xの追加・取消を確定し、後着の別店舗入力に使う状態を作る。"""
+    clinical = await setup_clinical(engine, session_factory)
+    async with PostgresUnitOfWork(session_factory) as work:
+        repositories = PostgresRepositorySet.create(work)
+        source_draft = await repositories.medication_history.get(
+            corporate_id=clinical.corporate_id,
+            record_id=clinical.record.id,
+        )
+        assert source_draft is not None
+        source_draft = replace(
+            source_draft,
+            profile_updates=ProfileUpdateIntents(
+                new_allergies=(create_allergy_intent("遡及対象X"),)
+            ),
+        )
+        await repositories.medication_history.save(source_draft)
+        await work.commit()
+    source = await _finalize_initial(clinical, session_factory)
+    assert source.counseled_at is not None
+    operator = await _save_store_operator(
+        engine,
+        session_factory,
+        corporate_id=clinical.corporate_id,
+        clock=FakeClock(source.counseled_at.value + timedelta(days=4)),
+    )
+    later = finalize_record_with_review(
+        create_independent_follow_up_record(
+            source,
+            store_id=operator.store.id,
+            counseled_at=source.counseled_at.value + timedelta(days=2),
+            profile_updates=ProfileUpdateIntents(
+                retracted_allergies=(create_retract_allergy_intent("遡及対象X"),)
+            ),
+        )
+    )
+    async with PostgresUnitOfWork(session_factory) as work:
+        repositories = PostgresRepositorySet.create(work)
+        await save_history_with_event(repositories, later)
+        records = await repositories.medication_history.list_for_profile_projection(
+            corporate_id=source.corporate_id, patient_id=source.patient_id
+        )
+        existing_profile = await repositories.patient_medical_profile.get_by_patient(
+            corporate_id=source.corporate_id, patient_id=source.patient_id
+        )
+        assert existing_profile is not None
+        rebuilt_profile = PatientMedicalProfile.rebuild_from(
+            corporate_id=source.corporate_id,
+            patient_id=source.patient_id,
+            records=tuple(records),
+        )
+        await repositories.patient_medical_profile.save(
+            replace(rebuilt_profile, id=existing_profile.id)
+        )
+        await work.commit()
+    return clinical, source, operator
+
+
+@pytest.mark.asyncio
+async def test_tc38_04_別店舗の後着遡及確定は全店舗再構築と一致する(
+    engine: AsyncEngine, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    clinical, source, operator = await _retroactive_follow_up_fixture(
+        engine, session_factory
+    )
+    assert source.counseled_at is not None
+    followed_up_at = source.counseled_at.value + timedelta(days=1)
+    body = _follow_up_body(operator)
+    body["patient_id"] = str(source.patient_id.value)
+    body["followed_up_at"] = followed_up_at.isoformat()
+    body["profile_updates"] = {
+        "new_allergies": [
+            {"allergen": "遡及対象X", "reaction": "蕁麻疹", "severity": "moderate"}
+        ]
+    }
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=operator.app, raise_app_exceptions=False),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {VALID_TOKEN}"},
+    ) as client:
+        created = await client.post(
+            f"/corporates/{clinical.corporate_id.value}"
+            f"/medication-histories/{source.id.value}/follow-ups",
+            json=body,
+        )
+    assert created.status_code == 201, created.text
+    follow_up_id = created.json()["id"]
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=operator.app, raise_app_exceptions=False),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {VALID_TOKEN}"},
+    ) as client:
+        finalized = await client.post(
+            f"/corporates/{clinical.corporate_id.value}"
+            f"/medication-histories/{follow_up_id}/finalization",
+            json={
+                "review_result": "assessment_and_instruction_recorded",
+                "delay_reason": "後着した遡及フォローアップ。",
+            },
+        )
+    assert finalized.status_code == 200, finalized.text
+
+    async with PostgresUnitOfWork(session_factory) as work:
+        repositories = PostgresRepositorySet.create(work)
+        after_finalize = await repositories.patient_medical_profile.get_by_patient(
+            corporate_id=clinical.corporate_id, patient_id=source.patient_id
+        )
+    assert after_finalize is not None and after_finalize.allergies == ()
+    admin_app = await _save_corporate_admin(
+        engine, session_factory, corporate_id=clinical.corporate_id
+    )
+    rebuild_path = (
+        f"/corporates/{clinical.corporate_id.value}/patients/"
+        f"{source.patient_id.value}/medical-profile/rebuild"
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=admin_app, raise_app_exceptions=False),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {VALID_TOKEN}"},
+    ) as client:
+        rebuilt = await client.post(rebuild_path, json={"as_of": "2026-09-22"})
+    assert rebuilt.status_code == 200, rebuilt.text
+    async with PostgresUnitOfWork(session_factory) as work:
+        after_rebuild = await PostgresRepositorySet.create(
+            work
+        ).patient_medical_profile.get_by_patient(
+            corporate_id=clinical.corporate_id, patient_id=source.patient_id
+        )
+    assert after_rebuild is not None
+    assert after_rebuild.id == after_finalize.id
+    assert after_rebuild.allergies == after_finalize.allergies
+    assert after_rebuild.source_record_ids == after_finalize.source_record_ids
+
+
+@pytest.mark.asyncio
+async def test_tc38_05_遡及取消で後続取消が不成立なら確定と監査をrollbackする(
+    engine: AsyncEngine, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    clinical, source, operator = await _retroactive_follow_up_fixture(
+        engine, session_factory
+    )
+    assert source.counseled_at is not None
+    followed_up_at = source.counseled_at.value + timedelta(days=1)
+    body = _follow_up_body(operator)
+    body["patient_id"] = str(source.patient_id.value)
+    body["followed_up_at"] = followed_up_at.isoformat()
+    body["profile_updates"] = {
+        "retracted_allergies": [{"allergen": "遡及対象X", "reason": "遡及訂正。"}]
+    }
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=operator.app, raise_app_exceptions=False),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {VALID_TOKEN}"},
+    ) as client:
+        created = await client.post(
+            f"/corporates/{clinical.corporate_id.value}"
+            f"/medication-histories/{source.id.value}/follow-ups",
+            json=body,
+        )
+    assert created.status_code == 201, created.text
+    follow_up_id = created.json()["id"]
+    baseline_audits = await _count(engine, "operation_audits")
+    baseline_version = await _version(
+        engine, "medication_history_records", follow_up_id
+    )
+    async with PostgresUnitOfWork(session_factory) as work:
+        repositories = PostgresRepositorySet.create(work)
+        before_profile = await repositories.patient_medical_profile.get_by_patient(
+            corporate_id=clinical.corporate_id, patient_id=source.patient_id
+        )
+    assert before_profile is not None and before_profile.allergies == ()
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=operator.app, raise_app_exceptions=False),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {VALID_TOKEN}"},
+    ) as client:
+        failed = await client.post(
+            f"/corporates/{clinical.corporate_id.value}"
+            f"/medication-histories/{follow_up_id}/finalization",
+            json={
+                "review_result": "assessment_and_instruction_recorded",
+                "delay_reason": "後着した遡及フォローアップ。",
+            },
+        )
+    assert failed.status_code == 404, failed.text
+    assert await _count(engine, "operation_audits") == baseline_audits
+    assert (
+        await _version(engine, "medication_history_records", follow_up_id)
+        == baseline_version
+    )
+    async with PostgresUnitOfWork(session_factory) as work:
+        repositories = PostgresRepositorySet.create(work)
+        draft = await repositories.medication_history.get(
+            corporate_id=clinical.corporate_id,
+            record_id=MedicationHistoryRecordId.parse(follow_up_id),
+        )
+        after_profile = await repositories.patient_medical_profile.get_by_patient(
+            corporate_id=clinical.corporate_id, patient_id=source.patient_id
+        )
+    assert draft is not None and draft.status is MedicationHistoryStatus.DRAFT
+    assert after_profile is not None
+    assert after_profile.id == before_profile.id
+    assert after_profile.allergies == before_profile.allergies
 
 
 async def _saved_cross_store_pair(

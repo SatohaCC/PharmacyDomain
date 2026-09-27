@@ -33,6 +33,7 @@ from app.domain.medication_history.primitives import (
     FinalizedTimestamp,
     FollowUpRecordedTimestamp,
     GenericPreferenceType,
+    MedicationHistoryRecordId,
     MedicationHistoryStatus,
 )
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
@@ -275,6 +276,128 @@ class Test再構築の一致:
         assert (
             legacy_child_projection.generic_preference.provenance.source_record_id
             == legacy_child.id
+        )
+
+    def test_tc38_01_同時刻は監査日時と薬歴IDで決まり移行記録は末尾になる(
+        self,
+    ) -> None:
+        counseled_at = datetime(2026, 8, 24, 1, 0, tzinfo=UTC)
+        audit_early = datetime(2026, 8, 24, 2, 0, tzinfo=UTC)
+        audit_late = datetime(2026, 8, 24, 3, 0, tzinfo=UTC)
+        by_audit_first = replace(
+            _record(
+                counseled_at=counseled_at,
+                profile_updates=create_generic_preference_intents(
+                    GenericPreferenceType.ACCEPTS
+                ),
+            ),
+            id=MedicationHistoryRecordId.parse("01990000-0000-7000-8000-000000000002"),
+            finalized_at=FinalizedTimestamp(audit_early),
+        )
+        by_audit_second = replace(
+            _record(
+                counseled_at=counseled_at,
+                profile_updates=create_generic_preference_intents(
+                    GenericPreferenceType.REFUSES
+                ),
+            ),
+            id=MedicationHistoryRecordId.parse("01990000-0000-7000-8000-000000000001"),
+            finalized_at=FinalizedTimestamp(audit_late),
+        )
+        same_audit_high_id = replace(
+            by_audit_first,
+            id=MedicationHistoryRecordId.parse("01990000-0000-7000-8000-000000000004"),
+            finalized_at=FinalizedTimestamp(audit_late),
+        )
+        same_audit_low_id = replace(
+            by_audit_second,
+            id=MedicationHistoryRecordId.parse("01990000-0000-7000-8000-000000000003"),
+        )
+        legacy = replace(
+            create_record(
+                corporate_id=_CORPORATE_ID,
+                patient_id=_PATIENT_ID,
+                counseled_at=counseled_at,
+                profile_updates=create_generic_preference_intents(
+                    GenericPreferenceType.ACCEPTS
+                ),
+            ),
+            status=MedicationHistoryStatus.LEGACY_RECORDED,
+            finalized_at=None,
+            recorded_at=None,
+        )
+        records = (
+            legacy,
+            same_audit_high_id,
+            by_audit_second,
+            by_audit_first,
+            same_audit_low_id,
+        )
+
+        first = PatientMedicalProfile.rebuild_from(
+            corporate_id=_CORPORATE_ID, patient_id=_PATIENT_ID, records=records
+        )
+        shuffled = PatientMedicalProfile.rebuild_from(
+            corporate_id=_CORPORATE_ID,
+            patient_id=_PATIENT_ID,
+            records=tuple(reversed(records)),
+        )
+        audit_tie_projection = PatientMedicalProfile.rebuild_from(
+            corporate_id=_CORPORATE_ID,
+            patient_id=_PATIENT_ID,
+            records=(same_audit_high_id, same_audit_low_id),
+        )
+
+        assert _content_of(first) == _content_of(shuffled)
+        assert first.generic_preference is not None
+        assert first.generic_preference.provenance.source_record_id == legacy.id
+        assert audit_tie_projection.generic_preference is not None
+        assert (
+            audit_tie_projection.generic_preference.preference
+            is GenericPreferenceType.ACCEPTS
+        )
+        assert (
+            audit_tie_projection.generic_preference.provenance.source_record_id
+            == same_audit_high_id.id
+        )
+
+    def test_tc38_02_遡及追加の後に取消を再生する(self) -> None:
+        t0 = datetime(2026, 8, 1, tzinfo=UTC)
+        t1 = datetime(2026, 8, 2, tzinfo=UTC)
+        t2 = datetime(2026, 8, 3, tzinfo=UTC)
+        original = _record(
+            counseled_at=t0,
+            profile_updates=ProfileUpdateIntents(
+                new_allergies=(create_allergy_intent("遡及対象X"),)
+            ),
+        )
+        late_follow_up = _record(
+            counseled_at=t1,
+            profile_updates=ProfileUpdateIntents(
+                new_allergies=(create_allergy_intent("遡及対象X"),)
+            ),
+        )
+        later_retraction = _record(
+            counseled_at=t2,
+            profile_updates=ProfileUpdateIntents(
+                retracted_allergies=(create_retract_allergy_intent("遡及対象X"),)
+            ),
+        )
+
+        appended_after_retraction = PatientMedicalProfile.rebuild_from(
+            corporate_id=_CORPORATE_ID,
+            patient_id=_PATIENT_ID,
+            records=(original, later_retraction, late_follow_up),
+        )
+        chronological_input = PatientMedicalProfile.rebuild_from(
+            corporate_id=_CORPORATE_ID,
+            patient_id=_PATIENT_ID,
+            records=(original, late_follow_up, later_retraction),
+        )
+
+        assert appended_after_retraction.allergies == ()
+        assert _content_of(appended_after_retraction) == _content_of(
+            chronological_input
         )
 
 

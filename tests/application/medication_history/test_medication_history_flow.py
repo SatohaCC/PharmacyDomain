@@ -69,12 +69,18 @@ from app.domain.medication_history.exceptions import (
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
+from app.domain.medication_history.patient_medical_profile import (
+    PatientMedicalProfile,
+)
 from app.domain.medication_history.primitives import (
+    CounselingTimestamp,
+    FinalizationDelayReason,
     FinalizedTimestamp,
     FollowUpRecordedTimestamp,
     MedicationHistoryRecordId,
     MedicationHistoryStatus,
 )
+from app.domain.medication_history.value_objects import ProfileUpdateIntents
 from app.domain.reception.primitives import ReceptionId
 from app.domain.staff.primitives import StaffId, StaffQualifications
 from app.domain.store.primitives import StoreId
@@ -89,8 +95,11 @@ from tests.application.medication_history.helpers import (
     register_another_dispensing,
 )
 from tests.factories.medication_history_factory import (
+    create_allergy_intent,
+    create_independent_follow_up_record,
     create_nsips_draft_record,
     create_record,
+    create_retract_allergy_intent,
     finalize_record_with_review,
 )
 
@@ -888,6 +897,128 @@ class Test確定と投影:
         assert cond.condition_status == "resolved"
         assert cond.is_contraindication_target is False
         assert cond.provenance.source_record_id == second.id
+
+    async def test_tc38_07_訂正後の指導日時で患者薬歴一覧を並べる(self) -> None:
+        fixture = create_fixture()
+        first = finalize_record_with_review(
+            create_record(
+                corporate_id=fixture.corporate_id,
+                store_id=fixture.store_id,
+                patient_id=fixture.patient_id,
+                dispensing_id=fixture.dispensing.id,
+                prescription_id=fixture.dispensing.prescription_id,
+                counseled_at=datetime(2026, 8, 1, tzinfo=UTC),
+            ),
+            finalized_at=FinalizedTimestamp(datetime(2026, 8, 5, tzinfo=UTC)),
+            delay_reason=FinalizationDelayReason("後日確定。"),
+        )
+        intervening = finalize_record_with_review(
+            create_independent_follow_up_record(
+                first,
+                counseled_at=datetime(2026, 8, 2, tzinfo=UTC),
+                finalized=False,
+            )
+        )
+        corrected = first.correct_fact(
+            target="counseled_at",
+            value=CounselingTimestamp(datetime(2026, 8, 3, tzinfo=UTC)),
+            reason="有効な指導日時への訂正。",
+            corrected_by=fixture.counselor_id,
+            recorded_at=datetime(2026, 8, 4, tzinfo=UTC),
+        )
+        await fixture.record_repository.save(corrected)
+        await fixture.record_repository.save(intervening)
+
+        timeline = await fixture.record_repository.list_by_patient(
+            corporate_id=fixture.corporate_id,
+            patient_id=fixture.patient_id,
+        )
+
+        assert [item.id for item in timeline] == [intervening.id, first.id]
+        assert timeline[1].effective_facts.counseled_at == CounselingTimestamp(
+            datetime(2026, 8, 3, tzinfo=UTC)
+        )
+
+    async def test_tc38_03_後着遡及薬歴の確定と全件再構築が一致する(
+        self,
+    ) -> None:
+        fixture = create_fixture()
+        first = finalize_record_with_review(
+            create_record(
+                corporate_id=fixture.corporate_id,
+                store_id=fixture.store_id,
+                patient_id=fixture.patient_id,
+                dispensing_id=fixture.dispensing.id,
+                prescription_id=fixture.dispensing.prescription_id,
+                counseled_at=datetime(2026, 8, 1, tzinfo=UTC),
+                profile_updates=ProfileUpdateIntents(
+                    new_allergies=(create_allergy_intent("遡及X"),)
+                ),
+            )
+        )
+        later = finalize_record_with_review(
+            create_independent_follow_up_record(
+                first,
+                counseled_at=datetime(2026, 8, 3, tzinfo=UTC),
+                profile_updates=ProfileUpdateIntents(
+                    retracted_allergies=(create_retract_allergy_intent("遡及X"),)
+                ),
+                finalized=False,
+            )
+        )
+        draft = create_independent_follow_up_record(
+            first,
+            counseled_at=datetime(2026, 8, 2, tzinfo=UTC),
+            profile_updates=ProfileUpdateIntents(
+                new_allergies=(create_allergy_intent("遡及X"),)
+            ),
+        )
+        for record in (first, later, draft):
+            await fixture.record_repository.save(record)
+        current = PatientMedicalProfile.rebuild_from(
+            corporate_id=fixture.corporate_id,
+            patient_id=fixture.patient_id,
+            records=(first, later),
+        )
+        await fixture.profile_repository.save(current)
+
+        draft_profile = await fixture.profile_repository.get_by_patient(
+            corporate_id=fixture.corporate_id,
+            patient_id=fixture.patient_id,
+        )
+        assert draft_profile is not None and draft_profile.allergies == ()
+        finalized = await fixture.finalize.execute(
+            FinalizeMedicationHistoryCommand(
+                corporate_id=str(fixture.corporate_id.value),
+                record_id=str(draft.id.value),
+                review_result="assessment_and_instruction_recorded",
+                delay_reason="後着記録の確定。",
+            )
+        )
+        stored_after_finalize = await fixture.profile_repository.get_by_patient(
+            corporate_id=fixture.corporate_id,
+            patient_id=fixture.patient_id,
+        )
+        assert finalized.status == MedicationHistoryStatus.FINALIZED.value
+        assert (
+            stored_after_finalize is not None and stored_after_finalize.allergies == ()
+        )
+
+        rebuilt = await fixture.rebuild_profile.execute(
+            RebuildPatientMedicalProfileCommand(
+                corporate_id=str(fixture.corporate_id.value),
+                patient_id=str(fixture.patient_id.value),
+                as_of=_AS_OF,
+            )
+        )
+        stored_after_rebuild = await fixture.profile_repository.get_by_patient(
+            corporate_id=fixture.corporate_id,
+            patient_id=fixture.patient_id,
+        )
+        assert stored_after_rebuild is not None
+        assert stored_after_rebuild.id == current.id
+        assert stored_after_rebuild.allergies == stored_after_finalize.allergies
+        assert rebuilt.id == str(current.id.value)
 
     async def test_SOAPが空だと_確定できない(self) -> None:
         """SOAPが空でもDRAFTを保存でき、白紙のままでは確定できない。"""

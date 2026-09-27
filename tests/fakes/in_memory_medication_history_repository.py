@@ -183,7 +183,12 @@ def _sort_timeline(
     def key(
         record: MedicationHistoryRecord,
     ) -> tuple[bool, bool, datetime, bool, datetime, str]:
-        counseled_at = record.counseled_at.value if record.counseled_at else maximum
+        effective_counseled_at = record.effective_facts.counseled_at
+        counseled_at = (
+            effective_counseled_at.value
+            if effective_counseled_at is not None
+            else maximum
+        )
         audit_at = (
             record.finalized_at.value
             if record.finalized_at is not None
