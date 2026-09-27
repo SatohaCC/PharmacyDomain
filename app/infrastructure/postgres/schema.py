@@ -838,6 +838,15 @@ Index(
     ),
 )
 
+# 外部訂正の保留検索でJSONPath候補を絞る。法人・店舗条件と併用し、
+# payload全件をアプリケーション側へ持ち込まない。
+Index(
+    "ix_medication_history_records_payload_jsonpath",
+    medication_history_records.c.payload,
+    postgresql_using="gin",
+    postgresql_ops={"payload": "jsonb_path_ops"},
+)
+
 patient_medical_profiles = Table(
     "patient_medical_profiles",
     metadata,

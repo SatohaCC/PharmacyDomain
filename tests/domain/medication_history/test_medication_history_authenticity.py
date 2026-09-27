@@ -8,7 +8,11 @@ from app.domain.medication_history.primitives import (
     ExternalCorrectionTimestamp,
     FinalizedTimestamp,
 )
-from app.domain.medication_history.value_objects import ExternalPrescriptionCorrection
+from app.domain.medication_history.value_objects import (
+    ExternalCorrectionKind,
+    ExternalCorrectionStatus,
+    ExternalPrescriptionCorrection,
+)
 from app.domain.shared.preservation import (
     PreservationPolicyCatalog,
 )
@@ -73,6 +77,8 @@ def test_record_external_correction_preserves_original() -> None:
     # 2. 外部訂正が追記され、未確認フラグが立っていること
     assert len(updated.external_corrections) == 1
     assert updated.external_corrections[0].correction_id == "corr-001"
+    assert updated.external_corrections[0].kind is ExternalCorrectionKind.UPDATE
+    assert updated.external_corrections[0].status is ExternalCorrectionStatus.PENDING
     assert updated.has_pending_correction_review is True
 
 

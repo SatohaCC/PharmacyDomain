@@ -24,10 +24,13 @@ from app.domain.medication_history.primitives import (
 from app.domain.medication_history.repository import (
     FinalizedMedicationHistorySource,
     MedicationHistoryCategoryCatalogRepository,
+    MedicationHistoryExternalCorrectionMatch,
     MedicationHistoryRepository,
 )
 from app.domain.medication_history.services import MedicationHistoryUniquenessService
+from app.domain.medication_history.value_objects import ExternalCorrectionStatus
 from app.domain.patient.primitives import PatientId
+from app.domain.store.primitives import StoreId
 
 
 class InMemoryMedicationHistoryRepository(MedicationHistoryRepository):
@@ -130,6 +133,46 @@ class InMemoryMedicationHistoryRepository(MedicationHistoryRepository):
             ]
         )
 
+    async def list_external_corrections(
+        self,
+        *,
+        corporate_id: CorporateId,
+        store_id: StoreId | None,
+        statuses: tuple[ExternalCorrectionStatus, ...],
+        after: tuple[str, str] | None,
+        limit: int,
+    ) -> list[MedicationHistoryExternalCorrectionMatch]:
+        """テナント境界・状態・複合カーソルを適用して訂正を返す。"""
+        matches: list[MedicationHistoryExternalCorrectionMatch] = []
+        for record in self.items.values():
+            if record.corporate_id != corporate_id:
+                continue
+            if not record.is_finalized:
+                continue
+            if store_id is not None and record.store_id != store_id:
+                continue
+            for correction in record.external_corrections:
+                effective_status = (
+                    ExternalCorrectionStatus.RESOLVED
+                    if correction.is_acknowledged
+                    else correction.status
+                )
+                key = (str(record.id.value), correction.correction_id)
+                if effective_status not in statuses or (after and key <= after):
+                    continue
+                matches.append(
+                    MedicationHistoryExternalCorrectionMatch(
+                        record=copy.deepcopy(record), correction=correction
+                    )
+                )
+        matches.sort(
+            key=lambda item: (
+                str(item.record.id.value),
+                item.correction.correction_id,
+            )
+        )
+        return matches[:limit]
+
     async def save(self, record: MedicationHistoryRecord) -> None:
         """同一調剤セッションの確定済薬歴の重複を原子的に拒否して保存する。
 
@@ -148,6 +191,25 @@ class InMemoryMedicationHistoryRepository(MedicationHistoryRepository):
         ):
             raise MedicationHistoryAlreadyExistsError()
         self.items[record.id] = copy.deepcopy(record)
+
+    async def delete_unperformed_draft(
+        self,
+        *,
+        corporate_id: CorporateId,
+        record_id: MedicationHistoryRecordId,
+    ) -> bool:
+        """未指導の下書きだけを法人境界付きで破棄する。"""
+        record = self.items.get(record_id)
+        if (
+            record is None
+            or record.corporate_id != corporate_id
+            or record.status is not MedicationHistoryStatus.DRAFT
+            or record.counselor_id is not None
+            or record.counseled_at is not None
+        ):
+            return False
+        del self.items[record_id]
+        return True
 
 
 class InMemoryMedicationHistoryCategoryCatalogRepository(

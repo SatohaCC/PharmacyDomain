@@ -55,6 +55,12 @@ from app.application.medication_history.inputs import (
     ResidualDrugInput,
     SoapInput,
 )
+from app.application.medication_history.list_pending_external_corrections import (
+    ListPendingExternalCorrectionsUseCase,
+)
+from app.application.medication_history.review_external_prescription_correction import (
+    ReviewExternalPrescriptionCorrectionUseCase,
+)
 from app.domain.care_event.event_definition import EventDefinition
 from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
 from app.domain.corporate.primitives import CorporateId
@@ -110,6 +116,9 @@ from tests.fakes.in_memory_dispensing_process_repository import (
 )
 from tests.fakes.in_memory_event_definition_repository import (
     InMemoryEventDefinitionRepository,
+)
+from tests.fakes.in_memory_prescription_repository import (
+    InMemoryPrescriptionRepository,
 )
 from tests.fakes.null_unit_of_work import NullUnitOfWork
 from tests.fakes.stub_actor_context_provider import (
@@ -635,6 +644,17 @@ def history_client(
         record_tracing_report=history_fixture.record_tracing_report,
         record_tracing_report_response=history_fixture.record_tracing_report_response,
         get_view=view_use_case,
+        list_external_corrections=ListPendingExternalCorrectionsUseCase(
+            history_fixture.record_repository,
+            history_fixture.corporate_access,
+        ),
+        review_external_correction=ReviewExternalPrescriptionCorrectionUseCase(
+            history_fixture.record_repository,
+            history_fixture.corporate_access,
+            history_fixture.staff_qualification,
+            InMemoryPrescriptionRepository(),
+            history_fixture.clock,
+        ),
     )
     app = create_app(actor_provider=StubActorContextProvider(history_fixture.actor))
     app.dependency_overrides.update(

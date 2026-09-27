@@ -62,6 +62,9 @@ from app.domain.medication_history.primitives import (
 from app.domain.medication_history.value_objects import (
     BillingAddition,
     CategorizedNote,
+    ExternalCorrectionDecision,
+    ExternalCorrectionReviewEvent,
+    ExternalCorrectionStatus,
     ExternalPrescriptionCorrection,
     HandbookStatus,
     MedicationHistoryAmendment,
@@ -663,6 +666,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         reason: AmendmentReason,
         amended_by: StaffId,
         amended_at: AmendmentTimestamp,
+        amendment_id: str | None = None,
     ) -> Self:
         """確定済の薬歴に修正を**追記**する。
 
@@ -676,11 +680,13 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         """
         if not self.is_finalized:
             raise MedicationHistoryNotFinalizedError()
+        effective_amendment_id = amendment_id or str(uuid7())
         amendment = MedicationHistoryAmendment(
             amended_soap=amended_soap,
             reason=reason,
             amended_by=amended_by,
             amended_at=amended_at,
+            amendment_id=effective_amendment_id,
         )
         return replace(self, amendments=(*self.amendments, amendment))
 
@@ -737,8 +743,12 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
 
     @property
     def has_pending_correction_review(self) -> bool:
-        """未確認の外部処方訂正が存在するか。"""
-        return any(not c.is_acknowledged for c in self.external_corrections)
+        """保留または調査中の外部処方訂正が存在するか。"""
+        return any(
+            correction.status is not ExternalCorrectionStatus.RESOLVED
+            and not correction.is_acknowledged
+            for correction in self.external_corrections
+        )
 
     def record_external_correction(
         self, correction: ExternalPrescriptionCorrection
@@ -748,6 +758,25 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         確定済み薬歴の原本（SOAP・確定日時・確定者）は真正性保護のため不可逆凍結し、
         外部から発生した処方変更・調剤訂正の事実を本証跡として記録する。
         """
+        existing = next(
+            (
+                item
+                for item in self.external_corrections
+                if item.correction_id == correction.correction_id
+            ),
+            None,
+        )
+        if existing is not None:
+            if (
+                existing.kind == correction.kind
+                and existing.source_document_number == correction.source_document_number
+                and existing.reason == correction.reason
+                and existing.details == correction.details
+            ):
+                return self
+            raise MedicationHistoryDomainError(
+                "同一の外部訂正IDに異なる訂正内容を登録できません。"
+            )
         return replace(
             self, external_corrections=(*self.external_corrections, correction)
         )
@@ -770,12 +799,100 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             target,
             acknowledged_by=acknowledged_by,
             acknowledged_at=acknowledged_at,
+            status=ExternalCorrectionStatus.RESOLVED,
         )
         updated_corrections = tuple(
             updated_correction if c.correction_id == correction_id else c
             for c in self.external_corrections
         )
         return replace(self, external_corrections=updated_corrections)
+
+    def review_external_correction(
+        self,
+        *,
+        correction_id: str,
+        decision: ExternalCorrectionDecision,
+        reason: str,
+        reviewed_by: StaffId,
+        reviewed_at: ExternalCorrectionTimestamp,
+        amended_soap: SoapRecord | None = None,
+        matched_prescription_id: PrescriptionId | None = None,
+    ) -> Self:
+        """外部訂正の判断を履歴へ追記し、最終判断だけを解決済みにする。"""
+        if not self.is_finalized:
+            raise MedicationHistoryNotFinalizedError()
+        target = next(
+            (
+                item
+                for item in self.external_corrections
+                if item.correction_id == correction_id
+            ),
+            None,
+        )
+        if target is None:
+            raise MedicationHistoryDomainError("指定された外部訂正IDが存在しません。")
+        if target.status is ExternalCorrectionStatus.RESOLVED or target.is_acknowledged:
+            raise MedicationHistoryDomainError("解決済みの外部訂正は再判断できません。")
+        normalized_reason = reason.strip()
+        if not normalized_reason:
+            raise MedicationHistoryDomainError("外部訂正の判断理由は必須です。")
+
+        amendment_id: str | None = None
+        if decision is ExternalCorrectionDecision.AMEND:
+            if amended_soap is None:
+                raise MedicationHistoryDomainError("追記するSOAPを指定してください。")
+            amendment_id = str(uuid7())
+            updated = self.amend(
+                amended_soap=amended_soap,
+                reason=AmendmentReason(normalized_reason),
+                amended_by=reviewed_by,
+                amended_at=AmendmentTimestamp(reviewed_at.value),
+                amendment_id=amendment_id,
+            )
+        else:
+            updated = self
+        if (
+            decision is ExternalCorrectionDecision.MATCH_REREGISTERED_PRESCRIPTION
+            and matched_prescription_id is None
+        ):
+            raise MedicationHistoryDomainError("照合先の処方IDを指定してください。")
+        if (
+            decision is not ExternalCorrectionDecision.MATCH_REREGISTERED_PRESCRIPTION
+            and matched_prescription_id is not None
+        ):
+            raise MedicationHistoryDomainError(
+                "照合先の処方IDは照合判断の場合だけ指定できます。"
+            )
+
+        is_final_decision = decision is not ExternalCorrectionDecision.INVESTIGATING
+        event = ExternalCorrectionReviewEvent(
+            decision=decision,
+            reason=normalized_reason,
+            reviewed_by=reviewed_by,
+            reviewed_at=reviewed_at,
+            amendment_id=amendment_id,
+            matched_prescription_id=matched_prescription_id,
+        )
+        updated_target = replace(
+            target,
+            status=(
+                ExternalCorrectionStatus.RESOLVED
+                if is_final_decision
+                else ExternalCorrectionStatus.INVESTIGATING
+            ),
+            review_events=(*target.review_events, event),
+            acknowledged_by=reviewed_by
+            if is_final_decision
+            else target.acknowledged_by,
+            acknowledged_at=reviewed_at
+            if is_final_decision
+            else target.acknowledged_at,
+        )
+        updated_corrections = tuple(
+            updated_target if item.correction_id == correction_id else item
+            for item in updated.external_corrections
+        )
+        return replace(updated, external_corrections=updated_corrections)
 
     def calculate_and_set_retention_expiry(
         self, catalog: PreservationPolicyCatalog

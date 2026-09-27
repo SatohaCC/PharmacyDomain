@@ -25,6 +25,7 @@ from app.application.integration.nsips.models import (
     NsipsRpInfo,
     NsipsSplitInfo,
 )
+from app.domain.medication_history.value_objects import ExternalCorrectionKind
 from app.presentational.dependencies import (
     IntegrationUseCasesDep,
     get_actor_context,
@@ -135,6 +136,7 @@ class NsipsBundleRequest(RequestModel):
     dispensed_date: date | None = None
     insurance: NsipsInsuranceRequest | None = None
     additions: tuple[NsipsAdditionRequest, ...] = ()
+    correction_kind: Literal["update", "delete"] | None = None
 
 
 class IngestNsipsRequest(RequestModel):
@@ -248,6 +250,11 @@ def _build_bundle_from_request(raw: NsipsBundleRequest) -> NsipsBundle:
                 quantity=addition.quantity,
             )
             for addition in raw.additions
+        ),
+        correction_kind=(
+            ExternalCorrectionKind(raw.correction_kind)
+            if raw.correction_kind is not None
+            else None
         ),
     )
 

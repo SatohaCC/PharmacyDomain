@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import uuid
 from dataclasses import asdict, dataclass, fields, is_dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal
@@ -52,7 +51,11 @@ from app.domain.corporate.primitives import CorporateId
 from app.domain.coverage.patient_coverage import PatientCoverage
 from app.domain.coverage.repository import PatientCoverageRepository
 from app.domain.dispensing.dispensing_process import DispensingProcess
-from app.domain.dispensing.primitives import DispensingId, DispensingProcessStatus
+from app.domain.dispensing.primitives import (
+    DispensingCancellationReason,
+    DispensingId,
+    DispensingProcessStatus,
+)
 from app.domain.dispensing.repository import DispensingProcessRepository
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.medication_history.medication_history_record import (
@@ -63,7 +66,11 @@ from app.domain.medication_history.primitives import (
     MedicationHistoryRecordId,
 )
 from app.domain.medication_history.repository import MedicationHistoryRepository
-from app.domain.medication_history.value_objects import ExternalPrescriptionCorrection
+from app.domain.medication_history.value_objects import (
+    ExternalCorrectionKind,
+    ExternalCorrectionStatus,
+    ExternalPrescriptionCorrection,
+)
 from app.domain.patient.primitives import (
     ExternalPatientId,
     ExternalSystemName,
@@ -300,6 +307,95 @@ class IngestNsipsUseCase:
             separators=(",", ":"),
         ).encode("utf-8")
         return ReceptionFingerprint(hashlib.sha256(encoded).hexdigest())
+
+    @staticmethod
+    def _external_correction_id(
+        *,
+        record_id: MedicationHistoryRecordId,
+        document_number: str,
+        fingerprint: ReceptionFingerprint,
+    ) -> str:
+        """受付IDに依存せず同じ薬歴・訂正内容へ同じIDを割り当てる。"""
+        identity = ":".join((str(record_id.value), document_number, fingerprint.value))
+        return "corr-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+    async def _find_replayed_external_correction(
+        self,
+        *,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+        bundle: NsipsBundle,
+        fingerprint: ReceptionFingerprint,
+    ) -> IngestNsipsResultDto | None:
+        """異なるReception IDの同じBundle訂正を既存薬歴から特定する。"""
+        if self._medication_history_repo is None:
+            return None
+        patient_link = await self._patient_external_id_repo.get_active_by_source(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            system_name=ExternalSystemName("recept"),
+            external_patient_id=ExternalPatientId(bundle.patient.external_patient_id),
+        )
+        if patient_link is None:
+            return None
+        prescriptions = await self._prescription_repo.list_by_patient(
+            corporate_id=corporate_id,
+            patient_id=patient_link.patient_id,
+        )
+        matching_prescription_ids = {
+            prescription.id
+            for prescription in prescriptions
+            if prescription.store_id == store_id
+            and prescription.document_number.value
+            == bundle.prescription.document_number
+            and prescription.medical_institution.code.value
+            == bundle.prescription.institution_code
+        }
+        if not matching_prescription_ids:
+            return None
+        histories = await self._medication_history_repo.list_by_patient(
+            corporate_id=corporate_id,
+            patient_id=patient_link.patient_id,
+        )
+        for history in histories:
+            if history.prescription_id not in matching_prescription_ids:
+                continue
+            correction_id = self._external_correction_id(
+                record_id=history.id,
+                document_number=bundle.prescription.document_number,
+                fingerprint=fingerprint,
+            )
+            correction = next(
+                (
+                    item
+                    for item in history.external_corrections
+                    if item.correction_id == correction_id
+                ),
+                None,
+            )
+            if correction is None:
+                continue
+            return IngestNsipsResultDto(
+                corporate_id=str(corporate_id.value),
+                store_id=str(store_id.value),
+                patient_id=str(history.patient_id.value),
+                prescription_id=str(history.prescription_id.value),
+                dispensing_id=(
+                    str(history.dispensing_id.value)
+                    if history.dispensing_id is not None
+                    else None
+                ),
+                medication_history_id=str(history.id.value),
+                document_number=bundle.prescription.document_number,
+                patient_name=bundle.patient.kanji_name,
+                is_new_patient=False,
+                is_duplicate=True,
+                has_pending_correction_review=(
+                    correction.status is not ExternalCorrectionStatus.RESOLVED
+                    and not correction.is_acknowledged
+                ),
+            )
+        return None
 
     @staticmethod
     def _source_data(
@@ -584,6 +680,29 @@ class IngestNsipsUseCase:
             store_id=store_id,
             reception_id=reception_id,
         )
+        if bundle.correction_kind is ExternalCorrectionKind.DELETE:
+            if existing_reception is None:
+                raise NsipsParseError("削除通知は、既存の受付IDへ紐づけてください。")
+            return await self._process_external_deletion_notice(
+                command=command,
+                corporate_id=corporate_id,
+                store_id=store_id,
+                reception=existing_reception,
+                bundle=bundle,
+                source_data=source_data,
+                incoming_fingerprint=incoming_fingerprint,
+                incoming_fingerprints=incoming_fingerprints,
+                received_at=received_at,
+            )
+        if existing_reception is None and bundle.correction_kind is not None:
+            replayed_correction = await self._find_replayed_external_correction(
+                corporate_id=corporate_id,
+                store_id=store_id,
+                bundle=bundle,
+                fingerprint=incoming_fingerprint,
+            )
+            if replayed_correction is not None:
+                return replayed_correction
         doc_num = bundle.prescription.document_number
         existing_prescription: Prescription | None = None
         patient_profile_updated_fields: tuple[str, ...] = ()
@@ -799,11 +918,17 @@ class IngestNsipsUseCase:
                     if has_pending_review:
                         now_utc = self._clock.now()
                         external_correction = ExternalPrescriptionCorrection(
-                            correction_id=f"corr-{uuid.uuid7()}",
+                            correction_id=self._external_correction_id(
+                                record_id=matching_record.id,
+                                document_number=doc_num,
+                                fingerprint=incoming_fingerprint,
+                            ),
                             corrected_at=ExternalCorrectionTimestamp(now_utc),
                             source_document_number=doc_num,
                             reason=f"レセコン訂正データ受信: {diff_summary}",
                             details=diff_summary,
+                            kind=bundle.correction_kind
+                            or ExternalCorrectionKind.UPDATE,
                         )
                         updated_history = matching_record.record_external_correction(
                             external_correction
@@ -1056,6 +1181,168 @@ class IngestNsipsUseCase:
             patient_profile_updated_fields=patient_profile_updated_fields,
             coverage_review_required=coverage_review_reason is not None,
             coverage_review_reason=coverage_review_reason,
+        )
+
+    async def _process_external_deletion_notice(
+        self,
+        *,
+        command: IngestNsipsCommand,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+        reception: Reception,
+        bundle: NsipsBundle,
+        source_data: ReceptionSourceData,
+        incoming_fingerprint: ReceptionFingerprint,
+        incoming_fingerprints: tuple[
+            tuple[ReceptionFieldPath, ReceptionFingerprint], ...
+        ],
+        received_at: datetime,
+    ) -> IngestNsipsResultDto:
+        """正規化済み削除通知を、受付・処方・調剤・薬歴の同一UoWで反映する。"""
+        if reception.latest_fingerprint == incoming_fingerprint:
+            return IngestNsipsResultDto(
+                corporate_id=command.corporate_id,
+                store_id=command.store_id,
+                patient_id=str(reception.patient_id.value),
+                prescription_id=(
+                    str(reception.prescription_id.value)
+                    if reception.prescription_id is not None
+                    else None
+                ),
+                dispensing_id=(
+                    str(reception.dispensing_id.value)
+                    if reception.dispensing_id is not None
+                    else None
+                ),
+                medication_history_id=(
+                    str(reception.medication_history_id.value)
+                    if reception.medication_history_id is not None
+                    else None
+                ),
+                document_number=bundle.prescription.document_number,
+                patient_name=bundle.patient.kanji_name,
+                is_new_patient=False,
+                is_duplicate=True,
+                has_pending_correction_review=False,
+            )
+        if reception.prescription_id is None:
+            raise NsipsParseError("削除通知の対象となる処方箋が受付にありません。")
+        prescription = await self._prescription_repo.get(
+            corporate_id=corporate_id,
+            prescription_id=reception.prescription_id,
+        )
+        if prescription is None:
+            raise NsipsParseError("削除通知の対象となる処方箋を取得できません。")
+
+        if prescription.status in {
+            PrescriptionStatus.RECEIVED,
+            PrescriptionStatus.READY_FOR_DISPENSING,
+        }:
+            await self._prescription_repo.save(prescription.cancel())
+        completed_dispensing_exists = False
+        for dispensing in await self._dispensing_repo.list_by_prescription(
+            corporate_id=corporate_id,
+            prescription_id=prescription.id,
+        ):
+            if dispensing.status is DispensingProcessStatus.COMPLETED:
+                completed_dispensing_exists = True
+            elif dispensing.status in {
+                DispensingProcessStatus.IN_PROGRESS,
+                DispensingProcessStatus.VERIFIED,
+            }:
+                await self._dispensing_repo.save(
+                    dispensing.cancel(
+                        DispensingCancellationReason("NSIPS削除通知を受信")
+                    )
+                )
+
+        history_id = reception.medication_history_id
+        linked_history_id = history_id
+        has_pending_review = False
+        if history_id is not None and self._medication_history_repo is not None:
+            history = await self._medication_history_repo.get(
+                corporate_id=corporate_id,
+                record_id=history_id,
+            )
+            if history is not None:
+                identity = ":".join(
+                    (
+                        str(history.id.value),
+                        bundle.prescription.document_number,
+                        incoming_fingerprint.value,
+                    )
+                )
+                correction = ExternalPrescriptionCorrection(
+                    correction_id="corr-"
+                    + hashlib.sha256(identity.encode("utf-8")).hexdigest(),
+                    corrected_at=ExternalCorrectionTimestamp(received_at),
+                    source_document_number=bundle.prescription.document_number,
+                    reason="NSIPS削除通知を受信しました。",
+                    details="対象処方の削除が通知されました。",
+                    kind=ExternalCorrectionKind.DELETE,
+                )
+                if (
+                    history.is_finalized
+                    or history.counselor_id is not None
+                    or completed_dispensing_exists
+                ):
+                    await self._medication_history_repo.save(
+                        history.record_external_correction(correction)
+                    )
+                    has_pending_review = True
+                else:
+                    deleted = (
+                        await self._medication_history_repo.delete_unperformed_draft(
+                            corporate_id=corporate_id,
+                            record_id=history.id,
+                        )
+                    )
+                    if not deleted:
+                        raise NsipsParseError(
+                            "指導未実施の下書き状態が更新されました。再読込してやり直してください。"
+                        )
+                    linked_history_id = None
+            else:
+                linked_history_id = None
+
+        changed_fields = self._changed_fields(
+            previous=reception.field_fingerprints,
+            incoming=incoming_fingerprints,
+        )
+        updated_reception = self._replace_source_data(reception, source_data)
+        await self._reception_repo.save(
+            replace(
+                updated_reception,
+                latest_fingerprint=incoming_fingerprint,
+                field_fingerprints=incoming_fingerprints,
+                medication_history_id=linked_history_id,
+                correction_history=(
+                    *reception.correction_history,
+                    ReceptionCorrection(
+                        fingerprint=incoming_fingerprint,
+                        changed_fields=changed_fields,
+                        received_at=received_at,
+                    ),
+                ),
+            )
+        )
+        return IngestNsipsResultDto(
+            corporate_id=command.corporate_id,
+            store_id=command.store_id,
+            patient_id=str(reception.patient_id.value),
+            prescription_id=str(prescription.id.value),
+            dispensing_id=(
+                str(reception.dispensing_id.value)
+                if reception.dispensing_id is not None
+                else None
+            ),
+            medication_history_id=(
+                str(linked_history_id.value) if linked_history_id else None
+            ),
+            document_number=bundle.prescription.document_number,
+            patient_name=bundle.patient.kanji_name,
+            is_new_patient=False,
+            has_pending_correction_review=has_pending_review,
         )
 
     @staticmethod
