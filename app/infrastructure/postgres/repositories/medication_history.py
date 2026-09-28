@@ -7,17 +7,29 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import cast
 from uuid import UUID
 
-from sqlalchemy import and_, case, delete, func, literal, or_, select, true
+from sqlalchemy import (
+    Date,
+    and_,
+    case,
+    delete,
+    func,
+    literal,
+    or_,
+    select,
+    true,
+    update,
+)
 from sqlalchemy.dialects.postgresql import JSONB, JSONPATH
 from sqlalchemy.sql import cast as sql_cast
 
 from app.domain.care_event.primitives import EventId
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.primitives import DispensingId
+from app.domain.foundation.exceptions import ConcurrentModificationError
 from app.domain.medication_history.exceptions import (
     MedicationHistoryAlreadyExistsError,
 )
@@ -206,10 +218,77 @@ class PostgresMedicationHistoryRepository(
             )
         )
         records = [
-            MEDICATION_HISTORY_RECORD_MAPPING.decode(cast(Mapping[str, object], row))
+            self._restore(
+                MEDICATION_HISTORY_RECORD_MAPPING,
+                cast(Mapping[str, object], row),
+            )
             for row in result.mappings().all()
         ]
         return _sort_timeline(records)
+
+    async def update_retention_expiry_dates(
+        self,
+        *,
+        corporate_id: CorporateId,
+        patient_id: PatientId,
+        expiry_dates: Mapping[MedicationHistoryRecordId, date],
+    ) -> None:
+        """法人・患者内の指定行で期限JSONだけを楽観ロック付きで延長する。"""
+        table = medication_history_records
+        for record_id, expiry_date in expiry_dates.items():
+            expected_version = self._unit_of_work.loaded_version(
+                record_id.value,
+                namespace=table.name,
+            )
+            if expected_version is None:
+                raise ConcurrentModificationError()
+
+            stored_expiry = table.c.payload["retention_expiry_date"].astext
+            result = await self.session.execute(
+                update(table)
+                .where(
+                    table.c.id == record_id.value,
+                    table.c.corporate_id == corporate_id.value,
+                    table.c.patient_id == patient_id.value,
+                    table.c.status == MedicationHistoryStatus.FINALIZED.value,
+                    table.c.version == expected_version,
+                    or_(
+                        stored_expiry.is_(None),
+                        sql_cast(stored_expiry, Date) < expiry_date,
+                    ),
+                )
+                .values(
+                    payload=table.c.payload.op("||")(
+                        func.jsonb_build_object(
+                            literal("retention_expiry_date"),
+                            literal(expiry_date.isoformat()),
+                        )
+                    ),
+                    version=expected_version + 1,
+                    updated_at=func.now(),
+                )
+                .returning(table.c.version, table.c.store_id)
+            )
+            row = result.mappings().one_or_none()
+            if row is None:
+                raise ConcurrentModificationError()
+            version = row["version"]
+            store_id = row["store_id"]
+            if not isinstance(version, int) or not isinstance(store_id, UUID):
+                raise RuntimeError("保存期限更新の返却値が不正です。")
+            self._unit_of_work.record_version(
+                record_id.value,
+                version,
+                namespace=table.name,
+            )
+            self._unit_of_work.pending_changes.append(
+                (
+                    "medication_history_records.update_retention_expiry",
+                    record_id.value,
+                    corporate_id.value,
+                    store_id,
+                )
+            )
 
     async def list_external_corrections(
         self,

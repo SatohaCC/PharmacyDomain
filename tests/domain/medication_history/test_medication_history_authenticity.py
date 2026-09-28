@@ -6,6 +6,7 @@ from app.domain.medication_history.primitives import (
     AmendmentReason,
     AmendmentTimestamp,
     ExternalCorrectionTimestamp,
+    FinalizationDelayReason,
     FinalizedTimestamp,
 )
 from app.domain.medication_history.value_objects import (
@@ -15,6 +16,7 @@ from app.domain.medication_history.value_objects import (
 )
 from app.domain.shared.preservation import (
     PreservationPolicyCatalog,
+    PreservationRecordKind,
 )
 from app.domain.staff.primitives import StaffId
 from tests.factories.medication_history_factory import (
@@ -26,19 +28,23 @@ from tests.factories.medication_history_factory import (
 
 
 def test_finalize_records_retention_expiry() -> None:
-    """TC-13: 薬歴確定時またはカタログ適用により保存満了日が計算・設定される。"""
+    """TC-13: 明示した最終記入日から薬歴の保存満了日が計算される。"""
     record = create_record(counseled_at=COUNSELED_AT)
-    catalog = PreservationPolicyCatalog.create_standard_statutory_catalog()
+    catalog = PreservationPolicyCatalog.create_standard_statutory_catalog(
+        PreservationRecordKind.MEDICATION_HISTORY
+    )
+    finalized_on = date(2026, 8, 25)
 
-    # 確定してカタログを適用
+    # 指導日は8月24日、確定・最終記入日は8月25日としてカタログを適用
     finalized = finalize_record_with_review(
         record,
-        finalized_at=FinalizedTimestamp(COUNSELED_AT),
+        finalized_at=FinalizedTimestamp(datetime(2026, 8, 25, 5, tzinfo=UTC)),
         finalized_by=record.counselor_id,
-    ).calculate_and_set_retention_expiry(catalog)
+        delay_reason=FinalizationDelayReason("薬剤師の確認を経て翌日に確定した。"),
+    ).calculate_and_set_retention_expiry(catalog, last_written_on=finalized_on)
 
-    # COUNSELED_AT は 2026-08-24 -> 2026-04-01以降なので5年保存 -> 2031-08-24
-    assert finalized.retention_expiry_date == date(2031, 8, 24)
+    # 薬剤服用歴は法改正後も最終記入日から3年間保存する。
+    assert finalized.retention_expiry_date == date(2029, 8, 25)
 
 
 def test_record_external_correction_preserves_original() -> None:

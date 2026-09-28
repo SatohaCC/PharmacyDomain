@@ -32,6 +32,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.application.access_control.models import ActorRole, ResolvedActorContext
+from app.application.common.clock import Clock
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.primitives import DispensingProcessStatus
@@ -110,6 +111,7 @@ async def setup_clinical(
     session_factory: async_sessionmaker[AsyncSession],
     *,
     with_prescription: bool = True,
+    clock: Clock | None = None,
 ) -> ClinicalFixture:
     """法人・有効な店舗・本人・アカウントと、臨床の3集約を保存する。
 
@@ -121,6 +123,7 @@ async def setup_clinical(
     は在任を要求しないからである。要らない前提を置くと、テストが確かめている
     つもりのものが分からなくなる。
     """
+    actual_clock = _CLOCK if clock is None else clock
     corporate = create_corporate("臨床トランザクション薬局")
     store = create_store(corporate_id=corporate.id)
     patient_id = PatientId.generate()
@@ -180,7 +183,7 @@ async def setup_clinical(
         prescription_id=prescription.id,
         patient_id=patient_id,
         counselor_id=pharmacist.id,
-        counseled_at=_CLOCK.now(),
+        counseled_at=actual_clock.now(),
         # 差分が空でも頭書きは保存されるが、それでは「何が投影されたか」を
         # 確かめられない。アレルギーを1件持たせる。
         profile_updates=ProfileUpdateIntents(new_allergies=(create_allergy_intent(),)),
@@ -217,6 +220,7 @@ async def setup_clinical(
             person=person,
             account=account,
             membership=membership,
+            clock=actual_clock,
         ),
         corporate_id=corporate.id,
         person=person,
@@ -234,6 +238,7 @@ def _clinical_app(
     person: AccountPerson,
     account: UserAccount,
     membership: CorporateMembership,
+    clock: Clock = _CLOCK,
 ) -> FastAPI:
     """本番の組み立てを使い、認証だけを固定した操作主体へ差し替える。"""
     provider = StubActorContextProvider(
@@ -254,7 +259,7 @@ def _clinical_app(
         STATE_ATTRIBUTE,
         PresentationState(
             actor_provider=provider,
-            composition_root=PostgresCompositionRoot(engine, session_factory, _CLOCK),
+            composition_root=PostgresCompositionRoot(engine, session_factory, clock),
         ),
     )
     return app

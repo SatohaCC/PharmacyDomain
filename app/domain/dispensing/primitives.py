@@ -145,6 +145,12 @@ class VerificationTimestamp(BaseAwareTimestamp):
     timestamp_name: ClassVar[str] = "最終鑑査日時"
 
 
+class DispensingCompletionTimestamp(BaseAwareTimestamp):
+    """調剤録を完了として確定したUTC時刻。"""
+
+    timestamp_name: ClassVar[str] = "調剤完了日時"
+
+
 # --------------------------------------------------------------------------
 # 変更調剤の3軸
 # --------------------------------------------------------------------------

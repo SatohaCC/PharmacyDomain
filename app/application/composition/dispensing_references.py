@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from app.application.composition.reference_support import load_store_in_corporate
 from app.application.dispensing.exceptions import (
     DispensingPrescriptionNotFoundError,
@@ -79,6 +81,7 @@ class PrescriptionSourceAdapter(
         *,
         corporate_id: CorporateId,
         prescription_id: PrescriptionId,
+        dispensed_on: date | None = None,
     ) -> None:
         """処方箋を調剤済へ遷移させ、既に調剤済なら冪等に終了する。
 
@@ -93,7 +96,7 @@ class PrescriptionSourceAdapter(
             raise DispensingPrescriptionNotFoundError()
         if prescription.status is PrescriptionStatus.DISPENSED:
             return
-        await self._repository.save(prescription.complete_dispensing())
+        await self._repository.save(prescription.complete_dispensing(dispensed_on))
 
 
 class DispensingStaffQualificationAdapter(StaffQualificationBoundary):

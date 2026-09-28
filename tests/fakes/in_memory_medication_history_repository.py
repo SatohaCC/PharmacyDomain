@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import copy
-from datetime import UTC, datetime
+from collections.abc import Mapping
+from dataclasses import replace
+from datetime import UTC, date, datetime
 
 from app.domain.care_event.primitives import EventId
 from app.domain.corporate.primitives import CorporateId
@@ -39,6 +41,13 @@ class InMemoryMedicationHistoryRepository(MedicationHistoryRepository):
     def __init__(self) -> None:
         self.items: dict[MedicationHistoryRecordId, MedicationHistoryRecord] = {}
         self.get_calls = 0
+        self.retention_expiry_update_calls: list[
+            tuple[
+                CorporateId,
+                PatientId,
+                dict[MedicationHistoryRecordId, date],
+            ]
+        ] = []
 
     async def get(
         self,
@@ -132,6 +141,36 @@ class InMemoryMedicationHistoryRepository(MedicationHistoryRepository):
                 if item.corporate_id == corporate_id and item.patient_id == patient_id
             ]
         )
+
+    async def update_retention_expiry_dates(
+        self,
+        *,
+        corporate_id: CorporateId,
+        patient_id: PatientId,
+        expiry_dates: Mapping[MedicationHistoryRecordId, date],
+    ) -> None:
+        """同一法人・患者の確定薬歴で、保存期限だけを延長する。"""
+        updates = dict(expiry_dates)
+        if not updates:
+            return
+        self.retention_expiry_update_calls.append((corporate_id, patient_id, updates))
+        for record_id, expiry_date in updates.items():
+            record = self.items.get(record_id)
+            if (
+                record is None
+                or record.corporate_id != corporate_id
+                or record.patient_id != patient_id
+                or not record.is_finalized
+            ):
+                raise ValueError(
+                    "保存期限の更新対象が指定した法人・患者に一致しません。"
+                )
+            current_expiry = record.retention_expiry_date
+            if current_expiry is None or expiry_date > current_expiry:
+                self.items[record_id] = replace(
+                    record,
+                    retention_expiry_date=expiry_date,
+                )
 
     async def list_external_corrections(
         self,
