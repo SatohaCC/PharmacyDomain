@@ -76,7 +76,12 @@ from app.domain.medication_history.value_objects import (
 )
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.primitives import PrescriptionId
-from app.domain.shared.preservation import PreservationPolicyCatalog
+from app.domain.shared.preservation import (
+    PreservationObligation,
+    PreservationRecordKind,
+    latest_retention_expiry_date,
+    resolve_latest_retention_expiry_date,
+)
 from app.domain.staff.primitives import StaffId
 from app.domain.store.primitives import StoreId
 
@@ -895,13 +900,25 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         return replace(updated, external_corrections=updated_corrections)
 
     def calculate_and_set_retention_expiry(
-        self, catalog: PreservationPolicyCatalog
+        self,
+        obligation: PreservationObligation,
+        *additional_obligations: PreservationObligation,
+        last_written_on: date,
     ) -> Self:
-        """保存期間ポリシーに基づいて法定保存満了日を設定する。"""
-        if self.counseled_at is None:
-            raise MedicationHistoryDomainError(
-                "保存期間の起算には実際の指導日時が必要です。"
+        """保存期間ポリシーに基づいて法定保存満了日を設定する。
+
+        複数のポリシーカタログが指定された場合は、各義務で計算した満了日のうち
+        最も遅い日（最新満了日）を採用する。既存の満了日がある場合は、
+        それよりも短縮されないよう最新日を維持する。
+        """
+        expiry_date = resolve_latest_retention_expiry_date(
+            last_written_on,
+            PreservationRecordKind.MEDICATION_HISTORY,
+            obligation,
+            *additional_obligations,
+        )
+        if self.retention_expiry_date is not None:
+            expiry_date = latest_retention_expiry_date(
+                self.retention_expiry_date, expiry_date
             )
-        base_date = self.counseled_at.value.date()
-        expiry_date = catalog.calculate_expiry_date(base_date)
         return replace(self, retention_expiry_date=expiry_date)

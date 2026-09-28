@@ -11,8 +11,12 @@ from app.domain.shared.preservation import (
     PreservationPolicyCatalog,
     PreservationPolicyNotFoundError,
     PreservationPolicyPeriodInvertedError,
+    PreservationPolicyRecordKindMismatchError,
+    PreservationRecordKind,
     RetentionYears,
+    latest_retention_expiry_date,
 )
+from tests.factories.prescription_factory import create_prescription
 
 
 def test_retention_years_valid() -> None:
@@ -127,25 +131,139 @@ def test_policy_catalog_resolution() -> None:
         effective_from=date(2026, 4, 1),
         effective_to=None,
     )
-    catalog = PreservationPolicyCatalog(policies=(policy_old, policy_new))
+    catalog = PreservationPolicyCatalog(
+        record_kind=PreservationRecordKind.DISPENSING_RECORD,
+        policies=(policy_old, policy_new),
+    )
 
-    resolved_old = catalog.get_policy_for(date(2025, 10, 1))
+    resolved_old = catalog.get_policy_for(
+        date(2025, 10, 1),
+        expected_record_kind=PreservationRecordKind.DISPENSING_RECORD,
+    )
     assert resolved_old.name == "現行3年"
     assert resolved_old.retention_years.value == 3
 
-    resolved_new = catalog.get_policy_for(date(2026, 4, 1))
+    resolved_new = catalog.get_policy_for(
+        date(2026, 4, 1),
+        expected_record_kind=PreservationRecordKind.DISPENSING_RECORD,
+    )
     assert resolved_new.name == "改正5年"
     assert resolved_new.retention_years.value == 5
 
 
-def test_policy_catalog_legal_revision_boundary() -> None:
-    """TC-10: 法改正前日（3年）と施行当日（5年）の境界計算。"""
-    catalog = PreservationPolicyCatalog.create_standard_statutory_catalog()
+def test_policy_catalog_record_kind_is_required() -> None:
+    """TC-40-01: 保存カタログには記録区分の指定が必要。"""
+    with pytest.raises(TypeError):
+        PreservationPolicyCatalog()  # type: ignore[call-arg]
 
-    # 2026-03-31 調剤 -> 3年保存 -> 2029-03-31 満了
-    assert catalog.calculate_expiry_date(date(2026, 3, 31)) == date(2029, 3, 31)
-    # 2026-04-01 調剤 -> 5年保存 -> 2031-04-01 満了
-    assert catalog.calculate_expiry_date(date(2026, 4, 1)) == date(2031, 4, 1)
+
+def test_policy_catalog_record_kinds_are_separate() -> None:
+    """TC-40-01: 標準カタログは記録区分を保持し、異なる区分の誤用を拒否する。"""
+    catalogs = {
+        record_kind: PreservationPolicyCatalog.create_standard_statutory_catalog(
+            record_kind
+        )
+        for record_kind in PreservationRecordKind
+    }
+    assert set(catalogs) == set(PreservationRecordKind)
+    for record_kind, catalog in catalogs.items():
+        assert catalog.record_kind is record_kind
+
+    prescription_catalog = catalogs[PreservationRecordKind.PRESCRIPTION]
+    with pytest.raises(PreservationPolicyRecordKindMismatchError):
+        prescription_catalog.get_policy_for(
+            date(2027, 5, 20),
+            expected_record_kind=PreservationRecordKind.DISPENSING_RECORD,
+        )
+
+
+def test_policy_catalog_legal_revision_boundary() -> None:
+    """TC-40-02: 調剤済み日・最終記入日による施行境界と経過措置。"""
+    expected_expiry_by_kind = {
+        PreservationRecordKind.PRESCRIPTION: {
+            date(2026, 4, 1): date(2029, 4, 1),
+            date(2027, 5, 19): date(2030, 5, 19),
+            date(2027, 5, 20): date(2032, 5, 20),
+            # 施行日前に調剤済みの記録は、その後も従前の3年期限を使う。
+            date(2026, 9, 25): date(2029, 9, 25),
+        },
+        PreservationRecordKind.DISPENSING_RECORD: {
+            date(2026, 4, 1): date(2029, 4, 1),
+            date(2027, 5, 19): date(2030, 5, 19),
+            date(2027, 5, 20): date(2032, 5, 20),
+            date(2026, 9, 25): date(2029, 9, 25),
+        },
+        PreservationRecordKind.MEDICATION_HISTORY: {
+            date(2026, 4, 1): date(2029, 4, 1),
+            date(2027, 5, 19): date(2030, 5, 19),
+            date(2027, 5, 20): date(2030, 5, 20),
+        },
+    }
+    for record_kind, expiry_dates in expected_expiry_by_kind.items():
+        catalog = PreservationPolicyCatalog.create_standard_statutory_catalog(
+            record_kind
+        )
+        for anchor_date, expected_expiry in expiry_dates.items():
+            assert (
+                catalog.calculate_expiry_date(
+                    anchor_date, expected_record_kind=record_kind
+                )
+                == expected_expiry
+            )
+
+
+def test_latest_expiry_date_satisfies_all_applicable_obligations() -> None:
+    """TC-40-12: 複数義務のうち遅い満了日を最終期限とする。"""
+    statutory_catalog = PreservationPolicyCatalog.create_standard_statutory_catalog(
+        PreservationRecordKind.PRESCRIPTION
+    )
+    insured_rule_catalog = PreservationPolicyCatalog(
+        record_kind=PreservationRecordKind.PRESCRIPTION,
+        policies=(
+            PreservationPolicy(
+                name="療担規則の現行3年保存",
+                retention_years=RetentionYears(3),
+                effective_from=date.min,
+            ),
+        ),
+    )
+    statutory_expiry = statutory_catalog.calculate_expiry_date(
+        date(2027, 5, 19),
+        expected_record_kind=PreservationRecordKind.PRESCRIPTION,
+    )
+    insured_rule_expiry = insured_rule_catalog.calculate_expiry_date(
+        date(2027, 5, 25),
+        expected_record_kind=PreservationRecordKind.PRESCRIPTION,
+    )
+
+    assert statutory_expiry == date(2030, 5, 19)
+    assert insured_rule_expiry == date(2030, 5, 25)
+    assert latest_retention_expiry_date(statutory_expiry, insured_rule_expiry) == date(
+        2030, 5, 25
+    )
+
+    # 処方箋集約を通じて複数義務の最遅満了日導出を検証
+    prescription = (
+        create_prescription()
+        .ready_for_dispensing()
+        .complete_dispensing(dispensed_on=date(2027, 5, 19))
+    )
+    # 法定（調剤済日: 2027-05-19で施行前3年）と療担規則（完結日: 2027-05-25）の比較
+    assert prescription.calculate_retention_expiry_date(
+        statutory_catalog,
+        (insured_rule_catalog, date(2027, 5, 25)),
+    ) == date(2030, 5, 25)
+
+    # 改正法施行後（2027-05-20）: 法定5年（2032-05-20）と療担規則3年（2030-05-20）で遅い5年を採用
+    prescription_revised = (
+        create_prescription()
+        .ready_for_dispensing()
+        .complete_dispensing(dispensed_on=date(2027, 5, 20))
+    )
+    assert prescription_revised.calculate_retention_expiry_date(
+        statutory_catalog,
+        insured_rule_catalog,
+    ) == date(2032, 5, 20)
 
 
 def test_policy_catalog_overlapping_rejected() -> None:
@@ -163,7 +281,10 @@ def test_policy_catalog_overlapping_rejected() -> None:
         effective_to=date(2027, 5, 31),
     )
     with pytest.raises(OverlappingPreservationPolicyError):
-        PreservationPolicyCatalog(policies=(policy1, policy2))
+        PreservationPolicyCatalog(
+            record_kind=PreservationRecordKind.DISPENSING_RECORD,
+            policies=(policy1, policy2),
+        )
 
 
 def test_policy_catalog_out_of_range_rejected() -> None:
@@ -174,7 +295,13 @@ def test_policy_catalog_out_of_range_rejected() -> None:
         effective_from=date(2026, 4, 1),
         effective_to=date(2030, 3, 31),
     )
-    catalog = PreservationPolicyCatalog(policies=(policy,))
+    catalog = PreservationPolicyCatalog(
+        record_kind=PreservationRecordKind.DISPENSING_RECORD,
+        policies=(policy,),
+    )
 
     with pytest.raises(PreservationPolicyNotFoundError):
-        catalog.get_policy_for(date(2026, 3, 31))
+        catalog.get_policy_for(
+            date(2026, 3, 31),
+            expected_record_kind=PreservationRecordKind.DISPENSING_RECORD,
+        )

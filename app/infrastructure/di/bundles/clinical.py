@@ -128,6 +128,7 @@ from app.infrastructure.external.drug_interaction import (
     BlackBoxDrugInteractionDataSource,
 )
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
+from app.infrastructure.postgres.organization import PostgresOrganizationLock
 from app.infrastructure.postgres.repositories.repository_set import (
     PostgresRepositorySet,
 )
@@ -253,6 +254,7 @@ def build_dispensing_use_cases(
             corporate_access,
             prescription_source,
             unit_of_work,
+            clock,
         ),
         get=GetDispensingUseCase(repository, corporate_access),
         list_by_prescription=ListDispensingsByPrescriptionUseCase(
@@ -344,6 +346,7 @@ def build_medication_history_use_cases(
             event_occurrence=MedicationHistoryEventOccurrenceAdapter(
                 repositories.event
             ),
+            organization_lock=PostgresOrganizationLock(unit_of_work),
         ),
         amend=AmendMedicationHistoryUseCase(
             record_repository,

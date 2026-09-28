@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from datetime import date
 from typing import Self
 
 from app.domain.corporate.primitives import CorporateId
@@ -27,6 +28,7 @@ from app.domain.prescription.exceptions import (
     MedicineCodeTypeNotAllowedError,
     MedicineLineNumberSequenceError,
     OpenInquiryExistsError,
+    PrescriptionDomainError,
     PrescriptionMedicineRequiredError,
     PrescriptionRpRequiredError,
     PrescriptionStatusTransitionError,
@@ -69,6 +71,11 @@ from app.domain.shared.medicine import (
     MedicineUnit,
     RpNumber,
     SingleDoseAmount,
+)
+from app.domain.shared.preservation import (
+    PreservationObligation,
+    PreservationRecordKind,
+    resolve_latest_retention_expiry_date,
 )
 from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.staff.primitives import StaffId
@@ -256,6 +263,7 @@ class Prescription(AggregateRoot[PrescriptionId]):
     )
     inquiries: tuple[PrescriptionInquiry, ...] = ()
     coverage_selection_record_id: CoverageSelectionRecordId | None = None
+    dispensed_on: date | None = None
 
     # ------------------------------------------------------------------
     # 不変条件
@@ -481,7 +489,7 @@ class Prescription(AggregateRoot[PrescriptionId]):
         """疑義が生じたため受付済へ差し戻す。"""
         return self._transition_to(PrescriptionStatus.RECEIVED)
 
-    def complete_dispensing(self) -> Self:
+    def complete_dispensing(self, dispensed_on: date | None = None) -> Self:
         """全ての調剤が完了したことを記録する（調剤済）。
 
         遷移の契機は調剤編 ``リフィル処方箋情報レコード(521)`` の調剤終了区分で
@@ -489,7 +497,36 @@ class Prescription(AggregateRoot[PrescriptionId]):
         以降の調剤が不要となった場合」も終了として扱うため、判断は
         Dispensing 側から渡される。
         """
-        return self._transition_to(PrescriptionStatus.DISPENSED)
+        self._ensure_transition_allowed(PrescriptionStatus.DISPENSED)
+        return replace(
+            self,
+            status=PrescriptionStatus.DISPENSED,
+            dispensed_on=dispensed_on,
+        )
+
+    def calculate_retention_expiry_date(
+        self,
+        obligation: PreservationObligation,
+        *additional_obligations: PreservationObligation,
+    ) -> date:
+        """処方箋の法定保存満了日を計算する。
+
+        薬剤師法第27条（処方せんの保存）等に基づき、調剤済となった処方箋の
+        調剤済日（dispensed_on）を起算日としてポリシーカタログから満了日を計算する。
+        各義務には個別の起算日（(catalog, anchor_date) のタプル）を指定することもできる。
+        複数のポリシーカタログが指定された場合は、各義務で計算した満了日のうち
+        最も遅い日（最新満了日）を返す。
+        """
+        if self.dispensed_on is None:
+            raise PrescriptionDomainError(
+                "処方箋の保存満了日を計算するには調剤済日が必要です。"
+            )
+        return resolve_latest_retention_expiry_date(
+            self.dispensed_on,
+            PreservationRecordKind.PRESCRIPTION,
+            obligation,
+            *additional_obligations,
+        )
 
     def cancel(self) -> Self:
         """処方箋を取消・無効にする。"""
@@ -497,11 +534,15 @@ class Prescription(AggregateRoot[PrescriptionId]):
 
     def _transition_to(self, target: PrescriptionStatus) -> Self:
         """遷移表に従って状態を変更する。"""
+        self._ensure_transition_allowed(target)
+        return replace(self, status=target)
+
+    def _ensure_transition_allowed(self, target: PrescriptionStatus) -> None:
+        """遷移表にある状態変更であることを保証する。"""
         if target not in _ALLOWED_TRANSITIONS[self.status]:
             raise PrescriptionStatusTransitionError(
                 current=self.status.label, target=target.label
             )
-        return replace(self, status=target)
 
     def _ensure_not_terminal(self, _target: PrescriptionStatus) -> None:
         """終端状態では内容を変更できないことを保証する。"""

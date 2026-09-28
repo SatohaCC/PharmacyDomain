@@ -252,7 +252,7 @@ def create_fixture(*, prescription: Prescription | None = None) -> DispensingFix
             clock,
         ),
         complete=CompleteDispensingUseCase(
-            repository, corporate_access, prescription_source, NullUnitOfWork()
+            repository, corporate_access, prescription_source, NullUnitOfWork(), clock
         ),
         get=GetDispensingUseCase(repository, corporate_access),
         list_by_prescription=ListDispensingsByPrescriptionUseCase(

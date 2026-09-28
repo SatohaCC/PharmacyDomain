@@ -19,6 +19,7 @@ from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.exceptions import VerificationStatusMismatchError
 from app.domain.dispensing.primitives import (
     DispensingCancellationReason,
+    DispensingCompletionTimestamp,
     DispensingCompletionType,
     DispensingProcessStatus,
     VerificationResult,
@@ -172,6 +173,20 @@ def test_処方箋が_JSONBを経由して往復できる() -> None:
     assert encode_aggregate(restored) == encode_aggregate(prescription)
 
 
+def test_tc40_11_処方箋の調剤済日を保存し旧payloadでは推測しない() -> None:
+    prescription = dataclasses.replace(
+        create_prescription(), dispensed_on=date(2026, 9, 24)
+    )
+    payload = encode_aggregate(prescription)
+
+    restored = decode_aggregate(payload, Prescription)
+    assert restored.dispensed_on == date(2026, 9, 24)
+
+    payload.pop("dispensed_on")
+    legacy = decode_aggregate(payload, Prescription)
+    assert legacy.dispensed_on is None
+
+
 def test_調剤セッションが_JSONBを経由して往復できる() -> None:
     """調剤内容と監査記録を保ったまま復元できる。"""
     # Arrange
@@ -182,6 +197,27 @@ def test_調剤セッションが_JSONBを経由して往復できる() -> None:
 
     # Assert
     assert encode_aggregate(restored) == encode_aggregate(process)
+
+
+def test_tc40_11_調剤録完了日時を保存し旧payloadでは推測しない() -> None:
+    completed_at = DispensingCompletionTimestamp(
+        datetime(2026, 9, 26, 16, 30, tzinfo=UTC)
+    )
+    completed_on = date(2026, 9, 27)
+    process = dataclasses.replace(
+        create_dispensing(), completed_at=completed_at, completed_on=completed_on
+    )
+    payload = encode_aggregate(process)
+
+    restored = decode_aggregate(payload, DispensingProcess)
+    assert restored.completed_at == completed_at
+    assert restored.completed_on == completed_on
+
+    payload.pop("completed_at")
+    payload.pop("completed_on")
+    legacy = decode_aggregate(payload, DispensingProcess)
+    assert legacy.completed_at is None
+    assert legacy.completed_on is None
 
 
 def test_受付の全体指紋と項目指紋が_JSONBを経由して往復できる() -> None:

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from enum import StrEnum
 from typing import Self
 
 from app.domain.foundation.exceptions import DomainError
@@ -34,6 +35,28 @@ class PreservationPolicyNotFoundError(DomainError):
 
     default_message = "指定された日付に有効な保存期間ポリシーが存在しません。"
     default_code = "PRESERVATION_POLICY_NOT_FOUND"
+
+
+class PreservationPolicyRecordKindMismatchError(DomainError):
+    """カタログの記録区分と利用側が要求する記録区分が一致しない。"""
+
+    default_message = "保存期間ポリシーの記録区分が一致しません。"
+    default_code = "PRESERVATION_POLICY_RECORD_KIND_MISMATCH"
+
+
+def latest_retention_expiry_date(*expiry_dates: date) -> date:
+    """複数の保存義務が適用される記録の、最も遅い満了日を返す。"""
+    if not expiry_dates:
+        raise ValueError("保存満了日は1件以上必要です。")
+    return max(expiry_dates)
+
+
+class PreservationRecordKind(StrEnum):
+    """保存期間を適用する記録区分。"""
+
+    PRESCRIPTION = "処方箋"
+    DISPENSING_RECORD = "調剤録"
+    MEDICATION_HISTORY = "薬剤服用歴"
 
 
 class RetentionYears(BasePositiveInt):
@@ -81,6 +104,7 @@ class PreservationPolicy(ValueObject):
 class PreservationPolicyCatalog(ValueObject):
     """保存期間ポリシーのカタログ（履歴管理）。"""
 
+    record_kind: PreservationRecordKind
     policies: tuple[PreservationPolicy, ...] = ()
 
     def validate(self) -> None:
@@ -94,33 +118,96 @@ class PreservationPolicyCatalog(ValueObject):
             if p1.effective_to is None or p1.effective_to >= p2.effective_from:
                 raise OverlappingPreservationPolicyError()
 
-    def get_policy_for(self, as_of: date) -> PreservationPolicy:
+    def get_policy_for(
+        self,
+        as_of: date,
+        *,
+        expected_record_kind: PreservationRecordKind | None = None,
+    ) -> PreservationPolicy:
         """基準日時点に有効な保存期間ポリシーを取得する。"""
+        if (
+            expected_record_kind is not None
+            and self.record_kind is not expected_record_kind
+        ):
+            raise PreservationPolicyRecordKindMismatchError()
         for policy in self.policies:
             if policy.is_effective_at(as_of):
                 return policy
-        raise PreservationPolicyNotFoundError(
-            f"基準日 {as_of.isoformat()} に有効な保存期間ポリシーが存在しません。"
-        )
+        raise PreservationPolicyNotFoundError()
 
-    def calculate_expiry_date(self, base_date: date) -> date:
+    def calculate_expiry_date(
+        self,
+        base_date: date,
+        *,
+        expected_record_kind: PreservationRecordKind | None = None,
+    ) -> date:
         """基準日時点で有効なポリシーを解決し、保存満了日を計算する。"""
-        policy = self.get_policy_for(base_date)
+        policy = self.get_policy_for(
+            base_date, expected_record_kind=expected_record_kind
+        )
         return policy.calculate_expiry_date(base_date)
 
     @classmethod
-    def create_standard_statutory_catalog(cls) -> Self:
+    def create_standard_statutory_catalog(
+        cls, record_kind: PreservationRecordKind
+    ) -> Self:
         """日本の調剤法規（現行3年・法改正後5年）の標準ポリシーカタログを生成する。"""
-        old_policy = PreservationPolicy(
-            name="薬剤師法第28条・療担規則第9条（現行3年保存）",
-            retention_years=RetentionYears(3),
-            effective_from=date(2000, 1, 1),
-            effective_to=date(2026, 3, 31),
+        if record_kind is PreservationRecordKind.MEDICATION_HISTORY:
+            return cls(
+                record_kind=record_kind,
+                policies=(
+                    PreservationPolicy(
+                        name="薬剤服用歴の最終記入日から3年保存",
+                        retention_years=RetentionYears(3),
+                        effective_from=date.min,
+                    ),
+                ),
+            )
+        return cls(
+            record_kind=record_kind,
+            policies=(
+                PreservationPolicy(
+                    name="薬剤師法改正前の3年保存",
+                    retention_years=RetentionYears(3),
+                    effective_from=date.min,
+                    effective_to=date(2027, 5, 19),
+                ),
+                PreservationPolicy(
+                    name="薬剤師法改正後の5年保存",
+                    retention_years=RetentionYears(5),
+                    effective_from=date(2027, 5, 20),
+                ),
+            ),
         )
-        new_policy = PreservationPolicy(
-            name="改正後保存期間（5年保存）",
-            retention_years=RetentionYears(5),
-            effective_from=date(2026, 4, 1),
-            effective_to=None,
+
+
+PreservationObligation = (
+    PreservationPolicyCatalog | tuple[PreservationPolicyCatalog, date]
+)
+
+
+def resolve_latest_retention_expiry_date(
+    default_anchor_date: date,
+    expected_record_kind: PreservationRecordKind,
+    obligation: PreservationObligation,
+    *additional_obligations: PreservationObligation,
+) -> date:
+    """複数の保存義務から、最も遅い満了日を計算して返す。
+
+    各義務は PreservationPolicyCatalog 単体、または (catalog, anchor_date) のタプルで
+    個別の起算日を指定できる。タプルでない場合は default_anchor_date を起算日とする。
+    """
+    obligations = (obligation, *additional_obligations)
+    calculated_dates: list[date] = []
+    for item in obligations:
+        if isinstance(item, tuple):
+            cat, anchor = item
+        else:
+            cat, anchor = item, default_anchor_date
+        calculated_dates.append(
+            cat.calculate_expiry_date(
+                anchor,
+                expected_record_kind=expected_record_kind,
+            )
         )
-        return cls(policies=(old_policy, new_policy))
+    return latest_retention_expiry_date(*calculated_dates)

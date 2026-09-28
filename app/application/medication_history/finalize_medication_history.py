@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import UTC, date, datetime
 
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission, ResolvedActorContext
-from app.application.common.clock import Clock
+from app.application.common.clock import BUSINESS_TIMEZONE, Clock, business_now
 from app.application.common.exceptions import AuthorizationError
+from app.application.common.organization_lock import OrganizationLock
 from app.application.common.unit_of_work import UnitOfWork
 from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
@@ -37,6 +38,10 @@ from app.domain.medication_history.repository import (
     PatientMedicalProfileRepository,
 )
 from app.domain.medication_history.services import CounselorQualificationService
+from app.domain.shared.preservation import (
+    PreservationPolicyCatalog,
+    PreservationRecordKind,
+)
 from app.domain.staff.primitives import StaffId
 
 
@@ -80,6 +85,7 @@ class FinalizeMedicationHistoryUseCase:
         counselor_service: CounselorQualificationService | None = None,
         clock: Clock | None = None,
         event_occurrence: MedicationHistoryEventOccurrenceBoundary | None = None,
+        organization_lock: OrganizationLock | None = None,
     ) -> None:
         self._record_repository = record_repository
         self._profile_repository = profile_repository
@@ -90,6 +96,7 @@ class FinalizeMedicationHistoryUseCase:
         self._counselor_service = counselor_service
         self._clock = clock
         self._event_occurrence = event_occurrence
+        self._organization_lock = organization_lock
 
     async def execute(
         self, command: FinalizeMedicationHistoryCommand
@@ -106,6 +113,17 @@ class FinalizeMedicationHistoryUseCase:
             corporate_id=corporate_id,
             record_id=MedicationHistoryRecordId.parse(command.record_id),
         )
+        if self._organization_lock is not None:
+            await self._organization_lock.acquire(
+                f"medication-history-retention:{corporate_id.value}:{record.patient_id.value}"
+            )
+            # ロック待ちの間に別リクエストが同じ薬歴を確定した可能性があるため、
+            # 患者単位ロックを得た後に対象も読み直す。
+            record = await load_record_or_raise(
+                self._record_repository,
+                corporate_id=corporate_id,
+                record_id=record.id,
+            )
         if command.review_result is None:
             raise MedicationHistoryDomainError(
                 "薬歴確定時のレビュー結果を指定してください。"
@@ -177,7 +195,8 @@ class FinalizeMedicationHistoryUseCase:
             raise MedicationHistoryDomainError(
                 "薬歴確定日時を記録するClockが必要です。"
             )
-        now = self._clock.now()
+        business_instant = business_now(self._clock)
+        now = business_instant.astimezone(UTC)
         finalized_at = FinalizedTimestamp(now)
         if use_clock_as_counseling_time:
             counselor_id = finalizer_id
@@ -215,9 +234,72 @@ class FinalizeMedicationHistoryUseCase:
             delay_reason=delay_reason,
             review_result=review_result,
         )
-        await self._record_repository.save(finalized)
+        finalized = await self._set_patient_retention_expiry(
+            finalized, last_written_on=business_instant.date()
+        )
         await self._project_to_profile(finalized)
         return MedicationHistoryDto.from_entity(finalized)
+
+    async def _set_patient_retention_expiry(
+        self,
+        finalized: MedicationHistoryRecord,
+        *,
+        last_written_on: date,
+    ) -> MedicationHistoryRecord:
+        """患者内の全確定記録を最新記入日から計算し、延長分を保存する。"""
+        records = await self._record_repository.list_for_profile_projection(
+            corporate_id=finalized.corporate_id,
+            patient_id=finalized.patient_id,
+        )
+        patient_records: list[MedicationHistoryRecord] = []
+        includes_finalized_record = False
+        for record in records:
+            if record.id == finalized.id:
+                patient_records.append(finalized)
+                includes_finalized_record = True
+            else:
+                patient_records.append(record)
+        if not includes_finalized_record:
+            patient_records.append(finalized)
+
+        written_dates = [last_written_on]
+        written_dates.extend(
+            record.finalized_at.value.astimezone(BUSINESS_TIMEZONE).date()
+            for record in patient_records
+            if record.id != finalized.id
+            and record.is_finalized
+            and record.finalized_at is not None
+        )
+        latest_written_on = max(written_dates)
+        catalog = PreservationPolicyCatalog.create_standard_statutory_catalog(
+            PreservationRecordKind.MEDICATION_HISTORY
+        )
+
+        updated_finalized = finalized
+        retention_expiry_updates: dict[MedicationHistoryRecordId, date] = {}
+        for record in patient_records:
+            if not record.is_finalized or record.finalized_at is None:
+                continue
+            updated = record.calculate_and_set_retention_expiry(
+                catalog,
+                last_written_on=latest_written_on,
+            )
+            if record.id == finalized.id:
+                updated_finalized = updated
+                await self._record_repository.save(updated)
+            elif updated.retention_expiry_date != record.retention_expiry_date:
+                expiry_date = updated.retention_expiry_date
+                if expiry_date is None:
+                    continue
+                retention_expiry_updates[record.id] = expiry_date
+
+        if retention_expiry_updates:
+            await self._record_repository.update_retention_expiry_dates(
+                corporate_id=finalized.corporate_id,
+                patient_id=finalized.patient_id,
+                expiry_dates=retention_expiry_updates,
+            )
+        return updated_finalized
 
     async def _project_to_profile(self, record: MedicationHistoryRecord) -> None:
         """患者の全店舗の投影対象から頭書きを再構築して保存する。"""

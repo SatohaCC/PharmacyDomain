@@ -9,6 +9,8 @@ AGENTS.md「Boundaryの例外契約」が求める「定義だけで raise さ�
 
 from __future__ import annotations
 
+from datetime import date
+
 from app.application.dispensing.exceptions import (
     DispensingPrescriptionNotFoundError,
     DispensingStaffNotFoundError,
@@ -82,6 +84,7 @@ class FakePrescriptionSource(
         *,
         corporate_id: CorporateId,
         prescription_id: PrescriptionId,
+        dispensed_on: date | None = None,
     ) -> None:
         """処方箋を調剤済へ遷移させる。すでに調剤済なら何もしない（冪等）。"""
         key = (corporate_id, prescription_id)
@@ -90,7 +93,7 @@ class FakePrescriptionSource(
             raise DispensingPrescriptionNotFoundError()
         if prescription.status is PrescriptionStatus.DISPENSED:
             return
-        self.prescriptions[key] = prescription.complete_dispensing()
+        self.prescriptions[key] = prescription.complete_dispensing(dispensed_on)
 
 
 class FakeDispensingStaffQualificationSource(StaffQualificationBoundary):

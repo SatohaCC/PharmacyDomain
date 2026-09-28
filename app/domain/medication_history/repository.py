@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import date
 from typing import Protocol
 
 from app.domain.care_event.primitives import EventId
@@ -109,6 +111,16 @@ class MedicationHistoryRepository(Protocol):
         patient_id: PatientId,
     ) -> list[MedicationHistoryRecord]:
         """頭書き再投影専用に、同一法人・患者の全店舗の記録を返す。"""
+        ...
+
+    async def update_retention_expiry_dates(
+        self,
+        *,
+        corporate_id: CorporateId,
+        patient_id: PatientId,
+        expiry_dates: Mapping[MedicationHistoryRecordId, date],
+    ) -> None:
+        """同一法人・患者の指定済み薬歴で保存期限日だけを更新する。"""
         ...
 
     async def list_external_corrections(

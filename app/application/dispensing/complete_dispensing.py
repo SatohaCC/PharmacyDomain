@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date
 
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
+from app.application.common.clock import Clock, business_now
 from app.application.common.unit_of_work import UnitOfWork
 from app.application.dispensing.get_dispensing import DispensingProcessDto
 from app.application.dispensing.reference import PrescriptionCompletionBoundary
 from app.application.dispensing.support import load_dispensing_or_raise, parse_enum
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.primitives import (
+    DispensingCompletionTimestamp,
     DispensingCompletionType,
     DispensingId,
     NextDispensingDate,
@@ -51,11 +53,13 @@ class CompleteDispensingUseCase:
         corporate_access: CorporateAccessBoundary,
         prescription_completion: PrescriptionCompletionBoundary,
         unit_of_work: UnitOfWork,
+        clock: Clock,
     ) -> None:
         self._repository = repository
         self._corporate_access = corporate_access
         self._prescription_completion = prescription_completion
         self._unit_of_work = unit_of_work
+        self._clock = clock
 
     async def execute(self, command: CompleteDispensingCommand) -> DispensingProcessDto:
         """調剤セッションを完了し、終了区分なら処方箋も調剤済にする。"""
@@ -73,6 +77,7 @@ class CompleteDispensingUseCase:
         completion_type = parse_enum(
             DispensingCompletionType, command.completion_type, "調剤終了区分"
         )
+        completed_at = business_now(self._clock)
         process = process.complete(
             completion_type=completion_type,
             next_dispensing_date=(
@@ -80,11 +85,14 @@ class CompleteDispensingUseCase:
                 if command.next_dispensing_date is not None
                 else None
             ),
+            completed_at=DispensingCompletionTimestamp(completed_at.astimezone(UTC)),
+            completed_on=completed_at.date(),
         )
         await self._repository.save(process)
         if completion_type is DispensingCompletionType.COMPLETED:
             await self._prescription_completion.complete_dispensing(
                 corporate_id=corporate_id,
                 prescription_id=process.prescription_id,
+                dispensed_on=process.dispensed_date.value,
             )
         return DispensingProcessDto.from_entity(process)

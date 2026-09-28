@@ -20,6 +20,7 @@ from app.domain.dispensing.exceptions import (
     CancellationReasonMismatchError,
     DispensedMedicineRequiredError,
     DispensedRpRequiredError,
+    DispensingDomainError,
     DispensingIterationOutOfRangeError,
     DispensingStatusTransitionError,
     DuplicatedDispensedLineNumberError,
@@ -36,6 +37,7 @@ from app.domain.dispensing.primitives import (
     AuditTimestamp,
     DispensedDate,
     DispensingCancellationReason,
+    DispensingCompletionTimestamp,
     DispensingCompletionType,
     DispensingId,
     DispensingIteration,
@@ -70,7 +72,11 @@ from app.domain.shared.medicine import (
     MedicineUnit,
     RpNumber,
 )
-from app.domain.shared.preservation import PreservationPolicyCatalog
+from app.domain.shared.preservation import (
+    PreservationObligation,
+    PreservationRecordKind,
+    resolve_latest_retention_expiry_date,
+)
 from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.staff.primitives import StaffId
 from app.domain.store.primitives import StoreId
@@ -217,6 +223,8 @@ class DispensingProcess(AggregateRoot[DispensingId]):
     verification: DispensingVerification | None = None
     status: DispensingProcessStatus = DispensingProcessStatus.IN_PROGRESS
     cancellation_reason: DispensingCancellationReason | None = None
+    completed_at: DispensingCompletionTimestamp | None = None
+    completed_on: date | None = None
 
     # ------------------------------------------------------------------
     # 不変条件
@@ -454,6 +462,8 @@ class DispensingProcess(AggregateRoot[DispensingId]):
         *,
         completion_type: DispensingCompletionType,
         next_dispensing_date: NextDispensingDate | None = None,
+        completed_at: DispensingCompletionTimestamp | None = None,
+        completed_on: date | None = None,
     ) -> Self:
         """患者へ交付し、調剤セッションを完了する。
 
@@ -464,11 +474,17 @@ class DispensingProcess(AggregateRoot[DispensingId]):
         if not self.is_verified:
             raise VerificationNotPassedError()
         self._ensure_can_transition(DispensingProcessStatus.COMPLETED)
+        if (completed_at is None) != (completed_on is None):
+            raise DispensingDomainError(
+                "調剤完了日時と完了業務日は両方指定してください。"
+            )
         return replace(
             self,
             status=DispensingProcessStatus.COMPLETED,
             completion_type=completion_type,
             next_dispensing_date=next_dispensing_date,
+            completed_at=completed_at,
+            completed_on=completed_on,
         )
 
     def cancel(self, reason: DispensingCancellationReason) -> Self:
@@ -504,11 +520,25 @@ class DispensingProcess(AggregateRoot[DispensingId]):
             )
 
     def calculate_retention_expiry_date(
-        self, catalog: PreservationPolicyCatalog
+        self,
+        obligation: PreservationObligation,
+        *additional_obligations: PreservationObligation,
     ) -> date:
         """調剤録の法定保存満了日を計算する。
 
-        薬剤師法第28条（調剤録の保存）に基づき、調剤日（dispensed_date）を
-        起算基準としてポリシーカタログから満了日を計算する。
+        薬剤師法第28条（調剤録の保存）等に基づき、完了操作で記録した業務日を
+        最終記入日としてポリシーカタログから満了日を計算する。
+        各義務には個別の起算日（(catalog, anchor_date) のタプル）を指定することもできる。
+        複数のポリシーカタログが指定された場合は、各義務で計算した満了日のうち
+        最も遅い日（最新満了日）を返す。
         """
-        return catalog.calculate_expiry_date(self.dispensed_date.value)
+        if self.completed_on is None:
+            raise DispensingDomainError(
+                "調剤録の保存満了日を計算するには完了業務日が必要です。"
+            )
+        return resolve_latest_retention_expiry_date(
+            self.completed_on,
+            PreservationRecordKind.DISPENSING_RECORD,
+            obligation,
+            *additional_obligations,
+        )

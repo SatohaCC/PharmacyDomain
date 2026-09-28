@@ -10,6 +10,7 @@ import しない。逆向きの依存も含めて ``[tool.import_rules.forbidden
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Protocol
 
 from app.domain.corporate.primitives import CorporateId
@@ -76,6 +77,7 @@ class PrescriptionCompletionBoundary(Protocol):
         *,
         corporate_id: CorporateId,
         prescription_id: PrescriptionId,
+        dispensed_on: date | None = None,
     ) -> None:
         """処方箋を調剤済へ遷移させる。
 

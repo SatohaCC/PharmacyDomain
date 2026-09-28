@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -57,6 +57,7 @@ from app.domain.dispensing.exceptions import (
     VerificationNotPassedError,
 )
 from app.domain.dispensing.primitives import (
+    DispensingCompletionTimestamp,
     DispensingId,
     DispensingProcessStatus,
     DispensingSplitReason,
@@ -66,6 +67,7 @@ from app.domain.dispensing.services import (
     DispensingIterationUniquenessService,
     DispensingPharmacistService,
 )
+from app.domain.prescription.exceptions import PrescriptionDomainError
 from app.domain.prescription.primitives import (
     GenericSubstitutionRestrictionType,
     InquiryNumber,
@@ -76,6 +78,10 @@ from app.domain.prescription.primitives import (
 from app.domain.prescription.value_objects import (
     PrescriptionManagementInfo,
     RefillInstruction,
+)
+from app.domain.shared.preservation import (
+    PreservationPolicyCatalog,
+    PreservationRecordKind,
 )
 from app.domain.staff.primitives import StaffId, StaffQualifications
 from tests.application.access_helpers import create_vendor_corporate_access_for
@@ -659,6 +665,7 @@ class Test処方箋の調剤済への遷移:
             prescription_id=fixture.prescription.id,
         )
         assert prescription.status is PrescriptionStatus.READY_FOR_DISPENSING
+        assert prescription.dispensed_on is None
 
     async def test_総使用回数に達していなくても_終了にできる(self) -> None:
         """規格は「達していないが次回以降の調剤が不要となった場合」も終了と定める。"""
@@ -684,6 +691,97 @@ class Test処方箋の調剤済への遷移:
             prescription_id=fixture.prescription.id,
         )
         assert prescription.status is PrescriptionStatus.DISPENSED
+
+    async def test_tc40_04_処方箋の保存起算日は最終調剤日になる(self) -> None:
+        fixture = create_fixture(
+            prescription=create_prescription(management_info=_refill_management_info())
+        )
+        final_dispensing_date = date(2026, 8, 26)
+        first_dispensing_id = (
+            await fixture.start.execute(create_start_command(fixture))
+        ).id
+        await _verify_passed(fixture, first_dispensing_id)
+        await fixture.complete.execute(
+            CompleteDispensingCommand(
+                corporate_id=str(fixture.corporate_id.value),
+                dispensing_id=first_dispensing_id,
+                completion_type="continues",
+                next_dispensing_date=final_dispensing_date,
+            )
+        )
+
+        prescription_after_continuation = (
+            await fixture.prescription_source.get_or_raise(
+                corporate_id=fixture.corporate_id,
+                prescription_id=fixture.prescription.id,
+            )
+        )
+        assert prescription_after_continuation.dispensed_on is None
+        catalog = PreservationPolicyCatalog.create_standard_statutory_catalog(
+            PreservationRecordKind.PRESCRIPTION
+        )
+        with pytest.raises(PrescriptionDomainError):
+            prescription_after_continuation.calculate_retention_expiry_date(catalog)
+
+        final_dispensing_id = (
+            await fixture.start.execute(
+                create_start_command(
+                    fixture, iteration=2, dispensed_on=final_dispensing_date
+                )
+            )
+        ).id
+        await _verify_passed(fixture, final_dispensing_id)
+
+        await fixture.complete.execute(
+            CompleteDispensingCommand(
+                corporate_id=str(fixture.corporate_id.value),
+                dispensing_id=final_dispensing_id,
+                completion_type="completed",
+            )
+        )
+
+        prescription = await fixture.prescription_source.get_or_raise(
+            corporate_id=fixture.corporate_id,
+            prescription_id=fixture.prescription.id,
+        )
+        assert prescription.dispensed_on is not None
+        assert prescription.dispensed_on == final_dispensing_date
+        assert prescription.calculate_retention_expiry_date(catalog) == date(
+            2029, 8, 26
+        )
+
+    async def test_tc40_05_調剤録の最終記入日時を完了時Clockから保存する(self) -> None:
+        fixture = create_fixture()
+        verification_at = datetime(2026, 8, 26, 15, 30, tzinfo=UTC)
+        completion_at = datetime(2026, 8, 26, 16, 30, tzinfo=UTC)
+        fixture.clock.advance(verification_at - fixture.clock.now())
+        dispensing_id = (
+            await fixture.start.execute(
+                create_start_command(fixture, dispensed_on=date(2026, 8, 26))
+            )
+        ).id
+        await _verify_passed(fixture, dispensing_id)
+        fixture.clock.advance(completion_at - fixture.clock.now())
+
+        await fixture.complete.execute(
+            CompleteDispensingCommand(
+                corporate_id=str(fixture.corporate_id.value),
+                dispensing_id=dispensing_id,
+                completion_type="completed",
+            )
+        )
+
+        stored = await fixture.repository.get(
+            corporate_id=fixture.corporate_id,
+            dispensing_id=DispensingId.parse(dispensing_id),
+        )
+        assert stored is not None
+        assert stored.completed_at == DispensingCompletionTimestamp(completion_at)
+        assert stored.completed_on == date(2026, 8, 27)
+        catalog = PreservationPolicyCatalog.create_standard_statutory_catalog(
+            PreservationRecordKind.DISPENSING_RECORD
+        )
+        assert stored.calculate_retention_expiry_date(catalog) == date(2029, 8, 27)
 
 
 class Test一覧と取得:
