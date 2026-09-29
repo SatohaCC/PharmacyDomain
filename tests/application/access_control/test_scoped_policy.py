@@ -102,6 +102,62 @@ def test_許可外店舗の存在を隠蔽する(role: ActorRole) -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("permission", "allowed"),
+    [
+        (Permission.VIEW_PATIENT_HEADING, True),
+        (Permission.MANAGE_PATIENT_HEADING, True),
+        (Permission.MANAGE_PATIENT, False),
+    ],
+    ids=["頭書き参照", "頭書き更新", "基本台帳編集"],
+)
+def test_tc43_21_22_店舗オペレータの頭書き権限を基本台帳権限から分離する(
+    permission: Permission, allowed: bool
+) -> None:
+    authorization = AuthorizationService(_actor(ActorRole.STORE_OPERATOR))
+
+    if allowed:
+        authorization.require(permission=permission, target_corporate_id=_CORPORATE)
+    else:
+        with pytest.raises(AuthorizationError):
+            authorization.require(permission=permission, target_corporate_id=_CORPORATE)
+
+
+@pytest.mark.parametrize(
+    ("role", "permission", "allowed"),
+    [
+        (ActorRole.STORE_OPERATOR, Permission.VIEW_PATIENT_HEADING, True),
+        (ActorRole.STORE_OPERATOR, Permission.MANAGE_PATIENT_HEADING, True),
+        (ActorRole.STORE_VIEWER, Permission.VIEW_PATIENT_HEADING, True),
+        (ActorRole.STORE_VIEWER, Permission.MANAGE_PATIENT_HEADING, False),
+        (ActorRole.CORPORATE_ADMIN, Permission.VIEW_PATIENT_HEADING, True),
+        (ActorRole.CORPORATE_ADMIN, Permission.MANAGE_PATIENT_HEADING, True),
+        (ActorRole.VENDOR_SYSTEM_ADMIN, Permission.VIEW_PATIENT_HEADING, True),
+        (ActorRole.VENDOR_SYSTEM_ADMIN, Permission.MANAGE_PATIENT_HEADING, True),
+    ],
+    ids=[
+        "operator参照",
+        "operator更新",
+        "viewer参照",
+        "viewer更新",
+        "admin参照",
+        "admin更新",
+        "vendor参照",
+        "vendor更新",
+    ],
+)
+def test_tc43_21_店舗管理者とビューアの頭書き権限を分ける(
+    role: ActorRole, permission: Permission, allowed: bool
+) -> None:
+    authorization = AuthorizationService(_actor(role))
+
+    if allowed:
+        authorization.require(permission=permission, target_corporate_id=_CORPORATE)
+    else:
+        with pytest.raises(AuthorizationError):
+            authorization.require(permission=permission, target_corporate_id=_CORPORATE)
+
+
 def test_空の店舗集合は全店舗許可にならない() -> None:
     with pytest.raises(TenantBoundaryNotFoundError):
         AuthorizationService(

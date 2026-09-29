@@ -28,6 +28,7 @@ class InMemoryPatientRepository(PatientRepository):
     def __init__(self) -> None:
         self.items: dict[PatientId, Patient] = {}
         self._sequences: dict[CorporateId, int] = {}
+        self.save_calls = 0
 
     async def get(
         self,
@@ -43,6 +44,7 @@ class InMemoryPatientRepository(PatientRepository):
 
     async def save(self, patient: Patient) -> None:
         """患者をコピーして保存する。"""
+        self.save_calls += 1
         self.items[patient.id] = copy.deepcopy(patient)
 
     async def allocate_patient_number(

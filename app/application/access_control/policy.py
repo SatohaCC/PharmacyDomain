@@ -23,6 +23,8 @@ _CORPORATE_ADMIN_PERMISSIONS = frozenset(
         Permission.MANAGE_STAFF,
         Permission.VIEW_PATIENT,
         Permission.MANAGE_PATIENT,
+        Permission.VIEW_PATIENT_HEADING,
+        Permission.MANAGE_PATIENT_HEADING,
         Permission.VIEW_COVERAGE,
         Permission.MANAGE_COVERAGE,
         Permission.VIEW_RECEPTION,
@@ -49,6 +51,7 @@ _STORE_VIEW_PERMISSIONS = frozenset(
         Permission.VIEW_DISPENSING,
         Permission.VIEW_MEDICATION_HISTORY,
         Permission.VIEW_EVENT,
+        Permission.VIEW_PATIENT_HEADING,
     }
 )
 
@@ -60,6 +63,7 @@ _STORE_WRITE_PERMISSIONS = frozenset(
         Permission.MANAGE_DISPENSING,
         Permission.MANAGE_MEDICATION_HISTORY,
         Permission.MANAGE_EVENT,
+        Permission.MANAGE_PATIENT_HEADING,
     }
 )
 

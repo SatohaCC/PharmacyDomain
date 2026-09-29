@@ -39,6 +39,8 @@ class Permission(StrEnum):
     MANAGE_STAFF = "manage_staff"
     VIEW_PATIENT = "view_patient"
     MANAGE_PATIENT = "manage_patient"
+    VIEW_PATIENT_HEADING = "view_patient_heading"
+    MANAGE_PATIENT_HEADING = "manage_patient_heading"
     VIEW_COVERAGE = "view_coverage"
     MANAGE_COVERAGE = "manage_coverage"
     VIEW_RECEPTION = "view_reception"

@@ -12,9 +12,13 @@ from datetime import date
 from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, Response
+from pydantic import Field
 
 from app.application.patient.change_patient_birth_date import (
     ChangePatientBirthDateCommand,
+)
+from app.application.patient.change_patient_heading import (
+    ChangePatientHeadingCommand,
 )
 from app.application.patient.change_patient_names import ChangePatientNamesCommand
 from app.application.patient.change_patient_profile import (
@@ -30,6 +34,10 @@ from app.application.patient.get_patient import (
 )
 from app.application.patient.get_patient_external_identifier import (
     GetPatientExternalIdentifierQuery,
+)
+from app.application.patient.get_patient_heading import (
+    GetPatientHeadingQuery,
+    PatientHeadingDto,
 )
 from app.application.patient.list_patient_external_identifiers import (
     ListPatientExternalIdentifiersQuery,
@@ -95,6 +103,14 @@ class ChangePatientProfileRequest(RequestModel):
     phone_number: str | None = None
 
 
+class ChangePatientHeadingRequest(RequestModel):
+    """患者頭書きの部分変更入力。省略と明示的なnullを区別する。"""
+
+    expected_revision: int = Field(ge=0)
+    summary: str | None = None
+    notes: str | None = None
+
+
 class DeactivatePatientRequest(RequestModel):
     """患者無効化の入力。"""
 
@@ -156,6 +172,45 @@ async def get_patient(
     """患者を1件取得する。"""
     return await use_cases.get.execute(
         GetPatientQuery(corporate_id=corporate_id, patient_id=patient_id)
+    )
+
+
+@router.get(
+    "/patients/{patient_id}/heading",
+    response_model=PatientHeadingDto,
+)
+async def get_patient_heading(
+    corporate_id: str,
+    patient_id: str,
+    use_cases: PatientUseCasesDep,
+) -> PatientHeadingDto:
+    """患者頭書きの現在値と変更履歴を取得する。"""
+    return await use_cases.get_heading.execute(
+        GetPatientHeadingQuery(corporate_id=corporate_id, patient_id=patient_id)
+    )
+
+
+@router.patch(
+    "/patients/{patient_id}/heading",
+    response_model=PatientHeadingDto,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def change_patient_heading(
+    corporate_id: str,
+    patient_id: str,
+    body: ChangePatientHeadingRequest,
+    use_cases: PatientUseCasesDep,
+) -> PatientHeadingDto:
+    """患者頭書きを部分変更し、更新後の改訂を返す。"""
+    return await use_cases.change_heading.execute(
+        ChangePatientHeadingCommand(
+            corporate_id=corporate_id,
+            patient_id=patient_id,
+            expected_revision=body.expected_revision,
+            provided_fields=frozenset({"summary", "notes"} & body.model_fields_set),
+            summary=body.summary,
+            notes=body.notes,
+        )
     )
 
 

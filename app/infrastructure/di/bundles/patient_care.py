@@ -39,6 +39,9 @@ from app.application.coverage.register_patient_coverage import (
 from app.application.patient.change_patient_birth_date import (
     ChangePatientBirthDateUseCase,
 )
+from app.application.patient.change_patient_heading import (
+    ChangePatientHeadingUseCase,
+)
 from app.application.patient.change_patient_names import ChangePatientNamesUseCase
 from app.application.patient.change_patient_profile import ChangePatientProfileUseCase
 from app.application.patient.deactivate_patient import DeactivatePatientUseCase
@@ -49,6 +52,7 @@ from app.application.patient.get_patient import GetPatientUseCase
 from app.application.patient.get_patient_external_identifier import (
     GetPatientExternalIdentifierUseCase,
 )
+from app.application.patient.get_patient_heading import GetPatientHeadingUseCase
 from app.application.patient.list_patient_external_identifiers import (
     ListPatientExternalIdentifiersUseCase,
 )
@@ -95,6 +99,8 @@ class PatientUseCases:
     list_external_identifiers: ListPatientExternalIdentifiersUseCase
     deactivate_external_identifier: DeactivatePatientExternalIdentifierUseCase
     change_profile: ChangePatientProfileUseCase
+    get_heading: GetPatientHeadingUseCase
+    change_heading: ChangePatientHeadingUseCase
 
 
 def build_patient_use_cases(
@@ -144,6 +150,10 @@ def build_patient_use_cases(
             patient_repository,
             corporate_access,
             clock,
+        ),
+        get_heading=GetPatientHeadingUseCase(patient_repository, corporate_access),
+        change_heading=ChangePatientHeadingUseCase(
+            patient_repository, corporate_access, clock
         ),
     )
 

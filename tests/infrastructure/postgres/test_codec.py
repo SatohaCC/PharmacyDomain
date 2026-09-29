@@ -40,6 +40,11 @@ from app.domain.medication_history.primitives import (
     MedicationHistoryStatus,
 )
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
+from app.domain.patient.heading import (
+    PatientHeadingContent,
+    PatientHeadingRevision,
+    PatientHeadingText,
+)
 from app.domain.patient.lifecycle import PatientStatus
 from app.domain.patient.patient import Patient
 from app.domain.patient.primitives import (
@@ -596,6 +601,38 @@ def test_TC31_患者集約_後方互換復元() -> None:
     assert restored.status == PatientStatus.ACTIVE
     assert restored.merged_into_id is None
     assert restored.status_history == ()
+
+
+def test_tc43_37_患者頭書きの改訂と記録者をJSONで往復する() -> None:
+    patient = create_patient()
+    content = PatientHeadingContent(
+        summary=PatientHeadingText("来局時の注意"),
+        notes=PatientHeadingText("一行目\n二行目"),
+    )
+    revision = PatientHeadingRevision(
+        content=content,
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+        recorded_at=datetime(2026, 9, 2, 3, tzinfo=UTC),
+    )
+    patient = dataclasses.replace(patient, heading_history=(revision,))
+
+    restored = decode_aggregate(encode_aggregate(patient), Patient)
+
+    assert restored.heading_history == (revision,)
+    assert restored.heading_history[0].content == content
+    assert restored.heading_history[0].person_id == revision.person_id
+    assert restored.heading_history[0].account_id == revision.account_id
+    assert restored.heading_history[0].recorded_at == revision.recorded_at
+
+
+def test_tc43_38_頭書き履歴を持たない旧患者payloadを復元できる() -> None:
+    payload = encode_aggregate(create_patient())
+    payload.pop("heading_history", None)
+
+    restored = decode_aggregate(payload, Patient)
+
+    assert restored.heading_history == ()
 
 
 def test_tc71_患者プロフィール受信履歴のcodec往復と旧payload互換() -> None:

@@ -54,6 +54,7 @@ from app.application.medicine_catalog.register_medicine import RegisterMedicineU
 from app.application.patient.change_patient_birth_date import (
     ChangePatientBirthDateUseCase,
 )
+from app.application.patient.change_patient_heading import ChangePatientHeadingUseCase
 from app.application.patient.change_patient_names import ChangePatientNamesUseCase
 from app.application.patient.change_patient_profile import ChangePatientProfileUseCase
 from app.application.patient.deactivate_patient import DeactivatePatientUseCase
@@ -64,6 +65,7 @@ from app.application.patient.get_patient import GetPatientUseCase
 from app.application.patient.get_patient_external_identifier import (
     GetPatientExternalIdentifierUseCase,
 )
+from app.application.patient.get_patient_heading import GetPatientHeadingUseCase
 from app.application.patient.list_patient_external_identifiers import (
     ListPatientExternalIdentifiersUseCase,
 )
@@ -301,9 +303,15 @@ def create_patient_use_cases(
     patients: InMemoryPatientRepository,
     identifiers: InMemoryPatientExternalIdentifierRepository,
     corporate_repository: InMemoryCorporateRepository,
+    *,
+    actor: ActorContext | None = None,
 ) -> PatientUseCases:
     """インメモリRepositoryの上に患者ユースケース束を組み立てる。"""
-    access = _access_for(corporate_repository)
+    access = (
+        _access_for(corporate_repository)
+        if actor is None
+        else CorporateAccessService(corporate_repository, AuthorizationService(actor))
+    )
     clock = FakeClock()
     return PatientUseCases(
         register=RegisterPatientUseCase(patients, access),
@@ -311,6 +319,8 @@ def create_patient_use_cases(
         change_names=ChangePatientNamesUseCase(patients, access, clock),
         change_birth_date=ChangePatientBirthDateUseCase(patients, access, clock),
         change_profile=ChangePatientProfileUseCase(patients, access, clock),
+        get_heading=GetPatientHeadingUseCase(patients, access),
+        change_heading=ChangePatientHeadingUseCase(patients, access, clock),
         deactivate=DeactivatePatientUseCase(patients, access, clock),
         reactivate=ReactivatePatientUseCase(patients, access, clock),
         merge=MergePatientsUseCase(patients, access, clock),

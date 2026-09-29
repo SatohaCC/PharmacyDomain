@@ -22,3 +22,10 @@ class PatientStateConflictError(PatientDomainError):
 
     default_message = "患者の現在状態と要求された操作が競合しています。"
     default_code = "PATIENT_STATE_CONFLICT"
+
+
+class PatientHeadingConflictError(PatientDomainError):
+    """患者頭書きの期待改訂と現在改訂が一致しない場合の例外。"""
+
+    default_message = "患者頭書きが別の操作で更新されています。再読込してください。"
+    default_code = "PATIENT_HEADING_CONFLICT"

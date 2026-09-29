@@ -101,6 +101,7 @@ from app.domain.medication_history.exceptions import (
 from app.domain.medicine_catalog.exceptions import MedicineEffectivePeriodConflictError
 from app.domain.patient.exceptions import (
     PatientExternalIdentifierAlreadyExistsError,
+    PatientHeadingConflictError,
     PatientStateConflictError,
 )
 from app.domain.prescription.exceptions import (
@@ -189,6 +190,7 @@ _STATUS_BY_EXCEPTION: Final[Mapping[type[BaseException], HTTPStatus]] = {
     ManagerExclusiveDutyConflictError: HTTPStatus.CONFLICT,
     ManagerAssignmentStateConflictError: HTTPStatus.CONFLICT,
     StoreStateConflictError: HTTPStatus.CONFLICT,
+    PatientHeadingConflictError: HTTPStatus.CONFLICT,
     PatientStateConflictError: HTTPStatus.CONFLICT,
     # --- 403: 主体は判明したうえでの拒否 ---
     # 別テナントのリソースは TenantBoundaryNotFoundError（404）として隠すので、

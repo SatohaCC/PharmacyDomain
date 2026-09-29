@@ -1,8 +1,8 @@
 ---
 type: Specification
 title: Patientコンテキスト概要
-description: 患者の同一性、基本情報、ライフサイクル管理、名寄せ統合、および外部患者IDの管理。
-timestamp: 2026-09-21T00:00:00Z
+description: 患者の同一性、基本情報、自由記載の頭書き、ライフサイクル管理、名寄せ統合、および外部患者IDの管理。
+timestamp: 2026-09-29T00:00:00Z
 status: active
 tags: [domain, patient, lifecycle, merge, external-identifier]
 ---
@@ -10,7 +10,7 @@ tags: [domain, patient, lifecycle, merge, external-identifier]
 # Patientコンテキスト概要
 
 Patientコンテキストは、調剤薬局における患者の同一性（`PatientId`）、基本属性（氏名、カナ、生年月日）、
-ライフサイクル（有効 / 無効 / 名寄せ統合済）、および外部システム患者IDとの連携を管理します。
+患者全体の自由記載の頭書き、ライフサイクル（有効 / 無効 / 名寄せ統合済）、および外部システム患者IDとの連携を管理します。
 
 ## 境界と責務
 
@@ -20,6 +20,7 @@ Patientコンテキストが所有するもの:
 
 - **患者の同一性**: 法人内で一意な UUIDv7 識別子（`PatientId`）
 - **患者基本情報**: 氏名（Shared Kernelの `PersonNames`: 漢字氏名 `PersonName`、カナ氏名 `PersonNameKana`）、生年月日（`PatientBirthDate`）
+- **患者全体の自由記載の頭書き**: サマリと申し送り。変更後の内容・記録者・記録時刻を患者集約内に追記する
 - **ライフサイクル状態と履歴**:
   - 利用状態（`PatientStatus`: `ACTIVE` / `INACTIVE` / `MERGED`）
   - 名寄せ統合先ID（`merged_into_id: PatientId | None`）
@@ -31,11 +32,17 @@ Patientコンテキストが所有するもの:
 所有しないもの:
 
 - **保険資格情報**: 保険証・受給者証の記号番号や有効期間は `Coverage` コンテキストが所有
-- **臨床情報・病歴・アレルギー**: 薬歴および患者医療プロファイル（頭書き）は `MedicationHistory` コンテキストが所有
+- **臨床情報・病歴・アレルギー**: 薬歴および薬歴から再構築する `PatientMedicalProfile` は `MedicationHistory` コンテキストが所有
 - **処方・調剤記録**: `Prescription` および `Dispensing` コンテキストが所有
 - **受付記録**: 店舗での来局・資格確認の事実は `Reception` コンテキストが所有
 
 他コンテキスト（Coverage, Reception, Prescription, Dispensing, MedicationHistory）は、患者集約を直接保持せず、`PatientId` による ID 参照のみを行います。
+
+### 患者全体の自由記載
+
+`Patient` の自由記載の頭書きは、患者全体のサマリと申し送りを法人内の店舗間で共有します。各欄は任意のプレーンテキスト（10,000文字以内）で、内容が変わるたびに記録者とUTC記録時刻を含む改訂を追記します。省略された欄は保持し、明示的な解除は `null` として改訂に残します。同じ内容の再送は改訂を増やしません。
+
+これは薬歴から再構築する `MedicationHistory` の `PatientMedicalProfile` とは別の情報です。自由記載の頭書きは薬歴・NSIPS取込・臨床プロファイルを更新せず、臨床プロファイルから自動生成もしません。`ACTIVE` と `INACTIVE` の患者は更新でき、`MERGED` の患者は参照のみ許可します。更新APIは専用権限と期待改訂を要求します。
 
 ## ドメインモデルと不変条件
 
@@ -98,6 +105,8 @@ stateDiagram-v2
 - **属性変更**:
   - `ChangePatientNamesUseCase`: 氏名・カナの変更（`MERGED` 患者は拒否）。
   - `ChangePatientBirthDateUseCase`: 生年月日の変更または解除（`MERGED` 患者は拒否）。
+- **自由記載の頭書き**:
+  - `GetPatientHeadingUseCase` / `ChangePatientHeadingUseCase`: 法人内で共有するサマリ・申し送りと追記履歴を参照・更新します。患者基本プロフィールや臨床プロファイルの権限とは分離し、`MERGED` 患者の更新と古い改訂番号による更新を拒否します。
 - **ライフサイクル操作**:
   - `DeactivatePatientUseCase`: 患者の無効化（利用停止）。すでに `INACTIVE` の場合は冪等として成功。
   - `ReactivatePatientUseCase`: 患者の再有効化。すでに `ACTIVE` の場合は冪等として成功。
@@ -119,6 +128,8 @@ FastAPIルータ（`app/presentational/routers/patient.py`）により、以下�
 | :--- | :--- | :--- | :--- |
 | `POST` | `/corporates/{cid}/patients` | 患者新規登録 | 201 Created |
 | `GET` | `/corporates/{cid}/patients/{pid}` | 患者取得 | 200 OK |
+| `GET` | `/corporates/{cid}/patients/{pid}/heading` | 自由記載の頭書きと改訂履歴の取得 | 200 OK |
+| `PATCH` | `/corporates/{cid}/patients/{pid}/heading` | 自由記載の頭書きの部分更新 | 200 OK |
 | `PATCH` | `/corporates/{cid}/patients/{pid}/names` | 氏名変更 | 204 No Content |
 | `PATCH` | `/corporates/{cid}/patients/{pid}/birth-date` | 生年月日変更 | 204 No Content |
 | `POST` | `/corporates/{cid}/patients/{pid}/deactivation` | 患者無効化 | 204 No Content |
