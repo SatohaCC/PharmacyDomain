@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import replace
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -23,6 +23,11 @@ from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.exceptions import DispensingPharmacistQualificationError
 from app.domain.dispensing.primitives import DispensingId
 from app.domain.patient.external_identifier import PatientExternalIdentifier
+from app.domain.patient.heading import (
+    PatientHeadingContent,
+    PatientHeadingRevision,
+    PatientHeadingText,
+)
 from app.domain.patient.patient import Patient
 from app.domain.patient.primitives import (
     ExternalPatientId,
@@ -32,6 +37,7 @@ from app.domain.patient.primitives import (
 from app.domain.prescription.exceptions import MedicineClassificationMissingError
 from app.domain.reception.primitives import ReceptionFingerprint, ReceptionId
 from app.domain.reception.reception import Reception
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
 from app.domain.staff.primitives import (
     AffiliationPeriod,
@@ -169,7 +175,7 @@ async def test_tc45_未登録のraw版識別子も書込み前に拒否される
 
 @pytest.mark.asyncio
 async def test_既存患者のNSIPSでは既存患者IDが再利用される() -> None:
-    """TC-17: 既にレセコン患者番号が登録されている場合、既存のPatientIdが再利用される。"""
+    """TC-17とTC-43-48: 再取込で患者IDを保ち、頭書き履歴を変更しない。"""
     fixture = await create_fixture()
     # 1. 事前に同一外部IDで初回取込を実行
     cmd1 = IngestNsipsCommand(
@@ -180,17 +186,40 @@ async def test_既存患者のNSIPSでは既存患者IDが再利用される() -
     )
     res1 = await execute_structured_test_command(fixture, cmd1)
     assert res1.is_new_patient is True
+    assert res1.patient_id is not None
+    patient_id = PatientId.parse(res1.patient_id)
+    patient = await fixture.patient_repo.get(
+        corporate_id=fixture.corporate_id, patient_id=patient_id
+    )
+    assert patient is not None
+    heading = PatientHeadingRevision(
+        content=PatientHeadingContent(
+            summary=PatientHeadingText("再取込前の申し送り"),
+            notes=PatientHeadingText("NSIPSでは更新しない記録"),
+        ),
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+        recorded_at=datetime(2026, 9, 23, tzinfo=UTC),
+    )
+    await fixture.patient_repo.save(replace(patient, heading_history=(heading,)))
 
     # 2. 異なる処方箋番号で同一外部IDのNSIPSを実行
     cmd2 = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
         dispenser_staff_id=str(fixture.pharmacist_id.value),
-        raw_nsips_text="1,20260921,DOC-002,1310001,中央診療所,01,内科,佐藤医師\n2,P-EXIST,ヤマダタロウ,山田太郎,1,19800101\n4,20260921,REC-001,調剤花子\n5,1,内服,1日3回毎食後,14,1,610406001,アムロジピン,1,錠,0\n",
+        raw_nsips_text="1,20260921,DOC-002,1310001,中央診療所,01,内科,佐藤医師\n2,P-EXIST,ヤマダジロウ,山田次郎,1,19800101\n4,20260921,REC-001,調剤花子\n5,1,内服,1日3回毎食後,14,1,610406001,アムロジピン,1,錠,0\n",
     )
     res2 = await execute_structured_test_command(fixture, cmd2)
     assert res2.is_new_patient is False
     assert res2.patient_id == res1.patient_id
+    updated_patient = await fixture.patient_repo.get(
+        corporate_id=fixture.corporate_id, patient_id=patient_id
+    )
+    assert updated_patient is not None
+    assert updated_patient.names.kanji.last_name.value == "山田"
+    assert updated_patient.names.kanji.first_name.value == "次郎"
+    assert updated_patient.heading_history == (heading,)
 
 
 @pytest.mark.asyncio

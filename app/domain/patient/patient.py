@@ -9,7 +9,11 @@ from typing import Self
 from app.domain.corporate.primitives import CorporateId
 from app.domain.foundation.entity import AggregateRoot
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.patient.exceptions import PatientStateConflictError
+from app.domain.patient.exceptions import (
+    PatientHeadingConflictError,
+    PatientStateConflictError,
+)
+from app.domain.patient.heading import PatientHeadingContent, PatientHeadingRevision
 from app.domain.patient.lifecycle import (
     PatientStatus,
     PatientStatusChange,
@@ -49,6 +53,7 @@ class Patient(AggregateRoot[PatientId]):
     merged_into_id: PatientId | None = None
     status_history: tuple[PatientStatusChange, ...] = ()
     profile_history: tuple[PatientProfileChange, ...] = ()
+    heading_history: tuple[PatientHeadingRevision, ...] = ()
 
     def validate(self) -> None:
         """患者集約の不変条件を検証する。"""
@@ -139,6 +144,39 @@ class Patient(AggregateRoot[PatientId]):
                 "統合済みの患者へプロフィール履歴は追加できません。"
             )
         return replace(self, profile_history=(*self.profile_history, change))
+
+    @property
+    def heading_revision(self) -> int:
+        """頭書きの現在改訂番号。"""
+        return len(self.heading_history)
+
+    def change_heading(
+        self,
+        content: PatientHeadingContent,
+        *,
+        expected_revision: int,
+        person_id: AccountPersonId,
+        account_id: UserAccountId,
+        recorded_at: datetime,
+    ) -> Self:
+        """改訂番号を確認して患者の頭書きを追記する。"""
+        if self.status == PatientStatus.MERGED:
+            raise PatientStateConflictError("統合済みの患者へ頭書きは追加できません。")
+        if expected_revision != self.heading_revision:
+            raise PatientHeadingConflictError()
+        if self.heading_history and self.heading_history[-1].content == content:
+            return self
+        if not self.heading_history and content == PatientHeadingContent(
+            summary=None, notes=None
+        ):
+            return self
+        revision = PatientHeadingRevision(
+            content=content,
+            person_id=person_id,
+            account_id=account_id,
+            recorded_at=recorded_at,
+        )
+        return replace(self, heading_history=(*self.heading_history, revision))
 
     def deactivate(
         self,
