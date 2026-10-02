@@ -1,12 +1,11 @@
 """調剤セッション集約。
 
-1枚の処方箋に対する**1回ごと**の調剤作業・変更調剤・最終鑑査を管理する
-整合性境界のルート。
+処方箋に対する1回ごとの調剤作業、変更調剤（代替調剤・数量調整・調製方法）、
+および調剤鑑査の実績を管理する集約ルートです。
 
-**集約が単独で検証できることだけを ``validate()`` に置く。** 処方箋の指示の
-範囲内か、前回セッションの次回予定日から前後7日以内か、代替調剤が処方箋の
-変更制限に反しないか、調剤者・鑑査者が薬剤師かは、いずれも他の集約を見ないと
-判定できない。これらは Domain Service が担う。
+なお、集約単独で完結する整合性検証のみを ``validate()`` で実施し、
+処方箋の指示範囲内であるか、代替調剤が処方箋の変更不可指示に反していないか、
+調剤者・鑑査者が有資格者であるかといった複数集約に跨る検証は Domain Service が担当します。
 """
 
 from __future__ import annotations
@@ -108,12 +107,12 @@ if set(_ALLOWED_TRANSITIONS) != set(DispensingProcessStatus):
 
 @dataclass(frozen=True, kw_only=True)
 class DispensedMedicine(ValueObject):
-    """調剤した薬品の1明細。
+    """調剤した医薬品の1明細。
 
-    変更調剤は3軸に分かれる。``substitution``（何を出したか）と
-    ``preparations``（どう加工したか）はこの明細が持ち、
-    ``quantity_adjustment``（どれだけ出したか）は数量が剤単位のフィールドで
-    あるため :class:`DispensedRp` が持つ。
+    変更調剤の実績は以下の3つの観点に分かれます：
+    1. 薬品自体の変更（代替調剤）: ``substitution``（本明細で保持）
+    2. 調製方法の変更（一包化・粉砕等）: ``preparations``（本明細で保持）
+    3. 数量の調整（減数調剤）: 剤単位で管理されるため :class:`DispensedRp` で保持
     """
 
     line_number: MedicineLineNumber
@@ -138,10 +137,10 @@ class DispensedMedicine(ValueObject):
             raise SubstitutionWithoutChangeError(medicine_name=self.name.value)
 
     def _ensure_preparations_are_unique(self) -> None:
-        """同じ調製方法が重複していないことを検証する。
+        """同一の調製方法が重複して指定されていないことを検証する。
 
-        一包化と粉砕のような**異なる**方法の同時成立は正当なので排他にしない
-        （加算の排他は Claim の責務）。同じ方法の重複だけを拒否する。
+        一包化と粉砕のように「異なる」調製方法の組み合わせは正当ですが、
+        同じ調製方法の重複指定は拒否します。
         """
         if len(self.preparations) != len(set(self.preparations)):
             raise DuplicatedPreparationMethodError()
@@ -175,10 +174,10 @@ class DispensedRp(ValueObject):
             raise DispensedMedicineRequiredError()
 
     def _ensure_line_numbers_are_unique(self) -> None:
-        """RP内の薬品連番が重複していないことを検証する。
+        """剤（RP）内の薬品明細連番が重複していないことを検証する。
 
-        処方箋側と違い連続性は要求しない。減数調剤や分割調剤では処方箋の
-        一部の薬品だけを調剤しうるため、欠番は正当な記録になる。
+        減数調剤や分割調剤において処方箋の一部の薬品のみを調剤する場合があるため、
+        連番の欠番は許容されますが、重複は拒否します。
         """
         numbers = [medicine.line_number for medicine in self.medicines]
         if len(numbers) != len(set(numbers)):
@@ -261,21 +260,18 @@ class DispensingProcess(AggregateRoot[DispensingId]):
     def _ensure_rp_numbers_are_unique(self) -> None:
         """RP番号が重複していないことを検証する。
 
-        処方箋の剤との対応キーなので、重複すると突合が壊れる。連続性は
-        要求しない（分割調剤では処方箋の一部の剤だけを調剤しうる）。
-        処方箋側に実在する番号かは Domain Service が判定する。
+        処方箋の剤と対応付けるキーであるため、重複は拒否します。
+        分割調剤等で一部の剤のみを調剤する場合があるため、番号の連続性は強制しません。
         """
         numbers = [rp.rp_number for rp in self.dispensed_rps]
         if len(numbers) != len(set(numbers)):
             raise DuplicatedDispensedRpNumberError()
 
     def _ensure_split_parameters_consistency(self) -> None:
-        """分割理由と合計分割回数の有無、および回数の自己無撞着性を検証する。
+        """分割調剤パラメータ（分割理由・合計分割回数）の自己無撞着性を検証する。
 
-        薬局実務において分割調剤の可否判定・回数管理・点数算定はすべてレセコンの責務であり、
-        調剤集約はレセコンからNSIPS等で連携された業務事実（今回回数と合計分割回数）を
-        記録する。ここではセッション単体の自己無撞着性（分割パラメータの整合性および
-        今回回数が合計分割回数以内であること）のみを保証する。
+        分割調剤の可否判定や点数算定はレセコンの責務であり、本集約では連携された事実を客観的に記録します。
+        ここでは、パラメータの有無の整合性および「今回の調剤回数が合計分割回数以下であること」のみを保証します。
         """
         has_reason = self.split_reason is not None
         has_total = self.total_split_count is not None
@@ -292,21 +288,17 @@ class DispensingProcess(AggregateRoot[DispensingId]):
             )
 
     def _ensure_next_dispensing_date_matches_completion_type(self) -> None:
-        """調剤終了区分と次回調剤予定日の有無が一致することを検証する。
+        """調剤終了区分と次回調剤予定日の有無の整合性を検証する。
 
-        調剤編 ``リフィル処方箋情報レコード(521)`` は継続のときだけ予定日を
-        記録すると定めている。片方だけの状態は送信できない記録になる。
+        次回以降の調剤が残っている場合（継続）にのみ次回予定日を設定し、
+        完了または中止の場合は予定日が存在しないことを保証します。
         """
         has_next_date = self.next_dispensing_date is not None
         if has_next_date != self.completion_type.requires_next_date:
             raise NextDispensingDateMismatchError()
 
     def _ensure_cancellation_reason_matches_status(self) -> None:
-        """中止理由の有無が中止状態と一致することを検証する。
-
-        理由の無い中止は調剤録として意味を持たず、中止していないのに理由が
-        残っている状態は前の中止操作の取り消し漏れを意味する。
-        """
+        """調剤中止理由と調剤状態（CANCELLED）の整合性を検証する。"""
         has_reason = self.cancellation_reason is not None
         is_cancelled = self.status is DispensingProcessStatus.CANCELLED
         if has_reason != is_cancelled:
@@ -419,10 +411,9 @@ class DispensingProcess(AggregateRoot[DispensingId]):
         )
 
     def update_dispensed_rps(self, dispensed_rps: tuple[DispensedRp, ...]) -> Self:
-        """調剤内容（変更調剤の3軸を含む）を差し替える。
+        """調剤内容（代替調剤・数量・調製方法など）を更新する。
 
-        鑑査不合格による再調製もこの操作で行う。処方箋の変更制限に反する
-        代替が含まれていないかは Domain Service が判定する。
+        鑑査で不合格となった後の再調製などもこのメソッドで行います。
         """
         self._ensure_in_progress("調剤内容の変更")
         return replace(self, dispensed_rps=dispensed_rps)
@@ -435,10 +426,10 @@ class DispensingProcess(AggregateRoot[DispensingId]):
         result: VerificationResult,
         notes: VerificationNotes | None = None,
     ) -> Self:
-        """最終鑑査の結果を記録する。
+        """調剤鑑査の結果を記録する。
 
-        不合格のときは状態を進めない。再調製のために ``IN_PROGRESS`` のまま
-        にすることで、「不合格なのに交付できる」状態を作らない。
+        不合格（NG）の場合は調剤進行中（IN_PROGRESS）のまま維持し、
+        再調製を行わずに交付完了へ進めないよう保護します。
         """
         self._ensure_in_progress("最終鑑査")
         verification = DispensingVerification(

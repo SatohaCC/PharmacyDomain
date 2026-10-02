@@ -1,11 +1,11 @@
-"""患者医療プロファイル（頭書き）集約。
+"""患者医療プロファイル（頭書き / フェイスシート）集約。
 
-**薬歴からの投影であり、独立した真実を持たない。** その患者の確定済薬歴を
-``counseled_at`` 昇順に畳み込めば決定的に再構築できる。
+本集約は確定済みの薬歴指導記録から導出される投影（プロジェクション）モデルです。
+患者の確定済み薬歴を指導日時の古い順に順次適用することで、決定的に再構築できます。
 
-そのため**唯一の状態変更メソッドは :meth:`apply` である**。項目ごとの
-``register_allergy(...)`` のような直接編集を公開しない。公開すると、薬歴に
-由来しない要素を作れてしまい、再構築が不可能になる。
+そのため、状態変更の窓口は :meth:`apply` に一元化されており、アレルギーや既往歴を
+直接編集するメソッドは提供しません（薬歴に記録されていない臨床情報が紛れ込み、
+再構築不能になることを防ぐためです）。
 """
 
 from __future__ import annotations
@@ -51,10 +51,10 @@ from app.domain.shared.medicine import MedicineName
 
 @dataclass(frozen=True, eq=False, kw_only=True)
 class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
-    """患者の継続的医療プロファイル（頭書き / フェイスシート）。
+    """患者の継続的な医療プロファイル（頭書き / フェイスシート）。
 
-    ライフサイクルのフィールドを持たない。頭書きは投影なので「無効化」という
-    状態が無く、要素の終了は各要素の期間（併用薬の ``ended_on``）で表す。
+    本集約は薬歴からの投影であるため、独立した有効/無効といったライフサイクル状態は持ちません。
+    各項目の終了や治癒などは、各レコード内の期間情報（終了日や状態区分など）で表現します。
     """
 
     id: PatientMedicalProfileId
@@ -75,10 +75,9 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
     def active_concurrent_medications(
         self, target_date: date
     ) -> tuple[ConcurrentMedicationRecord, ...]:
-        """指定日に併用していた薬の一覧を返す。
+        """指定日時点で有効な併用薬の一覧を取得する。
 
-        適用日を引数で受け取る全域関数にする。``date.today()`` の暗黙利用は
-        ruff ``DTZ011`` が禁じており、遡及判定は相互作用チェックで実際に要る。
+        タイムゾーンのズレや暗黙のシステム日付依存を防ぐため、基準日を引数で明示的に受け取ります。
         """
         return tuple(
             item
@@ -88,7 +87,7 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
 
     @property
     def contraindication_conditions(self) -> tuple[MedicalConditionRecord, ...]:
-        """禁忌チェックの対象になる疾患。"""
+        """禁忌チェックの対象となる疾患の一覧を取得する。"""
         return tuple(
             item for item in self.medical_conditions if item.is_contraindication_target
         )
@@ -118,11 +117,7 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
 
     @classmethod
     def empty_for(cls, *, corporate_id: CorporateId, patient_id: PatientId) -> Self:
-        """まだ何も投影されていない頭書きを作る。
-
-        Repository が ``None`` を返すのは欠損ではなく「まだ投影されていない」を
-        意味するので、呼び出し側はこれを作ってから畳み込んでよい。
-        """
+        """指定された患者の初期状態（投影前の空のプロファイル）を作成する。"""
         return cls(
             id=PatientMedicalProfileId.generate(),
             corporate_id=corporate_id,
@@ -137,13 +132,7 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
         patient_id: PatientId,
         records: tuple[MedicationHistoryRecord, ...],
     ) -> Self:
-        """確定済薬歴の時系列から頭書きを再構築する。
-
-        指導日時の昇順、同時刻は確定日時または移行記録の登録日時、最後に薬歴IDで
-        決定して差分を畳み込む。頭書きは薬歴からの投影なので、投影対象の薬歴が
-        残っていれば再構築できる。薬歴と頭書きの保存を原子的にする責務はUnit of
-        Workが担う。
-        """
+        """確定済みの薬歴一覧から時系列順に差分を適用し、患者頭書きプロファイルを再構築する。"""
         profile = cls.empty_for(corporate_id=corporate_id, patient_id=patient_id)
 
         raw_events: list[
@@ -190,15 +179,14 @@ class PatientMedicalProfile(AggregateRoot[PatientMedicalProfileId]):
     # ------------------------------------------------------------------
 
     def apply(self, record: MedicationHistoryRecord) -> Self:
-        """確定済薬歴の頭書き差分を適用する。
+        """確定済み薬歴に記録された頭書き更新差分を適用する。
 
-        由来（``ProfileProvenance``）は薬歴から組み立てる。呼び出し側に
-        由来を渡させると、薬歴と食い違う由来を書ける余地ができる。
+        各臨床情報の由来（記録ID・指導者・指導日時など）は渡された薬歴オブジェクトから自動抽出されます。
 
         Raises:
-            ProfilePatientMismatchError: 別の患者・法人の薬歴である場合。
-            UnfinalizedRecordProjectionError: 未確定の薬歴である場合。
-            ConcurrentMedicationNotFoundError: 終了対象の併用薬が無い場合。
+            ProfilePatientMismatchError: 異なる患者または別法人の薬歴が渡された場合。
+            UnfinalizedRecordProjectionError: 未確定（下書き）の薬歴が渡された場合。
+            ConcurrentMedicationNotFoundError: 終了対象として指定された併用薬が存在しない場合。
         """
         self._ensure_same_patient(record)
         if not record.is_projection_eligible:

@@ -235,7 +235,7 @@ class IngestNsipsUseCase:
 
     @staticmethod
     def _parse_reception_id(raw: str | None) -> ReceptionId:
-        """受付呼出元が発行したUUIDv7を検証する。"""
+        """受付ID（UUIDv7形式）をパースして検証する。"""
         if raw is None:
             raise NsipsParseError("受付IDが必要です。")
         try:
@@ -247,7 +247,7 @@ class IngestNsipsUseCase:
     def _fingerprint_bundle(
         bundle: NsipsBundle,
     ) -> tuple[tuple[ReceptionFieldPath, ReceptionFingerprint], ...]:
-        """形式メタデータを除くBundleの全業務フィールドを個別に指紋化する。"""
+        """受信Bundle内の各業務フィールド（ヘッダーバージョン等のメタ情報を除く）のハッシュ値を計算する。"""
         values: dict[str, object] = {}
 
         def visit(value: object, path: str) -> None:
@@ -297,7 +297,7 @@ class IngestNsipsUseCase:
     def _combined_fingerprint(
         field_fingerprints: tuple[tuple[ReceptionFieldPath, ReceptionFingerprint], ...],
     ) -> ReceptionFingerprint:
-        """フィールド別指紋を順序に依存しない受付指紋へまとめる。"""
+        """各フィールドのハッシュ値を統合し、項目順序に左右されない受付全体のハッシュ値を計算する。"""
         encoded = json.dumps(
             [
                 (path.value, fingerprint.value)
@@ -315,7 +315,7 @@ class IngestNsipsUseCase:
         document_number: str,
         fingerprint: ReceptionFingerprint,
     ) -> str:
-        """受付IDに依存せず同じ薬歴・訂正内容へ同じIDを割り当てる。"""
+        """薬歴ID・処方箋番号・ハッシュ値から、同一訂正内容を一意に識別する訂正IDを生成する。"""
         identity = ":".join((str(record_id.value), document_number, fingerprint.value))
         return "corr-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
 
@@ -327,7 +327,7 @@ class IngestNsipsUseCase:
         bundle: NsipsBundle,
         fingerprint: ReceptionFingerprint,
     ) -> IngestNsipsResultDto | None:
-        """異なるReception IDの同じBundle訂正を既存薬歴から特定する。"""
+        """別IDで再送された同一内容の訂正データを、既存の薬歴記録から検索・特定する。"""
         if self._medication_history_repo is None:
             return None
         patient_link = await self._patient_external_id_repo.get_active_by_source(
@@ -404,7 +404,7 @@ class IngestNsipsUseCase:
         imported_at: datetime,
         is_follow_up: bool,
     ) -> ReceptionSourceData:
-        """受信BundleをSOAPと分けたJSONB用スナップショットにする。"""
+        """受信したBundleデータ全体をJSON文字列としてシリアライズし、保管用スナップショットを作成する。"""
 
         def encode(value: object) -> str:
             if isinstance(value, (datetime, date)):
@@ -438,7 +438,7 @@ class IngestNsipsUseCase:
     def _replace_source_data(
         reception: Reception, source_data: ReceptionSourceData
     ) -> Reception:
-        """新しい受信内容を最新値と履歴の両方へ記録する。"""
+        """新しい受信データを最新スナップショットとして設定し、過去のデータを受信履歴へ追加する。"""
         history = reception.source_data_history
         if reception.source_data is not None:
             history = (*history, reception.source_data)
@@ -454,7 +454,7 @@ class IngestNsipsUseCase:
         previous: tuple[tuple[ReceptionFieldPath, ReceptionFingerprint], ...],
         incoming: tuple[tuple[ReceptionFieldPath, ReceptionFingerprint], ...],
     ) -> tuple[ReceptionFieldPath, ...]:
-        """フィールドの追加・変更・欠落を名前順で返す。"""
+        """前回受信データと今回受信データの差分（追加・変更・削除されたフィールド）をソート順で抽出する。"""
         previous_by_name = {
             path.value: fingerprint.value for path, fingerprint in previous
         }
@@ -479,7 +479,7 @@ class IngestNsipsUseCase:
         changed_fields: tuple[str, ...] | None,
         missing_values_require_review: bool = False,
     ) -> _PatientProfileApplication:
-        """Reception直前値との差を履歴化し、非欠損値をPatientへ反映する。"""
+        """直前の受付データからの変更差分を履歴として記録し、入力のある患者属性をPatient集約に反映する。"""
         patient = await load_patient_or_raise(
             self._patient_repo,
             corporate_id=corporate_id,
@@ -619,7 +619,7 @@ class IngestNsipsUseCase:
 
     @staticmethod
     def _profile_values(profile: PatientProfileSnapshot) -> dict[str, object | None]:
-        """SnapshotからNSIPSの患者属性項目を安定したキーで取り出す。"""
+        """患者属性スナップショットから、比較用の辞書データを生成する。"""
         return {
             "patient.kanji_name": profile.names.kanji,
             "patient.kana_name": profile.names.kana,
@@ -644,7 +644,7 @@ class IngestNsipsUseCase:
             permission=Permission.MANAGE_PRESCRIPTION,
         )
 
-        # 1. 入力形式の排他とパース処理
+        # 1. 入力形式の排他確認とパース処理
         if (command.structured_bundle is None) == (command.raw_nsips_text is None):
             raise NsipsParseError(
                 "構造化BundleかNSIPSテキストのどちらか一方を指定してください。"
@@ -666,7 +666,7 @@ class IngestNsipsUseCase:
             raise DispensingDateRequiredError()
         coverage_review_reason = self._coverage_review_reason(bundle)
 
-        # 2. 安定受付IDで受付と関連集約を照合する。
+        # 2. 受付IDをもとに既存の受付データおよび関連集約を検索・照合する
         incoming_fingerprints = self._fingerprint_bundle(bundle)
         incoming_fingerprint = self._combined_fingerprint(incoming_fingerprints)
         received_at = self._clock.now()
@@ -860,7 +860,7 @@ class IngestNsipsUseCase:
                     field.value for field in changed_fields
                 )
 
-            # 患者プロフィールの自動反映分だけなら要確認にしない。
+            # 患者基本属性の自動反映のみで処方等に変更がない場合は、薬剤師の確認待ち（レビュー）にしない
             has_reviewable_change = bool(patient_attribute_conflicts) or any(
                 field.value not in _PATIENT_PROFILE_FIELD_PATHS
                 for field in changed_fields

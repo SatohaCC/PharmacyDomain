@@ -1,8 +1,8 @@
-"""Prescription集約に関わるドメインサービス。
+"""処方箋原本および疑義照会に関わるドメインサービス。
 
-無状態（Stateless）であり、本物の集約を引数で受け取る。
+無状態（Stateless）であり、処方箋などの本物のドメインオブジェクトを引数で受け取る。
 Repository の ``save()`` 契約と Application の事前チェックの双方から
-**同じ実装**を呼ぶことで、規則が2箇所に分かれる事故を防ぐ。
+同じ実装を呼ぶことで、業務ルールの判定が複数箇所に分かれる事故を防ぐ。
 """
 
 from __future__ import annotations
@@ -30,24 +30,22 @@ from app.domain.staff.primitives import PharmacistProfile, StaffQualifications
 
 
 class PrescriptionDocumentNumberUniquenessService:
-    """電子処方箋の引換番号が法人内で一意であることを検証する。"""
+    """電子処方箋の引換番号が同一法人内で一意であることを検証する。"""
 
     def ensure_no_conflict(
         self,
         prescription: Prescription,
         existing_prescriptions: Iterable[Prescription],
     ) -> None:
-        """同一法人内で引換番号が重複していないことを検証する。
+        """同一法人内で電子処方箋の引換番号が重複していないことを検証する。
 
         **電子処方箋のときだけ**一意性を課す。引換番号は電子処方箋管理サービスが
-        発行する一意な番号なので、重複は二重取り込みを意味する。
+        発行する一意な番号（処方箋引換証の番号）なので、重複は二重取り込みを意味する。
 
-        紙処方箋の番号は医療機関ごとの採番であり、別の医療機関が同じ番号を
-        採番しうる。一意性を課すと正当な処方箋を拒否するため課さない。
-        「無効化後に一意キーを再利用できるか」と同じく、**集約ごとではなく
-        受領元ごとの業務判断**であり、全称のルールにはしない。
+        紙処方箋の番号は発行元の各医療機関ごとの独自採番であり、別の医療機関が同じ番号を
+        採番することがあるため、紙処方箋には一意性を課さない。
 
-        同じ集約IDの現在行は候補から除外し、自身の状態変更を妨げない。
+        同一レコードIDの現在行は候補から除外し、自身の状態変更を妨げない。
         """
         if prescription.source_type is not PrescriptionSourceType.ELECTRONIC:
             return
@@ -172,12 +170,10 @@ class RefillEligibilityService:
 class InquiryPharmacistService:
     """疑義照会の実施者が薬剤師資格を持つかを検証する。
 
-    薬剤師かどうかは Staff 集約が持つ事実であり、``Prescription`` 集約は
-    ``StaffId`` しか持たない。Staff 集約そのものを Prescription から参照すると
-    集約間の直接依存になるため、``StaffQualificationBoundary`` が取り出した
-    **本物の ``StaffQualifications``** をこのサービスが受け取る。
-
-    判定をBoundary側へ寄せない。実装ごとに「薬剤師とみなす条件」が分岐する。
+    薬剤師法第24条（処方せん中の疑義）に基づき、処方箋中に疑わしい点があるときは、
+    その処方箋を交付した医師等に確かめた後でなければ調剤してはならず、この照会は薬剤師が行う必要がある。
+    処方箋側にはスタッフIDのみを保持しているため、Application層経由で渡された
+    本物の資格情報（StaffQualifications）を本サービスが受け取って検証する。
     """
 
     def ensure_pharmacist(self, qualifications: StaffQualifications) -> None:

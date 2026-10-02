@@ -1,4 +1,4 @@
-"""受付指紋と店舗別外部患者IDのPostgreSQL契約。"""
+"""受付のハッシュ値と店舗別外部患者IDのPostgreSQL契約。"""
 
 from __future__ import annotations
 
@@ -160,7 +160,7 @@ async def test_tc72_店舗スコープ外部IDのDB列一意性と未スコー�
 
 
 @pytest.mark.asyncio
-async def test_tc73_受付指紋と訂正関連IDはRepository再生成後も残る(
+async def test_tc73_受付のハッシュ値と訂正関連IDはRepository再生成後も残る(
     engine: AsyncEngine,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:

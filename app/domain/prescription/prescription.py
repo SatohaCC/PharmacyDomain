@@ -1,11 +1,11 @@
 """処方箋集約。
 
-医師・歯科医師が交付した処方箋原本の完全性と、薬剤師法第24条に基づく
-疑義照会を管理する整合性境界のルート。
+医師・歯科医師から交付された処方箋原本の真正性・不変性と、
+薬剤師法第24条に基づく疑義照会の履歴を管理する集約ルートです。
 
-**集約が単独で検証できることだけを ``validate()`` に置く。** 麻薬かどうか、
-リフィル適用除外に当たるかは医薬品マスタ側の属性であり、薬剤師資格は Staff
-集約が持つ。これらは Domain Service が Boundary 経由で判定する。
+なお、集約単独で完結する整合性検証のみを ``validate()`` で実施し、
+麻薬やリフィル除外薬品の判定（MedicineCatalog側）や照会薬剤師の資格確認（Staff側）など
+外部情報や他集約を要する検証は Domain Service が担当します。
 """
 
 from __future__ import annotations
@@ -110,9 +110,8 @@ def _ensure_consecutive_from_one(numbers: tuple[int, ...]) -> bool:
 class PrescriptionMedicine(ValueObject):
     """剤（Rp）に含まれる処方薬品の1明細。
 
-    出典: JAHIS レコードNo.201（薬品レコード）と、これに紐づく
-    No.211（単位変換）/ No.221（不均等）/ No.231（負担区分）/
-    No.241（1回服用量）/ No.281（薬品補足）。
+    JAHISデータ仕様における薬品レコード（No.201）および、それに付随する
+    単位変換・不均等用法・公費負担区分・1回服用量・薬品補足などの情報に対応します。
     """
 
     line_number: MedicineLineNumber
@@ -155,11 +154,7 @@ class PrescriptionMedicine(ValueObject):
 
 @dataclass(frozen=True, kw_only=True)
 class PrescriptionRp(ValueObject):
-    """剤（Rp）。用法・調剤数量と、それを共有する薬品明細の束。
-
-    出典: JAHIS レコードNo.101（剤形レコード）/ No.111（用法レコード）/
-    No.181（用法補足レコード）。
-    """
+    """剤（Rp）。同一の用法および調剤数量を共有する処方薬品明細のグループ。"""
 
     rp_number: RpNumber
     category: DosageFormCategory
@@ -202,13 +197,10 @@ class PrescriptionRp(ValueObject):
 
 @dataclass(frozen=True, eq=False, kw_only=True)
 class PrescriptionInquiry(Entity[InquiryNumber]):
-    """疑義照会の1件。
+    """処方箋に対する疑義照会（薬剤師法第24条）の1レコード。
 
-    規格上は調剤編の ``疑義照会結果レコード(511)`` として調剤結果に記録されるが、
-    疑義は処方内容に対して発生しその解決が処方内容を確定させるため、
-    本モデルでは処方箋集約が保持する。送信時に511へ写像する。
-
-    連番で同一性を持つので :class:`Entity` を継承する。
+    疑義照会は処方内容に対して行われ、その照会結果が調剤の可否や処方内容の確定に直結するため、
+    本モデルでは処方箋集約の配下として管理します。
     """
 
     id: InquiryNumber
@@ -278,11 +270,7 @@ class Prescription(AggregateRoot[PrescriptionId]):
         self._ensure_ready_inquiries_are_resolved()
 
     def _ensure_ready_inquiries_are_resolved(self) -> None:
-        """調剤可能状態では、未回答と調剤を妨げる回答を許可しない。
-
-        調剤開始側は状態だけで判断するため、操作時だけでなく復元時も検証する。
-        終端状態の履歴への事後回答は、この規則の対象にしない。
-        """
+        """調剤可能状態（READY_FOR_DISPENSING）では、未回答の照会や調剤不可となった照会が存在しないことを検証する。"""
         if self.status is not PrescriptionStatus.READY_FOR_DISPENSING:
             return
         if self.has_open_inquiry:
@@ -308,13 +296,7 @@ class Prescription(AggregateRoot[PrescriptionId]):
             raise InquiryNumberSequenceError()
 
     def _ensure_medicine_code_types_match_source(self) -> None:
-        """電子処方箋で使用できない薬品コード種別が無いことを検証する。
-
-        処方編 別表15 は ``1:コードなし`` を「未使用」、``3:厚生省コード`` と
-        ``6:HOTコード`` を「使用しない」と定めている。紙処方箋（JAHIS）では
-        いずれも使えるため、受領元形式と組み合わせて初めて判定できる。
-        ここで弾かないと、送信不能なコードのまま処方箋が確定してしまう。
-        """
+        """受取元形式（電子処方箋等）で使用不可と定められている薬品コード種別が含まれていないかを検証する。"""
         if self.source_type is not PrescriptionSourceType.ELECTRONIC:
             return
         for rp in self.rps:
@@ -331,12 +313,7 @@ class Prescription(AggregateRoot[PrescriptionId]):
 
     @property
     def has_open_inquiry(self) -> bool:
-        """未回答の疑義照会があるか。
-
-        「疑義照会中」を状態として持たず、ここから導出する。状態にすると
-        照会解決後の戻り先が ``status`` だけでは決まらず、かつ
-        「照会中なのに未回答が0件」という矛盾が構築可能になる。
-        """
+        """回答待ち（未解決）の疑義照会が存在するかを判定する。"""
         return any(inquiry.is_open for inquiry in self.inquiries)
 
     @property

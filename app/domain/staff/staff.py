@@ -42,7 +42,7 @@ def _has_overlapping_period(affiliations: Sequence[StoreAffiliation]) -> bool:
 
 @dataclass(frozen=True, eq=False, kw_only=True)
 class Staff(AggregateRoot[StaffId]):
-    """スタッフエンティティ（集約ルート）"""
+    """薬局で勤務するスタッフ（薬剤師、調剤事務、管理栄養士、登録販売者等）の情報を管理するドメインエンティティ。"""
 
     id: StaffId
     corporate_id: CorporateId
@@ -56,7 +56,6 @@ class Staff(AggregateRoot[StaffId]):
     email: StaffEmailAddress | None = None
     is_active: bool = True
 
-    # 💡 唯一の所属情報（home_store_id等は削除！）
     affiliations: tuple[StoreAffiliation, ...] = ()
 
     # --- 自集約の不変条件 ---

@@ -1,4 +1,4 @@
-"""Coverage集約間のドメインサービス。"""
+"""保険証・公費受給者証（保険資格）の有効期間整合性に関わるドメインサービス。"""
 
 from collections.abc import Iterable
 
@@ -7,20 +7,18 @@ from app.domain.coverage.patient_coverage import PatientCoverage
 
 
 class PatientCoverageConflictService:
-    """同一患者における患者資格期間の競合を検証する。"""
+    """同一患者において健康保険証や公費の有効期間が重複していないかを検証する。"""
 
     def ensure_no_conflict(
         self,
         coverage: PatientCoverage,
         existing_coverages: Iterable[PatientCoverage],
     ) -> None:
-        """同一制度・同一順位の有効期間が重複していないことを検証する。
+        """同一制度・同一適用順位の有効期間が重複していないことを検証する。
 
-        医療保険は :class:`PatientCoverage` が適用順位を1に固定するため、
-        「同一制度かつ同一順位」の判定がそのまま「同一患者・同一期間に医療保険は
-        1件」の規則になる。公費は第一から第四までを別枠として扱うので、順位が
-        違えば同一期間でも併用できる。保険の枠を ``coverage_type`` で別途判定
-        しても順位固定により結果は変わらないため、条件は1つに保つ。
+        健康保険（主保険）は適用順位が1に固定されるため、同一患者・同一期間に
+        複数の主保険が有効になる二重登録を防止します。
+        公費（第一〜第四公費）は順位が異なれば同一期間でも併用可能です。
         """
         effective_period = coverage.effective_period()
         if effective_period is None:

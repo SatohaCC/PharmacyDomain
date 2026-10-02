@@ -1,4 +1,4 @@
-"""適用日に選択した患者資格の不変な組み合わせ。"""
+"""調剤日（受付日）において処方に適用する健康保険証および公費負担医療（第一〜第四公費）の組み合わせを管理するモジュール。"""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ PUBLIC_EXPENSE_PRIORITY_MESSAGES: Mapping[PriorityViolation, str] = {
 
 @dataclass(frozen=True, kw_only=True)
 class SelectedInsuranceCoverage(ValueObject):
-    """選択した医療保険資格のIDと不変な値投影。"""
+    """処方受付時に選択・適用された健康保険資格（主保険）の控えデータ。"""
 
     source_coverage_id: PatientCoverageId
     corporate_id: CorporateId
@@ -72,7 +72,7 @@ class SelectedInsuranceCoverage(ValueObject):
 
 @dataclass(frozen=True, kw_only=True)
 class SelectedPublicExpenseCoverage(ValueObject):
-    """選択した公費資格のIDと不変な値投影。"""
+    """処方受付時に選択・適用された公費負担医療（第一〜第四公費）の控えデータ。"""
 
     source_coverage_id: PatientCoverageId
     corporate_id: CorporateId
@@ -100,7 +100,7 @@ class SelectedPublicExpenseCoverage(ValueObject):
 
 @dataclass(frozen=True, kw_only=True)
 class CoverageCombination(ValueObject):
-    """医療保険0〜1件と第一〜第四公費の選択投影。"""
+    """処方受付時に確定した健康保険（主保険 0〜1件）と公費負担医療（第一〜第四公費）の組み合わせ。"""
 
     insurance: SelectedInsuranceCoverage | None = None
     public_expenses: tuple[SelectedPublicExpenseCoverage, ...] = ()
@@ -152,7 +152,7 @@ class CoverageCombination(ValueObject):
 
 
 class CoverageSelectionService:
-    """明示された患者資格だけから適用組み合わせを構築する。"""
+    """患者の有効な保険資格台帳から、受付日時点で有効な保険・公費の組み合わせ（併用関係）を検証・構築するドメインサービス。"""
 
     def build_selection(
         self,

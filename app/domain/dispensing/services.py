@@ -1,12 +1,11 @@
-"""DispensingProcess集約に関わるドメインサービス。
+"""調剤プロセス（調剤録・調剤鑑査）に関わるドメインサービス。
 
-無状態（Stateless）であり、**本物の集約を引数で受け取る**。
-調剤回数、使用期間、次回予定日、変更制限、剤の対応など、
-``DispensingProcess`` 単独では判定できない整合性を担う。
+無状態（Stateless）であり、調剤や処方箋などの本物のドメインオブジェクトを引数で受け取る。
+調剤回数（初回・リフィル・分割）、処方箋の使用期間、次回調剤予定日、後発医薬品等への変更可否、
+処方箋と調剤薬品の対応など、単体では判定できない処方原本との整合性チェックを担う。
 
-調剤者・鑑査者が薬剤師かどうかは Staff 集約の事実であり、
-Prescription の疑義照会実施者と同じく Application 層の資格 Boundary が取り出した
-``StaffQualifications`` を受け取って判定する。
+調剤者・鑑査者が薬剤師かどうかはスタッフ管理側の事実であり、
+Application層の資格Boundary経由で渡された資格情報（StaffQualifications）を検証する。
 """
 
 from __future__ import annotations
@@ -135,7 +134,7 @@ verify_substitution_restriction_table(
 
 
 class DispensingIterationUniquenessService:
-    """同一処方箋に同じ調剤回数のセッションが無いことを検証する。"""
+    """同一処方箋に対して同じ調剤回数（1回目、リフィル2回目等）が重複して作成されないことを検証する。"""
 
     def ensure_no_conflict(
         self,
@@ -145,7 +144,7 @@ class DispensingIterationUniquenessService:
         """同一法人・同一処方箋で調剤回数が重複していないことを検証する。
 
         同じ回が二重に登録されると、調剤基本料の算定回数も薬歴の記録も二重になる。
-        同じ集約IDの現在行は候補から除外し、自身の状態変更を妨げない。
+        同じレコードIDの現在行は候補から除外し、自身の状態変更を妨げない。
         """
         for existing in existing_processes:
             if existing.id == process.id:
@@ -159,7 +158,7 @@ class DispensingIterationUniquenessService:
 
 
 class DispensingConsistencyService:
-    """調剤セッションと処方箋・前回セッションの整合を検証する。
+    """調剤内容と処方箋原本・前回調剤との整合性を検証する。
 
     ``ensure_consistent()`` が入口。個別のメソッドも公開しているが、
     **UseCase からは入口だけを呼ぶ**こと。個別に呼ぶ実装にすると、
@@ -173,12 +172,12 @@ class DispensingConsistencyService:
         *,
         previous: DispensingProcess | None = None,
     ) -> None:
-        """処方箋・前回セッションとの整合をまとめて検証する。
+        """処方箋および前回調剤との整合性を一括で検証する。
 
         Args:
-            process: 検証対象の調剤セッション。
-            prescription: 対象の処方箋集約。
-            previous: 同一処方箋の**直前の回**のセッション。1回目では不要。
+            process: 検証対象の調剤プロセス。
+            prescription: 対象の処方箋。
+            previous: 同一処方箋における**直前の回**の調剤記録。初回調剤では不要。
 
         Raises:
             DispensedRpNotInPrescriptionError: 処方箋に無い剤を調剤している場合。
@@ -460,12 +459,9 @@ def _ensure_inquiry_agreed(
 class DispensingPharmacistService:
     """調剤者・鑑査者が薬剤師資格を持つかを検証する。
 
-    薬剤師かどうかは Staff 集約が持つ事実であり、``DispensingProcess`` は
-    ``StaffId`` しか持たない。Staff 集約を直接参照すると集約間の直接依存になるため、
-    Application層の ``StaffQualificationBoundary`` が取り出した**本物の
-    ``StaffQualifications``** をこのサービスが受け取る。
-
-    判定をBoundary側へ寄せない。実装ごとに「薬剤師とみなす条件」が分岐する。
+    薬剤師法第19条（調剤の制限）により、薬剤師でなければ販売または授与の目的で調剤してはならない。
+    調剤プロセス側にはスタッフIDのみを保持しているため、Application層経由で渡された
+    本物の資格情報（StaffQualifications）を本サービスが受け取って検証する。
     """
 
     def ensure_dispenser(self, qualifications: StaffQualifications) -> None:

@@ -58,7 +58,7 @@ RECEPTION_MAPPING = AggregateMapping(
 
 
 class PostgresReceptionRepository(PostgresRepositoryBase, ReceptionRepository):
-    """受付指紋と訂正履歴をPostgreSQLへ保存するRepository。"""
+    """受付のハッシュ値と訂正履歴をPostgreSQLへ保存するRepository。"""
 
     async def get(
         self,

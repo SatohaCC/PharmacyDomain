@@ -1,7 +1,7 @@
-"""MedicationHistory集約に関わるドメインサービス。
+"""服薬指導記録（薬歴）および調剤録の記載充足に関わるドメインサービス。
 
-無状態（Stateless）であり、**本物の集約・値オブジェクトを引数で受け取る**。
-薬歴単独では判定できない指導者の資格などを検証する。
+無状態（Stateless）であり、本物の薬歴レコードや調剤プロセス、資格情報等を引数で受け取る。
+薬歴単独では判定できない服薬指導者の薬剤師資格や、調剤録としての法定要件充足などを検証する。
 """
 
 from __future__ import annotations
@@ -46,9 +46,9 @@ class CounselorQualificationService:
     """服薬指導を行った者が薬剤師資格を持つかを検証する。
 
     薬剤師法第25条の2は情報の提供及び指導の義務を薬剤師に課している。
-    薬剤師かどうかは Staff 集約が持つ事実であり、``MedicationHistoryRecord`` は
-    ``StaffId`` しか持たないため、Application層の資格 Boundary が取り出した
-    **本物の ``StaffQualifications``** をこのサービスが受け取る。
+    薬剤師資格の有無はスタッフ側の管理情報であり、服薬指導記録（薬歴）側には
+    指導者IDのみを保持しているため、Application層経由で取得した本物の
+    資格情報（StaffQualifications）を本サービスが受け取って検証する。
     """
 
     def ensure_pharmacist(self, qualifications: StaffQualifications) -> None:
@@ -62,7 +62,7 @@ class CounselorQualificationService:
 
 
 class MedicationHistoryUniquenessService:
-    """同一調剤セッションに確定済の初回薬歴が2件以上無いことを検証する。"""
+    """同一調剤セッションに対して確定済みの本薬歴が重複して作成されないことを検証する。"""
 
     def ensure_no_conflict(
         self,
@@ -71,10 +71,10 @@ class MedicationHistoryUniquenessService:
     ) -> None:
         """確定済薬歴の重複を検証する。
 
-        **下書きは制限しない。** 書きかけを複数持つのは正当であり、
-        制限すると入力途中の記録を作れなくなる。判定対象は確定済どうしだけ。
+        下書き（DRAFT）は複数保持することを許容する（下書き作成途中の作業を妨げないため）。
+        重複を禁止する判定対象は「確定済み（FINALIZED）」の薬歴レコードのみ。
 
-        同じ集約IDの現在行は候補から除外し、自身の状態変更を妨げない。
+        更新対象自身のレコードIDは候補から除外し、自身の編集・確定を妨げない。
         """
         if not record.is_finalized or record.dispensing_id is None:
             return
@@ -93,7 +93,7 @@ class MedicationHistoryUniquenessService:
 
 
 class PatientMedicalProfileUniquenessService:
-    """患者ごとに頭書きが1件であることを検証する。"""
+    """患者ごとに頭書き（アレルギー・副作用・既往歴等の一覧）が1件であることを検証する。"""
 
     def ensure_no_conflict(
         self,
@@ -102,8 +102,9 @@ class PatientMedicalProfileUniquenessService:
     ) -> None:
         """同一法人・同一患者の頭書きが重複していないことを検証する。
 
-        頭書きが2件あると、どちらが投影結果かが決まらなくなる。
-        同じ集約IDの現在行は候補から除外する。
+        頭書きが重複して存在すると、どちらが確定薬歴に基づく最新の集計結果かが
+        特定できなくなるため、1患者につき1レコードであることを保証する。
+        自身のレコードIDは候補から除外する。
         """
         for existing in existing_profiles:
             if existing.id == profile.id:
@@ -338,14 +339,13 @@ class StatutoryDispensingRecordService:
         dispensing: DispensingProcess,
         source: StatutoryRecordSource,
     ) -> None:
-        """3者が同じ1件の調剤を指していることを保証する。
+        """薬歴・調剤・処方原本が同じ1件の調剤を指していることを保証する。
 
-        集約IDの一致だけでは足りない。法人・患者・処方箋のどれかが食い違えば、
-        別の調剤の記載事項を継ぎ接ぎした「充足」になる。
+        IDの一致だけでなく、法人・患者・処方箋が一致していることを確認する。
+        食い違いがあると、別の調剤の記載内容を継ぎ接ぎした誤った「調剤録充足」になってしまうため。
 
-        スナップショットは処方箋だけでなく**患者も照合する**。患者の氏名と年齢
-        （第一号）はスナップショットだけから判定されるので、照合を落とすと別人の
-        氏名を根拠に充足したと報告できてしまう。
+        処方箋だけでなく患者基本情報も照合する。患者の氏名や年齢（第一号）は
+        処方箋控え等から判定されるため、照合が漏れると別人の情報を根拠にしてしまう危険を防ぐ。
         """
         if (
             record.dispensing_id != dispensing.id

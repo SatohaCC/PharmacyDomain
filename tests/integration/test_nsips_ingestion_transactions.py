@@ -79,7 +79,7 @@ _EXPECTED_INGEST_ROW_COUNTS: dict[str, int] = {
 
 
 class _LateIngestionFailure(RuntimeError):
-    """受付指紋を保存した直後に注入するテスト用の後段障害。"""
+    """受付のハッシュ値を保存した直後に注入するテスト用の後段障害。"""
 
 
 class _FailAfterReceptionSave:

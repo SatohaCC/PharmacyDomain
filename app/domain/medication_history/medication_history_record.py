@@ -1,11 +1,13 @@
-"""薬歴指導記録集約。
+"""電子薬歴（服薬指導記録・調剤録）集約。
 
-本コンテキストにおける**唯一の真実の源**。頭書き（``PatientMedicalProfile``）は
-この集約の列から決定的に再構築できる投影であり、独立した真実を持たない。
+患者への服薬指導（SOAP記録、残薬確認、お薬手帳確認など）、指導後のフォローアップ、
+および処方医へのトレーシングレポート（服薬情報等提供）を管理する薬歴の正式な記録台帳です。
 
-**集約が単独で検証できることだけを ``validate()`` に置く。** 指導した薬剤師の
-資格は Staff 集約が持ち、調剤セッションとの患者一致は Dispensing 集約が持つ。
-これらは Domain Service が担う。
+患者のアレルギー歴・副作用歴・既往歴・併用薬などの「臨床プロファイル（頭書き）」は、
+この薬歴の確定内容をもとに自動的に集計・反映されます（頭書きの直接編集による記録の食い違いを防ぐためです）。
+
+なお、薬歴単体で判定できる入力チェック（SOAPの記入漏れ等）は本クラスの ``validate()`` で検証し、
+指導薬剤師の資格確認や処方箋・調剤セッションとの患者照合などは Domain Service が担当します。
 """
 
 from __future__ import annotations
@@ -89,7 +91,7 @@ _FACT_VALUE_ABSENT = object()
 
 
 def _replace_fact_field[T](value: T, field_name: str, new_value: object) -> T:
-    """宣言済み対象だけに適用する動的フィールド更新。"""
+    """指定されたフィールドの値を動的に更新するヘルパー関数。"""
     return cast(T, replace(cast(Any, value), **{field_name: new_value}))
 
 
@@ -135,10 +137,11 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     # ------------------------------------------------------------------
 
     def validate(self) -> None:
-        """薬歴が単独で判定できる不変条件を検証する。
+        """薬歴の業務ルール（記入漏れや状態の不整合がないか）を検証する。
 
-        SOAP の充足は**確定済のときだけ**課す。下書きの途中で
-        全セクションを要求すると、聞き取りながら書き足す運用ができない。
+        SOAPなどの指導記録の記入チェックは、薬歴の確定時（FINALIZED）にのみ実施します。
+        下書き（DRAFT）作成中には、患者への服薬指導を行いながら段階的に記録できるよう
+        未入力項目があっても保存可能です。
         """
         self._ensure_fact_corrections_are_valid()
         self._ensure_counseling_provenance_is_valid()
@@ -149,7 +152,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         self._ensure_finalization_metadata_is_valid()
 
     def _ensure_finalized_items_are_assessed(self) -> None:
-        """確定前に確認が必要な項目が未記録でないことを検証する。"""
+        """薬歴確定時に、服薬指導方法（対面・オンライン等）などの必須確認項目が記録されているかを検証する。"""
         if not self.status.is_finalized:
             return
         required_items: list[tuple[str, object | None]] = [
@@ -160,7 +163,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             raise MedicationHistoryUnassessedItemsError(missing_items=missing_items)
 
     def _ensure_finalized_review_has_authored_evidence(self) -> None:
-        """新しいレビュー証跡は薬剤師自身のA/P記載を伴う。"""
+        """薬歴確定時、薬剤師による薬学的判断（Assessment）または指導方針（Plan）が記録されていることを検証する。"""
         review_result = self.effective_facts.review_result
         if not self.status.is_finalized or review_result is None:
             return
@@ -177,15 +180,15 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             )
 
     def _ensure_amendments_only_after_finalized(self) -> None:
-        """追記が確定済の薬歴にだけ付くことを検証する。"""
+        """過去記録の訂正・追記（amendments）は、確定済みの薬歴に対してのみ許可されることを検証する。"""
         if self.amendments and not self.status.is_finalized:
             raise MedicationHistoryNotFinalizedError()
 
     def _ensure_finalized_soap_is_complete(self) -> None:
-        """確定済の薬歴に、服薬指導等の記載が1件以上あることを検証する。
+        """確定済みの薬歴に、指導内容等の記載が1件以上存在することを検証する。
 
-        S/O/A/Pの全4節画一的強制は行わないが、SOAPおよび追加記載メモの
-        双方が空である白紙の確定は拒否する。
+        S/O/A/Pの全項目を画一的に必須とするものではありませんが、
+        SOAPおよび補足メモの双方が未記入である白紙状態での確定は拒否します。
         """
         if not self.status.is_finalized:
             return
@@ -197,7 +200,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             raise SoapContentRequiredError()
 
     def _ensure_finalization_metadata_is_valid(self) -> None:
-        """確定メタデータと真正性を検証する。"""
+        """確定日時、確定薬剤師、翌日以降確定時の遅延理由などが正しく記録されているかを検証する。"""
         facts = self.effective_facts
         if self.status is MedicationHistoryStatus.FINALIZED:
             if self.finalized_at is None or self.finalized_by is None:
@@ -232,7 +235,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             raise MedicationHistoryDomainError("移行記録に確定監査値は設定できません。")
 
     def _ensure_counseling_provenance_is_valid(self) -> None:
-        """指導実績と、薬剤師記載または旧NSIPS下書きの由来を検証する。"""
+        """指導薬剤師・指導日時の組み合わせや、下書き作成元の整合性を検証する。"""
         facts = self.effective_facts
         has_counselor = facts.counselor_id is not None
         has_counseled_at = facts.counseled_at is not None
@@ -259,12 +262,12 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
 
     @property
     def is_finalized(self) -> bool:
-        """確定済か。"""
+        """薬歴が確定済み（調剤録・指導記録として正式完了した状態）かどうかを判定する。"""
         return self.status.is_finalized
 
     @property
     def is_projection_eligible(self) -> bool:
-        """頭書き再構築へ含める確定済または移行済み記録か。"""
+        """頭書き（アレルギー・副作用・既往歴・併用薬）に反映可能な記録（確定済みまたは移行記録）かを判定する。"""
         return self.status in {
             MedicationHistoryStatus.FINALIZED,
             MedicationHistoryStatus.LEGACY_RECORDED,
@@ -272,9 +275,10 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
 
     @property
     def effective_soap(self) -> SoapRecord:
-        """現時点で有効なSOAP。追記があれば最後の追記の内容。
+        """現時点で有効な最新のSOAP記録を取得する。
 
-        元の記録を書き換えないので、``soap`` は交付時のまま残る。
+        確定後に追記・訂正がある場合は最新の追記内容を返します。
+        調剤録・薬歴の真正性を保つため、初回確定時の記載内容はそのまま保持されます。
         """
         if not self.amendments:
             return self.soap
@@ -282,11 +286,11 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
 
     @property
     def updates_profile(self) -> bool:
-        """この薬歴が頭書きへ差分を持つか。"""
+        """この服薬指導で患者のアレルギー・副作用・既往歴・併用薬などの頭書き更新があるかを判定する。"""
         return not self.effective_facts.profile_updates.is_empty
 
     def _original_fact_elements(self) -> dict[str, list[FactElement]]:
-        """薬歴IDと原本位置から安定した配列要素IDを導出する。"""
+        """薬歴IDと配列内の位置をもとに、要素ごとの一意で安定したIDを割り当てる。"""
         result: dict[str, list[FactElement]] = {}
         for field_name in FACT_ARRAY_TYPES:
             if field_name.startswith("profile_updates."):
@@ -305,7 +309,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     def _replay_facts(
         self,
     ) -> tuple[EffectiveMedicationHistoryFacts, dict[str, list[FactElement]]]:
-        """訂正の追記順に有効値と要素IDを再生する。"""
+        """訂正履歴を記録順に適用（リプレイ）し、現在の有効な事実データと要素一覧を計算する。"""
         facts = EffectiveMedicationHistoryFacts(
             counselor_id=self.counselor_id,
             counseled_at=self.counseled_at,
@@ -376,23 +380,23 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
 
     @property
     def effective_facts(self) -> EffectiveMedicationHistoryFacts:
-        """訂正後の有効な事実を返す。原本は保持する。"""
+        """訂正履歴を適用した最新の有効な事実データを取得する（原本はそのまま保持されます）。"""
         return self._replay_facts()[0]
 
     def fact_elements(self, field_name: str) -> tuple[FactElement, ...]:
-        """有効な配列要素を安定したIDとともに返す。"""
+        """指定した配列項目の有効な要素一覧をID付きで取得する。"""
         if field_name not in FACT_ARRAY_TYPES:
             raise MedicationHistoryDomainError("指定した項目は配列ではありません。")
         return tuple(self._replay_facts()[1][field_name])
 
     def original_fact_elements(self, field_name: str) -> tuple[FactElement, ...]:
-        """原本配列の要素と不変のIDを返す。"""
+        """原本データにおける指定配列項目の要素一覧を取得する。"""
         if field_name not in FACT_ARRAY_TYPES:
             raise MedicationHistoryDomainError("指定した項目は配列ではありません。")
         return tuple(self._original_fact_elements()[field_name])
 
     def _ensure_fact_corrections_are_valid(self) -> None:
-        """訂正IDの重複と下書きへの訂正を拒否する。"""
+        """事実訂正履歴の不整合（ID重複や未確定記録への訂正など）がないかを検証する。"""
         if self.fact_corrections and not self.is_projection_eligible:
             raise MedicationHistoryNotFinalizedError()
         ids = [item.id for item in self.fact_corrections]
@@ -415,7 +419,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         recorded_at: datetime,
         value: object = _FACT_VALUE_ABSENT,
     ) -> Self:
-        """確定・移行済み薬歴の事実訂正を監査値付きで追記する。"""
+        """確定済みまたは移行済みの薬歴に対して、事実情報の訂正を監査情報付きで記録する。"""
         if not self.is_projection_eligible:
             raise MedicationHistoryNotFinalizedError()
         if not reason.strip():
@@ -515,7 +519,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         recorded_by: StaffId | None = None,
         recorded_at: MedicationHistoryRecordedTimestamp | None = None,
     ) -> Self:
-        """服薬指導の記録を下書きとして起こす。"""
+        """服薬指導記録を下書き（DRAFT）として新規作成する。"""
         return cls(
             id=MedicationHistoryRecordId.generate(),
             event_id=event_id,
@@ -550,15 +554,15 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     # ------------------------------------------------------------------
 
     def update_draft_soap(self, soap: SoapRecord) -> Self:
-        """下書きのSOAPを差し替える。
+        """下書き状態のSOAP内容を更新する。
 
-        確定済の薬歴は受け付けない。修正は :meth:`amend` による追記のみ。
+        確定済みの薬歴は直接変更できません（確定後の修正は amend による追記のみ）。
         """
         self._ensure_not_finalized()
         return replace(self, soap=soap)
 
     def update_draft_profile_updates(self, intents: ProfileUpdateIntents) -> Self:
-        """下書きの頭書き差分を差し替える。"""
+        """下書き状態の患者頭書き更新差分を更新する。"""
         self._ensure_not_finalized()
         return replace(self, profile_updates=intents)
 
@@ -574,9 +578,9 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         additional_notes: tuple[CategorizedNote, ...] | None = None,
         billing_additions: tuple[BillingAddition, ...] | None = None,
     ) -> Self:
-        """下書きの全項目を差し替える。
+        """下書き状態の各項目を一括更新する。
 
-        確定済の薬歴は受け付けない。修正は :meth:`amend` による追記のみ。
+        確定済みの薬歴は直接変更できません（確定後の修正は amend による追記のみ）。
         """
         self._ensure_not_finalized()
         return replace(
@@ -615,8 +619,8 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     ) -> Self:
         """薬歴を確定する。
 
-        確定日時と確定者は呼び出し元から明示する。指導日時・指導者から監査値を
-        推定しない。指導実績のない取込下書きは、実際の指導者と指導日時も必要。
+        確定日時および確定者は呼び出し元から明示的に指定する必要があります（指導日時や指導者から自動推測しません）。
+        外部取込による下書きの場合は、実際の指導者および指導日時の指定も必須です。
         """
         self._ensure_not_finalized()
         if finalized_at is None or finalized_by is None:
@@ -673,15 +677,14 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         amended_at: AmendmentTimestamp,
         amendment_id: str | None = None,
     ) -> Self:
-        """確定済の薬歴に修正を**追記**する。
+        """確定済の薬歴に対して修正内容を追記する。
 
-        元の ``soap`` は書き換えない。調剤録は3年間の保存義務があり、
-        遡って書き換えられる記録は監査に耐えない。
+        過去の記録の改ざんを防ぎ真正性を保つため、元の ``soap`` を直接上書きせず、
+        追記履歴として保存します。
 
         Raises:
-            MedicationHistoryNotFinalizedError: 未確定の薬歴である場合。
-            SoapSectionEmptyError: 追記後の実効SOAPに記載の無いセクションが
-                できる場合。確定時に課した充足を追記で抜けられないようにする。
+            MedicationHistoryNotFinalizedError: 未確定（下書き）の薬歴の場合。
+            SoapContentRequiredError: 追記後の実効SOAPが白紙になる場合。
         """
         if not self.is_finalized:
             raise MedicationHistoryNotFinalizedError()
@@ -748,7 +751,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
 
     @property
     def has_pending_correction_review(self) -> bool:
-        """保留または調査中の外部処方訂正が存在するか。"""
+        """確認待ちまたは調査中の外部処方訂正が存在するかを判定する。"""
         return any(
             correction.status is not ExternalCorrectionStatus.RESOLVED
             and not correction.is_acknowledged
@@ -758,10 +761,10 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     def record_external_correction(
         self, correction: ExternalPrescriptionCorrection
     ) -> Self:
-        """確定済みの記録を壊さず外部処方訂正を追記する。
+        """確定済みの薬歴を改変せず、外部システム（レセコン等）から届いた処方訂正を追記する。
 
-        確定済み薬歴の原本（SOAP・確定日時・確定者）は真正性保護のため不可逆凍結し、
-        外部から発生した処方変更・調剤訂正の事実を本証跡として記録する。
+        確定済み薬歴の原本（SOAP・確定情報）は真正性を保つため凍結し、
+        外部で発生した処方変更・調剤訂正の事実を追記履歴として管理します。
         """
         existing = next(
             (
@@ -793,7 +796,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         acknowledged_by: StaffId,
         acknowledged_at: ExternalCorrectionTimestamp,
     ) -> Self:
-        """外部処方訂正を薬剤師が確認したことを記録する。"""
+        """外部処方訂正の内容を薬剤師が確認・了解したことを記録する。"""
         target = next(
             (c for c in self.external_corrections if c.correction_id == correction_id),
             None,
@@ -823,7 +826,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         amended_soap: SoapRecord | None = None,
         matched_prescription_id: PrescriptionId | None = None,
     ) -> Self:
-        """外部訂正の判断を履歴へ追記し、最終判断だけを解決済みにする。"""
+        """外部処方訂正に対する薬剤師の対応判断（追記修正・再登録処方との照合等）を履歴に記録する。"""
         if not self.is_finalized:
             raise MedicationHistoryNotFinalizedError()
         target = next(
@@ -905,11 +908,10 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         *additional_obligations: PreservationObligation,
         last_written_on: date,
     ) -> Self:
-        """保存期間ポリシーに基づいて法定保存満了日を設定する。
+        """法定保存期間ポリシーに基づき、薬歴の保存期限日を計算して設定する。
 
-        複数のポリシーカタログが指定された場合は、各義務で計算した満了日のうち
-        最も遅い日（最新満了日）を採用する。既存の満了日がある場合は、
-        それよりも短縮されないよう最新日を維持する。
+        複数の保存義務が指定されている場合は最も遅い満了日を採用し、
+        既存の満了日がある場合は短縮されないよう最新の日付を維持します。
         """
         expiry_date = resolve_latest_retention_expiry_date(
             last_written_on,

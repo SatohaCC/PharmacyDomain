@@ -225,7 +225,7 @@ def test_tc40_11_調剤録完了日時を保存し旧payloadでは推測しな�
     assert legacy.completed_on is None
 
 
-def test_受付の全体指紋と項目指紋が_JSONBを経由して往復できる() -> None:
+def test_受付の全体ハッシュ値と項目ハッシュ値が_JSONBを経由して往復できる() -> None:
     """受付訂正履歴の型付き差分情報を保持して復元する。"""
     corporate = create_corporate()
     patient = create_patient(corporate_id=corporate.id)

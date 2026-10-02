@@ -1,4 +1,4 @@
-"""受付単位で受信した外部データの追跡枠。"""
+"""処方箋受付および外部システム（レセコン・NSIPS等）から届いた受付データの管理。"""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from app.domain.store.primitives import StoreId
 
 @dataclass(frozen=True, kw_only=True)
 class ReceptionCorrection:
-    """受付に届いた訂正情報の記録。"""
+    """レセコン等で修正された処方・受付内容の訂正履歴。"""
 
     fingerprint: ReceptionFingerprint
     changed_fields: tuple[ReceptionFieldPath, ...]
@@ -32,7 +32,7 @@ class ReceptionCorrection:
 
 @dataclass(frozen=True, kw_only=True)
 class ReceptionBillingAddition:
-    """受付で受信した算定加算の構造化情報。"""
+    """受付時にレセコン側で算定された調剤報酬の加算項目（調剤基本料加算、地域支援体制加算、時間外加算等）。"""
 
     code: str
     name: str
@@ -42,7 +42,7 @@ class ReceptionBillingAddition:
 
 @dataclass(frozen=True, kw_only=True)
 class ReceptionSourceData:
-    """外部受付Bundleの保管用スナップショット。"""
+    """外部システム（レセコン・NSIPS等）から受信した受付データ原本の控え。"""
 
     bundle_json: str
     imported_at: datetime
@@ -52,7 +52,7 @@ class ReceptionSourceData:
 
 @dataclass(frozen=True, eq=False, kw_only=True)
 class Reception(AggregateRoot[ReceptionId]):
-    """一受付の受信指紋と作成済み集約IDを保持する。"""
+    """処方箋受付の1回分を管理し、受付から作成される処方箋原本・調剤・薬歴への対応関係を保持するエンティティ。"""
 
     id: ReceptionId
     corporate_id: CorporateId
@@ -69,7 +69,7 @@ class Reception(AggregateRoot[ReceptionId]):
     event_id: EventId | None = None
 
     def associate_event(self, event_id: EventId) -> Reception:
-        """受付に対応する業務Eventを一意に関連付ける。"""
+        """処方受付に対応する薬局業務イベント（調剤・服薬指導など）を一意に関連付ける。"""
         if self.event_id is not None and self.event_id != event_id:
             raise ReceptionEventAlreadyAssociatedError()
         return replace(self, event_id=event_id)

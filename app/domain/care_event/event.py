@@ -1,4 +1,4 @@
-"""患者ごとの業務イベント集約。"""
+"""患者に対する調剤・服薬指導・来局・フォローアップ等の薬局業務イベント履歴を管理するモジュール。"""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from app.domain.store.primitives import StoreId
 
 @dataclass(frozen=True, eq=False, kw_only=True)
 class Event(AggregateRoot[EventId]):
-    """1人の患者について記録した業務イベント。"""
+    """患者に対して発生した1件の業務イベント（来局受付、調剤、服薬指導、電話フォローアップ、トレーシングレポート等）。"""
 
     id: EventId
     event_type_id: EventTypeId
@@ -43,7 +43,7 @@ class Event(AggregateRoot[EventId]):
     dispensing_id: DispensingId | None = None
 
     def validate(self) -> None:
-        """Event単体で守れる参照不変条件を検証する。"""
+        """Event単体で守れる参照整合性を検証する。"""
         if (
             self.event_definition_corporate_id is not None
             and self.event_definition_corporate_id != self.corporate_id

@@ -1,4 +1,4 @@
-"""請求・調剤時点で固定する保険・公費スナップショット。"""
+"""調剤報酬請求（レセプト請求）および調剤会計時点で保存する健康保険・公費負担医療の適用控えデータ。"""
 
 from __future__ import annotations
 
@@ -42,11 +42,11 @@ PUBLIC_EXPENSE_PRIORITY_MESSAGES: Mapping[PriorityViolation, str] = {
 
 @dataclass(frozen=True, kw_only=True)
 class InsuranceCoverageSnapshot(ValueObject):
-    """請求時点の医療保険資格を値として固定したもの。
+    """調剤報酬請求時点の健康保険証情報（保険者番号・記号番号・給付割合等）の控えデータ。
 
-    ``benefit_ratio`` は患者負担額を決める値であり、スナップショットが存在する
-    目的そのものなので任意項目にしない。資格台帳の
-    :class:`InsuranceCoverageDetails` でも必須であり、両者で必須性を揃える。
+    ``benefit_ratio`` は患者負担額（自己負担割合・給付割合）を決める値であり、
+    請求データの整合性を保つ目的そのものなので必須項目です。
+    資格台帳の :class:`InsuranceCoverageDetails` と必須性を揃えています。
     """
 
     insurer_number: ClaimInsurerNumber
@@ -68,7 +68,7 @@ class InsuranceCoverageSnapshot(ValueObject):
 
 @dataclass(frozen=True, kw_only=True)
 class PublicExpenseCoverageSnapshot(ValueObject):
-    """請求時点の一つの公費資格を値として固定したもの。"""
+    """調剤報酬請求時点の公費負担医療（第一〜第四公費）の負担者番号・受給者番号等の控えデータ。"""
 
     priority: ClaimCoveragePriority
     payer_number: ClaimPublicPayerNumber
@@ -83,7 +83,7 @@ class PublicExpenseCoverageSnapshot(ValueObject):
 
 @dataclass(frozen=True, kw_only=True)
 class CoverageSnapshot(ValueObject):
-    """請求時点で適用した保険・公費の組み合わせ。"""
+    """調剤報酬請求において、調剤日（請求日）時点で適用した健康保険および公費負担医療（第一〜第四公費）の組み合わせ控えデータ。"""
 
     insurance: InsuranceCoverageSnapshot | None = None
     public_expenses: tuple[PublicExpenseCoverageSnapshot, ...] = ()
@@ -105,13 +105,7 @@ class CoverageSnapshot(ValueObject):
         object.__setattr__(self, "public_expenses", ordered)
 
     def validate(self) -> None:
-        """保険・公費の件数と公費順位を検証する。
-
-        公費順位の規則は Shared Kernel の :func:`find_priority_violation` に
-        1つだけ置き、資格台帳側の ``CoverageCombination`` と同じ判定を使う。
-        検証点を2つ持つのは役割が違うため（あちらは選択時、こちらは凍結前の
-        最終防衛）だが、規則そのものを2箇所に書くと片方だけ直る事故が起きる。
-        """
+        """健康保険および公費の指定件数（1件以上必須）と公費の適用順位（第一〜第四公費の連続性）を検証する。"""
         public_expenses = self.public_expenses
         if self.insurance is None and not public_expenses:
             raise CoverageCombinationInvalidError(

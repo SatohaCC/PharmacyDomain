@@ -1,4 +1,4 @@
-"""患者集約。"""
+"""薬局で調剤・服薬指導を行う対象となる患者基本台帳を管理するモジュール。"""
 
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ from app.domain.shared.person_name import PersonNames
 
 @dataclass(frozen=True, eq=False, kw_only=True)
 class Patient(AggregateRoot[PatientId]):
-    """患者エンティティ（集約ルート）。法人単位で管理する患者情報を表す。"""
+    """患者の基本属性（氏名、生年月日、連絡先、申し送り頭書き、名寄せ状態）を管理するドメインエンティティ。"""
 
     id: PatientId
     corporate_id: CorporateId
@@ -113,7 +113,7 @@ class Patient(AggregateRoot[PatientId]):
         return replace(self, birth_date=birth_date)
 
     def profile_snapshot(self) -> PatientProfileSnapshot:
-        """現在のプロフィールを履歴に保存できる値へ写す。"""
+        """現在の患者基本属性（氏名・生年月日・連絡先等）のスナップショットを作成する。"""
         return PatientProfileSnapshot(
             names=self.names,
             birth_date=self.birth_date,
@@ -124,7 +124,7 @@ class Patient(AggregateRoot[PatientId]):
         )
 
     def change_profile(self, profile: PatientProfileSnapshot) -> Self:
-        """プロフィール全体を変更する。Noneは項目解除を表す。"""
+        """患者の基本属性を一括更新する（Noneの項目は登録解除）。"""
         if self.status == PatientStatus.MERGED:
             raise PatientStateConflictError("統合済みの患者の情報は変更できません。")
         return replace(
@@ -138,7 +138,7 @@ class Patient(AggregateRoot[PatientId]):
         )
 
     def record_profile_change(self, change: PatientProfileChange) -> Self:
-        """プロフィール変更証跡を受信順に追記する。"""
+        """患者基本属性の変更履歴を追記する。"""
         if self.status == PatientStatus.MERGED:
             raise PatientStateConflictError(
                 "統合済みの患者へプロフィール履歴は追加できません。"
@@ -147,7 +147,7 @@ class Patient(AggregateRoot[PatientId]):
 
     @property
     def heading_revision(self) -> int:
-        """頭書きの現在改訂番号。"""
+        """頭書き（申し送り・サマリ等）の現在の改訂番号（リビジョン）を取得する。"""
         return len(self.heading_history)
 
     def change_heading(
@@ -159,7 +159,7 @@ class Patient(AggregateRoot[PatientId]):
         account_id: UserAccountId,
         recorded_at: datetime,
     ) -> Self:
-        """改訂番号を確認して患者の頭書きを追記する。"""
+        """楽観的排他制御のための改訂番号を確認し、頭書きの内容を更新（新しいリビジョンを追記）する。"""
         if self.status == PatientStatus.MERGED:
             raise PatientStateConflictError("統合済みの患者へ頭書きは追加できません。")
         if expected_revision != self.heading_revision:
@@ -241,7 +241,7 @@ class Patient(AggregateRoot[PatientId]):
         account_id: UserAccountId,
         recorded_at: datetime,
     ) -> Self:
-        """別の患者集約へ統合する。"""
+        """同一人物の二重登録などを解消するため、別の患者台帳へ名寄せ統合（名寄せ処理）を行う。"""
         if target_patient_id == self.id:
             raise PatientStateConflictError("自身へ統合することはできません。")
         if self.status == PatientStatus.MERGED:

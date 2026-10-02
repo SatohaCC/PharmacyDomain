@@ -22,10 +22,9 @@ from app.domain.store.primitives import (
 )
 
 
-# 💡 修正1: frozen=True を追加
 @dataclass(frozen=True, eq=False, kw_only=True)
 class Store(AggregateRoot[StoreId]):
-    """店舗（薬局）エンティティ（集約ルート）"""
+    """調剤薬局の店舗情報を管理するドメインエンティティ。"""
 
     id: StoreId
     #: 所属法人。集約をまたぐためIDのみを持ち、法人集約そのものは参照しない。

@@ -1,4 +1,4 @@
-"""患者資格集約。"""
+"""患者の健康保険証・公費受給者証などの保険資格（台帳情報）を管理するモジュール。"""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ if set(_DETAIL_TYPES) != set(CoverageType):
 
 @dataclass(frozen=True, eq=False, kw_only=True)
 class PatientCoverage(AggregateRoot[PatientCoverageId]):
-    """保険または公費の患者資格を管理する集約ルート。"""
+    """患者の健康保険証または公費医療の受給資格情報を管理するドメインエンティティ。"""
 
     id: PatientCoverageId
     corporate_id: CorporateId
@@ -52,7 +52,7 @@ class PatientCoverage(AggregateRoot[PatientCoverageId]):
     public_expense_details: PublicExpenseCoverageDetails | None = None
 
     def validate(self) -> None:
-        """制度種別と制度別詳細の整合性を検証する。"""
+        """保険種別（社保・国保・後期高齢者等）または公費負担医療（難病・自立支援等）の内容と設定の整合性を検証する。"""
         insurance_type, public_expense_type = _DETAIL_TYPES[self.coverage_type]
         if not isinstance(self.insurance_details, insurance_type) or not isinstance(
             self.public_expense_details, public_expense_type
@@ -74,7 +74,7 @@ class PatientCoverage(AggregateRoot[PatientCoverageId]):
         insurance_details: InsuranceCoverageDetails | None = None,
         public_expense_details: PublicExpenseCoverageDetails | None = None,
     ) -> Self:
-        """新しい患者資格を生成する。"""
+        """患者の保険資格（保険証または公費受給者証情報）を新規登録する。"""
         return cls(
             id=PatientCoverageId.generate(),
             corporate_id=corporate_id,
@@ -88,11 +88,11 @@ class PatientCoverage(AggregateRoot[PatientCoverageId]):
         )
 
     def change_period(self, period: CoveragePeriod) -> Self:
-        """患者資格の適用期間を変更する。"""
+        """保険証や公費受給者証の有効期間を変更する。"""
         return replace(self, period=period)
 
     def is_active_on(self, target_date: date) -> bool:
-        """制度期間と台帳行の有効化区間の両方に指定日が含まれるか返す。"""
+        """指定された日付（調剤日・受付日）において、保険証・受給者証の有効期間内であり、かつ台帳上で有効化されているかを判定する。"""
         if not self.activation.is_active_on(target_date):
             return False
         if target_date < self.period.valid_from.value:
@@ -123,7 +123,7 @@ class PatientCoverage(AggregateRoot[PatientCoverageId]):
         )
 
     def deactivate(self, effective_on: CoverageDeactivatedOn) -> Self:
-        """無効化発効日を一度だけ確定する。同日再実行は冪等とする。"""
+        """保険証や公費受給者証の資格喪失日（無効化発効日）を記録する。同一日の再実行は冪等とする。"""
         current = self.activation.deactivated_on
         if current is not None:
             if current == effective_on:

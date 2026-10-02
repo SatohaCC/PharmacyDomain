@@ -674,7 +674,7 @@ async def test_tc51_初回U相当の未登録受付は通常の初回取込に�
 
 @pytest.mark.asyncio
 async def test_tc52_同じ受付Bundleの再送は受付記録も副作用も重ねない() -> None:
-    """同一受付の再送は永続化された指紋で冪等になる。"""
+    """同一受付の再送は永続化されたハッシュ値で冪等になる。"""
     fixture = await create_fixture()
     reception_id = ReceptionId.generate()
     command = _command_for_reception(
@@ -2410,7 +2410,7 @@ async def test_TC12_交付済み調剤に関連する下書きは削除通知で
 
 @pytest.mark.asyncio
 async def test_TC32_同じ訂正を異なる受付IDで再送しても処方を重ねない() -> None:
-    """外部内容指紋が同じなら受付IDが異なっても既存訂正を再利用する。"""
+    """外部内容のハッシュ値が同じなら受付IDが異なっても既存訂正を再利用する。"""
     fixture = await create_fixture()
     reception_id = ReceptionId.generate()
     original_bundle = _structured_bundle_for_non_prescription_correction(
