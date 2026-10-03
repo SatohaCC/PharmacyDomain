@@ -961,3 +961,18 @@ async def test_実DB取込_旧患者ID指紋欠損_別患者拒否後に元ID訂
     assert (
         after["patient_external_identifiers"] == before["patient_external_identifiers"]
     )
+
+    # 訂正完全再送のDB冪等性を検証 (I62-19)
+    async with organization.root.request_scope(
+        authorization=organization.authorization
+    ) as scope:
+        resend_accepted = await scope.use_cases.integration.ingest_nsips.execute(
+            replace(command, structured_bundle=restored)
+        )
+    assert resend_accepted.is_duplicate is True
+    assert resend_accepted.patient_id == accepted.patient_id
+    assert resend_accepted.prescription_id == accepted.prescription_id
+    assert resend_accepted.dispensing_id == accepted.dispensing_id
+    assert resend_accepted.medication_history_id == accepted.medication_history_id
+    resend_state = await _persisted_nsips_state(engine, organization.corporate.id)
+    assert resend_state == after
