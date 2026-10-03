@@ -9,7 +9,7 @@ JSONを置くと、Application層の項目が増えたときにテストだけ�
 from __future__ import annotations
 
 from collections.abc import Iterator
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import datetime, timedelta
 from http import HTTPStatus
 from types import SimpleNamespace
@@ -37,6 +37,7 @@ from app.application.composition.care_event_references import (
 )
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.application.dispensing.get_dispensing import GetDispensingUseCase
+from app.application.dispensing.inputs import SubstitutionInput
 from app.application.medication_history.correct_medication_history_fact import (
     CorrectMedicationHistoryFactUseCase,
 )
@@ -92,7 +93,10 @@ from app.presentational.dependencies import (
     get_medication_history_use_cases,
     get_prescription_use_cases,
 )
-from app.presentational.routers.dispensing import StartDispensingRequest
+from app.presentational.routers.dispensing import (
+    RecordDispensedContentRequest,
+    StartDispensingRequest,
+)
 from app.presentational.routers.medication_history import (
     AddFollowUpRequest,
     FinalizeMedicationHistoryRequest,
@@ -109,7 +113,12 @@ from tests.factories.medication_history_factory import (
     create_note,
     create_nsips_draft_record,
 )
-from tests.factories.prescription_factory import create_response, start_inquiry
+from tests.factories.prescription_factory import (
+    create_medicine,
+    create_response,
+    create_rp,
+    start_inquiry,
+)
 from tests.fakes.fake_event_patient_boundary import FakeEventPatientBoundary
 from tests.fakes.in_memory_dispensing_process_repository import (
     InMemoryDispensingProcessRepository,
@@ -337,6 +346,305 @@ def _start_dispensing_body(
         dispensed_date=fixture.prescription.period.issued_date.value,
         dispensed_rps=[dispensing_helpers.create_rp_input()],
     ).model_dump(mode="json")
+
+
+@pytest.mark.parametrize(
+    ("path", "method"),
+    [
+        pytest.param("/corporates/{corporate_id}/dispensings", "post", id="開始POST"),
+        pytest.param(
+            "/corporates/{corporate_id}/dispensings/{dispensing_id}/dispensed-content",
+            "put",
+            id="内容更新PUT",
+        ),
+    ],
+)
+def test_OpenAPI調剤_開始と内容更新_422に共通エラー応答を宣言する(
+    dispensing_client: TestClient, path: str, method: str
+) -> None:
+    # Arrange / Act
+    response = dispensing_client.get("/openapi.json")
+
+    # Assert
+    assert response.status_code == HTTPStatus.OK
+    schema = response.json()
+    error_response = schema["paths"][path][method]["responses"]["422"]
+    assert error_response["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/ErrorResponse"
+    }
+    assert set(schema["components"]["schemas"]["ErrorResponse"]["properties"]) == {
+        "code",
+        "message",
+        "errors",
+    }
+
+
+def test_HTTP調剤_開始後の正当代替更新_GETで同一IDと実薬品と代替前情報を保持する(
+    dispensing_client: TestClient,
+    dispensing_fixture: dispensing_helpers.DispensingFixture,
+) -> None:
+    # Arrange
+    corporate_id = str(dispensing_fixture.corporate_id.value)
+    started = dispensing_client.post(
+        f"/corporates/{corporate_id}/dispensings",
+        json=_start_dispensing_body(dispensing_fixture),
+        headers=_HEADERS,
+    )
+    assert started.status_code == HTTPStatus.CREATED, started.text
+    dispensing_id = started.json()["id"]
+    detail_url = f"/corporates/{corporate_id}/dispensings/{dispensing_id}"
+    prescriptions_before = {
+        key: asdict(value)
+        for key, value in dispensing_fixture.prescription_source.prescriptions.items()
+    }
+    body = RecordDispensedContentRequest(
+        dispensed_rps=[
+            dispensing_helpers.create_rp_input(
+                medicines=(
+                    dispensing_helpers.create_medicine_input(
+                        code="2171022F1037",
+                        name="アムロジピンＯＤ錠２．５ｍｇ「サワイ」",
+                        substitution=SubstitutionInput(
+                            category="generic_substitution",
+                            original_code_type="yj",
+                            original_code="2171022F1029",
+                            original_name="ノルバスク錠2.5mg",
+                            reason="患者希望による後発品変更",
+                            inquiry_number=None,
+                        ),
+                    ),
+                )
+            )
+        ]
+    ).model_dump(mode="json")
+
+    # Act
+    updated = dispensing_client.put(
+        f"{detail_url}/dispensed-content", json=body, headers=_HEADERS
+    )
+    detail = dispensing_client.get(detail_url, headers=_HEADERS)
+
+    # Assert
+    assert updated.status_code == HTTPStatus.OK, updated.text
+    assert detail.status_code == HTTPStatus.OK, detail.text
+    assert updated.json()["id"] == dispensing_id
+    assert detail.json() == updated.json()
+    assert detail.json()["status"] == "in_progress"
+    medicine = detail.json()["dispensed_rps"][0]["medicines"][0]
+    assert medicine["code_type"] == "yj"
+    assert medicine["code"] == "2171022F1037"
+    assert medicine["name"] == "アムロジピンＯＤ錠２．５ｍｇ「サワイ」"
+    assert medicine["substitution"] == {
+        "category": "generic_substitution",
+        "original_code_type": "yj",
+        "original_code": "2171022F1029",
+        "original_name": "ノルバスク錠2.5mg",
+        "reason": "患者希望による後発品変更",
+        "inquiry_number": None,
+    }
+    assert {
+        key: asdict(value)
+        for key, value in dispensing_fixture.prescription_source.prescriptions.items()
+    } == prescriptions_before
+
+
+@pytest.mark.parametrize(
+    ("has_substitution", "expected_code"),
+    [
+        pytest.param(
+            False, "DISPENSING_SUBSTITUTION_REQUIRED", id="代替なし同名異コード"
+        ),
+        pytest.param(
+            True, "DISPENSING_SUBSTITUTION_ORIGINAL_MISMATCH", id="不正原本引用"
+        ),
+    ],
+)
+def test_HTTP調剤更新_薬品対応不整合_422を返しGET全内容状態と原本を保持する(
+    dispensing_client: TestClient,
+    dispensing_fixture: dispensing_helpers.DispensingFixture,
+    has_substitution: bool,
+    expected_code: str,
+) -> None:
+    # Arrange
+    corporate_id = str(dispensing_fixture.corporate_id.value)
+    original = replace(
+        dispensing_fixture.prescription,
+        rps=(
+            create_rp(
+                medicines=(
+                    create_medicine(),
+                    create_medicine(line_number=2, code="2171022F1045", name="薬C"),
+                )
+            ),
+        ),
+    )
+    dispensing_fixture.prescription_source.register(original)
+    start_body = StartDispensingRequest(
+        store_id=str(dispensing_fixture.store_id.value),
+        prescription_id=str(original.id.value),
+        dispenser_id=str(dispensing_fixture.dispenser_id.value),
+        iteration=1,
+        dispensed_date=original.period.issued_date.value,
+        dispensed_rps=[
+            dispensing_helpers.create_rp_input(
+                medicines=(
+                    dispensing_helpers.create_medicine_input(
+                        preparations=("unit_dose_packaged", "compounded")
+                    ),
+                    dispensing_helpers.create_medicine_input(
+                        line_number=2, code="2171022F1045", name="薬C"
+                    ),
+                )
+            )
+        ],
+    ).model_dump(mode="json")
+    started = dispensing_client.post(
+        f"/corporates/{corporate_id}/dispensings", json=start_body, headers=_HEADERS
+    )
+    assert started.status_code == HTTPStatus.CREATED, started.text
+    detail_url = f"/corporates/{corporate_id}/dispensings/{started.json()['id']}"
+    before = dispensing_client.get(detail_url, headers=_HEADERS)
+    assert before.status_code == HTTPStatus.OK
+    prescriptions_before = {
+        key: asdict(value)
+        for key, value in dispensing_fixture.prescription_source.prescriptions.items()
+    }
+    saved_before = {
+        key: asdict(value) for key, value in dispensing_fixture.repository.items.items()
+    }
+    substitution = (
+        SubstitutionInput(
+            category="generic_substitution",
+            original_code_type="yj",
+            original_code="2171022F1053",
+            original_name="別の原本薬品",
+        )
+        if has_substitution
+        else None
+    )
+    body = RecordDispensedContentRequest(
+        dispensed_rps=[
+            dispensing_helpers.create_rp_input(
+                medicines=(
+                    dispensing_helpers.create_medicine_input(
+                        code="2171022F1037",
+                        name=original.rps[0].medicines[0].name.value,
+                        substitution=substitution,
+                    ),
+                )
+            )
+        ]
+    ).model_dump(mode="json")
+
+    # Act
+    rejected = dispensing_client.put(
+        f"{detail_url}/dispensed-content", json=body, headers=_HEADERS
+    )
+    after = dispensing_client.get(detail_url, headers=_HEADERS)
+
+    # Assert
+    assert rejected.status_code == HTTPStatus.UNPROCESSABLE_CONTENT, rejected.text
+    error = rejected.json()
+    assert error["code"] == expected_code
+    assert error["errors"] == []
+    assert "処方原本" in error["message"]
+    assert "RP番号: 1" in error["message"]
+    assert "薬品連番: 1" in error["message"]
+    assert after.status_code == HTTPStatus.OK
+    assert after.json() == before.json()
+    assert {
+        key: asdict(value) for key, value in dispensing_fixture.repository.items.items()
+    } == saved_before
+    assert {
+        key: asdict(value)
+        for key, value in dispensing_fixture.prescription_source.prescriptions.items()
+    } == prescriptions_before
+
+
+@pytest.mark.parametrize(
+    ("has_substitution", "expected_code"),
+    [
+        pytest.param(
+            False, "DISPENSING_SUBSTITUTION_REQUIRED", id="代替なし同名異コード"
+        ),
+        pytest.param(
+            True, "DISPENSING_SUBSTITUTION_ORIGINAL_MISMATCH", id="不正原本引用"
+        ),
+    ],
+)
+def test_HTTP調剤開始_薬品対応不整合_422を返し一覧保存状態と原本を保持する(
+    dispensing_client: TestClient,
+    dispensing_fixture: dispensing_helpers.DispensingFixture,
+    has_substitution: bool,
+    expected_code: str,
+) -> None:
+    # Arrange
+    corporate_id = str(dispensing_fixture.corporate_id.value)
+    prescription_id = str(dispensing_fixture.prescription.id.value)
+    list_url = f"/corporates/{corporate_id}/prescriptions/{prescription_id}/dispensings"
+    listed_before = dispensing_client.get(list_url, headers=_HEADERS)
+    assert listed_before.status_code == HTTPStatus.OK
+    saved_before = {
+        key: asdict(value) for key, value in dispensing_fixture.repository.items.items()
+    }
+    prescriptions_before = {
+        key: asdict(value)
+        for key, value in dispensing_fixture.prescription_source.prescriptions.items()
+    }
+    substitution = (
+        SubstitutionInput(
+            category="generic_substitution",
+            original_code_type="yj",
+            original_code="2171022F1045",
+            original_name="別の原本薬品",
+        )
+        if has_substitution
+        else None
+    )
+    body = StartDispensingRequest(
+        store_id=str(dispensing_fixture.store_id.value),
+        prescription_id=prescription_id,
+        dispenser_id=str(dispensing_fixture.dispenser_id.value),
+        iteration=1,
+        dispensed_date=dispensing_fixture.prescription.period.issued_date.value,
+        dispensed_rps=[
+            dispensing_helpers.create_rp_input(
+                medicines=(
+                    dispensing_helpers.create_medicine_input(
+                        code="2171022F1037",
+                        name=dispensing_fixture.prescription.rps[0]
+                        .medicines[0]
+                        .name.value,
+                        substitution=substitution,
+                    ),
+                )
+            )
+        ],
+    ).model_dump(mode="json")
+
+    # Act
+    rejected = dispensing_client.post(
+        f"/corporates/{corporate_id}/dispensings", json=body, headers=_HEADERS
+    )
+    listed_after = dispensing_client.get(list_url, headers=_HEADERS)
+
+    # Assert
+    assert rejected.status_code == HTTPStatus.UNPROCESSABLE_CONTENT, rejected.text
+    error = rejected.json()
+    assert error["code"] == expected_code
+    assert error["errors"] == []
+    assert "処方原本" in error["message"]
+    assert "RP番号: 1" in error["message"]
+    assert "薬品連番: 1" in error["message"]
+    assert listed_after.status_code == HTTPStatus.OK
+    assert listed_after.json() == listed_before.json()
+    assert {
+        key: asdict(value) for key, value in dispensing_fixture.repository.items.items()
+    } == saved_before
+    assert {
+        key: asdict(value)
+        for key, value in dispensing_fixture.prescription_source.prescriptions.items()
+    } == prescriptions_before
 
 
 def test_調剤を開始して_鑑査と完了まで進められる(

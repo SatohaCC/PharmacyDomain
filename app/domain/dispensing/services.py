@@ -11,6 +11,7 @@ Application層の資格Boundary経由で渡された資格情報（StaffQualific
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+from enum import Enum, auto
 
 from app.domain.dispensing.dispensing_process import (
     DispensedMedicine,
@@ -30,6 +31,8 @@ from app.domain.dispensing.exceptions import (
     PreviousDispensingUnknownError,
     SplitInstructionMissingError,
     SubstitutionNotAllowedError,
+    SubstitutionOriginalMismatchError,
+    SubstitutionRequiredError,
 )
 from app.domain.dispensing.primitives import (
     DispensingSplitReason,
@@ -46,12 +49,40 @@ from app.domain.prescription.primitives import (
     InquiryNumber,
     InquiryResultType,
 )
-from app.domain.shared.medicine import MedicineLineNumber, RpNumber
+from app.domain.shared.medicine import (
+    MedicineCodeType,
+    MedicineIdentifier,
+    MedicineLineNumber,
+    RpNumber,
+)
 from app.domain.staff.primitives import PharmacistProfile, StaffQualifications
 
 #: リフィル2回目以降の調剤日が、前回の次回調剤予定日から離れてよい日数。
 #: 出典: 保険調剤の理解のために（令和8年度）。
 REFILL_SCHEDULE_TOLERANCE_DAYS = 7
+
+
+class _MedicineCodeComparison(Enum):
+    """記録された薬品コードの一致・不一致・比較不能を表す。"""
+
+    MATCH = auto()
+    MISMATCH = auto()
+    UNKNOWN = auto()
+
+
+def _compare_medicine_codes(
+    prescribed: MedicineIdentifier, dispensed: MedicineIdentifier
+) -> _MedicineCodeComparison:
+    """同じ非NONE体系だけでコードを比較し、薬品の同等性は推測しない。"""
+    if (
+        prescribed.code_type != dispensed.code_type
+        or prescribed.code_type == MedicineCodeType.NONE
+    ):
+        return _MedicineCodeComparison.UNKNOWN
+    if prescribed.code == dispensed.code:
+        return _MedicineCodeComparison.MATCH
+    return _MedicineCodeComparison.MISMATCH
+
 
 #: 処方箋の変更制限が禁じる代替調剤の種別。
 #:
@@ -160,9 +191,9 @@ class DispensingIterationUniquenessService:
 class DispensingConsistencyService:
     """調剤内容と処方箋原本・前回調剤との整合性を検証する。
 
-    ``ensure_consistent()`` が入口。個別のメソッドも公開しているが、
-    **UseCase からは入口だけを呼ぶ**こと。個別に呼ぶ実装にすると、
-    検証の1つを呼び忘れても誰も気づけない。
+    開始時は ``ensure_consistent()``、内容変更時は
+    ``ensure_content_matches_prescription()`` を入口として使う。
+    内容の対応と変更制限は両入口で共通に検証する。
     """
 
     def ensure_consistent(
@@ -183,6 +214,8 @@ class DispensingConsistencyService:
             DispensedRpNotInPrescriptionError: 処方箋に無い剤を調剤している場合。
             DispensedMedicineNotInPrescriptionError: 処方箋に無い薬品を
                 調剤している場合。
+            SubstitutionRequiredError: 異なる薬品コードの調剤に代替記録がない場合。
+            SubstitutionOriginalMismatchError: 代替前の薬品情報が原本引用と異なる場合。
             SubstitutionNotAllowedError: 処方箋の変更制限に反する代替調剤。
             SplitInstructionMissingError: 医師の分割指示による調剤なのに、
                 処方箋に分割指示が無い場合。
@@ -192,11 +225,20 @@ class DispensingConsistencyService:
             PreviousDispensingCompletedError: 前回が調剤終了だった場合。
             DispensingScheduleOutOfRangeError: 次回調剤予定日から離れすぎている場合。
         """
-        self.ensure_rps_match_prescription(process, prescription)
-        self.ensure_substitutions_are_allowed(process, prescription)
+        self.ensure_content_matches_prescription(process, prescription)
         self.ensure_inquiry_references_exist(process, prescription)
         self.ensure_iteration_is_within_instruction(process, prescription)
         self.ensure_schedule_is_valid(process, prescription, previous=previous)
+
+    def ensure_content_matches_prescription(
+        self, process: DispensingProcess, prescription: Prescription
+    ) -> None:
+        """原本との薬品対応・代替前引用・変更制限を共通に検証する。
+
+        内容変更では調剤日と回数が変わらないため、前回調剤の検証を要求しない。
+        """
+        self.ensure_rps_match_prescription(process, prescription)
+        self.ensure_substitutions_are_allowed(process, prescription)
 
     # ------------------------------------------------------------------
     # 剤・薬品の対応
@@ -205,7 +247,7 @@ class DispensingConsistencyService:
     def ensure_rps_match_prescription(
         self, process: DispensingProcess, prescription: Prescription
     ) -> None:
-        """調剤した剤と薬品が処方箋に実在することを検証する。
+        """剤・薬品の対応、コード変更の代替記録、代替前情報の原本引用を検証する。
 
         処方箋の**すべて**の剤を調剤することは要求しない。分割調剤・減数調剤では
         一部だけを調剤しうるため。逆向き（処方箋に無いものを調剤した）だけを拒否する。
@@ -214,12 +256,35 @@ class DispensingConsistencyService:
             prescribed_rp = _find_prescribed_rp(prescription, rp.rp_number)
             if prescribed_rp is None:
                 raise DispensedRpNotInPrescriptionError(rp_number=rp.rp_number.value)
-            prescribed_numbers = {
-                medicine.line_number for medicine in prescribed_rp.medicines
+            prescribed_medicines = {
+                medicine.line_number: medicine for medicine in prescribed_rp.medicines
             }
             for medicine in rp.medicines:
-                if medicine.line_number not in prescribed_numbers:
+                prescribed = prescribed_medicines.get(medicine.line_number)
+                if prescribed is None:
                     raise DispensedMedicineNotInPrescriptionError(
+                        rp_number=rp.rp_number.value,
+                        line_number=medicine.line_number.value,
+                    )
+                if medicine.substitution is not None and (
+                    medicine.substitution.original_identifier != prescribed.identifier
+                    or (
+                        prescribed.identifier.code_type == MedicineCodeType.NONE
+                        and medicine.substitution.original_name != prescribed.name
+                    )
+                ):
+                    raise SubstitutionOriginalMismatchError(
+                        rp_number=rp.rp_number.value,
+                        line_number=medicine.line_number.value,
+                    )
+                if (
+                    medicine.substitution is None
+                    and _compare_medicine_codes(
+                        prescribed.identifier, medicine.identifier
+                    )
+                    == _MedicineCodeComparison.MISMATCH
+                ):
+                    raise SubstitutionRequiredError(
                         rp_number=rp.rp_number.value,
                         line_number=medicine.line_number.value,
                     )

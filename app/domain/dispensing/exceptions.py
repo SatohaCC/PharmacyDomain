@@ -130,6 +130,34 @@ class QuantityAdjustmentInvalidError(DispensingDomainError):
         super().__init__(message)
 
 
+class SubstitutionRequiredError(DispensingDomainError):
+    """処方原本と異なる薬品コードの調剤に代替記録がない場合の例外。"""
+
+    default_message = "処方原本と異なる薬品コードの調剤には代替記録が必要です。"
+    default_code = "DISPENSING_SUBSTITUTION_REQUIRED"
+
+    def __init__(self, *, rp_number: int, line_number: int) -> None:
+        """対象のRP番号と薬品連番を添えて例外を生成する。"""
+        message = (
+            f"{self.default_message}RP番号: {rp_number}、薬品連番: {line_number}。"
+        )
+        super().__init__(message)
+
+
+class SubstitutionOriginalMismatchError(DispensingDomainError):
+    """代替前の薬品情報が対応する処方原本の引用と一致しない場合の例外。"""
+
+    default_message = "代替前の薬品情報が対応する処方原本と一致しません。"
+    default_code = "DISPENSING_SUBSTITUTION_ORIGINAL_MISMATCH"
+
+    def __init__(self, *, rp_number: int, line_number: int) -> None:
+        """対象のRP番号と薬品連番を添えて例外を生成する。"""
+        message = (
+            f"{self.default_message}RP番号: {rp_number}、薬品連番: {line_number}。"
+        )
+        super().__init__(message)
+
+
 class SubstitutionWithoutChangeError(DispensingDomainError):
     """変更前と変更後が同一の代替調剤を記録しようとした場合の例外。
 

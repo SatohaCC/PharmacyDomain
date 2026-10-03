@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict, replace
 from datetime import date, timedelta
 from typing import cast
 
@@ -18,6 +19,7 @@ from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.exceptions import (
     DispensedMedicineNotInPrescriptionError,
     DispensedRpNotInPrescriptionError,
+    DispensingDomainError,
     DispensingOutsidePrescriptionPeriodError,
     DispensingScheduleOutOfRangeError,
     InquiryNotAgreedError,
@@ -27,6 +29,8 @@ from app.domain.dispensing.exceptions import (
     PreviousDispensingUnknownError,
     SplitInstructionMissingError,
     SubstitutionNotAllowedError,
+    SubstitutionOriginalMismatchError,
+    SubstitutionRequiredError,
 )
 from app.domain.dispensing.primitives import (
     DispensingCompletionType,
@@ -54,6 +58,12 @@ from app.domain.prescription.value_objects import (
     RefillInstruction,
     SplitInstruction,
 )
+from app.domain.shared.medicine import (
+    MedicineCode,
+    MedicineCodeType,
+    MedicineIdentifier,
+    MedicineName,
+)
 from tests.factories.dispensing_factory import (
     DISPENSED_ON,
     GENERIC_CODE,
@@ -75,6 +85,37 @@ from tests.factories.prescription_factory import (
 
 _SERVICE = DispensingConsistencyService()
 _NEXT_DATE = date(2026, 9, 21)
+
+
+@pytest.mark.parametrize(
+    ("exception_type", "expected_code"),
+    [
+        pytest.param(
+            SubstitutionRequiredError,
+            "DISPENSING_SUBSTITUTION_REQUIRED",
+            id="代替記録必須",
+        ),
+        pytest.param(
+            SubstitutionOriginalMismatchError,
+            "DISPENSING_SUBSTITUTION_ORIGINAL_MISMATCH",
+            id="原本引用不一致",
+        ),
+    ],
+)
+def test_薬品対応例外_対象番号をキーワードで指定_公開例外契約を満たす(
+    exception_type: type[SubstitutionRequiredError]
+    | type[SubstitutionOriginalMismatchError],
+    expected_code: str,
+) -> None:
+    # Arrange / Act
+    error = exception_type(rp_number=2, line_number=3)
+
+    # Assert
+    assert isinstance(error, DispensingDomainError)
+    assert error.code == expected_code
+    assert "RP番号: 2" in error.message
+    assert "薬品連番: 3" in error.message
+    assert "処方原本" in error.message
 
 
 def _prescription(
@@ -118,6 +159,639 @@ def _continuing_previous(*, next_dispensing_on: date = _NEXT_DATE) -> Dispensing
 
 class Test剤と薬品の対応:
     """調剤した剤と処方箋の剤が対応することを検証する。"""
+
+    @pytest.mark.parametrize(
+        ("has_substitution", "expected_error"),
+        [
+            pytest.param(False, SubstitutionRequiredError, id="末尾代替なし異コード"),
+            pytest.param(
+                True, SubstitutionOriginalMismatchError, id="末尾原本引用不一致"
+            ),
+        ],
+    )
+    def test_薬品対応_最後の明細だけ不整合_対象番号を示して全入力を変えず拒否する(
+        self,
+        has_substitution: bool,
+        expected_error: type[SubstitutionRequiredError]
+        | type[SubstitutionOriginalMismatchError],
+    ) -> None:
+        # Arrange
+        prescription = create_prescription(
+            rps=(
+                create_rp(rp_number=1),
+                create_rp(
+                    rp_number=2,
+                    medicines=(
+                        create_medicine(line_number=1),
+                        create_medicine(line_number=2, code="2171022F1045", name="薬C"),
+                    ),
+                ),
+            )
+        )
+        substitution = (
+            create_substitution(original_code="2171022F1053", original_name="薬D")
+            if has_substitution
+            else None
+        )
+        process = create_dispensing(
+            dispensed_rps=(
+                create_dispensed_rp(rp_number=1),
+                create_dispensed_rp(
+                    rp_number=2,
+                    medicines=(
+                        create_dispensed_medicine(line_number=1),
+                        create_dispensed_medicine(
+                            line_number=2,
+                            code=GENERIC_CODE,
+                            name=GENERIC_NAME,
+                            substitution=substitution,
+                        ),
+                    ),
+                ),
+            )
+        )
+        prescription_before = asdict(prescription)
+        process_before = asdict(process)
+
+        # Act / Assert
+        with pytest.raises(expected_error) as exc_info:
+            _SERVICE.ensure_rps_match_prescription(process, prescription)
+        assert "RP番号: 2" in exc_info.value.message
+        assert "薬品連番: 2" in exc_info.value.message
+        assert asdict(prescription) == prescription_before
+        assert asdict(process) == process_before
+
+    def test_薬品対応_RPと明細を逆順で正しく引用_入力を保持して通る(self) -> None:
+        # Arrange
+        prescription = create_prescription(
+            rps=(
+                create_rp(
+                    rp_number=1,
+                    medicines=(
+                        create_medicine(line_number=1, code="2171022F1029", name="薬A"),
+                        create_medicine(line_number=2, code="2171022F1045", name="薬C"),
+                    ),
+                ),
+                create_rp(
+                    rp_number=2,
+                    medicines=(
+                        create_medicine(line_number=1, code="2171022F1053", name="薬D"),
+                        create_medicine(line_number=2, code="2171022F1061", name="薬E"),
+                    ),
+                ),
+            )
+        )
+        process = create_dispensing(
+            dispensed_rps=(
+                create_dispensed_rp(
+                    rp_number=2,
+                    medicines=(
+                        create_dispensed_medicine(
+                            line_number=2, code="2171022F1061", name="薬E"
+                        ),
+                        create_dispensed_medicine(
+                            line_number=1,
+                            code="2171022F1070",
+                            name="薬F",
+                            substitution=create_substitution(
+                                original_code="2171022F1053", original_name="薬D"
+                            ),
+                        ),
+                    ),
+                ),
+                create_dispensed_rp(
+                    rp_number=1,
+                    medicines=(
+                        create_dispensed_medicine(
+                            line_number=2,
+                            code="2171022F1088",
+                            name="薬G",
+                            substitution=create_substitution(
+                                original_code="2171022F1045", original_name="薬C"
+                            ),
+                        ),
+                        create_dispensed_medicine(
+                            line_number=1, code="2171022F1029", name="薬A"
+                        ),
+                    ),
+                ),
+            )
+        )
+        prescription_before = asdict(prescription)
+        process_before = asdict(process)
+
+        # Act
+        _SERVICE.ensure_rps_match_prescription(process, prescription)
+
+        # Assert
+        assert asdict(prescription) == prescription_before
+        assert asdict(process) == process_before
+
+    def test_薬品対応_同コードで名称だけ変わる代替記録_入力を保持して通る(
+        self,
+    ) -> None:
+        # Arrange
+        prescription = _prescription()
+        process = create_dispensing(
+            dispensed_rps=(
+                create_dispensed_rp(
+                    medicines=(
+                        create_dispensed_medicine(
+                            name="ノルバスク錠2.5mg",
+                            substitution=create_substitution(),
+                        ),
+                    )
+                ),
+            )
+        )
+        prescription_before = asdict(prescription)
+        process_before = asdict(process)
+
+        # Act
+        _SERVICE.ensure_rps_match_prescription(process, prescription)
+
+        # Assert
+        assert asdict(prescription) == prescription_before
+        assert asdict(process) == process_before
+
+    def test_薬品対応_コードなし原本の引用名称が空白正規化で一致_入力を保持して通る(
+        self,
+    ) -> None:
+        # Arrange
+        prescribed_name = MedicineName("薬   A")
+        original_name = MedicineName("  薬 A  ")
+        assert prescribed_name == original_name
+        prescribed_medicine = create_medicine(
+            code_type=MedicineCodeType.NONE, code=None, name=prescribed_name.value
+        )
+        prescription = create_prescription(
+            rps=(create_rp(medicines=(prescribed_medicine,)),)
+        )
+        substitution = replace(
+            create_substitution(original_name=original_name.value),
+            original_identifier=MedicineIdentifier(code_type=MedicineCodeType.NONE),
+        )
+        process = create_dispensing(
+            dispensed_rps=(
+                create_dispensed_rp(
+                    medicines=(
+                        create_dispensed_medicine(
+                            code=GENERIC_CODE,
+                            name=GENERIC_NAME,
+                            substitution=substitution,
+                        ),
+                    )
+                ),
+            )
+        )
+        prescription_before = asdict(prescription)
+        process_before = asdict(process)
+
+        # Act
+        _SERVICE.ensure_rps_match_prescription(process, prescription)
+
+        # Assert
+        assert asdict(prescription) == prescription_before
+        assert asdict(process) == process_before
+
+    @pytest.mark.parametrize(
+        "code_type",
+        [
+            pytest.param(MedicineCodeType.YJ, id="YJ原本引用"),
+            pytest.param(MedicineCodeType.GENERIC, id="一般名原本引用"),
+        ],
+    )
+    def test_薬品対応_コードあり原本の引用名称だけ異なる_入力を保持して通る(
+        self, code_type: MedicineCodeType
+    ) -> None:
+        # Arrange
+        prescribed_identifier = MedicineIdentifier(
+            code_type=code_type, code=MedicineCode("2171022F1029")
+        )
+        prescribed_medicine = replace(
+            create_medicine(name="原本の薬品名"), identifier=prescribed_identifier
+        )
+        prescription = create_prescription(
+            rps=(create_rp(medicines=(prescribed_medicine,)),)
+        )
+        substitution = replace(
+            create_substitution(original_name="引用時の別表記"),
+            original_identifier=prescribed_identifier,
+        )
+        process = create_dispensing(
+            dispensed_rps=(
+                create_dispensed_rp(
+                    medicines=(
+                        create_dispensed_medicine(
+                            code=GENERIC_CODE,
+                            name=GENERIC_NAME,
+                            substitution=substitution,
+                        ),
+                    )
+                ),
+            )
+        )
+        prescription_before = asdict(prescription)
+        process_before = asdict(process)
+
+        # Act
+        _SERVICE.ensure_rps_match_prescription(process, prescription)
+
+        # Assert
+        assert asdict(prescription) == prescription_before
+        assert asdict(process) == process_before
+
+    @pytest.mark.parametrize(
+        ("prescribed_type", "prescribed_code", "dispensed_type", "dispensed_code"),
+        [
+            pytest.param(
+                MedicineCodeType.GENERIC,
+                "2171022F1ZZZ",
+                MedicineCodeType.YJ,
+                "2171022F1037",
+                id="一般名からYJ製品",
+            ),
+            pytest.param(
+                MedicineCodeType.YJ,
+                "2171022F1029",
+                MedicineCodeType.RECEIPT,
+                "2171022F1029",
+                id="異体系で同じ合成コード文字列",
+            ),
+        ],
+    )
+    def test_薬品対応_異体系の代替なし調剤_入力を保持して通る(
+        self,
+        prescribed_type: MedicineCodeType,
+        prescribed_code: str,
+        dispensed_type: MedicineCodeType,
+        dispensed_code: str,
+    ) -> None:
+        """異体系の合成コード例の受理を薬品同一性の判定とは扱わない。"""
+        # Arrange
+        prescription = create_prescription(
+            rps=(
+                create_rp(
+                    medicines=(
+                        create_medicine(
+                            code_type=prescribed_type,
+                            code=prescribed_code,
+                            name="原本の薬品",
+                        ),
+                    )
+                ),
+            )
+        )
+        medicine = replace(
+            create_dispensed_medicine(name="選択した薬品", substitution=None),
+            identifier=MedicineIdentifier(
+                code_type=dispensed_type, code=MedicineCode(dispensed_code)
+            ),
+        )
+        process = create_dispensing(
+            dispensed_rps=(create_dispensed_rp(medicines=(medicine,)),)
+        )
+        prescription_before = asdict(prescription)
+        process_before = asdict(process)
+
+        # Act
+        _SERVICE.ensure_rps_match_prescription(process, prescription)
+
+        # Assert
+        assert asdict(prescription) == prescription_before
+        assert asdict(process) == process_before
+
+    @pytest.mark.parametrize(
+        ("prescribed_type", "dispensed_type"),
+        [
+            pytest.param(MedicineCodeType.NONE, MedicineCodeType.YJ, id="NONEからYJ"),
+            pytest.param(MedicineCodeType.YJ, MedicineCodeType.NONE, id="YJからNONE"),
+            pytest.param(MedicineCodeType.NONE, MedicineCodeType.NONE, id="双方NONE"),
+        ],
+    )
+    def test_薬品対応_コードなしを含み名称が異なる代替なし調剤_入力を保持して通る(
+        self, prescribed_type: MedicineCodeType, dispensed_type: MedicineCodeType
+    ) -> None:
+        # Arrange
+        prescription = create_prescription(
+            rps=(
+                create_rp(
+                    medicines=(
+                        create_medicine(
+                            code_type=prescribed_type,
+                            code=None
+                            if prescribed_type is MedicineCodeType.NONE
+                            else "2171022F1029",
+                            name="原本の薬品",
+                        ),
+                    )
+                ),
+            )
+        )
+        medicine = replace(
+            create_dispensed_medicine(name="別表記の実調剤薬品", substitution=None),
+            identifier=MedicineIdentifier(
+                code_type=dispensed_type,
+                code=None
+                if dispensed_type is MedicineCodeType.NONE
+                else MedicineCode("2171022F1037"),
+            ),
+        )
+        process = create_dispensing(
+            dispensed_rps=(create_dispensed_rp(medicines=(medicine,)),)
+        )
+        prescription_before = asdict(prescription)
+        process_before = asdict(process)
+
+        # Act
+        _SERVICE.ensure_rps_match_prescription(process, prescription)
+
+        # Assert
+        assert asdict(prescription) == prescription_before
+        assert asdict(process) == process_before
+
+    def test_薬品対応_同コードで名称表記だけ異なる代替なし調剤_入力を保持して通る(
+        self,
+    ) -> None:
+        # Arrange
+        prescription = _prescription()
+        process = create_dispensing(
+            dispensed_rps=(
+                create_dispensed_rp(
+                    medicines=(
+                        create_dispensed_medicine(
+                            name="ノルバスク錠2.5mg", substitution=None
+                        ),
+                    )
+                ),
+            )
+        )
+        prescription_before = asdict(prescription)
+        process_before = asdict(process)
+
+        # Act
+        _SERVICE.ensure_rps_match_prescription(process, prescription)
+
+        # Assert
+        assert asdict(prescription) == prescription_before
+        assert asdict(process) == process_before
+
+    def test_薬品対応_コードなし原本と代替前名称が異なる_原本引用不一致で拒否される(
+        self,
+    ) -> None:
+        # Arrange
+        prescription = create_prescription(
+            rps=(
+                create_rp(
+                    medicines=(
+                        create_medicine(
+                            code_type=MedicineCodeType.NONE, code=None, name="薬 A"
+                        ),
+                    )
+                ),
+            )
+        )
+        substitution = replace(
+            create_substitution(original_name="別の薬 A"),
+            original_identifier=MedicineIdentifier(code_type=MedicineCodeType.NONE),
+        )
+        process = create_dispensing(
+            dispensed_rps=(
+                create_dispensed_rp(
+                    medicines=(
+                        create_dispensed_medicine(
+                            code=GENERIC_CODE,
+                            name=GENERIC_NAME,
+                            substitution=substitution,
+                        ),
+                    )
+                ),
+            )
+        )
+
+        # Act / Assert
+        with pytest.raises(SubstitutionOriginalMismatchError):
+            _SERVICE.ensure_rps_match_prescription(process, prescription)
+
+    @pytest.mark.parametrize(
+        "other_rp_number",
+        [pytest.param(1, id="同RP別連番"), pytest.param(2, id="別RP同連番")],
+    )
+    def test_薬品対応_別明細の原本を代替前に引用_対象番号を示して入力を変えず拒否する(
+        self, other_rp_number: int
+    ) -> None:
+        # Arrange
+        target_medicine = create_medicine()
+        other_medicine = create_medicine(
+            line_number=2 if other_rp_number == 1 else 1,
+            code="2171022F1045",
+            name="別明細の薬品",
+        )
+        rps = (
+            (create_rp(medicines=(target_medicine, other_medicine)),)
+            if other_rp_number == 1
+            else (
+                create_rp(medicines=(target_medicine,)),
+                create_rp(rp_number=2, medicines=(other_medicine,)),
+            )
+        )
+        prescription = create_prescription(rps=rps)
+        process = create_dispensing(
+            dispensed_rps=(
+                create_dispensed_rp(
+                    medicines=(
+                        create_dispensed_medicine(
+                            code=GENERIC_CODE,
+                            name=GENERIC_NAME,
+                            substitution=create_substitution(
+                                original_code="2171022F1045",
+                                original_name="別明細の薬品",
+                            ),
+                        ),
+                    )
+                ),
+            )
+        )
+        prescription_before = asdict(prescription)
+        process_before = asdict(process)
+
+        # Act / Assert
+        with pytest.raises(SubstitutionOriginalMismatchError) as exc_info:
+            _SERVICE.ensure_rps_match_prescription(process, prescription)
+        assert "RP番号: 1" in exc_info.value.message
+        assert "薬品連番: 1" in exc_info.value.message
+        assert asdict(prescription) == prescription_before
+        assert asdict(process) == process_before
+
+    @pytest.mark.parametrize(
+        ("prescribed_type", "original_type"),
+        [
+            pytest.param(
+                MedicineCodeType.YJ, MedicineCodeType.MHLW, id="YJ原本厚生省引用"
+            ),
+            pytest.param(
+                MedicineCodeType.YJ, MedicineCodeType.NONE, id="YJ原本コードなし引用"
+            ),
+            pytest.param(
+                MedicineCodeType.NONE, MedicineCodeType.YJ, id="コードなし原本YJ引用"
+            ),
+        ],
+    )
+    def test_薬品対応_代替前の体系が原本と異なる_原本引用不一致で拒否される(
+        self, prescribed_type: MedicineCodeType, original_type: MedicineCodeType
+    ) -> None:
+        # Arrange
+        prescribed_medicine = replace(
+            create_medicine(),
+            identifier=MedicineIdentifier(
+                code_type=prescribed_type,
+                code=None
+                if prescribed_type is MedicineCodeType.NONE
+                else MedicineCode("2171022F1029"),
+            ),
+        )
+        prescription = create_prescription(
+            rps=(create_rp(medicines=(prescribed_medicine,)),)
+        )
+        substitution = replace(
+            create_substitution(),
+            original_identifier=MedicineIdentifier(
+                code_type=original_type,
+                code=None
+                if original_type is MedicineCodeType.NONE
+                else MedicineCode("2171022F1029"),
+            ),
+        )
+        process = create_dispensing(
+            dispensed_rps=(
+                create_dispensed_rp(
+                    medicines=(
+                        create_dispensed_medicine(
+                            code=GENERIC_CODE,
+                            name=GENERIC_NAME,
+                            substitution=substitution,
+                        ),
+                    )
+                ),
+            )
+        )
+
+        # Act / Assert
+        with pytest.raises(SubstitutionOriginalMismatchError):
+            _SERVICE.ensure_rps_match_prescription(process, prescription)
+
+    @pytest.mark.parametrize(
+        "category",
+        [
+            pytest.param(SubstitutionCategory.GENERIC_SUBSTITUTION, id="後発品変更"),
+            pytest.param(SubstitutionCategory.DOSAGE_FORM_CHANGE, id="剤形変更"),
+            pytest.param(SubstitutionCategory.STRENGTH_CHANGE, id="規格変更"),
+            pytest.param(SubstitutionCategory.INQUIRY_MODIFIED, id="疑義照会変更"),
+        ],
+    )
+    def test_薬品対応_代替前コードが処方原本と異なる_原本引用不一致で拒否される(
+        self, category: SubstitutionCategory
+    ) -> None:
+        # Arrange
+        prescription = _prescription()
+        if category is SubstitutionCategory.INQUIRY_MODIFIED:
+            prescription = start_inquiry(prescription).resolve_inquiry(
+                inquiry_number=InquiryNumber(1),
+                response=create_response(result_type=InquiryResultType.MODIFIED),
+            )
+        process = create_dispensing(
+            dispensed_rps=(
+                create_dispensed_rp(
+                    medicines=(
+                        create_dispensed_medicine(
+                            code=GENERIC_CODE,
+                            name=GENERIC_NAME,
+                            substitution=create_substitution(
+                                category=category,
+                                original_code="2171022F1045",
+                            ),
+                        ),
+                    )
+                ),
+            )
+        )
+
+        # Act / Assert
+        with pytest.raises(SubstitutionOriginalMismatchError):
+            _SERVICE.ensure_rps_match_prescription(process, prescription)
+
+    @pytest.mark.parametrize(
+        "category",
+        [
+            pytest.param(SubstitutionCategory.GENERIC_SUBSTITUTION, id="後発品変更"),
+            pytest.param(SubstitutionCategory.DOSAGE_FORM_CHANGE, id="剤形変更"),
+            pytest.param(SubstitutionCategory.STRENGTH_CHANGE, id="規格変更"),
+            pytest.param(SubstitutionCategory.INQUIRY_MODIFIED, id="疑義照会変更"),
+        ],
+    )
+    def test_薬品対応_原本を引用した正当な代替_開始検証を通り入力を保持する(
+        self, category: SubstitutionCategory
+    ) -> None:
+        # Arrange
+        prescription = _prescription()
+        if category is SubstitutionCategory.INQUIRY_MODIFIED:
+            prescription = start_inquiry(prescription).resolve_inquiry(
+                inquiry_number=InquiryNumber(1),
+                response=create_response(result_type=InquiryResultType.MODIFIED),
+            )
+        process = _substituted_dispensing(category)
+        prescription_before = asdict(prescription)
+        process_before = asdict(process)
+
+        # Act
+        _SERVICE.ensure_consistent(process, prescription)
+
+        # Assert
+        assert asdict(prescription) == prescription_before
+        assert asdict(process) == process_before
+
+    @pytest.mark.parametrize(
+        ("code_type", "dispensed_name"),
+        [
+            pytest.param(MedicineCodeType.YJ, "薬品B", id="YJ名称違い"),
+            pytest.param(MedicineCodeType.YJ, "薬品A", id="YJ同名"),
+            pytest.param(MedicineCodeType.RECEIPT, "薬品B", id="レセプト電算"),
+            pytest.param(MedicineCodeType.MHLW, "薬品B", id="厚生省"),
+            pytest.param(MedicineCodeType.HOT, "薬品B", id="HOT"),
+            pytest.param(MedicineCodeType.GENERIC, "薬品B", id="一般名"),
+        ],
+    )
+    def test_薬品対応_同体系異コードで代替記録がない_入力を変えず拒否される(
+        self, code_type: MedicineCodeType, dispensed_name: str
+    ) -> None:
+        """同名でも異コードを代替なしで受理しない。YJ以外は合成コード例。"""
+        # Arrange
+        prescribed_medicine = replace(
+            create_medicine(name="薬品A"),
+            identifier=MedicineIdentifier(
+                code_type=code_type, code=MedicineCode("2171022F1029")
+            ),
+        )
+        prescription = create_prescription(
+            rps=(create_rp(medicines=(prescribed_medicine,)),)
+        )
+        dispensed_medicine = replace(
+            create_dispensed_medicine(name=dispensed_name, substitution=None),
+            identifier=MedicineIdentifier(
+                code_type=code_type, code=MedicineCode("2171022F1037")
+            ),
+        )
+        process = create_dispensing(
+            dispensed_rps=(create_dispensed_rp(medicines=(dispensed_medicine,)),)
+        )
+        prescription_before = asdict(prescription)
+        process_before = asdict(process)
+
+        # Act / Assert
+        with pytest.raises(SubstitutionRequiredError):
+            _SERVICE.ensure_rps_match_prescription(process, prescription)
+        assert asdict(prescription) == prescription_before
+        assert asdict(process) == process_before
 
     def test_処方箋に無いRP番号を調剤すると_拒否される(self) -> None:
         # Arrange
