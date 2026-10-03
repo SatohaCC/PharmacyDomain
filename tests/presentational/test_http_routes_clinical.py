@@ -120,6 +120,7 @@ from tests.factories.prescription_factory import (
     start_inquiry,
 )
 from tests.fakes.fake_event_patient_boundary import FakeEventPatientBoundary
+from tests.fakes.fake_organization_management import FakeOrganizationLock
 from tests.fakes.in_memory_dispensing_process_repository import (
     InMemoryDispensingProcessRepository,
 )
@@ -932,6 +933,7 @@ def history_client(
             profile_repository=history_fixture.profile_repository,
             corporate_access=history_fixture.corporate_access,
             unit_of_work=NullUnitOfWork(),
+            organization_lock=FakeOrganizationLock(),
             staff_qualification=history_fixture.staff_qualification,
             counselor_service=CounselorQualificationService(),
             category_catalog_repository=history_fixture.category_catalog_repository,

@@ -8,8 +8,13 @@ from datetime import date
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.common.optional_conversion import unwrap
+from app.application.common.organization_lock import OrganizationLock
+from app.application.common.unit_of_work import UnitOfWork
 from app.application.medication_history.exceptions import (
     PatientMedicalProfileNotFoundError,
+)
+from app.application.medication_history.profile_projection_service import (
+    PatientMedicalProfileProjectionService,
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
@@ -306,9 +311,10 @@ class RebuildPatientMedicalProfileCommand:
 class RebuildPatientMedicalProfileUseCase:
     """確定済薬歴から頭書きを作り直す。
 
-    薬歴の保存は成功したが頭書きの保存が失敗した場合の**回復手段**である。
-    頭書きは投影なので、
-    真である薬歴を畳み込めば必ず正しい状態へ戻せる。
+    患者単位のロックを取得したうえで全確定記録を時系列に再計算し、
+    頭書きへ投影する。確定や訂正のトランザクションでは薬歴と頭書きが
+    原子的に保存されるが、外部取り込みやデータ修復、差分再同期などの
+    契機で全記録から決定論的に頭書きを再構築する際に利用する。
 
     既存の頭書きがあれば、その同一性（``id``）を保ったまま中身を差し替える。
     新しい ``id`` で作り直すと、患者ごと1件の一意制約に引っかかる。
@@ -319,53 +325,40 @@ class RebuildPatientMedicalProfileUseCase:
         record_repository: MedicationHistoryRepository,
         profile_repository: PatientMedicalProfileRepository,
         corporate_access: CorporateAccessBoundary,
+        unit_of_work: UnitOfWork,
+        *,
+        organization_lock: OrganizationLock,
+        projection_service: PatientMedicalProfileProjectionService | None = None,
     ) -> None:
         self._record_repository = record_repository
         self._profile_repository = profile_repository
         self._corporate_access = corporate_access
+        self._unit_of_work = unit_of_work
+        self._organization_lock = organization_lock
+        self._projection_service = (
+            projection_service
+            or PatientMedicalProfileProjectionService(
+                record_repository=record_repository,
+                profile_repository=profile_repository,
+            )
+        )
 
     async def execute(
         self, command: RebuildPatientMedicalProfileCommand
     ) -> PatientMedicalProfileDto:
         """薬歴を畳み込んで頭書きを保存し直す。"""
+        self._unit_of_work.ensure_active()
         corporate_id = CorporateId.parse(command.corporate_id)
         await self._corporate_access.require_active(
             corporate_id=corporate_id,
             permission=Permission.MANAGE_PATIENT,
         )
         patient_id = PatientId.parse(command.patient_id)
-        records = await self._record_repository.list_for_profile_projection(
-            corporate_id=corporate_id, patient_id=patient_id
+        await self._organization_lock.acquire(
+            f"medication-history-retention:{corporate_id.value}:{patient_id.value}"
         )
-        rebuilt = PatientMedicalProfile.rebuild_from(
+        rebuilt = await self._projection_service.project(
             corporate_id=corporate_id,
             patient_id=patient_id,
-            records=tuple(
-                record for record in records if record.is_projection_eligible
-            ),
         )
-        existing = await self._profile_repository.get_by_patient(
-            corporate_id=corporate_id, patient_id=patient_id
-        )
-        if existing is not None:
-            rebuilt = _with_id_of(rebuilt, existing)
-        await self._profile_repository.save(rebuilt)
         return PatientMedicalProfileDto.from_entity(rebuilt, as_of=command.as_of)
-
-
-def _with_id_of(
-    rebuilt: PatientMedicalProfile, existing: PatientMedicalProfile
-) -> PatientMedicalProfile:
-    """再構築した頭書きに、既存の同一性を引き継がせる。"""
-    return PatientMedicalProfile(
-        id=existing.id,
-        corporate_id=rebuilt.corporate_id,
-        patient_id=rebuilt.patient_id,
-        allergies=rebuilt.allergies,
-        adverse_reactions=rebuilt.adverse_reactions,
-        medical_conditions=rebuilt.medical_conditions,
-        concurrent_medications=rebuilt.concurrent_medications,
-        lifestyle=rebuilt.lifestyle,
-        generic_preference=rebuilt.generic_preference,
-        family_pharmacist=rebuilt.family_pharmacist,
-    )

@@ -40,6 +40,7 @@ from tests.application.medication_history.helpers import (
     create_fixture,
     create_start_command,
 )
+from tests.fakes.fake_organization_management import FakeOrganizationLock
 from tests.fakes.in_memory_medication_history_repository import (
     InMemoryMedicationHistoryCategoryCatalogRepository,
 )
@@ -91,6 +92,7 @@ async def test_finalize_passes_when_corporate_required_categories_met(
         fixture.profile_repository,
         fixture.start._corporate_access,
         NullUnitOfWork(),
+        organization_lock=FakeOrganizationLock(),
         category_catalog_repository=catalog_repo,
         clock=fixture.clock,
     )
@@ -159,6 +161,7 @@ async def test_finalize_fails_when_corporate_required_categories_missing(
         fixture.profile_repository,
         fixture.start._corporate_access,
         NullUnitOfWork(),
+        organization_lock=FakeOrganizationLock(),
         category_catalog_repository=catalog_repo,
         clock=fixture.clock,
     )

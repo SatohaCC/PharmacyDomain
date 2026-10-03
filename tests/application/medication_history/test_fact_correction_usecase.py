@@ -63,6 +63,7 @@ from tests.factories.medication_history_factory import (
     create_record,
     finalize_record_with_review,
 )
+from tests.fakes.fake_organization_management import FakeOrganizationLock
 from tests.fakes.null_unit_of_work import NullUnitOfWork
 
 _MISSING = object()
@@ -80,6 +81,7 @@ def _use_case(
     *,
     actor: ActorContext | None = None,
     unit_of_work: UnitOfWork | None = None,
+    organization_lock: Any | None = None,
 ) -> Any:
     use_case_type = getattr(_module(), "CorrectMedicationHistoryFactUseCase", None)
     assert callable(use_case_type), "薬歴事実訂正 UseCase の公開クラスが必要"
@@ -95,6 +97,7 @@ def _use_case(
         profile_repository=fixture.profile_repository,
         corporate_access=access,
         unit_of_work=unit_of_work or NullUnitOfWork(),
+        organization_lock=organization_lock or FakeOrganizationLock(),
         staff_qualification=fixture.staff_qualification,
         counselor_service=CounselorQualificationService(),
         category_catalog_repository=fixture.category_catalog_repository,
