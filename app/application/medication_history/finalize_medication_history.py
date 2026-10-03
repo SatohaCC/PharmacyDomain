@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
 from app.application.access_control.boundary import CorporateAccessBoundary
@@ -14,6 +14,9 @@ from app.application.common.unit_of_work import UnitOfWork
 from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
 )
+from app.application.medication_history.profile_projection_service import (
+    PatientMedicalProfileProjectionService,
+)
 from app.application.medication_history.reference import (
     MedicationHistoryEventOccurrenceBoundary,
     StaffQualificationBoundary,
@@ -24,7 +27,6 @@ from app.domain.medication_history.exceptions import MedicationHistoryDomainErro
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
-from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
 from app.domain.medication_history.primitives import (
     CounselingTimestamp,
     FinalizationDelayReason,
@@ -79,24 +81,33 @@ class FinalizeMedicationHistoryUseCase:
         profile_repository: PatientMedicalProfileRepository,
         corporate_access: CorporateAccessBoundary,
         unit_of_work: UnitOfWork,
+        *,
+        organization_lock: OrganizationLock,
         category_catalog_repository: MedicationHistoryCategoryCatalogRepository
         | None = None,
         staff_qualification: StaffQualificationBoundary | None = None,
         counselor_service: CounselorQualificationService | None = None,
         clock: Clock | None = None,
         event_occurrence: MedicationHistoryEventOccurrenceBoundary | None = None,
-        organization_lock: OrganizationLock | None = None,
+        projection_service: PatientMedicalProfileProjectionService | None = None,
     ) -> None:
         self._record_repository = record_repository
         self._profile_repository = profile_repository
         self._corporate_access = corporate_access
         self._unit_of_work = unit_of_work
+        self._organization_lock = organization_lock
         self._category_catalog_repository = category_catalog_repository
         self._staff_qualification = staff_qualification
         self._counselor_service = counselor_service
         self._clock = clock
         self._event_occurrence = event_occurrence
-        self._organization_lock = organization_lock
+        self._projection_service = (
+            projection_service
+            or PatientMedicalProfileProjectionService(
+                record_repository=record_repository,
+                profile_repository=profile_repository,
+            )
+        )
 
     async def execute(
         self, command: FinalizeMedicationHistoryCommand
@@ -113,17 +124,16 @@ class FinalizeMedicationHistoryUseCase:
             corporate_id=corporate_id,
             record_id=MedicationHistoryRecordId.parse(command.record_id),
         )
-        if self._organization_lock is not None:
-            await self._organization_lock.acquire(
-                f"medication-history-retention:{corporate_id.value}:{record.patient_id.value}"
-            )
-            # ロック待ちの間に別リクエストが同じ薬歴を確定した可能性があるため、
-            # 患者単位ロックを得た後に対象も読み直す。
-            record = await load_record_or_raise(
-                self._record_repository,
-                corporate_id=corporate_id,
-                record_id=record.id,
-            )
+        await self._organization_lock.acquire(
+            f"medication-history-retention:{corporate_id.value}:{record.patient_id.value}"
+        )
+        # ロック待ちの間に別リクエストが同じ薬歴を確定した可能性があるため、
+        # 患者単位ロックを得た後に対象も読み直す。
+        record = await load_record_or_raise(
+            self._record_repository,
+            corporate_id=corporate_id,
+            record_id=record.id,
+        )
         if command.review_result is None:
             raise MedicationHistoryDomainError(
                 "薬歴確定時のレビュー結果を指定してください。"
@@ -237,7 +247,10 @@ class FinalizeMedicationHistoryUseCase:
         finalized = await self._set_patient_retention_expiry(
             finalized, last_written_on=business_instant.date()
         )
-        await self._project_to_profile(finalized)
+        await self._projection_service.project(
+            corporate_id=finalized.corporate_id,
+            patient_id=finalized.patient_id,
+        )
         return MedicationHistoryDto.from_entity(finalized)
 
     async def _set_patient_retention_expiry(
@@ -300,22 +313,3 @@ class FinalizeMedicationHistoryUseCase:
                 expiry_dates=retention_expiry_updates,
             )
         return updated_finalized
-
-    async def _project_to_profile(self, record: MedicationHistoryRecord) -> None:
-        """患者の全店舗の投影対象から頭書きを再構築して保存する。"""
-        records = await self._record_repository.list_for_profile_projection(
-            corporate_id=record.corporate_id,
-            patient_id=record.patient_id,
-        )
-        rebuilt = PatientMedicalProfile.rebuild_from(
-            corporate_id=record.corporate_id,
-            patient_id=record.patient_id,
-            records=tuple(item for item in records if item.is_projection_eligible),
-        )
-        existing = await self._profile_repository.get_by_patient(
-            corporate_id=record.corporate_id,
-            patient_id=record.patient_id,
-        )
-        if existing is not None:
-            rebuilt = replace(rebuilt, id=existing.id)
-        await self._profile_repository.save(rebuilt)

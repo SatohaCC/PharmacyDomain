@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission, ResolvedActorContext
@@ -12,6 +12,7 @@ from app.application.access_control.store_access import (
 )
 from app.application.common.clock import Clock
 from app.application.common.exceptions import AuthorizationError
+from app.application.common.organization_lock import OrganizationLock
 from app.application.common.unit_of_work import UnitOfWork
 from app.application.medication_history.fact_value_conversion import (
     convert_fact_value,
@@ -19,13 +20,12 @@ from app.application.medication_history.fact_value_conversion import (
 from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
 )
+from app.application.medication_history.profile_projection_service import (
+    PatientMedicalProfileProjectionService,
+)
 from app.application.medication_history.reference import StaffQualificationBoundary
 from app.application.medication_history.support import load_record_or_raise
 from app.domain.corporate.primitives import CorporateId
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
-from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
 from app.domain.medication_history.primitives import MedicationHistoryRecordId
 from app.domain.medication_history.repository import (
     MedicationHistoryCategoryCatalogRepository,
@@ -60,21 +60,31 @@ class CorrectMedicationHistoryFactUseCase:
         profile_repository: PatientMedicalProfileRepository,
         corporate_access: CorporateAccessBoundary,
         unit_of_work: UnitOfWork,
+        organization_lock: OrganizationLock,
         staff_qualification: StaffQualificationBoundary,
         counselor_service: CounselorQualificationService,
         category_catalog_repository: MedicationHistoryCategoryCatalogRepository,
         store_operations: StoreOperationBoundary,
         clock: Clock,
+        projection_service: PatientMedicalProfileProjectionService | None = None,
     ) -> None:
         self._record_repository = record_repository
         self._profile_repository = profile_repository
         self._corporate_access = corporate_access
         self._unit_of_work = unit_of_work
+        self._organization_lock = organization_lock
         self._staff_qualification = staff_qualification
         self._counselor_service = counselor_service
         self._category_catalog_repository = category_catalog_repository
         self._store_operations = store_operations
         self._clock = clock
+        self._projection_service = (
+            projection_service
+            or PatientMedicalProfileProjectionService(
+                record_repository=record_repository,
+                profile_repository=profile_repository,
+            )
+        )
 
     async def execute(
         self, command: CorrectMedicationHistoryFactCommand
@@ -90,6 +100,16 @@ class CorrectMedicationHistoryFactUseCase:
             self._record_repository,
             corporate_id=corporate_id,
             record_id=MedicationHistoryRecordId.parse(command.record_id),
+        )
+        await self._organization_lock.acquire(
+            f"medication-history-retention:{corporate_id.value}:{record.patient_id.value}"
+        )
+        # ロック待ちの間に別リクエストが同じ薬歴を更新した可能性があるため、
+        # 患者単位ロックを得た後に対象も読み直す。
+        record = await load_record_or_raise(
+            self._record_repository,
+            corporate_id=corporate_id,
+            record_id=record.id,
         )
         await self._store_operations.require_allowed(
             corporate_id=corporate_id,
@@ -138,22 +158,8 @@ class CorrectMedicationHistoryFactUseCase:
         if catalog is not None:
             catalog.validate_record_compliance(corrected)
         await self._record_repository.save(corrected)
-        await self._rebuild_profile(corrected)
+        await self._projection_service.project(
+            corporate_id=corrected.corporate_id,
+            patient_id=corrected.patient_id,
+        )
         return MedicationHistoryDto.from_entity(corrected)
-
-    async def _rebuild_profile(self, record: MedicationHistoryRecord) -> None:
-        """患者の全店舗の薬歴を再生し、既存の頭書きIDを維持する。"""
-        records = await self._record_repository.list_for_profile_projection(
-            corporate_id=record.corporate_id, patient_id=record.patient_id
-        )
-        rebuilt = PatientMedicalProfile.rebuild_from(
-            corporate_id=record.corporate_id,
-            patient_id=record.patient_id,
-            records=tuple(item for item in records if item.is_projection_eligible),
-        )
-        existing = await self._profile_repository.get_by_patient(
-            corporate_id=record.corporate_id, patient_id=record.patient_id
-        )
-        if existing is not None:
-            rebuilt = replace(rebuilt, id=existing.id)
-        await self._profile_repository.save(rebuilt)

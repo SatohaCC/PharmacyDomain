@@ -95,6 +95,7 @@ from tests.fakes.fake_clock import FakeClock
 from tests.fakes.fake_medication_history_store_operations import (
     FakeMedicationHistoryStoreOperations,
 )
+from tests.fakes.fake_organization_management import FakeOrganizationLock
 from tests.fakes.in_memory_event_repository import InMemoryEventRepository
 from tests.fakes.in_memory_medication_history_repository import (
     InMemoryMedicationHistoryCategoryCatalogRepository,
@@ -279,6 +280,7 @@ def create_fixture(
             profile_repository,
             corporate_access,
             NullUnitOfWork(),
+            organization_lock=FakeOrganizationLock(),
             category_catalog_repository=category_catalog_repository,
             staff_qualification=staff_qualification,
             counselor_service=CounselorQualificationService(),
@@ -299,7 +301,11 @@ def create_fixture(
             profile_repository, corporate_access
         ),
         rebuild_profile=RebuildPatientMedicalProfileUseCase(
-            record_repository, profile_repository, corporate_access
+            record_repository,
+            profile_repository,
+            corporate_access,
+            NullUnitOfWork(),
+            organization_lock=FakeOrganizationLock(),
         ),
         verify_statutory_record=VerifyStatutoryRecordUseCase(
             record_repository,

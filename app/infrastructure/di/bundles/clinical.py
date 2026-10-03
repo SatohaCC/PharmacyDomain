@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from app.application.access_control.policy import AuthorizationService
 from app.application.common.clock import Clock
+from app.application.common.organization_lock import OrganizationLock
 from app.application.composition.care_event_references import (
     MedicationHistoryEventReferenceAdapter,
 )
@@ -77,6 +78,9 @@ from app.application.medication_history.get_patient_medical_profile import (
 )
 from app.application.medication_history.list_pending_external_corrections import (
     ListPendingExternalCorrectionsUseCase,
+)
+from app.application.medication_history.profile_projection_service import (
+    PatientMedicalProfileProjectionService,
 )
 from app.application.medication_history.record_tracing_report import (
     RecordTracingReportUseCase,
@@ -297,6 +301,8 @@ def build_medication_history_use_cases(
     corporate_access: CorporateAccessService,
     clock: Clock,
     unit_of_work: PostgresUnitOfWork,
+    *,
+    organization_lock: OrganizationLock | None = None,
 ) -> MedicationHistoryUseCases:
     """薬歴ユースケースを組み立てる。
 
@@ -314,6 +320,11 @@ def build_medication_history_use_cases(
         corporate_access,
         repositories.manager_assignment,
         clock,
+    )
+    actual_lock = organization_lock or PostgresOrganizationLock(unit_of_work)
+    projection_service = PatientMedicalProfileProjectionService(
+        record_repository=record_repository,
+        profile_repository=profile_repository,
     )
     return MedicationHistoryUseCases(
         start=StartMedicationHistoryUseCase(
@@ -339,6 +350,7 @@ def build_medication_history_use_cases(
             profile_repository,
             corporate_access,
             unit_of_work,
+            organization_lock=actual_lock,
             category_catalog_repository=catalog_repository,
             staff_qualification=counselor_qualification,
             counselor_service=counselor,
@@ -346,7 +358,7 @@ def build_medication_history_use_cases(
             event_occurrence=MedicationHistoryEventOccurrenceAdapter(
                 repositories.event
             ),
-            organization_lock=PostgresOrganizationLock(unit_of_work),
+            projection_service=projection_service,
         ),
         amend=AmendMedicationHistoryUseCase(
             record_repository,
@@ -360,11 +372,13 @@ def build_medication_history_use_cases(
             profile_repository=profile_repository,
             corporate_access=corporate_access,
             unit_of_work=unit_of_work,
+            organization_lock=actual_lock,
             staff_qualification=counselor_qualification,
             counselor_service=counselor,
             category_catalog_repository=catalog_repository,
             store_operations=store_operations,
             clock=clock,
+            projection_service=projection_service,
         ),
         get=GetMedicationHistoryUseCase(
             record_repository,
@@ -384,7 +398,12 @@ def build_medication_history_use_cases(
             profile_repository, corporate_access
         ),
         rebuild_medical_profile=RebuildPatientMedicalProfileUseCase(
-            record_repository, profile_repository, corporate_access
+            record_repository,
+            profile_repository,
+            corporate_access,
+            unit_of_work,
+            organization_lock=actual_lock,
+            projection_service=projection_service,
         ),
         verify_statutory_record=VerifyStatutoryRecordUseCase(
             record_repository,
