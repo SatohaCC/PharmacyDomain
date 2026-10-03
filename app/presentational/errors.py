@@ -43,6 +43,9 @@ from app.application.dispensing.exceptions import (
     DispensingStoreNotFoundError,
 )
 from app.application.identity.resolve_actor import UnavailableIdentityError
+from app.application.integration.nsips.exceptions import (
+    NsipsPatientIdentityConflictError,
+)
 from app.application.medication_history.exceptions import (
     MedicationHistoryDispensingNotFoundError,
     MedicationHistoryNotFoundError,
@@ -185,6 +188,7 @@ _STATUS_BY_EXCEPTION: Final[Mapping[type[BaseException], HTTPStatus]] = {
     AuthenticationError: HTTPStatus.UNAUTHORIZED,
     UnavailableIdentityError: HTTPStatus.UNAUTHORIZED,
     IdentityConflictError: HTTPStatus.CONFLICT,
+    NsipsPatientIdentityConflictError: HTTPStatus.CONFLICT,
     ManagerAbsenceConflictError: HTTPStatus.CONFLICT,
     ManagerAssignmentConflictError: HTTPStatus.CONFLICT,
     ManagerExclusiveDutyConflictError: HTTPStatus.CONFLICT,

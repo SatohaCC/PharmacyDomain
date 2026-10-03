@@ -20,11 +20,15 @@ import pytest
 import app.application
 import app.domain
 from app.application.common.exceptions import ApplicationError, AuthorizationError
+from app.application.integration.nsips.exceptions import (
+    NsipsPatientIdentityConflictError,
+)
 from app.application.store.exceptions import StoreNotFoundError
 from app.domain.foundation.exceptions import DomainError, DomainValidationError
 from app.domain.store.exceptions import StoreNameAlreadyExistsError
 from app.presentational.app_factory import create_app
 from app.presentational.errors import (
+    ErrorResponse,
     TranslatableError,
     error_responses,
     status_for,
@@ -35,6 +39,29 @@ from app.presentational.exceptions import AuthenticationError, PresentationError
 
 #: 名前に含まれると 409（既存のデータ・状態との衝突）を意味する語。
 _CONFLICT_MARKERS = ("Already", "Conflict")
+
+
+def test_NSIPS患者同一性不一致_共通エラー翻訳_409と日本語再送案内を返す() -> None:
+    """患者情報を持たない共通本文で、照合済み患者IDによる再送を案内する。"""
+    # Arrange
+    error = NsipsPatientIdentityConflictError()
+
+    # Act
+    response = to_response(error)
+    body = json.loads(bytes(response.body))
+    validated = ErrorResponse.model_validate(body)
+
+    # Assert
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert status_for(error) == HTTPStatus.CONFLICT
+    assert status_for_type(NsipsPatientIdentityConflictError) == HTTPStatus.CONFLICT
+    assert body == {
+        "code": "NSIPS_PATIENT_IDENTITY_CONFLICT",
+        "message": "患者の同一性を確認し、照合済みの患者IDで再送してください。",
+        "errors": [],
+    }
+    assert validated.model_dump() == body
+    assert "NsipsPatientIdentityConflictError" not in str(body)
 
 
 def _exception_classes(package: ModuleType) -> Iterator[type[BaseException]]:

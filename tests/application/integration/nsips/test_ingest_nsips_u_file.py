@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import inspect
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -12,6 +12,9 @@ import pytest
 
 from app.application.composition.reception_medication_history import (
     ReceptionMedicationHistoryAssociationAdapter,
+)
+from app.application.integration.nsips.exceptions import (
+    NsipsPatientIdentityConflictError,
 )
 from app.application.integration.nsips.ingest_nsips import (
     IngestNsipsCommand,
@@ -31,6 +34,7 @@ from app.application.reception.associate_reception_medication_history import (
     AssociateReceptionMedicationHistoryCommand,
     AssociateReceptionMedicationHistoryUseCase,
 )
+from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.primitives import DispensingId, DispensingProcessStatus
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
@@ -45,6 +49,7 @@ from app.domain.medication_history.primitives import (
     MedicationHistoryImportTimestamp,
     MedicationHistoryReviewResult,
     MedicationHistorySourceSystem,
+    MedicationHistoryStatus,
 )
 from app.domain.medication_history.value_objects import (
     BillingAddition,
@@ -54,6 +59,8 @@ from app.domain.medication_history.value_objects import (
     HandbookStatus,
     ResidualDrugRecord,
 )
+from app.domain.patient.external_identifier import PatientExternalIdentifier
+from app.domain.patient.heading import PatientHeadingContent, PatientHeadingText
 from app.domain.patient.primitives import (
     ExternalPatientId,
     ExternalSystemName,
@@ -67,6 +74,9 @@ from app.domain.prescription.primitives import (
 )
 from app.domain.reception.primitives import ReceptionId
 from app.domain.reception.reception import ReceptionSourceData
+from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.domain.shared.medicine import MedicineCode, MedicineCodeType, MedicineName
+from app.domain.shared.person_name import PersonNames
 from app.domain.store.primitives import StoreId
 from tests.application.access_helpers import create_vendor_corporate_access_for
 from tests.application.integration.nsips.helpers import (
@@ -82,6 +92,7 @@ from tests.factories.medication_history_factory import (
     finalize_record_with_review,
 )
 from tests.factories.prescription_factory import create_prescription
+from tests.factories.store_factory import create_store
 
 
 async def _save_history_after_pharmacist_writing(
@@ -380,6 +391,101 @@ async def test_ingest_u_file_with_draft_history() -> None:
     assert history is not None
     assert history.is_finalized is False
     assert res_u_file.has_pending_correction_review is False
+
+
+@pytest.mark.asyncio
+async def test_NSIPS数量のみ訂正_下書き薬歴あり_薬品と関連IDを保持して七日分に更新する() -> (
+    None
+):
+    """数量だけの訂正を代替と誤認せず、処方・調剤と下書き薬歴を保持する。"""
+    # Arrange
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    corrected = _structured_bundle_for_non_prescription_correction(
+        document_number="DOC-QUANTITY-ONLY"
+    )
+    original = replace(
+        corrected,
+        prescription=replace(
+            corrected.prescription,
+            rps=(replace(corrected.prescription.rps[0], dispensing_quantity=14),),
+        ),
+    )
+    initial = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, original)
+    )
+    saved_history = await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    assert initial.prescription_id is not None
+    assert initial.dispensing_id is not None
+    prescription_id = PrescriptionId.parse(initial.prescription_id)
+    dispensing_id = DispensingId.parse(initial.dispensing_id)
+    before_prescription = await fixture.prescription_repo.get(
+        corporate_id=fixture.corporate_id, prescription_id=prescription_id
+    )
+    before_dispensing = await fixture.dispensing_repo.get(
+        corporate_id=fixture.corporate_id, dispensing_id=dispensing_id
+    )
+    assert before_prescription is not None
+    assert before_dispensing is not None
+    assert before_prescription.rps[0].quantity.value == 14
+    assert before_dispensing.dispensed_rps[0].quantity.value == 14
+    assert saved_history.status == MedicationHistoryStatus.DRAFT
+
+    # Act
+    result = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, corrected)
+    )
+
+    # Assert
+    assert not result.is_duplicate
+    assert not result.has_pending_correction_review
+    assert result.patient_id == initial.patient_id
+    assert result.prescription_id == initial.prescription_id
+    assert result.dispensing_id == initial.dispensing_id
+    assert result.medication_history_id == str(saved_history.id.value)
+    prescription = await fixture.prescription_repo.get(
+        corporate_id=fixture.corporate_id, prescription_id=prescription_id
+    )
+    dispensing = await fixture.dispensing_repo.get(
+        corporate_id=fixture.corporate_id, dispensing_id=dispensing_id
+    )
+    history = await fixture.medication_history_repo.get(
+        corporate_id=fixture.corporate_id, record_id=saved_history.id
+    )
+    reception = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=reception_id,
+    )
+    assert prescription is not None
+    assert dispensing is not None
+    assert history is not None
+    assert reception is not None
+    assert history.status == MedicationHistoryStatus.DRAFT
+    assert not history.has_pending_correction_review
+    assert prescription.patient_id == dispensing.patient_id == saved_history.patient_id
+    assert dispensing.prescription_id == history.prescription_id == prescription_id
+    assert history.dispensing_id == reception.dispensing_id == dispensing_id
+    assert reception.patient_id == saved_history.patient_id
+    assert reception.prescription_id == prescription_id
+    assert reception.medication_history_id == saved_history.id
+    assert len(prescription.rps) == len(dispensing.dispensed_rps) == 1
+    prescribed_rp = prescription.rps[0]
+    dispensed_rp = dispensing.dispensed_rps[0]
+    assert prescribed_rp.rp_number.value == dispensed_rp.rp_number.value == 1
+    assert prescribed_rp.quantity.value == dispensed_rp.quantity.value == 7
+    assert len(prescribed_rp.medicines) == len(dispensed_rp.medicines) == 1
+    prescribed = prescribed_rp.medicines[0]
+    dispensed = dispensed_rp.medicines[0]
+    assert prescribed.line_number.value == dispensed.line_number.value == 1
+    assert prescribed.identifier.code_type == MedicineCodeType.RECEIPT
+    assert dispensed.identifier.code_type == MedicineCodeType.RECEIPT
+    assert prescribed.identifier.code == MedicineCode("610406001")
+    assert dispensed.identifier.code == MedicineCode("610406001")
+    assert prescribed.name == dispensed.name == MedicineName("アムロジピン")
+    assert dispensed.substitution is None
 
 
 def _structured_bundle_for_non_prescription_correction(
@@ -795,7 +901,7 @@ async def test_tc57_NsipsBundleの全業務フィールド単独差分を検出�
     path: tuple[str | int, ...],
     changed_value: Any,
 ) -> None:
-    """Bundleの業務フィールドを一つずつ変え、再送重複で捨てない。"""
+    """業務フィールド単独差分を検出し、患者同一性を変える差分だけ拒否する。"""
     fixture = await create_fixture()
     reception_id = ReceptionId.generate()
     original = _bundle_with_all_business_sections(
@@ -804,9 +910,48 @@ async def test_tc57_NsipsBundleの全業務フィールド単独差分を検出�
     changed = _replace_bundle_path(original, path, changed_value)
     assert isinstance(changed, NsipsBundle)
 
-    await execute_structured_test_command(
+    initial = await execute_structured_test_command(
         fixture, _command_for_reception(fixture, reception_id, original)
     )
+    if field_name == "patient.external_patient_id":
+        # Arrange: 関連薬歴・プロフィールと受付の訂正履歴・頭書きを用意する。
+        await _save_history_after_pharmacist_writing(
+            fixture, reception_id=reception_id, ingest_result=initial
+        )
+        legitimate = replace(
+            original, patient=replace(original.patient, address="東京都品川区三丁目")
+        )
+        await execute_structured_test_command(
+            fixture, _command_for_reception(fixture, reception_id, legitimate)
+        )
+        patient_id = PatientId.parse(initial.patient_id)
+        patient = fixture.patient_repo.items[patient_id]
+        await fixture.patient_repo.save(
+            patient.change_heading(
+                PatientHeadingContent(
+                    summary=PatientHeadingText("元患者の継続申し送り"), notes=None
+                ),
+                expected_revision=0,
+                person_id=AccountPersonId.generate(),
+                account_id=UserAccountId.generate(),
+                recorded_at=fixture.clock.now(),
+            )
+        )
+        assert patient.profile_history
+        changed = _replace_bundle_path(legitimate, path, changed_value)
+        assert isinstance(changed, NsipsBundle)
+        before = _snapshot_saved_state(fixture)
+
+        # Act
+        with pytest.raises(NsipsPatientIdentityConflictError):
+            await execute_structured_test_command(
+                fixture, _command_for_reception(fixture, reception_id, changed)
+            )
+
+        # Assert
+        assert _snapshot_saved_state(fixture) == before
+        return
+
     result = await execute_structured_test_command(
         fixture, _command_for_reception(fixture, reception_id, changed)
     )
@@ -1247,67 +1392,252 @@ async def test_tc67_AからB1_C_B2へ戻る訂正を履歴化し完全再送だ�
     assert patient.address.value == "東京都品川区三丁目"
 
 
+def _snapshot_saved_state(
+    fixture: NsipsFixture,
+) -> tuple[dict[object, dict[str, Any]], ...]:
+    """IDによる集約の等値判定を避け、全保存値を独立して取得する。"""
+    return tuple(
+        {key: asdict(value) for key, value in repository.items.items()}
+        for repository in (
+            fixture.patient_repo,
+            fixture.patient_external_id_repo,
+            fixture.reception_repo,
+            fixture.prescription_repo,
+            fixture.dispensing_repo,
+            fixture.medication_history_repo,
+            fixture.patient_coverage_repo,
+            fixture.coverage_selection_repo,
+        )
+    )
+
+
 @pytest.mark.asyncio
-async def test_tc68_外部患者ID訂正は受付患者と既存リンクを維持する() -> None:
-    """外部患者IDだけ変わったU相当訂正で既存Patientリンクを変更しない。"""
+async def test_取込_外部患者IDと属性同時変更_拒否し保存状態を維持する() -> None:
+    """別人の属性を受理せず、既存の履歴と集約間参照をすべて保持する。"""
+    # Arrange
     fixture = await create_fixture()
     reception_id = ReceptionId.generate()
     original = _bundle_with_all_business_sections(
-        document_number="DOC-TC68-EXTERNAL-ID",
+        document_number="DOC-IDENTITY-CONFLICT"
+    )
+    initial = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, original)
+    )
+    await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    legitimate = replace(
+        original, patient=replace(original.patient, address="東京都品川区三丁目")
     )
     await execute_structured_test_command(
-        fixture,
-        _command_for_reception(fixture, reception_id, original),
+        fixture, _command_for_reception(fixture, reception_id, legitimate)
     )
-    original_patient_id = next(iter(fixture.patient_repo.items.values())).id
-    original_links = await fixture.patient_external_id_repo.list_by_patient(
+    patient_id = PatientId.parse(initial.patient_id)
+    patient = fixture.patient_repo.items[patient_id]
+    patient = patient.change_heading(
+        PatientHeadingContent(
+            summary=PatientHeadingText("元患者の継続申し送り"), notes=None
+        ),
+        expected_revision=0,
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+        recorded_at=fixture.clock.now(),
+    )
+    await fixture.patient_repo.save(patient)
+    assert patient.profile_history
+    assert patient.heading_history
+    reception = await fixture.reception_repo.get(
         corporate_id=fixture.corporate_id,
-        patient_id=original_patient_id,
+        store_id=fixture.store_id,
+        reception_id=reception_id,
     )
+    assert reception is not None
+    assert reception.correction_history
+    assert reception.source_data_history
+    assert fixture.patient_external_id_repo.items
+    assert fixture.prescription_repo.items
+    assert fixture.dispensing_repo.items
+    assert fixture.medication_history_repo.items
+
+    before = _snapshot_saved_state(fixture)
+    conflicting = replace(
+        legitimate,
+        patient=replace(
+            legitimate.patient,
+            external_patient_id="P-OTHER-PERSON",
+            kanji_name="別人 花子",
+            kana_name="ベツジン ハナコ",
+            birth_date=date(1980, 1, 2),
+            gender="1",
+            postal_code="1000002",
+            address="東京都港区二丁目",
+            phone_number="03-1111-2222",
+        ),
+    )
+
+    for _ in range(2):
+        # Act: 初回拒否と同じ入力の再送を確認する。
+        with pytest.raises(NsipsPatientIdentityConflictError):
+            await execute_structured_test_command(
+                fixture, _command_for_reception(fixture, reception_id, conflicting)
+            )
+
+        # Assert
+        assert _snapshot_saved_state(fixture) == before
+
+
+@pytest.mark.asyncio
+async def test_tc68_取込_外部患者ID単独変更_拒否し保存状態を維持する() -> None:
+    """IDだけ変わる訂正を拒否し、元患者の履歴と全保存値を維持する。"""
+    # Arrange
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    original = _bundle_with_all_business_sections(
+        document_number="DOC-TC68-EXTERNAL-ID"
+    )
+    initial = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, original)
+    )
+    await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    legitimate = replace(
+        original, patient=replace(original.patient, address="東京都品川区三丁目")
+    )
+    await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, legitimate)
+    )
+    patient_id = PatientId.parse(initial.patient_id)
+    patient = fixture.patient_repo.items[patient_id]
+    patient = patient.change_heading(
+        PatientHeadingContent(
+            summary=PatientHeadingText("元患者の継続申し送り"), notes=None
+        ),
+        expected_revision=0,
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+        recorded_at=fixture.clock.now(),
+    )
+    await fixture.patient_repo.save(patient)
+    assert patient.profile_history
+    assert patient.heading_history
+    reception = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=reception_id,
+    )
+    assert reception is not None
+    assert reception.correction_history
+    assert reception.source_data_history
+    assert fixture.patient_external_id_repo.items
+    assert fixture.prescription_repo.items
+    assert fixture.dispensing_repo.items
+    assert fixture.medication_history_repo.items
+
+    before = _snapshot_saved_state(fixture)
     changed = replace(
-        original,
-        patient=replace(original.patient, external_patient_id="P-TC68-CHANGED"),
+        legitimate,
+        patient=replace(legitimate.patient, external_patient_id="P-TC68-CHANGED"),
     )
 
-    corrected = await execute_structured_test_command(
-        fixture, _command_for_reception(fixture, reception_id, changed)
+    # Act
+    with pytest.raises(NsipsPatientIdentityConflictError):
+        await execute_structured_test_command(
+            fixture, _command_for_reception(fixture, reception_id, changed)
+        )
+
+    # Assert
+    assert _snapshot_saved_state(fixture) == before
+
+
+@pytest.mark.asyncio
+async def test_取込_同一患者の別有効IDで再送_受付指紋の元IDを基準に拒否する() -> None:
+    """同じ内部患者の有効リンクでも保存済み受付の患者IDを置き換えない。"""
+    # Arrange
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    original = _bundle_with_all_business_sections(
+        document_number="DOC-FINGERPRINT-IDENTITY"
     )
-    corrected_again = replace(
-        changed,
-        patient=replace(changed.patient, external_patient_id="P-TC68-CHANGED-AGAIN"),
+    initial = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, original)
     )
-    second_correction = await execute_structured_test_command(
-        fixture, _command_for_reception(fixture, reception_id, corrected_again)
+    await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    legitimate = replace(
+        original, patient=replace(original.patient, address="東京都品川区三丁目")
+    )
+    await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, legitimate)
+    )
+    patient_id = PatientId.parse(initial.patient_id)
+    patient = fixture.patient_repo.items[patient_id]
+    patient = patient.change_heading(
+        PatientHeadingContent(
+            summary=PatientHeadingText("元患者の継続申し送り"), notes=None
+        ),
+        expected_revision=0,
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+        recorded_at=fixture.clock.now(),
+    )
+    await fixture.patient_repo.save(patient)
+    assert patient.profile_history
+    assert patient.heading_history
+    reception = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=reception_id,
+    )
+    assert reception is not None
+    assert reception.correction_history
+    assert reception.source_data_history
+    assert fixture.patient_external_id_repo.items
+    assert fixture.prescription_repo.items
+    assert fixture.dispensing_repo.items
+    assert fixture.medication_history_repo.items
+
+    assert any(
+        path.value == "patient.external_patient_id"
+        for path, _ in reception.field_fingerprints
+    )
+    original_link = next(iter(fixture.patient_external_id_repo.items.values()))
+    alternate_link = PatientExternalIdentifier.create(
+        corporate_id=fixture.corporate_id,
+        store_id=original_link.store_id,
+        patient_id=patient_id,
+        system_name=original_link.system_name,
+        external_patient_id=ExternalPatientId("P-ALTERNATE-ACTIVE"),
+    )
+    await fixture.patient_external_id_repo.save(alternate_link)
+    active_link = await fixture.patient_external_id_repo.get_active_by_source(
+        corporate_id=fixture.corporate_id,
+        store_id=alternate_link.store_id,
+        system_name=alternate_link.system_name,
+        external_patient_id=alternate_link.external_patient_id,
+    )
+    assert active_link is not None
+    assert active_link.patient_id == patient_id
+    assert active_link.is_active
+    assert len(fixture.patient_external_id_repo.items) == 2
+    before = _snapshot_saved_state(fixture)
+    changed = replace(
+        legitimate,
+        patient=replace(
+            legitimate.patient,
+            external_patient_id=alternate_link.external_patient_id.value,
+        ),
     )
 
-    assert corrected.patient_id == str(original_patient_id.value)
-    assert second_correction.patient_id == str(original_patient_id.value)
-    assert corrected.has_pending_correction_review is True
-    assert second_correction.has_pending_correction_review is True
-    assert len(fixture.patient_repo.items) == 1
-    current_links = await fixture.patient_external_id_repo.list_by_patient(
-        corporate_id=fixture.corporate_id,
-        patient_id=original_patient_id,
-    )
-    assert current_links == original_links
-    patient = await fixture.patient_repo.get(
-        corporate_id=fixture.corporate_id,
-        patient_id=original_patient_id,
-    )
-    assert patient is not None
-    id_changes = [
-        item
-        for item in patient.profile_history
-        if "patient.external_patient_id" in item.changed_fields
-    ]
-    received_external_ids: list[str] = []
-    for item in id_changes:
-        assert item.external_patient_id is not None
-        received_external_ids.append(item.external_patient_id.value)
-    assert received_external_ids == [
-        "P-TC68-CHANGED",
-        "P-TC68-CHANGED-AGAIN",
-    ]
+    # Act
+    with pytest.raises(NsipsPatientIdentityConflictError):
+        await execute_structured_test_command(
+            fixture, _command_for_reception(fixture, reception_id, changed)
+        )
+
+    # Assert
+    assert _snapshot_saved_state(fixture) == before
 
 
 @pytest.mark.asyncio
@@ -1480,10 +1810,10 @@ def _bundle_with_prescription_metadata_difference(
     "field_name",
     ("external_patient_id", "kanji_name", "kana_name", "birth_date"),
 )
-async def test_tc46_患者プロフィール差分を反映し外部ID変更だけ要確認にする(
+async def test_tc46_取込_患者プロフィール差分_同一IDは反映し外部ID変更は拒否する(
     field_name: str,
 ) -> None:
-    """プロフィール値は更新し、外部患者IDの対応付けは要確認に残す。"""
+    """同一患者の属性訂正は反映し、外部患者IDの変更は保存前に拒否する。"""
     fixture = await create_fixture()
     reception_id = ReceptionId.generate()
     original_bundle = _structured_bundle_for_non_prescription_correction(
@@ -1513,6 +1843,46 @@ async def test_tc46_患者プロフィール差分を反映し外部ID変更だ�
         patient_id=patient_id,
     )
     assert len(original_links) == 1
+    before = _snapshot_saved_state(fixture)
+
+    if field_name == "external_patient_id":
+        # Arrange: 空でない訂正履歴と頭書きを持つ患者へのID単独変更。
+        legitimate = replace(
+            original_bundle,
+            patient=replace(original_bundle.patient, address="東京都品川区三丁目"),
+        )
+        await execute_structured_test_command(
+            fixture, _command_for_reception(fixture, reception_id, legitimate)
+        )
+        patient = fixture.patient_repo.items[patient_id]
+        await fixture.patient_repo.save(
+            patient.change_heading(
+                PatientHeadingContent(
+                    summary=PatientHeadingText("元患者の継続申し送り"), notes=None
+                ),
+                expected_revision=0,
+                person_id=AccountPersonId.generate(),
+                account_id=UserAccountId.generate(),
+                recorded_at=fixture.clock.now(),
+            )
+        )
+        assert patient.profile_history
+        before = _snapshot_saved_state(fixture)
+
+        # Act
+        with pytest.raises(NsipsPatientIdentityConflictError):
+            await execute_structured_test_command(
+                fixture,
+                _command_for_reception(
+                    fixture,
+                    reception_id,
+                    _bundle_with_patient_difference(legitimate, field_name),
+                ),
+            )
+
+        # Assert
+        assert _snapshot_saved_state(fixture) == before
+        return
 
     corrected = await execute_structured_test_command(
         fixture,
@@ -1540,30 +1910,41 @@ async def test_tc46_患者プロフィール差分を反映し外部ID変更だ�
         patient_id=patient_id,
     )
     assert updated_patient is not None
-    if field_name == "external_patient_id":
-        assert corrected.has_pending_correction_review is True
-        assert corrected.patient_attribute_conflicts == ("external_patient_id",)
-        assert corrected_history.external_corrections
-        assert field_name in (corrected_history.external_corrections[0].details or "")
-        assert updated_patient.names == original_patient.names
-        assert updated_patient.birth_date == original_patient.birth_date
-    else:
-        assert corrected.has_pending_correction_review is False
-        assert corrected.patient_attribute_conflicts == ()
-        assert corrected_history.external_corrections == ()
-        assert getattr(corrected, "patient_profile_updated_fields", ()) == (
-            f"patient.{field_name}",
-        )
-        if field_name == "kanji_name":
-            assert updated_patient.names.kanji.full_name == "変更 花子"
-        elif field_name == "kana_name":
-            assert updated_patient.names.kana.full_name == "ヘンコウ ハナコ"
-        elif field_name == "birth_date":
-            assert updated_patient.birth_date is not None
-            assert updated_patient.birth_date.value == date(1985, 5, 6)
-        assert updated_patient.profile_history[-1].changed_fields == (
-            f"patient.{field_name}",
-        )
+    assert corrected.has_pending_correction_review is False
+    assert corrected.patient_attribute_conflicts == ()
+    assert corrected_history.external_corrections == ()
+    assert (
+        len(updated_patient.profile_history)
+        == len(original_patient.profile_history) + 1
+    )
+    assert updated_patient.profile_history[:-1] == original_patient.profile_history
+    assert corrected.patient_id == initial.patient_id
+    assert corrected_history.patient_id == patient_id
+    after = _snapshot_saved_state(fixture)
+    for index in (2, 3, 4, 5):
+        assert after[index].keys() == before[index].keys()
+        for identifier, saved in before[index].items():
+            for reference in (
+                "patient_id",
+                "prescription_id",
+                "dispensing_id",
+                "medication_history_id",
+            ):
+                if reference in saved:
+                    assert after[index][identifier][reference] == saved[reference]
+    assert getattr(corrected, "patient_profile_updated_fields", ()) == (
+        f"patient.{field_name}",
+    )
+    if field_name == "kanji_name":
+        assert updated_patient.names.kanji.full_name == "変更 花子"
+    elif field_name == "kana_name":
+        assert updated_patient.names.kana.full_name == "ヘンコウ ハナコ"
+    elif field_name == "birth_date":
+        assert updated_patient.birth_date is not None
+        assert updated_patient.birth_date.value == date(1985, 5, 6)
+    assert updated_patient.profile_history[-1].changed_fields == (
+        f"patient.{field_name}",
+    )
 
     unchanged_links = await fixture.patient_external_id_repo.list_by_patient(
         corporate_id=fixture.corporate_id,
@@ -2095,6 +2476,255 @@ async def test_issue36_tc33_U再取込の加算比較は新しいFOLLOW_UPでは
     )
 
     assert difference is None
+
+
+@pytest.mark.asyncio
+async def test_取込_患者ID指紋欠損の完全重複で別患者リンク_拒否し保存状態を維持する() -> (
+    None
+):
+    """旧指紋の重複hashが一致しても別患者対応の受信を成功扱いしない。"""
+    # Arrange
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    original = _bundle_with_all_business_sections(
+        document_number="DOC-LEGACY-DUPLICATE-OTHER-PATIENT"
+    )
+    initial = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, original)
+    )
+    await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    legitimate = replace(
+        original, patient=replace(original.patient, address="東京都品川区三丁目")
+    )
+    await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, legitimate)
+    )
+    patient_id = PatientId.parse(initial.patient_id)
+    patient = fixture.patient_repo.items[patient_id]
+    patient = patient.change_heading(
+        PatientHeadingContent(
+            summary=PatientHeadingText("元患者の継続申し送り"), notes=None
+        ),
+        expected_revision=0,
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+        recorded_at=fixture.clock.now(),
+    )
+    await fixture.patient_repo.save(patient)
+    assert patient.profile_history
+    assert patient.heading_history
+    reception = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=reception_id,
+    )
+    assert reception is not None
+    assert reception.correction_history
+    assert reception.source_data_history
+    assert fixture.patient_external_id_repo.items
+    assert fixture.prescription_repo.items
+    assert fixture.dispensing_repo.items
+    assert fixture.medication_history_repo.items
+
+    other_patient_id = PatientId.generate()
+    other_patient_number = await fixture.patient_repo.allocate_patient_number(
+        corporate_id=fixture.corporate_id
+    )
+    await fixture.patient_repo.save(
+        replace(patient, id=other_patient_id, patient_number=other_patient_number)
+    )
+    original_link = next(iter(fixture.patient_external_id_repo.items.values()))
+    alternate_link = PatientExternalIdentifier.create(
+        corporate_id=fixture.corporate_id,
+        store_id=original_link.store_id,
+        patient_id=other_patient_id,
+        system_name=original_link.system_name,
+        external_patient_id=ExternalPatientId("P-LEGACY-OTHER-PATIENT"),
+    )
+    await fixture.patient_external_id_repo.save(alternate_link)
+    changed = replace(
+        legitimate,
+        patient=replace(
+            legitimate.patient,
+            external_patient_id=alternate_link.external_patient_id.value,
+        ),
+    )
+    # 重複判定へ到達できる旧保存状態を構築する。期待結果はhashから導出しない。
+    incoming_fields = fixture.use_case._fingerprint_bundle(changed)
+    incoming_hash = fixture.use_case._combined_fingerprint(incoming_fields)
+    legacy_reception = replace(
+        reception,
+        field_fingerprints=tuple(
+            (path, fingerprint)
+            for path, fingerprint in reception.field_fingerprints
+            if path.value != "patient.external_patient_id"
+        ),
+        latest_fingerprint=incoming_hash,
+    )
+    await fixture.reception_repo.save(legacy_reception)
+    stored = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=reception_id,
+    )
+    assert stored is not None
+    assert stored.field_fingerprints
+    assert all(
+        path.value != "patient.external_patient_id"
+        for path, _ in stored.field_fingerprints
+    )
+    assert stored.latest_fingerprint == incoming_hash
+    assert stored.patient_id != alternate_link.patient_id
+    active_link = await fixture.patient_external_id_repo.get_active_by_source(
+        corporate_id=fixture.corporate_id,
+        store_id=alternate_link.store_id,
+        system_name=alternate_link.system_name,
+        external_patient_id=alternate_link.external_patient_id,
+    )
+    assert active_link is not None
+    assert active_link.patient_id == other_patient_id
+    before = _snapshot_saved_state(fixture)
+
+    # Act
+    with pytest.raises(NsipsPatientIdentityConflictError):
+        await execute_structured_test_command(
+            fixture, _command_for_reception(fixture, reception_id, changed)
+        )
+
+    # Assert
+    assert _snapshot_saved_state(fixture) == before
+
+
+@pytest.mark.asyncio
+async def test_取込_外部患者ID不一致で薬品なし_拒否し保存状態を維持する() -> None:
+    """Rpがない入力も患者同一性を確認し、正常終了で受理しない。"""
+    # Arrange
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    original = _bundle_with_all_business_sections(
+        document_number="DOC-NO-MEDICINES-IDENTITY-CONFLICT"
+    )
+    initial = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, original)
+    )
+    await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    legitimate = replace(
+        original, patient=replace(original.patient, address="東京都品川区三丁目")
+    )
+    await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, legitimate)
+    )
+    patient_id = PatientId.parse(initial.patient_id)
+    patient = fixture.patient_repo.items[patient_id]
+    patient = patient.change_heading(
+        PatientHeadingContent(
+            summary=PatientHeadingText("元患者の継続申し送り"), notes=None
+        ),
+        expected_revision=0,
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+        recorded_at=fixture.clock.now(),
+    )
+    await fixture.patient_repo.save(patient)
+    assert patient.profile_history
+    assert patient.heading_history
+    reception = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=reception_id,
+    )
+    assert reception is not None
+    assert reception.correction_history
+    assert reception.source_data_history
+    assert fixture.patient_external_id_repo.items
+    assert fixture.prescription_repo.items
+    assert fixture.dispensing_repo.items
+    assert fixture.medication_history_repo.items
+
+    before = _snapshot_saved_state(fixture)
+    changed = replace(
+        legitimate,
+        patient=replace(legitimate.patient, external_patient_id="P-NO-MEDICINES-OTHER"),
+        prescription=replace(legitimate.prescription, rps=()),
+    )
+
+    # Act
+    with pytest.raises(NsipsPatientIdentityConflictError):
+        await execute_structured_test_command(
+            fixture, _command_for_reception(fixture, reception_id, changed)
+        )
+
+    # Assert
+    assert _snapshot_saved_state(fixture) == before
+
+
+@pytest.mark.asyncio
+async def test_取込_外部患者ID不一致の削除通知_拒否し薬歴と保存状態を維持する() -> None:
+    """別患者IDの削除通知で取消・保留・薬歴破棄を実行しない。"""
+    # Arrange
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    original = _bundle_with_all_business_sections(
+        document_number="DOC-DELETE-IDENTITY-CONFLICT"
+    )
+    initial = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, original)
+    )
+    await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    legitimate = replace(
+        original, patient=replace(original.patient, address="東京都品川区三丁目")
+    )
+    await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, legitimate)
+    )
+    patient_id = PatientId.parse(initial.patient_id)
+    patient = fixture.patient_repo.items[patient_id]
+    patient = patient.change_heading(
+        PatientHeadingContent(
+            summary=PatientHeadingText("元患者の継続申し送り"), notes=None
+        ),
+        expected_revision=0,
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+        recorded_at=fixture.clock.now(),
+    )
+    await fixture.patient_repo.save(patient)
+    assert patient.profile_history
+    assert patient.heading_history
+    reception = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=reception_id,
+    )
+    assert reception is not None
+    assert reception.correction_history
+    assert reception.source_data_history
+    assert fixture.patient_external_id_repo.items
+    assert fixture.prescription_repo.items
+    assert fixture.dispensing_repo.items
+    assert fixture.medication_history_repo.items
+
+    before = _snapshot_saved_state(fixture)
+    changed = replace(
+        legitimate,
+        patient=replace(legitimate.patient, external_patient_id="P-DELETE-OTHER"),
+        correction_kind=ExternalCorrectionKind.DELETE,
+    )
+
+    # Act
+    with pytest.raises(NsipsPatientIdentityConflictError):
+        await execute_structured_test_command(
+            fixture, _command_for_reception(fixture, reception_id, changed)
+        )
+
+    # Assert
+    assert _snapshot_saved_state(fixture) == before
 
 
 @pytest.mark.asyncio
@@ -2761,3 +3391,617 @@ async def test_TC35_削除保留を薬歴追記訂正で解決する() -> None:
     event = amended.external_corrections[0].review_events[-1]
     assert event.decision is ExternalCorrectionDecision.AMEND
     assert event.amendment_id == amended.amendments[0].amendment_id
+
+
+@pytest.mark.asyncio
+async def test_取込_患者ID指紋欠損で有効リンク一致_正当属性訂正と参照を維持する() -> (
+    None
+):
+    """旧指紋でも受付患者への有効な対応があれば正当な属性訂正を受理する。"""
+    # Arrange
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    original = _bundle_with_all_business_sections(
+        document_number="DOC-LEGACY-VALID-PATIENT"
+    )
+    initial = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, original)
+    )
+    await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    legitimate = replace(
+        original, patient=replace(original.patient, address="東京都品川区三丁目")
+    )
+    await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, legitimate)
+    )
+    patient_id = PatientId.parse(initial.patient_id)
+    patient = fixture.patient_repo.items[patient_id]
+    patient = patient.change_heading(
+        PatientHeadingContent(
+            summary=PatientHeadingText("元患者の継続申し送り"), notes=None
+        ),
+        expected_revision=0,
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+        recorded_at=fixture.clock.now(),
+    )
+    await fixture.patient_repo.save(patient)
+    assert patient.profile_history
+    assert patient.heading_history
+    reception = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=reception_id,
+    )
+    assert reception is not None
+    assert reception.correction_history
+    assert reception.source_data_history
+    assert fixture.patient_external_id_repo.items
+    assert fixture.prescription_repo.items
+    assert fixture.dispensing_repo.items
+    assert fixture.medication_history_repo.items
+
+    legacy = replace(
+        reception,
+        field_fingerprints=tuple(
+            (path, fingerprint)
+            for path, fingerprint in reception.field_fingerprints
+            if path.value != "patient.external_patient_id"
+        ),
+    )
+    await fixture.reception_repo.save(legacy)
+    link = await fixture.patient_external_id_repo.get_active_by_source(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        system_name=ExternalSystemName("recept"),
+        external_patient_id=ExternalPatientId(legitimate.patient.external_patient_id),
+    )
+    assert link is not None
+    assert link.patient_id == legacy.patient_id
+    assert all(
+        path.value != "patient.external_patient_id"
+        for path, _ in legacy.field_fingerprints
+    )
+    before = _snapshot_saved_state(fixture)
+    changed = replace(
+        legitimate, patient=replace(legitimate.patient, kanji_name="正当 訂正")
+    )
+
+    # Act
+    result = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, changed)
+    )
+
+    # Assert
+    assert not result.is_duplicate
+    assert result.patient_id == initial.patient_id
+    assert result.prescription_id == initial.prescription_id
+    assert result.dispensing_id == initial.dispensing_id
+    assert reception.medication_history_id is not None
+    assert result.medication_history_id == str(reception.medication_history_id.value)
+    updated = fixture.patient_repo.items[patient_id]
+    assert updated.names.kanji.full_name == "正当 訂正"
+    assert len(updated.profile_history) == len(patient.profile_history) + 1
+    assert updated.profile_history[:-1] == patient.profile_history
+    assert "patient.kanji_name" in updated.profile_history[-1].changed_fields
+    assert updated.profile_history[-1].external_patient_id == link.external_patient_id
+    assert updated.heading_history == patient.heading_history
+    after = _snapshot_saved_state(fixture)
+    assert after[1] == before[1]
+    for index in (3, 4):
+        assert after[index] == before[index]
+    assert after[5].keys() == before[5].keys()
+    for record_id, saved_record in before[5].items():
+        for field in (
+            "patient_id",
+            "prescription_id",
+            "dispensing_id",
+            "soap",
+        ):
+            assert after[5][record_id][field] == saved_record[field]
+    current_reception = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=reception_id,
+    )
+    assert current_reception is not None
+    assert current_reception.patient_id == reception.patient_id
+    assert current_reception.prescription_id == reception.prescription_id
+    assert current_reception.dispensing_id == reception.dispensing_id
+    assert current_reception.medication_history_id == reception.medication_history_id
+    assert current_reception.correction_history[:-1] == reception.correction_history
+    assert (
+        len(current_reception.correction_history)
+        == len(reception.correction_history) + 1
+    )
+    assert current_reception.source_data_history[:-1] == reception.source_data_history
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "inactive_only", (False, True), ids=("対応なし", "無効対応のみ")
+)
+async def test_取込_患者ID指紋欠損で有効対応なし_拒否し新リンクを作らない(
+    inactive_only: bool,
+) -> None:
+    """旧指紋で照合不能な受信からリンクを作って同一性確認済みと扱わない。"""
+    # Arrange
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    original = _bundle_with_all_business_sections(
+        document_number="DOC-LEGACY-NO-ACTIVE-LINK"
+    )
+    initial = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, original)
+    )
+    await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    legitimate = replace(
+        original, patient=replace(original.patient, address="東京都品川区三丁目")
+    )
+    await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, legitimate)
+    )
+    patient_id = PatientId.parse(initial.patient_id)
+    patient = fixture.patient_repo.items[patient_id]
+    patient = patient.change_heading(
+        PatientHeadingContent(
+            summary=PatientHeadingText("元患者の継続申し送り"), notes=None
+        ),
+        expected_revision=0,
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+        recorded_at=fixture.clock.now(),
+    )
+    await fixture.patient_repo.save(patient)
+    assert patient.profile_history
+    assert patient.heading_history
+    reception = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=reception_id,
+    )
+    assert reception is not None
+    assert reception.correction_history
+    assert reception.source_data_history
+    assert fixture.patient_external_id_repo.items
+    assert fixture.prescription_repo.items
+    assert fixture.dispensing_repo.items
+    assert fixture.medication_history_repo.items
+
+    legacy = replace(
+        reception,
+        field_fingerprints=tuple(
+            (path, fingerprint)
+            for path, fingerprint in reception.field_fingerprints
+            if path.value != "patient.external_patient_id"
+        ),
+    )
+    await fixture.reception_repo.save(legacy)
+    incoming_id = ExternalPatientId("P-LEGACY-NO-ACTIVE-LINK")
+    if inactive_only:
+        inactive_link = PatientExternalIdentifier.create(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            patient_id=patient_id,
+            system_name=ExternalSystemName("recept"),
+            external_patient_id=incoming_id,
+        ).deactivate()
+        await fixture.patient_external_id_repo.save(inactive_link)
+    assert (
+        await fixture.patient_external_id_repo.get_active_by_source(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            system_name=ExternalSystemName("recept"),
+            external_patient_id=incoming_id,
+        )
+        is None
+    )
+    matching_links = [
+        item
+        for item in fixture.patient_external_id_repo.items.values()
+        if item.external_patient_id == incoming_id
+    ]
+    assert len(matching_links) == int(inactive_only)
+    assert all(not item.is_active for item in matching_links)
+    before = _snapshot_saved_state(fixture)
+    link_count = len(fixture.patient_external_id_repo.items)
+    changed = replace(
+        legitimate,
+        patient=replace(legitimate.patient, external_patient_id=incoming_id.value),
+    )
+
+    # Act
+    with pytest.raises(NsipsPatientIdentityConflictError):
+        await execute_structured_test_command(
+            fixture, _command_for_reception(fixture, reception_id, changed)
+        )
+
+    # Assert
+    assert _snapshot_saved_state(fixture) == before
+    assert len(fixture.patient_external_id_repo.items) == link_count
+
+
+@pytest.mark.asyncio
+async def test_取込_患者ID指紋欠損で別患者の属性訂正_拒否し両患者の保存状態を維持する() -> (
+    None
+):
+    """重複でない属性訂正でも別患者のリンクを受付患者へ適用しない。"""
+    # Arrange
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    original = _bundle_with_all_business_sections(
+        document_number="DOC-LEGACY-CORRECTION-OTHER-PATIENT"
+    )
+    initial = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, original)
+    )
+    await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    legitimate = replace(
+        original, patient=replace(original.patient, address="東京都品川区三丁目")
+    )
+    await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, legitimate)
+    )
+    patient_id = PatientId.parse(initial.patient_id)
+    patient = fixture.patient_repo.items[patient_id]
+    patient = patient.change_heading(
+        PatientHeadingContent(
+            summary=PatientHeadingText("元患者の継続申し送り"), notes=None
+        ),
+        expected_revision=0,
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+        recorded_at=fixture.clock.now(),
+    )
+    await fixture.patient_repo.save(patient)
+    assert patient.profile_history
+    assert patient.heading_history
+    reception = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=reception_id,
+    )
+    assert reception is not None
+    assert reception.correction_history
+    assert reception.source_data_history
+    assert fixture.patient_external_id_repo.items
+    assert fixture.prescription_repo.items
+    assert fixture.dispensing_repo.items
+    assert fixture.medication_history_repo.items
+
+    other_patient_id = PatientId.generate()
+    other_patient_number = await fixture.patient_repo.allocate_patient_number(
+        corporate_id=fixture.corporate_id
+    )
+    await fixture.patient_repo.save(
+        replace(patient, id=other_patient_id, patient_number=other_patient_number)
+    )
+    original_link = next(iter(fixture.patient_external_id_repo.items.values()))
+    alternate_link = PatientExternalIdentifier.create(
+        corporate_id=fixture.corporate_id,
+        store_id=original_link.store_id,
+        patient_id=other_patient_id,
+        system_name=original_link.system_name,
+        external_patient_id=ExternalPatientId("P-LEGACY-CORRECTION-OTHER"),
+    )
+    await fixture.patient_external_id_repo.save(alternate_link)
+    changed = replace(
+        legitimate,
+        patient=replace(
+            legitimate.patient,
+            external_patient_id=alternate_link.external_patient_id.value,
+            kanji_name="別人 訂正",
+        ),
+    )
+    # 旧指紋欠損を再現し、今回は重複hashが一致しない属性訂正と明示確認する。
+    incoming_fields = fixture.use_case._fingerprint_bundle(changed)
+    incoming_hash = fixture.use_case._combined_fingerprint(incoming_fields)
+    legacy_reception = replace(
+        reception,
+        field_fingerprints=tuple(
+            (path, fingerprint)
+            for path, fingerprint in reception.field_fingerprints
+            if path.value != "patient.external_patient_id"
+        ),
+    )
+    await fixture.reception_repo.save(legacy_reception)
+    stored = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=reception_id,
+    )
+    assert stored is not None
+    assert stored.field_fingerprints
+    assert all(
+        path.value != "patient.external_patient_id"
+        for path, _ in stored.field_fingerprints
+    )
+    assert stored.latest_fingerprint != incoming_hash
+    assert stored.patient_id != alternate_link.patient_id
+    active_link = await fixture.patient_external_id_repo.get_active_by_source(
+        corporate_id=fixture.corporate_id,
+        store_id=alternate_link.store_id,
+        system_name=alternate_link.system_name,
+        external_patient_id=alternate_link.external_patient_id,
+    )
+    assert active_link is not None
+    assert active_link.patient_id == other_patient_id
+    before = _snapshot_saved_state(fixture)
+
+    # Act
+    with pytest.raises(NsipsPatientIdentityConflictError):
+        await execute_structured_test_command(
+            fixture, _command_for_reception(fixture, reception_id, changed)
+        )
+
+    # Assert
+    assert _snapshot_saved_state(fixture) == before
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "different_scope",
+    ("corporate", "store", "source"),
+    ids=("別法人", "別店舗", "別受信元"),
+)
+async def test_取込_患者ID指紋欠損で他スコープのリンクのみ_拒否し患者情報を露出しない(
+    different_scope: str,
+) -> None:
+    """文字列一致でも他法人・他店舗・他受信元のリンクを同一性確認に使わない。"""
+    # Arrange
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    original = _bundle_with_all_business_sections(
+        document_number="DOC-LEGACY-FOREIGN-SCOPE"
+    )
+    initial = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, original)
+    )
+    await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    legitimate = replace(
+        original, patient=replace(original.patient, address="東京都品川区三丁目")
+    )
+    await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, legitimate)
+    )
+    patient_id = PatientId.parse(initial.patient_id)
+    patient = fixture.patient_repo.items[patient_id]
+    patient = patient.change_heading(
+        PatientHeadingContent(
+            summary=PatientHeadingText("元患者の継続申し送り"), notes=None
+        ),
+        expected_revision=0,
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+        recorded_at=fixture.clock.now(),
+    )
+    await fixture.patient_repo.save(patient)
+    assert patient.profile_history
+    assert patient.heading_history
+    reception = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=reception_id,
+    )
+    assert reception is not None
+    assert reception.correction_history
+    assert reception.source_data_history
+    assert fixture.patient_external_id_repo.items
+    assert fixture.prescription_repo.items
+    assert fixture.dispensing_repo.items
+    assert fixture.medication_history_repo.items
+
+    await fixture.reception_repo.save(
+        replace(
+            reception,
+            field_fingerprints=tuple(
+                (path, fingerprint)
+                for path, fingerprint in reception.field_fingerprints
+                if path.value != "patient.external_patient_id"
+            ),
+        )
+    )
+    foreign_corporate = (
+        CorporateId.generate()
+        if different_scope == "corporate"
+        else fixture.corporate_id
+    )
+    foreign_store_id = fixture.store_id
+    if different_scope in ("corporate", "store"):
+        foreign_store = create_store(
+            corporate_id=foreign_corporate, name="別スコープ薬局"
+        )
+        await fixture.store_repo.save(foreign_store)
+        foreign_store_id = foreign_store.id
+    foreign_patient = replace(
+        patient,
+        id=PatientId.generate(),
+        corporate_id=foreign_corporate,
+        patient_number=await fixture.patient_repo.allocate_patient_number(
+            foreign_corporate
+        ),
+        names=PersonNames.create(
+            last_name="非公開",
+            first_name="患者",
+            last_name_kana="ヒコウカイ",
+            first_name_kana="カンジャ",
+        ),
+    )
+    await fixture.patient_repo.save(foreign_patient)
+    incoming_id = ExternalPatientId("P-FOREIGN-SCOPE-ONLY")
+    foreign_link = PatientExternalIdentifier.create(
+        corporate_id=foreign_corporate,
+        store_id=foreign_store_id,
+        patient_id=foreign_patient.id,
+        system_name=ExternalSystemName(
+            "other-source" if different_scope == "source" else "recept"
+        ),
+        external_patient_id=incoming_id,
+    )
+    await fixture.patient_external_id_repo.save(foreign_link)
+    assert (
+        await fixture.patient_external_id_repo.get_active_by_source(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            system_name=ExternalSystemName("recept"),
+            external_patient_id=incoming_id,
+        )
+        is None
+    )
+    before = _snapshot_saved_state(fixture)
+    changed = replace(
+        legitimate,
+        patient=replace(legitimate.patient, external_patient_id=incoming_id.value),
+    )
+
+    # Act
+    with pytest.raises(NsipsPatientIdentityConflictError) as caught:
+        await execute_structured_test_command(
+            fixture, _command_for_reception(fixture, reception_id, changed)
+        )
+
+    # Assert
+    assert _snapshot_saved_state(fixture) == before
+    message = str(caught.value)
+    for private_value in (
+        "非公開 患者",
+        "元患者の継続申し送り",
+        str(foreign_patient.id.value),
+        str(foreign_corporate.value),
+        str(foreign_store_id.value),
+        incoming_id.value,
+    ):
+        assert private_value not in message
+
+
+@pytest.mark.asyncio
+async def test_取込_不一致拒否後に元IDへ戻す_属性訂正と再送冪等性を維持する() -> None:
+    """拒否内容のIDを照合済み元IDに戻した訂正は成功し、同内容再送は履歴を増やさない。"""
+    # Arrange
+    fixture = await create_fixture()
+    reception_id = ReceptionId.generate()
+    original = _bundle_with_all_business_sections(
+        document_number="DOC-IDENTITY-RECOVERY"
+    )
+    initial = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, original)
+    )
+    await _save_history_after_pharmacist_writing(
+        fixture, reception_id=reception_id, ingest_result=initial
+    )
+    legitimate = replace(
+        original, patient=replace(original.patient, address="東京都品川区三丁目")
+    )
+    await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, legitimate)
+    )
+    patient_id = PatientId.parse(initial.patient_id)
+    patient = fixture.patient_repo.items[patient_id]
+    patient = patient.change_heading(
+        PatientHeadingContent(
+            summary=PatientHeadingText("元患者の継続申し送り"), notes=None
+        ),
+        expected_revision=0,
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+        recorded_at=fixture.clock.now(),
+    )
+    await fixture.patient_repo.save(patient)
+    assert patient.profile_history
+    assert patient.heading_history
+    reception = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=reception_id,
+    )
+    assert reception is not None
+    assert reception.correction_history
+    assert reception.source_data_history
+    assert fixture.patient_external_id_repo.items
+    assert fixture.prescription_repo.items
+    assert fixture.dispensing_repo.items
+    assert fixture.medication_history_repo.items
+
+    before = _snapshot_saved_state(fixture)
+    conflicting = replace(
+        legitimate,
+        patient=replace(
+            legitimate.patient,
+            external_patient_id="P-OTHER-PERSON",
+            kanji_name="別人 花子",
+            kana_name="ベツジン ハナコ",
+            birth_date=date(1980, 1, 2),
+            gender="1",
+            postal_code="1000002",
+            address="東京都港区二丁目",
+            phone_number="03-1111-2222",
+        ),
+    )
+
+    # Act: 拒否後、外部IDだけ元の値へ戻した内容を送る。
+    with pytest.raises(NsipsPatientIdentityConflictError):
+        await execute_structured_test_command(
+            fixture, _command_for_reception(fixture, reception_id, conflicting)
+        )
+    assert _snapshot_saved_state(fixture) == before
+    restored = replace(
+        conflicting,
+        patient=replace(
+            conflicting.patient,
+            external_patient_id=legitimate.patient.external_patient_id,
+        ),
+    )
+    result = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, restored)
+    )
+
+    # Assert
+    assert not result.is_duplicate
+    assert result.patient_id == initial.patient_id
+    assert result.prescription_id == initial.prescription_id
+    assert result.dispensing_id == initial.dispensing_id
+    assert reception.medication_history_id is not None
+    assert result.medication_history_id == str(reception.medication_history_id.value)
+    updated = fixture.patient_repo.items[patient_id]
+    assert updated.names.kanji.full_name == "別人 花子"
+    assert updated.names.kana.full_name == "ベツジン ハナコ"
+    assert updated.birth_date is not None
+    assert updated.birth_date.value == date(1980, 1, 2)
+    assert updated.address is not None
+    assert updated.address.value == "東京都港区二丁目"
+    assert len(updated.profile_history) == len(patient.profile_history) + 1
+    assert updated.profile_history[:-1] == patient.profile_history
+    assert updated.heading_history == patient.heading_history
+    successful_state = _snapshot_saved_state(fixture)
+    for index in (2, 3, 4, 5):
+        assert successful_state[index].keys() == before[index].keys()
+        for identifier, saved in before[index].items():
+            for field in (
+                "patient_id",
+                "prescription_id",
+                "dispensing_id",
+                "medication_history_id",
+            ):
+                if field in saved:
+                    assert successful_state[index][identifier][field] == saved[field]
+
+    # Act: 成功内容をもう一度送る。
+    duplicate = await execute_structured_test_command(
+        fixture, _command_for_reception(fixture, reception_id, restored)
+    )
+
+    # Assert
+    assert duplicate.is_duplicate
+    assert duplicate.patient_id == result.patient_id
+    assert duplicate.prescription_id == result.prescription_id
+    assert duplicate.dispensing_id == result.dispensing_id
+    assert duplicate.medication_history_id == result.medication_history_id
+    assert _snapshot_saved_state(fixture) == successful_state

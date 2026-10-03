@@ -10,7 +10,8 @@ __pycache__/
 graphify-out
 .codex
 .claude
-.agents
+.agents/*
+!.agents/rules/
 for-llm
 .vscode
 docs/references/*.pdf

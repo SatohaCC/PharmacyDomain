@@ -24,3 +24,10 @@ class NsipsIngestionError(NsipsError):
 
     default_message = "NSIPSデータの取込処理に失敗しました。"
     default_code = "NSIPS_INGESTION_ERROR"
+
+
+class NsipsPatientIdentityConflictError(NsipsError):
+    """受付と受信データの患者同一性を確認できない場合の例外。"""
+
+    default_message = "患者の同一性を確認し、照合済みの患者IDで再送してください。"
+    default_code = "NSIPS_PATIENT_IDENTITY_CONFLICT"
