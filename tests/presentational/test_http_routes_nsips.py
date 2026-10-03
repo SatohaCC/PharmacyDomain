@@ -344,7 +344,7 @@ def test_tc40_構造化JSONによる保険_調剤日_加算の取込(
     assert data["dispensing_id"] is not None
     assert data["medication_history_id"] is None
     assert nsips_fixture.medication_history_repo.items == {}
-    assert data["coverage_selection_record_id"] is not None
+    assert data["coverage_selection_record_id"] is None
     assert data["dispensed_date"] == "2026-09-22"
     assert "特定薬剤管理指導加算２" in data["addition_names"]
 

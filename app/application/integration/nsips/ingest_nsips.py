@@ -13,10 +13,6 @@ from app.application.access_control.models import Permission
 from app.application.common.clock import Clock
 from app.application.common.optional_conversion import build_optional, unwrap
 from app.application.common.unit_of_work import UnitOfWork
-from app.application.coverage.register_patient_coverage import (
-    RegisterPatientCoverageCommand,
-    RegisterPatientCoverageUseCase,
-)
 from app.application.dispensing.exceptions import DispensingDateRequiredError
 from app.application.dispensing.start_dispensing import StartDispensingUseCase
 from app.application.dispensing.support import build_dispensed_rps
@@ -46,13 +42,7 @@ from app.application.prescription.support import (
     build_prescriber,
     build_rps,
 )
-from app.application.reception.record_coverage_selection import (
-    RecordCoverageSelectionCommand,
-    RecordCoverageSelectionUseCase,
-)
 from app.domain.corporate.primitives import CorporateId
-from app.domain.coverage.patient_coverage import PatientCoverage
-from app.domain.coverage.repository import PatientCoverageRepository
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.primitives import (
     DispensingCancellationReason,
@@ -163,7 +153,11 @@ class IngestNsipsCommand:
 
 @dataclass(frozen=True, kw_only=True)
 class IngestNsipsResultDto:
-    """NSIPS取込結果DTO。"""
+    """NSIPS取込結果DTO。
+
+    保険情報の不足は情報として返す。請求用資格を自動選択しないため、
+    coverage_selection_record_id は未設定で返す。
+    """
 
     corporate_id: str
     store_id: str
@@ -205,10 +199,6 @@ class IngestNsipsUseCase:
         ready_for_dispensing_use_case: ReadyForDispensingUseCase,
         start_dispensing_use_case: StartDispensingUseCase,
         medication_history_repo: MedicationHistoryRepository | None = None,
-        patient_coverage_repo: PatientCoverageRepository | None = None,
-        register_coverage_use_case: RegisterPatientCoverageUseCase | None = None,
-        record_coverage_selection_use_case: RecordCoverageSelectionUseCase
-        | None = None,
         reception_repo: ReceptionRepository,
         parser: NsipsParser | None = None,
         mapper: NsipsDataMapper | None = None,
@@ -221,9 +211,6 @@ class IngestNsipsUseCase:
         self._prescription_repo = prescription_repo
         self._dispensing_repo = dispensing_repo
         self._medication_history_repo = medication_history_repo
-        self._patient_coverage_repo = patient_coverage_repo
-        self._register_coverage_use_case = register_coverage_use_case
-        self._record_coverage_selection_use_case = record_coverage_selection_use_case
         self._reception_repo = reception_repo
         self._register_patient_use_case = register_patient_use_case
         self._register_patient_external_id_use_case = (
@@ -1053,68 +1040,17 @@ class IngestNsipsUseCase:
         if bundle.prescription.rps:
             if bundle.dispensed_date is None:
                 raise DispensingDateRequiredError()
-            # 4.1 保険資格の解決・登録および適用資格選択履歴の記録
-            coverage_selection_record_id: str | None = None
-            if bundle.insurance is not None and self._patient_coverage_repo is not None:
-                pat_id_obj = PatientId.parse(patient_id_str)
-                existing_coverages = await self._patient_coverage_repo.list_by_patient(
-                    corporate_id=corporate_id,
-                    patient_id=pat_id_obj,
-                )
-                cov_commands = self._mapper.to_coverage_commands(
-                    bundle,
-                    corporate_id=command.corporate_id,
-                    patient_id=patient_id_str,
-                )
-                applied_coverage_ids: list[str] = []
-                for cov_cmd in cov_commands:
-                    matched_id: str | None = None
-                    matched_coverage = next(
-                        (
-                            current
-                            for current in existing_coverages
-                            if self._coverage_matches(current, cov_cmd)
-                        ),
-                        None,
-                    )
-                    if matched_coverage is not None:
-                        matched_id = str(matched_coverage.id.value)
-                    if matched_id is not None:
-                        if self._coverage_command_is_selectable(cov_cmd):
-                            applied_coverage_ids.append(matched_id)
-                    elif self._register_coverage_use_case is not None:
-                        new_cov = await self._register_coverage_use_case.execute(
-                            cov_cmd
-                        )
-                        if self._coverage_command_is_selectable(cov_cmd):
-                            applied_coverage_ids.append(new_cov.id)
-
-                if (
-                    applied_coverage_ids
-                    and self._record_coverage_selection_use_case is not None
-                ):
-                    sel_res = await self._record_coverage_selection_use_case.execute(
-                        RecordCoverageSelectionCommand(
-                            corporate_id=command.corporate_id,
-                            store_id=command.store_id,
-                            patient_id=patient_id_str,
-                            applied_on=bundle.dispensed_date,
-                            coverage_ids=tuple(applied_coverage_ids),
-                        )
-                    )
-                    coverage_selection_record_id = sel_res.id
-
-            # 4.2 処方箋原本の登録
+            # 保険・公費は受付の受信原本に保存し、資格台帳や請求用選択へ変換しない。
+            # 4.1 処方箋原本の登録
             presc_cmd = self._mapper.to_prescription_command(
                 bundle,
                 corporate_id=command.corporate_id,
                 store_id=command.store_id,
                 patient_id=patient_id_str,
-                coverage_selection_record_id=coverage_selection_record_id,
             )
             presc_dto = await self._register_prescription_use_case.execute(presc_cmd)
 
-            # 4.3 調剤待ち化 (READY_FOR_DISPENSING)
+            # 4.2 調剤待ち化 (READY_FOR_DISPENSING)
             await self._ready_for_dispensing_use_case.execute(
                 ReadyForDispensingCommand(
                     corporate_id=command.corporate_id,
@@ -1122,7 +1058,7 @@ class IngestNsipsUseCase:
                 )
             )
 
-            # 4.4 調剤セッション作成
+            # 4.3 調剤セッション作成
             disp_cmd = self._mapper.to_dispensing_command(
                 bundle,
                 corporate_id=command.corporate_id,
@@ -1165,7 +1101,6 @@ class IngestNsipsUseCase:
                 patient_profile_updated_fields=patient_profile_updated_fields,
                 coverage_review_required=coverage_review_reason is not None,
                 coverage_review_reason=coverage_review_reason,
-                coverage_selection_record_id=coverage_selection_record_id,
                 dispensed_date=disp_date_str,
                 addition_names=addition_names,
             )
@@ -1503,17 +1438,6 @@ class IngestNsipsUseCase:
         return True
 
     @staticmethod
-    def _coverage_command_is_selectable(
-        command: RegisterPatientCoverageCommand,
-    ) -> bool:
-        """請求固定値が揃った資格だけを適用選択へ渡す。"""
-        if command.coverage_type == "insurance":
-            return (
-                command.insured_type is not None and command.benefit_ratio is not None
-            )
-        return command.payer_number is not None and command.recipient_number is not None
-
-    @staticmethod
     def _validate_required_insurance_values(bundle: NsipsBundle) -> None:
         """保険識別値の部分欠損と資格情報の完全欠損を取込前に拒否する。"""
         insurance = bundle.insurance
@@ -1566,33 +1490,6 @@ class IngestNsipsUseCase:
             reasons.append("public_expense_incomplete")
         return reasons[0] if reasons else None
 
-    @staticmethod
-    def _coverage_matches(
-        existing: PatientCoverage,
-        incoming: RegisterPatientCoverageCommand,
-    ) -> bool:
-        """制度識別値・枝番・本人区分・給付割合・公費順位を全て照合する。"""
-        if existing.coverage_type.value != incoming.coverage_type:
-            return False
-        if incoming.coverage_type == "insurance":
-            details = existing.insurance_details
-            return (
-                details is not None
-                and details.insurer_number.value == incoming.insurer_number
-                and details.insured_symbol.value == incoming.insured_symbol
-                and details.insured_number.value == incoming.insured_number
-                and unwrap(details.branch_number) == incoming.branch_number
-                and unwrap(details.insured_type) == incoming.insured_type
-                and unwrap(details.benefit_ratio) == incoming.benefit_ratio
-            )
-        public_details = existing.public_expense_details
-        return (
-            public_details is not None
-            and public_details.payer_number.value == incoming.payer_number
-            and public_details.recipient_number.value == incoming.recipient_number
-            and existing.priority.value == incoming.priority
-        )
-
     async def _detect_bundle_differences(
         self,
         *,
@@ -1615,26 +1512,6 @@ class IngestNsipsUseCase:
             differences.append(
                 f"患者属性変更: {', '.join(patient_attribute_conflicts)}"
             )
-
-        if bundle.insurance is not None and self._patient_coverage_repo is not None:
-            incoming_coverages = self._mapper.to_coverage_commands(
-                bundle,
-                corporate_id=str(corporate_id.value),
-                patient_id=str(existing.patient_id.value),
-            )
-            if incoming_coverages:
-                registered = await self._patient_coverage_repo.list_by_patient(
-                    corporate_id=corporate_id,
-                    patient_id=existing.patient_id,
-                )
-                if any(
-                    not any(
-                        self._coverage_matches(current, candidate)
-                        for current in registered
-                    )
-                    for candidate in incoming_coverages
-                ):
-                    differences.append("保険・公費資格変更")
 
         if self._medication_history_repo is not None:
             histories = await self._medication_history_repo.list_by_patient(

@@ -177,30 +177,8 @@ def test_tc11_NSIPSデータマッパーは薬歴Commandを作らない() -> Non
     assert not hasattr(mapper, "to_medication_history_command")
 
 
-def test_tc08_保険区分と給付割合の不明を既定値で埋めない() -> None:
-    """保険区分と給付割合が欠損しているとき、本人・70%を合成しない。"""
-    bundle = _create_sample_bundle(
-        insurance=NsipsInsuranceInfo(
-            insurer_number="138001",
-            insured_symbol="記号A",
-            insured_number="番号123",
-            insured_type=None,
-            benefit_ratio=None,
-        )
-    )
-
-    [command] = NsipsDataMapper.to_coverage_commands(
-        bundle,
-        corporate_id="corp-1",
-        patient_id="pat-1",
-    )
-
-    assert command.insured_type is None
-    assert command.benefit_ratio is None
-
-
-def test_tc16_調剤日を調剤と資格適用に使い処方日は維持する() -> None:
-    """処方日と異なる調剤日を調剤日・資格適用日に写す。"""
+def test_tc16_調剤日を調剤に使い処方日は維持する() -> None:
+    """処方日と異なる調剤日を調剤日に写す。"""
     bundle = _create_sample_bundle(
         insurance=NsipsInsuranceInfo(
             insurer_number="138001",
@@ -222,16 +200,9 @@ def test_tc16_調剤日を調剤と資格適用に使い処方日は維持する
         prescription_id="presc-1",
         dispenser_id="staff-1",
     )
-    [coverage] = NsipsDataMapper.to_coverage_commands(
-        bundle,
-        corporate_id="corp-1",
-        patient_id="pat-1",
-    )
 
     assert prescription.issued_date == date(2026, 9, 21)
     assert dispensing.dispensed_date == date(2026, 9, 22)
-    assert coverage.valid_from == date(2026, 9, 22)
-    assert coverage.activated_on == date(2026, 9, 22)
 
 
 def test_tc17_調剤日が無い場合に処方日を代用しない() -> None:

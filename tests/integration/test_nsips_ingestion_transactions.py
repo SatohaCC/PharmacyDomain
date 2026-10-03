@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+import json
+from dataclasses import asdict, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any, ClassVar
@@ -11,6 +12,9 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.application.coverage.register_patient_coverage import (
+    RegisterPatientCoverageCommand,
+)
 from app.application.integration.nsips.exceptions import (
     NsipsPatientIdentityConflictError,
 )
@@ -24,6 +28,7 @@ from app.application.integration.nsips.models import (
     NsipsRpInfo,
 )
 from app.domain.corporate.primitives import CorporateId
+from app.domain.coverage.primitives import PatientCoverageId
 from app.domain.dispensing.primitives import DispensingId, DispensingProcessStatus
 from app.domain.foundation.exceptions import ConcurrentModificationError
 from app.domain.medication_history.medication_history_record import (
@@ -80,8 +85,8 @@ from tests.integration.organization_helpers import appoint_manager, setup_organi
 _EXPECTED_INGEST_ROW_COUNTS: dict[str, int] = {
     "patients": 1,
     "patient_external_identifiers": 1,
-    "patient_coverages": 1,
-    "coverage_selection_records": 1,
+    "patient_coverages": 0,
+    "coverage_selection_records": 0,
     "receptions": 1,
     "prescriptions": 1,
     "dispensing_processes": 1,
@@ -194,7 +199,7 @@ class _FailAfterHistorySave:
 
 
 def _bundle() -> NsipsBundle:
-    """実UoWで患者・資格・処方・調剤を取り込む構造化入力を返す。"""
+    """実UoWで患者・受付原本・処方・調剤を取り込む構造化入力を返す。"""
     return NsipsBundle(
         header_version="structured-test",
         patient=NsipsPatientInfo(
@@ -238,6 +243,148 @@ def _bundle() -> NsipsBundle:
             benefit_ratio=70,
         ),
     )
+
+
+@pytest.mark.asyncio
+async def test_受付取込_保険変更と訂正再送_既存資格を変えず原本履歴を再取得できる(
+    engine: AsyncEngine,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    # Arrange
+    organization = await setup_organization(engine, session_factory)
+    await appoint_manager(session_factory, organization)
+    medicine = replace(
+        create_medicine(code="2171022F1029", name="試験用医薬品"),
+        identifier=MedicineIdentifier(
+            code_type=MedicineCodeType.RECEIPT, code=MedicineCode("610406001")
+        ),
+    )
+    async with PostgresUnitOfWork(session_factory) as work:
+        await PostgresRepositorySet.create(work).medicine_catalog.save(medicine)
+        await work.commit()
+    first_id = ReceptionId.generate()
+    second_id = ReceptionId.generate()
+    bundle = _bundle()
+    assert bundle.insurance is not None
+    command = IngestNsipsCommand(
+        corporate_id=str(organization.corporate.id.value),
+        store_id=str(organization.store.id.value),
+        dispenser_staff_id=str(organization.staff[0].id.value),
+        reception_id=str(first_id.value),
+        structured_bundle=bundle,
+    )
+    async with organization.root.request_scope(
+        authorization=organization.authorization
+    ) as scope:
+        first = await scope.use_cases.integration.ingest_nsips.execute(command)
+        coverage = await scope.use_cases.coverage.register.execute(
+            RegisterPatientCoverageCommand(
+                corporate_id=command.corporate_id,
+                patient_id=first.patient_id,
+                coverage_type="insurance",
+                valid_from=date(2026, 9, 1),
+                activated_on=date(2026, 9, 1),
+                priority=1,
+                insurer_number=bundle.insurance.insurer_number,
+                insured_symbol=bundle.insurance.insured_symbol,
+                insured_number=bundle.insurance.insured_number,
+                insured_type="self",
+                benefit_ratio=70,
+            )
+        )
+    changed_insurance = replace(bundle.insurance, insurer_number="87654321")
+    second_bundle = replace(
+        bundle,
+        insurance=changed_insurance,
+        prescription=replace(
+            bundle.prescription, document_number="NSIPS-INSURANCE-SECOND"
+        ),
+    )
+    second_command = replace(
+        command, reception_id=str(second_id.value), structured_bundle=second_bundle
+    )
+
+    # Act
+    async with organization.root.request_scope(
+        authorization=organization.authorization
+    ) as scope:
+        second = await scope.use_cases.integration.ingest_nsips.execute(second_command)
+    corrected_insurance = replace(
+        changed_insurance, branch_number="02", benefit_ratio=None
+    )
+    corrected_command = replace(
+        second_command,
+        structured_bundle=replace(second_bundle, insurance=corrected_insurance),
+    )
+    async with organization.root.request_scope(
+        authorization=organization.authorization
+    ) as scope:
+        corrected = await scope.use_cases.integration.ingest_nsips.execute(
+            corrected_command
+        )
+    async with organization.root.request_scope(
+        authorization=organization.authorization
+    ) as scope:
+        resent = await scope.use_cases.integration.ingest_nsips.execute(
+            corrected_command
+        )
+
+    # Assert
+    assert second.patient_id == first.patient_id
+    assert second.prescription_id is not None and second.dispensing_id is not None
+    assert second.coverage_selection_record_id is None
+    assert corrected.prescription_id == resent.prescription_id == second.prescription_id
+    assert corrected.coverage_review_required is True
+    assert resent.is_duplicate is True and resent.coverage_review_required is True
+    async with PostgresUnitOfWork(session_factory) as work:
+        repositories = PostgresRepositorySet.create(work)
+        original = await repositories.reception.get(
+            corporate_id=organization.corporate.id,
+            store_id=organization.store.id,
+            reception_id=first_id,
+        )
+        stored = await repositories.reception.get(
+            corporate_id=organization.corporate.id,
+            store_id=organization.store.id,
+            reception_id=second_id,
+        )
+        assert original is not None and original.source_data is not None
+        assert json.loads(original.source_data.bundle_json)["insurance"] == asdict(
+            bundle.insurance
+        )
+        assert original.source_data_history == ()
+        assert stored is not None and stored.source_data is not None
+        assert json.loads(stored.source_data.bundle_json)["insurance"] == asdict(
+            corrected_insurance
+        )
+        assert len(stored.source_data_history) == 1
+        assert json.loads(stored.source_data_history[0].bundle_json)[
+            "insurance"
+        ] == asdict(changed_insurance)
+        existing = await repositories.patient_coverage.get(
+            corporate_id=organization.corporate.id,
+            coverage_id=PatientCoverageId.parse(coverage.id),
+        )
+        assert existing is not None and existing.insurance_details is not None
+        assert (
+            existing.insurance_details.insurer_number.value
+            == bundle.insurance.insurer_number
+        )
+        assert existing.period.valid_to is None
+        for table, expected in (
+            ("patient_coverages", 1),
+            ("coverage_selection_records", 0),
+            ("receptions", 2),
+            ("prescriptions", 2),
+            ("dispensing_processes", 2),
+        ):
+            count = await work.session.scalar(
+                text(
+                    f"SELECT count(*) FROM {table} WHERE corporate_id = :corporate_id"
+                ),
+                {"corporate_id": organization.corporate.id.value},
+            )
+            assert count == expected
 
 
 @pytest.mark.asyncio
@@ -701,7 +848,13 @@ async def test_実DB取込_外部患者IDと属性不一致を二度拒否_全�
         await work.commit()
 
     before = await _persisted_nsips_state(engine, organization.corporate.id)
-    assert all(before[table] for table in _EXPECTED_INGEST_ROW_COUNTS)
+    assert before["patient_coverages"] == []
+    assert before["coverage_selection_records"] == []
+    assert all(
+        before[table]
+        for table in _EXPECTED_INGEST_ROW_COUNTS
+        if table not in {"patient_coverages", "coverage_selection_records"}
+    )
     conflicting = replace(
         legitimate,
         patient=replace(
