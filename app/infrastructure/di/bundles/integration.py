@@ -12,9 +12,7 @@ from app.infrastructure.di.bundles.clinical import (
     PrescriptionUseCases,
 )
 from app.infrastructure.di.bundles.patient_care import (
-    CoverageUseCases,
     PatientUseCases,
-    ReceptionUseCases,
 )
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.repositories.repository_set import (
@@ -33,8 +31,6 @@ def build_integration_use_cases(
     repositories: PostgresRepositorySet,
     corporate_access: CorporateAccessService,
     patient_use_cases: PatientUseCases,
-    coverage_use_cases: CoverageUseCases,
-    reception_use_cases: ReceptionUseCases,
     prescription_use_cases: PrescriptionUseCases,
     dispensing_use_cases: DispensingUseCases,
     unit_of_work: PostgresUnitOfWork,
@@ -48,9 +44,6 @@ def build_integration_use_cases(
         patient_repo=repositories.patient,
         prescription_repo=repositories.prescription,
         dispensing_repo=repositories.dispensing,
-        patient_coverage_repo=repositories.patient_coverage,
-        register_coverage_use_case=coverage_use_cases.register,
-        record_coverage_selection_use_case=reception_use_cases.record_coverage_selection,
         reception_repo=repositories.reception,
         register_patient_use_case=patient_use_cases.register,
         register_patient_external_id_use_case=patient_use_cases.register_external_identifier,

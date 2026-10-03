@@ -2,15 +2,11 @@
 
 from __future__ import annotations
 
-from app.application.coverage.register_patient_coverage import (
-    RegisterPatientCoverageCommand,
-)
 from app.application.dispensing.inputs import (
     DispensedMedicineInput,
     DispensedRpInput,
 )
 from app.application.dispensing.start_dispensing import StartDispensingCommand
-from app.application.integration.nsips.exceptions import NsipsParseError
 from app.application.integration.nsips.models import NsipsBundle
 from app.application.patient.register_patient import RegisterPatientCommand
 from app.application.prescription.inputs import (
@@ -52,71 +48,6 @@ class NsipsDataMapper:
             address=bundle.patient.address,
             phone_number=bundle.patient.phone_number,
         )
-
-    @staticmethod
-    def to_coverage_commands(
-        bundle: NsipsBundle,
-        *,
-        corporate_id: str,
-        patient_id: str,
-    ) -> list[RegisterPatientCoverageCommand]:
-        """NSIPSの保険・公費情報から患者資格登録コマンド群を生成する。"""
-        if bundle.insurance is None:
-            return []
-
-        ins = bundle.insurance
-        if bundle.dispensed_date is None:
-            raise NsipsParseError("調剤日がないため患者資格を登録できません。")
-        base_date = bundle.dispensed_date
-        commands: list[RegisterPatientCoverageCommand] = []
-
-        if ins.insurer_number and ins.insured_symbol and ins.insured_number:
-            commands.append(
-                RegisterPatientCoverageCommand(
-                    corporate_id=corporate_id,
-                    patient_id=patient_id,
-                    coverage_type="insurance",
-                    valid_from=base_date,
-                    activated_on=base_date,
-                    priority=1,
-                    insurer_number=ins.insurer_number,
-                    insured_symbol=ins.insured_symbol,
-                    insured_number=ins.insured_number,
-                    branch_number=ins.branch_number,
-                    insured_type=ins.insured_type,
-                    benefit_ratio=ins.benefit_ratio,
-                )
-            )
-
-        if ins.public_payer_number_1 and ins.public_recipient_number_1:
-            commands.append(
-                RegisterPatientCoverageCommand(
-                    corporate_id=corporate_id,
-                    patient_id=patient_id,
-                    coverage_type="public_expense",
-                    valid_from=base_date,
-                    activated_on=base_date,
-                    priority=1,
-                    payer_number=ins.public_payer_number_1,
-                    recipient_number=ins.public_recipient_number_1,
-                )
-            )
-
-        if ins.public_payer_number_2 and ins.public_recipient_number_2:
-            commands.append(
-                RegisterPatientCoverageCommand(
-                    corporate_id=corporate_id,
-                    patient_id=patient_id,
-                    coverage_type="public_expense",
-                    valid_from=base_date,
-                    activated_on=base_date,
-                    priority=2,
-                    payer_number=ins.public_payer_number_2,
-                    recipient_number=ins.public_recipient_number_2,
-                )
-            )
-
-        return commands
 
     @staticmethod
     def to_prescription_command(

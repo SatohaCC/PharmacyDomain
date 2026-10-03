@@ -6,9 +6,6 @@ import uuid
 from dataclasses import dataclass, replace
 from datetime import date
 
-from app.application.composition.coverage_selection_adapter import (
-    CoverageSelectionAdapter,
-)
 from app.application.composition.dispensing_references import (
     DispensingStaffQualificationAdapter,
     DispensingStoreReferenceAdapter,
@@ -18,9 +15,6 @@ from app.application.composition.prescription_references import (
     CoverageSelectionPublicExpenseAdapter,
     PrescriptionPatientReferenceAdapter,
     PrescriptionStoreReferenceAdapter,
-)
-from app.application.coverage.register_patient_coverage import (
-    RegisterPatientCoverageUseCase,
 )
 from app.application.dispensing.start_dispensing import StartDispensingUseCase
 from app.application.integration.nsips.ingest_nsips import (
@@ -38,12 +32,7 @@ from app.application.prescription.ready_for_dispensing import ReadyForDispensing
 from app.application.prescription.register_prescription import (
     RegisterPrescriptionUseCase,
 )
-from app.application.reception.record_coverage_selection import (
-    RecordCoverageSelectionUseCase,
-)
 from app.domain.corporate.primitives import CorporateId
-from app.domain.coverage.combination import CoverageSelectionService
-from app.domain.coverage.services import PatientCoverageConflictService
 from app.domain.dispensing.services import (
     DispensingConsistencyService,
     DispensingIterationUniquenessService,
@@ -234,30 +223,11 @@ async def create_fixture() -> NsipsFixture:
     patient_coverage_repo = InMemoryPatientCoverageRepository()
     coverage_selection_repo = InMemoryCoverageSelectionRecordRepository()
     reception_repo = InMemoryReceptionRepository()
-    conflict_service = PatientCoverageConflictService()
 
     # ユースケース組み立て
     register_patient = RegisterPatientUseCase(patient_repo, corporate_access)
     register_patient_ext = RegisterPatientExternalIdentifierUseCase(
         patient_repo, patient_external_id_repo, corporate_access
-    )
-
-    register_coverage = RegisterPatientCoverageUseCase(
-        repository=patient_coverage_repo,
-        patient_reference=PrescriptionPatientReferenceAdapter(patient_repo),
-        conflict_service=conflict_service,
-        corporate_access=corporate_access,
-    )
-
-    record_coverage_selection = RecordCoverageSelectionUseCase(
-        repository=coverage_selection_repo,
-        corporate_access=corporate_access,
-        store_reference=PrescriptionStoreReferenceAdapter(store_repo),
-        patient_reference=PrescriptionPatientReferenceAdapter(patient_repo),
-        coverage_selection=CoverageSelectionAdapter(
-            patient_coverage_repo, CoverageSelectionService()
-        ),
-        clock=clock,
     )
 
     register_prescription = RegisterPrescriptionUseCase(
@@ -298,9 +268,6 @@ async def create_fixture() -> NsipsFixture:
         patient_repo=patient_repo,
         prescription_repo=prescription_repo,
         dispensing_repo=dispensing_repo,
-        patient_coverage_repo=patient_coverage_repo,
-        register_coverage_use_case=register_coverage,
-        record_coverage_selection_use_case=record_coverage_selection,
         reception_repo=reception_repo,
         register_patient_use_case=register_patient,
         register_patient_external_id_use_case=register_patient_ext,
