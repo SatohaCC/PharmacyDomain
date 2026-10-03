@@ -10,9 +10,10 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytest
 
@@ -31,6 +32,7 @@ from app.application.dispensing.get_dispensing import (
     GetDispensingQuery,
     GetDispensingUseCase,
 )
+from app.application.dispensing.inputs import SubstitutionInput
 from app.application.dispensing.list_dispensings_by_prescription import (
     ListDispensingsByPrescriptionQuery,
 )
@@ -54,6 +56,8 @@ from app.domain.dispensing.exceptions import (
     IterationExceedsInstructionError,
     PreviousDispensingUnknownError,
     SubstitutionNotAllowedError,
+    SubstitutionOriginalMismatchError,
+    SubstitutionRequiredError,
     VerificationNotPassedError,
 )
 from app.domain.dispensing.primitives import (
@@ -79,6 +83,7 @@ from app.domain.prescription.value_objects import (
     PrescriptionManagementInfo,
     RefillInstruction,
 )
+from app.domain.shared.medicine import MedicineCodeType
 from app.domain.shared.preservation import (
     PreservationPolicyCatalog,
     PreservationRecordKind,
@@ -101,7 +106,7 @@ from tests.application.prescription.helpers import (
 from tests.application.prescription.helpers import (
     create_fixture as create_prescription_fixture,
 )
-from tests.factories.dispensing_factory import DISPENSED_ON
+from tests.factories.dispensing_factory import DISPENSED_ON, create_dispensing
 from tests.factories.prescription_factory import (
     create_medicine,
     create_prescription,
@@ -140,6 +145,143 @@ async def _verify_passed(fixture: DispensingFixture, dispensing_id: str) -> None
 
 class Test調剤の開始:
     """処方箋・担当者・回数の整合を確認して開始する。"""
+
+    async def test_調剤開始_正当な後発品代替_DTOと保存内容に全代替情報を保持する(
+        self,
+    ) -> None:
+        # Arrange
+        fixture = create_fixture()
+        prescriptions_before = {
+            key: asdict(value)
+            for key, value in fixture.prescription_source.prescriptions.items()
+        }
+        substitution = SubstitutionInput(
+            category="generic_substitution",
+            original_code_type="yj",
+            original_code="2171022F1029",
+            original_name="ノルバスク錠2.5mg",
+            reason="患者希望による後発品変更",
+            inquiry_number=None,
+        )
+        command = create_start_command(
+            fixture,
+            dispensed_rps=(
+                create_rp_input(
+                    medicines=(
+                        create_medicine_input(
+                            code="2171022F1037",
+                            name="アムロジピンＯＤ錠２．５ｍｇ「サワイ」",
+                            substitution=substitution,
+                        ),
+                    )
+                ),
+            ),
+        )
+
+        # Act
+        actual = await fixture.start.execute(command)
+        stored = await fixture.repository.get(
+            corporate_id=fixture.corporate_id,
+            dispensing_id=DispensingId.parse(actual.id),
+        )
+
+        # Assert
+        dto_medicine = actual.dispensed_rps[0].medicines[0]
+        assert dto_medicine.code == "2171022F1037"
+        assert dto_medicine.substitution is not None
+        assert asdict(dto_medicine.substitution) == {
+            "category": "generic_substitution",
+            "original_code_type": "yj",
+            "original_code": "2171022F1029",
+            "original_name": "ノルバスク錠2.5mg",
+            "reason": "患者希望による後発品変更",
+            "inquiry_number": None,
+        }
+        assert stored is not None
+        stored_medicine = stored.dispensed_rps[0].medicines[0]
+        assert stored_medicine.identifier.code is not None
+        assert stored_medicine.identifier.code.value == "2171022F1037"
+        saved_substitution = stored_medicine.substitution
+        assert saved_substitution is not None
+        assert saved_substitution.category.value == "generic_substitution"
+        assert saved_substitution.original_identifier.code_type.value == "yj"
+        assert saved_substitution.original_identifier.code is not None
+        assert saved_substitution.original_identifier.code.value == "2171022F1029"
+        assert saved_substitution.original_name.value == "ノルバスク錠2.5mg"
+        assert saved_substitution.reason is not None
+        assert saved_substitution.reason.value == "患者希望による後発品変更"
+        assert saved_substitution.inquiry_number is None
+        assert {
+            key: asdict(value)
+            for key, value in fixture.prescription_source.prescriptions.items()
+        } == prescriptions_before
+
+    @pytest.mark.parametrize(
+        ("has_substitution", "expected_error"),
+        [
+            pytest.param(False, SubstitutionRequiredError, id="代替なし同名異コード"),
+            pytest.param(True, SubstitutionOriginalMismatchError, id="不正原本引用"),
+        ],
+    )
+    async def test_調剤開始_薬品対応不整合_保存せず全保存状態と原本を保持する(
+        self,
+        has_substitution: bool,
+        expected_error: type[SubstitutionRequiredError]
+        | type[SubstitutionOriginalMismatchError],
+    ) -> None:
+        # Arrange
+        fixture = create_fixture()
+        other_prescription = create_prescription(
+            corporate_id=fixture.corporate_id, store_id=fixture.store_id
+        ).ready_for_dispensing()
+        fixture.prescription_source.register(other_prescription)
+        await fixture.repository.save(
+            create_dispensing(
+                corporate_id=fixture.corporate_id,
+                store_id=fixture.store_id,
+                prescription_id=other_prescription.id,
+            )
+        )
+        substitution = (
+            SubstitutionInput(
+                category="generic_substitution",
+                original_code_type="yj",
+                original_code="2171022F1045",
+                original_name="別の原本薬品",
+            )
+            if has_substitution
+            else None
+        )
+        medicine = create_medicine_input(
+            code="2171022F1037",
+            name=fixture.prescription.rps[0].medicines[0].name.value,
+            substitution=substitution,
+        )
+        command = create_start_command(
+            fixture, dispensed_rps=(create_rp_input(medicines=(medicine,)),)
+        )
+        stored_before = {
+            key: asdict(value) for key, value in fixture.repository.items.items()
+        }
+        prescriptions_before = {
+            key: asdict(value)
+            for key, value in fixture.prescription_source.prescriptions.items()
+        }
+
+        # Act / Assert
+        with patch.object(
+            fixture.repository, "save", wraps=fixture.repository.save
+        ) as save_spy:
+            with pytest.raises(expected_error):
+                await fixture.start.execute(command)
+            save_spy.assert_not_called()
+        assert {
+            key: asdict(value) for key, value in fixture.repository.items.items()
+        } == stored_before
+        assert {
+            key: asdict(value)
+            for key, value in fixture.prescription_source.prescriptions.items()
+        } == prescriptions_before
 
     async def test_調剤を開始すると_調製中で保存される(self) -> None:
         # Arrange
@@ -482,6 +624,371 @@ class Test処方箋との整合:
 
 class Test変更調剤の記録:
     """3軸をそのまま記録する。加算の算定可否は判定しない。"""
+
+    async def test_調剤内容更新_リフィル二回目の正当代替_前回指定なしで回数日状態を保持する(
+        self,
+    ) -> None:
+        # Arrange
+        fixture = create_fixture(
+            prescription=create_prescription(management_info=_refill_management_info())
+        )
+        first_id = await _start(fixture)
+        await _verify_passed(fixture, first_id)
+        await fixture.complete.execute(
+            CompleteDispensingCommand(
+                corporate_id=str(fixture.corporate_id.value),
+                dispensing_id=first_id,
+                completion_type="continues",
+                next_dispensing_date=_NEXT_DATE,
+            )
+        )
+        second = await fixture.start.execute(
+            create_start_command(fixture, iteration=2, dispensed_on=_NEXT_DATE)
+        )
+        second_id = DispensingId.parse(second.id)
+        before = await fixture.repository.get(
+            corporate_id=fixture.corporate_id, dispensing_id=second_id
+        )
+        assert before is not None
+        prescriptions_before = {
+            key: asdict(value)
+            for key, value in fixture.prescription_source.prescriptions.items()
+        }
+        command = RecordDispensedContentCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            dispensing_id=second.id,
+            dispensed_rps=(
+                create_rp_input(medicines=(create_substituted_medicine_input(),)),
+            ),
+        )
+
+        # Act
+        actual = await fixture.record_content.execute(command)
+        after = await fixture.repository.get(
+            corporate_id=fixture.corporate_id, dispensing_id=second_id
+        )
+
+        # Assert
+        assert actual.id == second.id
+        assert actual.iteration == 2
+        assert actual.dispensed_date == "2026-09-21"
+        assert actual.status == "in_progress"
+        assert actual.dispensed_rps[0].medicines[0].substitution is not None
+        assert after is not None
+        assert after.dispensed_rps[0].medicines[0].substitution is not None
+        before_fields = asdict(before)
+        after_fields = asdict(after)
+        before_fields.pop("dispensed_rps")
+        after_fields.pop("dispensed_rps")
+        assert after_fields == before_fields
+        assert {
+            key: asdict(value)
+            for key, value in fixture.prescription_source.prescriptions.items()
+        } == prescriptions_before
+
+    @pytest.mark.parametrize("is_update", [False, True], ids=["開始", "更新"])
+    @pytest.mark.parametrize(
+        ("prescribed_type", "prescribed_code", "dispensed_type", "dispensed_code"),
+        [
+            pytest.param(
+                MedicineCodeType.YJ,
+                "2171022F1029",
+                "yj",
+                "2171022F1029",
+                id="同コード名称差",
+            ),
+            pytest.param(
+                MedicineCodeType.NONE, None, "yj", "2171022F1037", id="NONEからYJ"
+            ),
+            pytest.param(
+                MedicineCodeType.YJ, "2171022F1029", "none", None, id="YJからNONE"
+            ),
+            pytest.param(
+                MedicineCodeType.GENERIC,
+                "2171022F1ZZZ",
+                "yj",
+                "2171022F1037",
+                id="一般名からYJ",
+            ),
+        ],
+    )
+    async def test_調剤開始と更新_比較不能や同コード名称差_代替なしで入力薬品を保存する(
+        self,
+        is_update: bool,
+        prescribed_type: MedicineCodeType,
+        prescribed_code: str | None,
+        dispensed_type: str,
+        dispensed_code: str | None,
+    ) -> None:
+        # Arrange
+        fixture = create_fixture(
+            prescription=create_prescription(
+                rps=(
+                    create_rp(
+                        medicines=(
+                            create_medicine(
+                                code_type=prescribed_type,
+                                code=prescribed_code,
+                                name="原本の薬品名",
+                            ),
+                        )
+                    ),
+                )
+            )
+        )
+        initial_id: str | None = None
+        if is_update:
+            initial_medicine = replace(
+                create_medicine_input(code=prescribed_code, name="原本の薬品名"),
+                code_type=prescribed_type.value,
+            )
+            initial = await fixture.start.execute(
+                create_start_command(
+                    fixture,
+                    dispensed_rps=(create_rp_input(medicines=(initial_medicine,)),),
+                )
+            )
+            initial_id = initial.id
+        medicine_input = replace(
+            create_medicine_input(
+                code=dispensed_code, name="実調剤の別表記", substitution=None
+            ),
+            code_type=dispensed_type,
+        )
+        dispensed_rps = (create_rp_input(medicines=(medicine_input,)),)
+        prescriptions_before = {
+            key: asdict(value)
+            for key, value in fixture.prescription_source.prescriptions.items()
+        }
+
+        # Act
+        if is_update:
+            assert initial_id is not None
+            actual = await fixture.record_content.execute(
+                RecordDispensedContentCommand(
+                    corporate_id=str(fixture.corporate_id.value),
+                    dispensing_id=initial_id,
+                    dispensed_rps=dispensed_rps,
+                )
+            )
+        else:
+            actual = await fixture.start.execute(
+                create_start_command(fixture, dispensed_rps=dispensed_rps)
+            )
+        stored = await fixture.repository.get(
+            corporate_id=fixture.corporate_id,
+            dispensing_id=DispensingId.parse(actual.id),
+        )
+
+        # Assert
+        dto_medicine = actual.dispensed_rps[0].medicines[0]
+        assert (dto_medicine.code_type, dto_medicine.code, dto_medicine.name) == (
+            dispensed_type,
+            dispensed_code,
+            "実調剤の別表記",
+        )
+        assert dto_medicine.substitution is None
+        assert stored is not None
+        saved_medicine = stored.dispensed_rps[0].medicines[0]
+        assert saved_medicine.identifier.code_type.value == dispensed_type
+        if dispensed_code is None:
+            assert saved_medicine.identifier.code is None
+        else:
+            assert saved_medicine.identifier.code is not None
+            assert saved_medicine.identifier.code.value == dispensed_code
+        assert saved_medicine.name.value == "実調剤の別表記"
+        assert saved_medicine.substitution is None
+        if is_update:
+            assert actual.id == initial_id
+        assert {
+            key: asdict(value)
+            for key, value in fixture.prescription_source.prescriptions.items()
+        } == prescriptions_before
+
+    async def test_調剤内容更新_正当な後発品代替_同一IDで全代替情報と原本状態を保持する(
+        self,
+    ) -> None:
+        # Arrange
+        fixture = create_fixture()
+        started = await fixture.start.execute(create_start_command(fixture))
+        dispensing_id = DispensingId.parse(started.id)
+        stored_before = await fixture.repository.get(
+            corporate_id=fixture.corporate_id, dispensing_id=dispensing_id
+        )
+        assert stored_before is not None
+        prescriptions_before = {
+            key: asdict(value)
+            for key, value in fixture.prescription_source.prescriptions.items()
+        }
+        command = RecordDispensedContentCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            dispensing_id=started.id,
+            dispensed_rps=(
+                create_rp_input(
+                    medicines=(
+                        create_medicine_input(
+                            code="2171022F1037",
+                            name="アムロジピンＯＤ錠２．５ｍｇ「サワイ」",
+                            substitution=SubstitutionInput(
+                                category="generic_substitution",
+                                original_code_type="yj",
+                                original_code="2171022F1029",
+                                original_name="ノルバスク錠2.5mg",
+                                reason="患者希望による後発品変更",
+                                inquiry_number=None,
+                            ),
+                        ),
+                    )
+                ),
+            ),
+        )
+
+        # Act
+        actual = await fixture.record_content.execute(command)
+        stored_after = await fixture.repository.get(
+            corporate_id=fixture.corporate_id, dispensing_id=dispensing_id
+        )
+
+        # Assert
+        assert actual.id == started.id
+        dto_medicine = actual.dispensed_rps[0].medicines[0]
+        assert dto_medicine.code == "2171022F1037"
+        assert dto_medicine.substitution is not None
+        assert asdict(dto_medicine.substitution) == {
+            "category": "generic_substitution",
+            "original_code_type": "yj",
+            "original_code": "2171022F1029",
+            "original_name": "ノルバスク錠2.5mg",
+            "reason": "患者希望による後発品変更",
+            "inquiry_number": None,
+        }
+        assert stored_after is not None
+        medicine = stored_after.dispensed_rps[0].medicines[0]
+        assert medicine.identifier.code is not None
+        assert medicine.identifier.code.value == "2171022F1037"
+        substitution = medicine.substitution
+        assert substitution is not None
+        assert substitution.category.value == "generic_substitution"
+        assert substitution.original_identifier.code_type.value == "yj"
+        assert substitution.original_identifier.code is not None
+        assert substitution.original_identifier.code.value == "2171022F1029"
+        assert substitution.original_name.value == "ノルバスク錠2.5mg"
+        assert substitution.reason is not None
+        assert substitution.reason.value == "患者希望による後発品変更"
+        assert substitution.inquiry_number is None
+        before_fields = asdict(stored_before)
+        after_fields = asdict(stored_after)
+        before_fields.pop("dispensed_rps")
+        after_fields.pop("dispensed_rps")
+        assert after_fields == before_fields
+        assert {
+            key: asdict(value)
+            for key, value in fixture.prescription_source.prescriptions.items()
+        } == prescriptions_before
+
+    @pytest.mark.parametrize(
+        ("has_substitution", "expected_error"),
+        [
+            pytest.param(False, SubstitutionRequiredError, id="代替なし同名異コード"),
+            pytest.param(True, SubstitutionOriginalMismatchError, id="不正原本引用"),
+        ],
+    )
+    async def test_調剤内容更新_薬品対応不整合_保存せず元内容と状態日時と原本を保持する(
+        self,
+        has_substitution: bool,
+        expected_error: type[SubstitutionRequiredError]
+        | type[SubstitutionOriginalMismatchError],
+    ) -> None:
+        # Arrange
+        fixture = create_fixture(
+            prescription=create_prescription(
+                rps=(
+                    create_rp(
+                        medicines=(
+                            create_medicine(),
+                            create_medicine(
+                                line_number=2, code="2171022F1045", name="薬C"
+                            ),
+                        )
+                    ),
+                )
+            )
+        )
+        started = await fixture.start.execute(
+            create_start_command(
+                fixture,
+                dispensed_rps=(
+                    create_rp_input(
+                        medicines=(
+                            create_medicine_input(
+                                preparations=("unit_dose_packaged", "compounded")
+                            ),
+                            create_medicine_input(
+                                line_number=2, code="2171022F1045", name="薬C"
+                            ),
+                        )
+                    ),
+                ),
+            )
+        )
+        dispensing_id = DispensingId.parse(started.id)
+        stored = await fixture.repository.get(
+            corporate_id=fixture.corporate_id, dispensing_id=dispensing_id
+        )
+        assert stored is not None
+        stored_before = asdict(stored)
+        all_stored_before = {
+            key: asdict(value) for key, value in fixture.repository.items.items()
+        }
+        prescriptions_before = {
+            key: asdict(value)
+            for key, value in fixture.prescription_source.prescriptions.items()
+        }
+        substitution = (
+            SubstitutionInput(
+                category="generic_substitution",
+                original_code_type="yj",
+                original_code="2171022F1053",
+                original_name="別の原本薬品",
+            )
+            if has_substitution
+            else None
+        )
+        command = RecordDispensedContentCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            dispensing_id=started.id,
+            dispensed_rps=(
+                create_rp_input(
+                    medicines=(
+                        create_medicine_input(
+                            code="2171022F1037",
+                            name=fixture.prescription.rps[0].medicines[0].name.value,
+                            substitution=substitution,
+                        ),
+                    )
+                ),
+            ),
+        )
+
+        # Act / Assert
+        with patch.object(
+            fixture.repository, "save", wraps=fixture.repository.save
+        ) as save_spy:
+            with pytest.raises(expected_error):
+                await fixture.record_content.execute(command)
+            save_spy.assert_not_called()
+        stored_after = await fixture.repository.get(
+            corporate_id=fixture.corporate_id, dispensing_id=dispensing_id
+        )
+        assert stored_after is not None
+        assert asdict(stored_after) == stored_before
+        assert {
+            key: asdict(value) for key, value in fixture.repository.items.items()
+        } == all_stored_before
+        assert {
+            key: asdict(value)
+            for key, value in fixture.prescription_source.prescriptions.items()
+        } == prescriptions_before
 
     async def test_後発品への変更を_記録できる(self) -> None:
         # Arrange

@@ -33,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.application.access_control.models import ActorRole, ResolvedActorContext
 from app.application.common.clock import Clock
+from app.application.dispensing.inputs import SubstitutionInput
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.primitives import DispensingProcessStatus
@@ -62,27 +63,37 @@ from app.domain.staff.primitives import (
     StoreAffiliation,
 )
 from app.infrastructure.di.root import PostgresCompositionRoot
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
+from app.infrastructure.postgres.connection import PostgresSettings, PostgresUnitOfWork
 from app.infrastructure.postgres.repositories.repository_set import (
     PostgresRepositorySet,
 )
 from app.presentational.app_factory import create_app
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
+from app.presentational.routers.dispensing import (
+    RecordDispensedContentRequest,
+    StartDispensingRequest,
+)
+from tests.application.dispensing.helpers import create_medicine_input, create_rp_input
 from tests.factories.dispensing_factory import create_dispensing, verify_passed
 from tests.factories.medication_history_factory import (
     create_allergy_intent,
     create_record,
 )
 from tests.factories.persistence_factory import create_patient
-from tests.factories.prescription_factory import create_prescription
+from tests.factories.prescription_factory import (
+    create_medicine,
+    create_prescription,
+    create_rp,
+)
 from tests.factories.staff_factory import create_staff
-from tests.factories.store_factory import create_store
+from tests.factories.store_factory import create_manager_assignment, create_store
 from tests.fakes.fake_clock import FakeClock
 from tests.fakes.stub_actor_context_provider import (
     VALID_TOKEN,
     StubActorContextProvider,
 )
 from tests.infrastructure.postgres.helpers import create_corporate
+from tests.integration.dispensing_content_helpers import snapshot_dispensing_persistence
 from tests.integration.medication_history_helpers import save_history_with_event
 from tests.integration.test_identity_persistence import _person
 
@@ -276,6 +287,241 @@ def _client(fixture: ClinicalFixture) -> httpx.AsyncClient:
         base_url="http://test",
         headers={"Authorization": f"Bearer {VALID_TOKEN}"},
     )
+
+
+async def setup_http_dispensing_content(
+    engine: AsyncEngine, session_factory: async_sessionmaker[AsyncSession]
+) -> tuple[ClinicalFixture, Prescription, ResolvedActorContext]:
+    """実HTTP開始に必要な未調剤原本と管理薬剤師を保存する。"""
+    fixture = await setup_clinical(engine, session_factory)
+    state = getattr(fixture.app.state, STATE_ATTRIBUTE)
+    assert isinstance(state, PresentationState)
+    actor = await state.actor_provider.authenticate(VALID_TOKEN)
+    assert isinstance(actor, ResolvedActorContext)
+    assert actor.staff_id is not None
+    prescription = create_prescription(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.prescription.store_id,
+        patient_id=fixture.prescription.patient_id,
+        document_number="9876543210123456",
+    ).ready_for_dispensing()
+    async with PostgresUnitOfWork(session_factory) as work:
+        repositories = PostgresRepositorySet.create(work)
+        await repositories.prescription.save(prescription)
+        await repositories.manager_assignment.save(
+            create_manager_assignment(
+                corporate_id=fixture.corporate_id,
+                store_id=prescription.store_id,
+                staff_id=actor.staff_id,
+                person_id=fixture.person.id,
+            )
+        )
+        await work.commit()
+    return fixture, prescription, actor
+
+
+@pytest.mark.parametrize(
+    ("has_substitution", "expected_code"),
+    [
+        pytest.param(
+            False, "DISPENSING_SUBSTITUTION_REQUIRED", id="代替なし同名異コード"
+        ),
+        pytest.param(
+            True, "DISPENSING_SUBSTITUTION_ORIGINAL_MISMATCH", id="不正原本引用"
+        ),
+    ],
+)
+async def test_実HTTP実DB調剤開始_薬品対応不整合_422と別要求一覧と全保存状態を保持する(
+    engine: AsyncEngine,
+    session_factory: async_sessionmaker[AsyncSession],
+    postgres_settings: PostgresSettings,
+    monkeypatch: pytest.MonkeyPatch,
+    has_substitution: bool,
+    expected_code: str,
+) -> None:
+    # Arrange
+    fixture, prescription, actor = await setup_http_dispensing_content(
+        engine, session_factory
+    )
+    assert actor.staff_id is not None
+    saved_before = await snapshot_dispensing_persistence(engine)
+    substitution = (
+        SubstitutionInput(
+            category="generic_substitution",
+            original_code_type="yj",
+            original_code="2171022F1045",
+            original_name="別の原本薬品",
+        )
+        if has_substitution
+        else None
+    )
+    body = StartDispensingRequest(
+        store_id=str(prescription.store_id.value),
+        prescription_id=str(prescription.id.value),
+        dispenser_id=str(actor.staff_id.value),
+        iteration=1,
+        dispensed_date=date(2026, 8, 24),
+        dispensed_rps=[
+            create_rp_input(
+                medicines=(
+                    create_medicine_input(
+                        code="2171022F1037",
+                        name=prescription.rps[0].medicines[0].name.value,
+                        substitution=substitution,
+                    ),
+                )
+            )
+        ],
+    ).model_dump(mode="json")
+    corporate_id = str(fixture.corporate_id.value)
+    list_url = (
+        f"/corporates/{corporate_id}/prescriptions/{prescription.id.value}/dispensings"
+    )
+    monkeypatch.setenv("DATABASE_URL", postgres_settings.database_url)
+
+    # Act: 本番lifespanとHTTPの依存終了まで通し、別要求で一覧を読む。
+    async with (
+        fixture.app.router.lifespan_context(fixture.app),
+        _client(fixture) as client,
+    ):
+        listed_before = await client.get(list_url)
+        assert listed_before.status_code == 200
+        rejected = await client.post(
+            f"/corporates/{corporate_id}/dispensings", json=body
+        )
+        listed_after = await client.get(list_url)
+    saved_after = await snapshot_dispensing_persistence(engine)
+
+    # Assert
+    assert rejected.status_code == 422, rejected.text
+    error = rejected.json()
+    assert error["code"] == expected_code
+    assert error["errors"] == []
+    assert "処方原本" in error["message"]
+    assert "RP番号: 1" in error["message"]
+    assert "薬品連番: 1" in error["message"]
+    assert listed_before.json() == []
+    assert listed_after.status_code == 200
+    assert listed_after.json() == listed_before.json()
+    assert saved_after == saved_before
+
+
+@pytest.mark.parametrize(
+    ("has_substitution", "expected_code"),
+    [
+        pytest.param(
+            False, "DISPENSING_SUBSTITUTION_REQUIRED", id="代替なし同名異コード"
+        ),
+        pytest.param(
+            True, "DISPENSING_SUBSTITUTION_ORIGINAL_MISMATCH", id="不正原本引用"
+        ),
+    ],
+)
+async def test_実HTTP実DB調剤更新_薬品対応不整合_422と別GET全内容世代原本監査を保持する(
+    engine: AsyncEngine,
+    session_factory: async_sessionmaker[AsyncSession],
+    postgres_settings: PostgresSettings,
+    monkeypatch: pytest.MonkeyPatch,
+    has_substitution: bool,
+    expected_code: str,
+) -> None:
+    # Arrange
+    fixture, prescription, actor = await setup_http_dispensing_content(
+        engine, session_factory
+    )
+    assert actor.staff_id is not None
+    prescription = replace(
+        prescription,
+        rps=(
+            create_rp(
+                medicines=(
+                    create_medicine(),
+                    create_medicine(line_number=2, code="2171022F1045", name="薬C"),
+                )
+            ),
+        ),
+    )
+    async with PostgresUnitOfWork(session_factory) as work:
+        repository = PostgresRepositorySet.create(work).prescription
+        await repository.get(
+            corporate_id=prescription.corporate_id, prescription_id=prescription.id
+        )
+        await repository.save(prescription)
+        await work.commit()
+    start_body = StartDispensingRequest(
+        store_id=str(prescription.store_id.value),
+        prescription_id=str(prescription.id.value),
+        dispenser_id=str(actor.staff_id.value),
+        iteration=1,
+        dispensed_date=date(2026, 8, 24),
+        dispensed_rps=[
+            create_rp_input(
+                medicines=(
+                    create_medicine_input(
+                        preparations=("unit_dose_packaged", "compounded")
+                    ),
+                    create_medicine_input(
+                        line_number=2, code="2171022F1045", name="薬C"
+                    ),
+                )
+            )
+        ],
+    ).model_dump(mode="json")
+    substitution = (
+        SubstitutionInput(
+            category="generic_substitution",
+            original_code_type="yj",
+            original_code="2171022F1053",
+            original_name="別の原本薬品",
+        )
+        if has_substitution
+        else None
+    )
+    body = RecordDispensedContentRequest(
+        dispensed_rps=[
+            create_rp_input(
+                medicines=(
+                    create_medicine_input(
+                        code="2171022F1037",
+                        name=prescription.rps[0].medicines[0].name.value,
+                        substitution=substitution,
+                    ),
+                )
+            )
+        ]
+    ).model_dump(mode="json")
+    corporate_id = str(fixture.corporate_id.value)
+    monkeypatch.setenv("DATABASE_URL", postgres_settings.database_url)
+    async with (
+        fixture.app.router.lifespan_context(fixture.app),
+        _client(fixture) as client,
+    ):
+        started = await client.post(
+            f"/corporates/{corporate_id}/dispensings", json=start_body
+        )
+        assert started.status_code == 201, started.text
+        detail_url = f"/corporates/{corporate_id}/dispensings/{started.json()['id']}"
+        before = await client.get(detail_url)
+        assert before.status_code == 200
+        saved_before = await snapshot_dispensing_persistence(engine)
+        assert saved_before["operation_audits"]
+
+        # Act: 依存終了後の別要求で読み戻す。
+        rejected = await client.put(f"{detail_url}/dispensed-content", json=body)
+        after = await client.get(detail_url)
+    saved_after = await snapshot_dispensing_persistence(engine)
+
+    # Assert
+    assert rejected.status_code == 422, rejected.text
+    error = rejected.json()
+    assert error["code"] == expected_code
+    assert error["errors"] == []
+    assert "処方原本" in error["message"]
+    assert "RP番号: 1" in error["message"]
+    assert "薬品連番: 1" in error["message"]
+    assert after.status_code == 200
+    assert after.json() == before.json()
+    assert saved_after == saved_before
 
 
 @asynccontextmanager

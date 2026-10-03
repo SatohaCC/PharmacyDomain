@@ -82,7 +82,6 @@ class RecordDispensedContentUseCase:
             corporate_id=process.corporate_id,
             prescription_id=process.prescription_id,
         )
-        self._consistency_service.ensure_rps_match_prescription(process, prescription)
-        self._consistency_service.ensure_substitutions_are_allowed(
+        self._consistency_service.ensure_content_matches_prescription(
             process, prescription
         )

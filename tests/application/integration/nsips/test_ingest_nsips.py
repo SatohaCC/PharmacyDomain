@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import replace
 from datetime import UTC, date, datetime
+from decimal import Decimal
 
 import pytest
 
@@ -15,8 +16,10 @@ from app.application.integration.nsips.ingest_nsips import (
 )
 from app.application.integration.nsips.models import (
     NsipsBundle,
+    NsipsMedicineInfo,
     NsipsPatientInfo,
     NsipsPrescriptionInfo,
+    NsipsRpInfo,
 )
 from app.application.integration.nsips.parser import NsipsParser
 from app.domain.corporate.primitives import CorporateId
@@ -35,9 +38,11 @@ from app.domain.patient.primitives import (
     PatientId,
 )
 from app.domain.prescription.exceptions import MedicineClassificationMissingError
+from app.domain.prescription.primitives import PrescriptionId
 from app.domain.reception.primitives import ReceptionFingerprint, ReceptionId
 from app.domain.reception.reception import Reception
 from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.domain.shared.medicine import MedicineCode, MedicineCodeType
 from app.domain.shared.person_name import PersonNames
 from app.domain.staff.primitives import (
     AffiliationPeriod,
@@ -110,6 +115,82 @@ async def test_新規患者のNSIPSが全集約一括で起票される() -> Non
     reception = next(iter(fixture.reception_repo.items.values()))
     assert reception.medication_history_id is None
     assert reception.dispensing_id == DispensingId.parse(result.dispensing_id)
+
+
+@pytest.mark.asyncio
+async def test_NSIPS初回取込_薬品一件_保存処方と調剤の識別情報が一致する() -> None:
+    """初回取込は原本と同じレセプトコードを代替なしで保存する。"""
+    # Arrange
+    fixture = await create_fixture()
+    bundle = _minimal_structured_bundle("DOC-MEDICINE-INITIAL")
+    bundle = replace(
+        bundle,
+        prescription=replace(
+            bundle.prescription,
+            issued_date=date(2026, 9, 21),
+            rps=(
+                NsipsRpInfo(
+                    rp_number=1,
+                    group_name="内服",
+                    instructions="1日3回毎食後",
+                    dispensing_quantity=14,
+                    medicines=(
+                        NsipsMedicineInfo(
+                            medicine_code="610406001",
+                            medicine_name="アムロジピン",
+                            dosage=Decimal("1"),
+                            unit="錠",
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        dispensed_date=date(2026, 9, 21),
+    )
+    command = IngestNsipsCommand(
+        corporate_id=str(fixture.corporate_id.value),
+        store_id=str(fixture.store_id.value),
+        dispenser_staff_id=str(fixture.pharmacist_id.value),
+        structured_bundle=bundle,
+    )
+
+    # Act
+    result = await execute_structured_test_command(fixture, command)
+
+    # Assert
+    assert result.is_new_patient
+    assert not result.is_duplicate
+    assert result.prescription_id is not None
+    assert result.dispensing_id is not None
+    prescription = await fixture.prescription_repo.get(
+        corporate_id=fixture.corporate_id,
+        prescription_id=PrescriptionId.parse(result.prescription_id),
+    )
+    dispensing = await fixture.dispensing_repo.get(
+        corporate_id=fixture.corporate_id,
+        dispensing_id=DispensingId.parse(result.dispensing_id),
+    )
+    assert prescription is not None
+    assert dispensing is not None
+    assert len(prescription.rps) == len(dispensing.dispensed_rps) == 1
+    prescribed_rp = prescription.rps[0]
+    dispensed_rp = dispensing.dispensed_rps[0]
+    assert prescribed_rp.rp_number.value == dispensed_rp.rp_number.value == 1
+    assert len(prescribed_rp.medicines) == len(dispensed_rp.medicines) == 1
+    prescribed = prescribed_rp.medicines[0]
+    dispensed = dispensed_rp.medicines[0]
+    assert prescribed.line_number.value == dispensed.line_number.value == 1
+    assert prescribed.identifier.code_type == MedicineCodeType.RECEIPT
+    assert dispensed.identifier.code_type == MedicineCodeType.RECEIPT
+    assert prescribed.identifier.code == MedicineCode("610406001")
+    assert dispensed.identifier.code == MedicineCode("610406001")
+    assert dispensed.substitution is None
+    assert len(fixture.patient_repo.items) == 1
+    assert len(fixture.reception_repo.items) == 1
+    assert len(fixture.prescription_repo.items) == 1
+    assert len(fixture.dispensing_repo.items) == 1
+    assert result.medication_history_id is None
+    assert fixture.medication_history_repo.items == {}
 
 
 @pytest.mark.asyncio
