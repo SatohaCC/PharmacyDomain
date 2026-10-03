@@ -11,6 +11,9 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.application.integration.nsips.exceptions import (
+    NsipsPatientIdentityConflictError,
+)
 from app.application.integration.nsips.ingest_nsips import IngestNsipsCommand
 from app.application.integration.nsips.models import (
     NsipsBundle,
@@ -27,13 +30,21 @@ from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
 from app.domain.medication_history.primitives import (
+    AmendmentReason,
+    AmendmentTimestamp,
     FinalizedTimestamp,
     MedicationHistoryRecordId,
 )
 from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.value_objects import ExternalCorrectionKind
+from app.domain.patient.external_identifier import PatientExternalIdentifier
+from app.domain.patient.heading import PatientHeadingContent, PatientHeadingText
 from app.domain.patient.patient import Patient
-from app.domain.patient.primitives import ExternalPatientId, PatientAddress
+from app.domain.patient.primitives import (
+    ExternalPatientId,
+    ExternalSystemName,
+    PatientAddress,
+)
 from app.domain.patient.profile_history import (
     PatientProfileChange,
     PatientProfileSnapshot,
@@ -58,6 +69,7 @@ from app.infrastructure.postgres.repositories.repository_set import (
 )
 from tests.factories.medication_history_factory import (
     create_record,
+    create_soap,
     finalize_record_with_review,
 )
 from tests.factories.medicine_catalog_factory import create_medicine
@@ -575,3 +587,392 @@ async def test_TC36_削除通知処理中の失敗で処方と調剤と薬歴を
         )
         assert reloaded_reception is not None
         assert reloaded_reception.medication_history_id == history_id
+
+
+async def _persisted_nsips_state(
+    engine: AsyncEngine, corporate_id: CorporateId
+) -> dict[str, list[dict[str, Any]]]:
+    """新しい接続・トランザクションでpayloadと全導出列・versionを読む。"""
+    state: dict[str, list[dict[str, Any]]] = {}
+    async with engine.begin() as connection:
+        for table in _EXPECTED_INGEST_ROW_COUNTS:
+            rows = await connection.execute(
+                text(
+                    f"SELECT to_jsonb(saved) FROM {table} AS saved WHERE corporate_id = :corporate_id ORDER BY id"
+                ),
+                {"corporate_id": corporate_id.value},
+            )
+            state[table] = [row[0] for row in rows]
+    return state
+
+
+@pytest.mark.asyncio
+async def test_実DB取込_外部患者IDと属性不一致を二度拒否_全永続化状態を維持する(
+    engine: AsyncEngine,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """準備をcommitし、拒否ごとに独立したDB読み直しで全行と導出列を比較する。"""
+    # Arrange
+    organization = await setup_organization(engine, session_factory)
+    await appoint_manager(session_factory, organization)
+    medicine = replace(
+        create_medicine(code="2171022F1029", name="試験用医薬品"),
+        identifier=MedicineIdentifier(
+            code_type=MedicineCodeType.RECEIPT, code=MedicineCode("610406001")
+        ),
+    )
+    async with PostgresUnitOfWork(session_factory) as work:
+        await PostgresRepositorySet.create(work).medicine_catalog.save(medicine)
+        await work.commit()
+    reception_id = ReceptionId.generate()
+    original = _bundle()
+    command = IngestNsipsCommand(
+        corporate_id=str(organization.corporate.id.value),
+        store_id=str(organization.store.id.value),
+        dispenser_staff_id=str(organization.staff[0].id.value),
+        reception_id=str(reception_id.value),
+        structured_bundle=original,
+    )
+    async with organization.root.request_scope(
+        authorization=organization.authorization
+    ) as scope:
+        await scope.use_cases.integration.ingest_nsips.execute(command)
+    legitimate = replace(
+        original, patient=replace(original.patient, address="東京都品川区三丁目")
+    )
+    async with organization.root.request_scope(
+        authorization=organization.authorization
+    ) as scope:
+        await scope.use_cases.integration.ingest_nsips.execute(
+            replace(command, structured_bundle=legitimate)
+        )
+    now = datetime(2026, 9, 17, 12, tzinfo=UTC)
+    async with PostgresUnitOfWork(session_factory) as work:
+        repos = PostgresRepositorySet.create(work)
+        reception = await repos.reception.get(
+            corporate_id=organization.corporate.id,
+            store_id=organization.store.id,
+            reception_id=reception_id,
+        )
+        assert reception is not None
+        assert reception.correction_history
+        assert reception.source_data_history
+        patient = await repos.patient.get(
+            corporate_id=organization.corporate.id, patient_id=reception.patient_id
+        )
+        assert patient is not None
+        assert patient.profile_history
+        account = organization.accounts[0]
+        patient = patient.change_heading(
+            PatientHeadingContent(
+                summary=PatientHeadingText("元患者の継続申し送り"), notes=None
+            ),
+            expected_revision=0,
+            person_id=account.person_id,
+            account_id=account.id,
+            recorded_at=now,
+        )
+        assert patient.heading_history
+        await repos.patient.save(patient)
+        assert reception.dispensing_id is not None
+        assert reception.prescription_id is not None
+        record = finalize_record_with_review(
+            create_record(
+                corporate_id=organization.corporate.id,
+                store_id=organization.store.id,
+                patient_id=reception.patient_id,
+                dispensing_id=reception.dispensing_id,
+                prescription_id=reception.prescription_id,
+                counselor_id=organization.staff[0].id,
+                counseled_at=now,
+            ),
+            finalized_at=FinalizedTimestamp(now),
+            finalized_by=organization.staff[0].id,
+        )
+        record = record.amend(
+            amended_soap=create_soap(subjective="受信前に薬剤師が追記した内容。"),
+            reason=AmendmentReason("服薬状況を補足した。"),
+            amended_by=organization.staff[0].id,
+            amended_at=AmendmentTimestamp(now),
+        )
+        assert record.amendments
+        await save_history_with_event(repos, record)
+        await repos.reception.save(replace(reception, medication_history_id=record.id))
+        await work.commit()
+
+    before = await _persisted_nsips_state(engine, organization.corporate.id)
+    assert all(before[table] for table in _EXPECTED_INGEST_ROW_COUNTS)
+    conflicting = replace(
+        legitimate,
+        patient=replace(
+            legitimate.patient,
+            external_patient_id="NSIPS-OTHER-PERSON",
+            kanji_name="別人花子",
+            kana_name="ベツジンハナコ",
+            birth_date=date(1990, 1, 2),
+            address="非公開住所",
+            postal_code="1000002",
+            phone_number="03-9999-8888",
+        ),
+    )
+    for _ in range(2):
+        # Act
+        with pytest.raises(NsipsPatientIdentityConflictError):
+            async with organization.root.request_scope(
+                authorization=organization.authorization
+            ) as scope:
+                await scope.use_cases.integration.ingest_nsips.execute(
+                    replace(command, structured_bundle=conflicting)
+                )
+        # Assert
+        assert await _persisted_nsips_state(engine, organization.corporate.id) == before
+
+
+@pytest.mark.asyncio
+async def test_実DB取込_旧患者ID指紋欠損_別患者拒否後に元ID訂正を永続化する(
+    engine: AsyncEngine,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """旧指紋の別患者受信を拒否した後、元患者の正当な訂正と参照をDBへ保持する。"""
+    # Arrange
+    organization = await setup_organization(engine, session_factory)
+    await appoint_manager(session_factory, organization)
+    medicine = replace(
+        create_medicine(code="2171022F1029", name="試験用医薬品"),
+        identifier=MedicineIdentifier(
+            code_type=MedicineCodeType.RECEIPT, code=MedicineCode("610406001")
+        ),
+    )
+    async with PostgresUnitOfWork(session_factory) as work:
+        await PostgresRepositorySet.create(work).medicine_catalog.save(medicine)
+        await work.commit()
+    reception_id = ReceptionId.generate()
+    original = _bundle()
+    command = IngestNsipsCommand(
+        corporate_id=str(organization.corporate.id.value),
+        store_id=str(organization.store.id.value),
+        dispenser_staff_id=str(organization.staff[0].id.value),
+        reception_id=str(reception_id.value),
+        structured_bundle=original,
+    )
+    async with organization.root.request_scope(
+        authorization=organization.authorization
+    ) as scope:
+        await scope.use_cases.integration.ingest_nsips.execute(command)
+    legitimate = replace(
+        original, patient=replace(original.patient, address="東京都品川区三丁目")
+    )
+    async with organization.root.request_scope(
+        authorization=organization.authorization
+    ) as scope:
+        await scope.use_cases.integration.ingest_nsips.execute(
+            replace(command, structured_bundle=legitimate)
+        )
+    now = datetime(2026, 9, 17, 12, tzinfo=UTC)
+    async with PostgresUnitOfWork(session_factory) as work:
+        repos = PostgresRepositorySet.create(work)
+        reception = await repos.reception.get(
+            corporate_id=organization.corporate.id,
+            store_id=organization.store.id,
+            reception_id=reception_id,
+        )
+        assert reception is not None
+        assert reception.correction_history
+        assert reception.source_data_history
+        patient = await repos.patient.get(
+            corporate_id=organization.corporate.id, patient_id=reception.patient_id
+        )
+        assert patient is not None
+        assert patient.profile_history
+        account = organization.accounts[0]
+        patient = patient.change_heading(
+            PatientHeadingContent(
+                summary=PatientHeadingText("元患者の継続申し送り"), notes=None
+            ),
+            expected_revision=0,
+            person_id=account.person_id,
+            account_id=account.id,
+            recorded_at=now,
+        )
+        assert patient.heading_history
+        await repos.patient.save(patient)
+        assert reception.dispensing_id is not None
+        assert reception.prescription_id is not None
+        record = finalize_record_with_review(
+            create_record(
+                corporate_id=organization.corporate.id,
+                store_id=organization.store.id,
+                patient_id=reception.patient_id,
+                dispensing_id=reception.dispensing_id,
+                prescription_id=reception.prescription_id,
+                counselor_id=organization.staff[0].id,
+                counseled_at=now,
+            ),
+            finalized_at=FinalizedTimestamp(now),
+            finalized_by=organization.staff[0].id,
+        )
+        record = record.amend(
+            amended_soap=create_soap(subjective="受信前に薬剤師が追記した内容。"),
+            reason=AmendmentReason("服薬状況を補足した。"),
+            amended_by=organization.staff[0].id,
+            amended_at=AmendmentTimestamp(now),
+        )
+        assert record.amendments
+        await save_history_with_event(repos, record)
+        await repos.reception.save(replace(reception, medication_history_id=record.id))
+        await work.commit()
+
+    alternate_id = ExternalPatientId("NSIPS-LEGACY-OTHER-PATIENT")
+    async with PostgresUnitOfWork(session_factory) as work:
+        repos = PostgresRepositorySet.create(work)
+        stored = await repos.reception.get(
+            corporate_id=organization.corporate.id,
+            store_id=organization.store.id,
+            reception_id=reception_id,
+        )
+        assert stored is not None
+        legacy = replace(
+            stored,
+            field_fingerprints=tuple(
+                (path, fingerprint)
+                for path, fingerprint in stored.field_fingerprints
+                if path.value != "patient.external_patient_id"
+            ),
+        )
+        assert legacy.field_fingerprints
+        await repos.reception.save(legacy)
+        other_patient = create_patient(corporate_id=organization.corporate.id)
+        other_patient = replace(
+            other_patient,
+            patient_number=await repos.patient.allocate_patient_number(
+                organization.corporate.id
+            ),
+        )
+        await repos.patient.save(other_patient)
+        await repos.patient_external_identifier.save(
+            PatientExternalIdentifier.create(
+                corporate_id=organization.corporate.id,
+                store_id=organization.store.id,
+                patient_id=other_patient.id,
+                system_name=ExternalSystemName("recept"),
+                external_patient_id=alternate_id,
+            )
+        )
+        for external_id, expected_patient_id in (
+            (ExternalPatientId(legitimate.patient.external_patient_id), patient.id),
+            (alternate_id, other_patient.id),
+        ):
+            scoped_link = await repos.patient_external_identifier.get_active_by_source(
+                corporate_id=organization.corporate.id,
+                store_id=organization.store.id,
+                system_name=ExternalSystemName("recept"),
+                external_patient_id=external_id,
+            )
+            assert scoped_link is not None
+            assert scoped_link.patient_id == expected_patient_id
+        await work.commit()
+
+    before = await _persisted_nsips_state(engine, organization.corporate.id)
+    conflicting = replace(
+        legitimate,
+        patient=replace(
+            legitimate.patient,
+            external_patient_id=alternate_id.value,
+            kanji_name="別人花子",
+        ),
+    )
+    # Act
+    with pytest.raises(NsipsPatientIdentityConflictError):
+        async with organization.root.request_scope(
+            authorization=organization.authorization
+        ) as scope:
+            await scope.use_cases.integration.ingest_nsips.execute(
+                replace(command, structured_bundle=conflicting)
+            )
+    # Assert: 拒否後に別transactionで全保存値を読み直す。
+    assert await _persisted_nsips_state(engine, organization.corporate.id) == before
+
+    restored = replace(
+        legitimate, patient=replace(legitimate.patient, kanji_name="正当訂正")
+    )
+    # Act
+    async with organization.root.request_scope(
+        authorization=organization.authorization
+    ) as scope:
+        accepted = await scope.use_cases.integration.ingest_nsips.execute(
+            replace(command, structured_bundle=restored)
+        )
+    # Assert: 新しいUoWで訂正と各参照を復元する。
+    async with PostgresUnitOfWork(session_factory) as work:
+        repos = PostgresRepositorySet.create(work)
+        updated_reception = await repos.reception.get(
+            corporate_id=organization.corporate.id,
+            store_id=organization.store.id,
+            reception_id=reception_id,
+        )
+        assert updated_reception is not None
+        updated_patient = await repos.patient.get(
+            corporate_id=organization.corporate.id, patient_id=patient.id
+        )
+        assert updated_patient is not None
+        assert updated_patient.names.kanji.full_name == "正当 訂正"
+        assert len(updated_patient.profile_history) == len(patient.profile_history) + 1
+        assert updated_patient.profile_history[:-1] == patient.profile_history
+        assert updated_patient.heading_history == patient.heading_history
+        assert (
+            len(updated_reception.correction_history)
+            == len(legacy.correction_history) + 1
+        )
+        assert updated_reception.correction_history[:-1] == legacy.correction_history
+        assert updated_reception.source_data_history[:-1] == legacy.source_data_history
+        assert updated_reception.patient_id == patient.id
+        assert updated_reception.prescription_id == record.prescription_id
+        assert updated_reception.dispensing_id == record.dispensing_id
+        assert updated_reception.medication_history_id == record.id
+        assert record.prescription_id is not None
+        assert record.dispensing_id is not None
+        prescription = await repos.prescription.get(
+            corporate_id=organization.corporate.id,
+            prescription_id=record.prescription_id,
+        )
+        dispensing = await repos.dispensing.get(
+            corporate_id=organization.corporate.id, dispensing_id=record.dispensing_id
+        )
+        history = await repos.medication_history.get(
+            corporate_id=organization.corporate.id, record_id=record.id
+        )
+        assert prescription is not None and prescription.patient_id == patient.id
+        assert dispensing is not None and dispensing.prescription_id == prescription.id
+        assert history is not None and history.patient_id == patient.id
+        assert history.prescription_id == prescription.id
+        assert history.dispensing_id == dispensing.id
+        assert history.amendments == record.amendments
+        unchanged_other = await repos.patient.get(
+            corporate_id=organization.corporate.id, patient_id=other_patient.id
+        )
+        assert unchanged_other is not None
+        assert unchanged_other.profile_snapshot() == other_patient.profile_snapshot()
+        assert unchanged_other.profile_history == other_patient.profile_history
+        assert accepted.patient_id == str(patient.id.value)
+    after = await _persisted_nsips_state(engine, organization.corporate.id)
+    assert {table: len(rows) for table, rows in after.items()} == {
+        table: len(rows) for table, rows in before.items()
+    }
+    assert (
+        after["patient_external_identifiers"] == before["patient_external_identifiers"]
+    )
+
+    # 訂正完全再送のDB冪等性を検証 (I62-19)
+    async with organization.root.request_scope(
+        authorization=organization.authorization
+    ) as scope:
+        resend_accepted = await scope.use_cases.integration.ingest_nsips.execute(
+            replace(command, structured_bundle=restored)
+        )
+    assert resend_accepted.is_duplicate is True
+    assert resend_accepted.patient_id == accepted.patient_id
+    assert resend_accepted.prescription_id == accepted.prescription_id
+    assert resend_accepted.dispensing_id == accepted.dispensing_id
+    assert resend_accepted.medication_history_id == accepted.medication_history_id
+    resend_state = await _persisted_nsips_state(engine, organization.corporate.id)
+    assert resend_state == after

@@ -20,7 +20,10 @@ from app.application.coverage.register_patient_coverage import (
 from app.application.dispensing.exceptions import DispensingDateRequiredError
 from app.application.dispensing.start_dispensing import StartDispensingUseCase
 from app.application.dispensing.support import build_dispensed_rps
-from app.application.integration.nsips.exceptions import NsipsParseError
+from app.application.integration.nsips.exceptions import (
+    NsipsParseError,
+    NsipsPatientIdentityConflictError,
+)
 from app.application.integration.nsips.mapper import NsipsDataMapper
 from app.application.integration.nsips.models import NsipsBundle
 from app.application.integration.nsips.parser import NsipsParser
@@ -680,6 +683,32 @@ class IngestNsipsUseCase:
             store_id=store_id,
             reception_id=reception_id,
         )
+        if existing_reception is not None:
+            patient_id_path = ReceptionFieldPath(_EXTERNAL_PATIENT_ID_FIELD_PATH)
+            previous_patient_id = dict(existing_reception.field_fingerprints).get(
+                patient_id_path
+            )
+            if (
+                previous_patient_id is not None
+                and previous_patient_id != dict(incoming_fingerprints)[patient_id_path]
+            ):
+                raise NsipsPatientIdentityConflictError()
+            if previous_patient_id is None:
+                patient_link = (
+                    await self._patient_external_id_repo.get_active_by_source(
+                        corporate_id=corporate_id,
+                        store_id=store_id,
+                        system_name=ExternalSystemName("recept"),
+                        external_patient_id=ExternalPatientId(
+                            bundle.patient.external_patient_id
+                        ),
+                    )
+                )
+                if (
+                    patient_link is None
+                    or patient_link.patient_id != existing_reception.patient_id
+                ):
+                    raise NsipsPatientIdentityConflictError()
         if bundle.correction_kind is ExternalCorrectionKind.DELETE:
             if existing_reception is None:
                 raise NsipsParseError("削除通知は、既存の受付IDへ紐づけてください。")

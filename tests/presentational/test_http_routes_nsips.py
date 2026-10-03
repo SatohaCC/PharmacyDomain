@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import uuid
 from collections.abc import Iterator
+from dataclasses import asdict
 from http import HTTPStatus
 from typing import Any
 
@@ -14,6 +15,7 @@ from fastapi.testclient import TestClient
 from app.infrastructure.di.bundles.integration import IntegrationUseCases
 from app.presentational.app_factory import create_app
 from app.presentational.dependencies import get_integration_use_cases
+from app.presentational.errors import ErrorResponse
 from tests.application.integration.nsips.helpers import NsipsFixture, create_fixture
 from tests.fakes.stub_actor_context_provider import (
     VALID_TOKEN,
@@ -22,6 +24,81 @@ from tests.fakes.stub_actor_context_provider import (
 from tests.presentational.helpers import vendor_admin
 
 _HEADERS = {"Authorization": f"Bearer {VALID_TOKEN}"}
+
+
+def test_同受付の外部IDと属性不一致POST_409と保存不変とOpenAPI契約を維持する(
+    client: TestClient, nsips_fixture: NsipsFixture
+) -> None:
+    """実UseCaseの拒否を共通本文へ翻訳し、受付の既存保存値を維持する。"""
+    # Arrange
+    corporate_id = str(nsips_fixture.corporate_id.value)
+    store_id = str(nsips_fixture.store_id.value)
+    url = f"/corporates/{corporate_id}/stores/{store_id}/integrations/nsips"
+    payload: dict[str, Any] = {
+        "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
+        "reception_id": str(uuid.uuid7()),
+        "structured_bundle": _valid_structured_bundle(),
+    }
+    initial = client.post(url, json=payload, headers=_HEADERS)
+    assert initial.status_code == HTTPStatus.CREATED
+
+    def snapshot() -> tuple[dict[object, dict[str, Any]], ...]:
+        """全保存値を取得し、IDによる集約の等値判定を避ける。"""
+        return tuple(
+            {key: asdict(value) for key, value in repository.items.items()}
+            for repository in (
+                nsips_fixture.patient_repo,
+                nsips_fixture.patient_external_id_repo,
+                nsips_fixture.reception_repo,
+                nsips_fixture.prescription_repo,
+                nsips_fixture.dispensing_repo,
+                nsips_fixture.medication_history_repo,
+                nsips_fixture.patient_coverage_repo,
+                nsips_fixture.coverage_selection_repo,
+            )
+        )
+
+    before = snapshot()
+    changed = copy.deepcopy(payload)
+    patient = changed["structured_bundle"]["patient"]
+    patient.update(
+        external_patient_id="P-HTTP-OTHER-PERSON",
+        kanji_name="別人 花子",
+        kana_name="ベツジン ハナコ",
+        birth_date="1980-01-02",
+        address="非公開住所",
+        phone_number="03-9999-8888",
+    )
+
+    # Act
+    response = client.post(url, json=changed, headers=_HEADERS)
+
+    # Assert
+    assert response.status_code == HTTPStatus.CONFLICT
+    body = response.json()
+    assert ErrorResponse.model_validate(body).model_dump() == {
+        "code": "NSIPS_PATIENT_IDENTITY_CONFLICT",
+        "message": "患者の同一性を確認し、照合済みの患者IDで再送してください。",
+        "errors": [],
+    }
+    assert snapshot() == before
+    for private_value in (
+        "別人 花子",
+        "構造化 花子",
+        "非公開住所",
+        "1980-01-02",
+        "P-HTTP-OTHER-PERSON",
+        corporate_id,
+        store_id,
+    ):
+        assert private_value not in response.text
+    schema = client.get("/openapi.json").json()
+    declaration = schema["paths"][
+        "/corporates/{corporate_id}/stores/{store_id}/integrations/nsips"
+    ]["post"]["responses"]["409"]
+    assert declaration["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/ErrorResponse"
+    }
 
 
 @pytest.fixture
