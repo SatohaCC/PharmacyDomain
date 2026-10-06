@@ -27,6 +27,27 @@ _AFTERNOON = BusinessHourSlot(opens_at=time(14, 0), closes_at=time(19, 0))
 _THURSDAY = date(2026, 9, 17)
 _SUNDAY = date(2026, 9, 20)
 
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_24時終了の時間帯_最終マイクロ秒からの時間帯との重複を拒否する(
+    reverse: bool,
+) -> None:
+    # Arrange
+    slots: tuple[BusinessHourSlot, ...] = (
+        BusinessHourSlot(opens_at=time(22), closes_at=time(0)),
+        BusinessHourSlot(opens_at=time.max, closes_at=time(0)),
+    )
+    if reverse:
+        slots = tuple(reversed(slots))
+
+    # Act / Assert
+    assert slots[0].overlaps(slots[1])
+    with pytest.raises(DomainValidationError):
+        WeekdayBusinessHours(weekday=BusinessWeekday.MONDAY, slots=slots)
+    with pytest.raises(DomainValidationError):
+        BusinessDayException(on=_THURSDAY, slots=slots)
+
+
 #: 曜日番号と曜日の対応。実装の表とは独立に、実在する日付から書く。
 _WEEKDAY_SAMPLES: dict[date, BusinessWeekday] = {
     date(2026, 9, 14): BusinessWeekday.MONDAY,

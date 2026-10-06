@@ -6,8 +6,11 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from app.application.access_control.boundary import CorporateAccessBoundary
+from app.application.access_control.exceptions import TenantBoundaryNotFoundError
 from app.application.access_control.models import Permission
+from app.application.access_control.policy import AuthorizationService
 from app.application.store.business_hours import BusinessHoursDto
+from app.application.store.exceptions import StoreNotFoundError
 from app.application.store.support import load_store_or_raise
 from app.domain.corporate.primitives import CorporateId
 from app.domain.store.primitives import StoreId
@@ -120,6 +123,14 @@ class GetStoreUseCase:
             permission=Permission.VIEW_STORE,
         )
         store_id = StoreId.parse(query.store_id)
+        try:
+            AuthorizationService(self._corporate_access.actor).require_store(
+                permission=Permission.VIEW_STORE,
+                target_corporate_id=corporate_id,
+                target_store_id=store_id,
+            )
+        except TenantBoundaryNotFoundError as error:
+            raise StoreNotFoundError() from error
 
         # 所属法人の検証を含めて店舗を取得（存在しない/所属違いは 404 例外）
         store = await load_store_or_raise(

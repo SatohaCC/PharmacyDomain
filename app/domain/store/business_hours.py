@@ -118,9 +118,9 @@ class BusinessHourSlot(ValueObject):
 
     def overlaps(self, other: BusinessHourSlot) -> bool:
         """2つの時間帯が重なるか。"""
-        left_end = time.max if self.closes_at_end_of_day else self.closes_at
-        right_end = time.max if other.closes_at_end_of_day else other.closes_at
-        return self.opens_at < right_end and other.opens_at < left_end
+        return (other.closes_at_end_of_day or self.opens_at < other.closes_at) and (
+            self.closes_at_end_of_day or other.opens_at < self.closes_at
+        )
 
 
 def _validate_slots(slots: tuple[BusinessHourSlot, ...], *, label: str) -> None:
