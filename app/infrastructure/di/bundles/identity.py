@@ -19,11 +19,11 @@ from app.application.identity.list_users import ListUsersUseCase
 from app.application.identity.register_person import RegisterPersonUseCase
 from app.application.identity.resolve_actor import ResolveActorUseCase
 from app.application.identity.support import IdentityRepositories
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.organization import PostgresOrganizationLock
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
+from app.infrastructure.postgres.organization_lock import PostgresOrganizationLock
 
 
 @dataclass(frozen=True, slots=True)

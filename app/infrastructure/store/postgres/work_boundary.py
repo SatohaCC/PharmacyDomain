@@ -1,10 +1,9 @@
-"""法人単位の直列化と閉局前の未完了業務照会。"""
+"""閉局前に店舗の未完了業務を照会するPostgreSQLアダプタ。"""
 
 from typing import Final
 
-from sqlalchemy import exists, or_, select, text
+from sqlalchemy import exists, or_, select
 
-from app.application.common.organization_lock import OrganizationLock
 from app.application.store.management import StoreWorkBoundary
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.primitives import DispensingProcessStatus
@@ -12,20 +11,6 @@ from app.domain.prescription.primitives import PrescriptionStatus
 from app.domain.store.primitives import StoreId
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.schema import dispensing_processes, prescriptions
-
-
-class PostgresOrganizationLock(OrganizationLock):
-    """同一キーをトランザクション終了まで排他的に保持する。"""
-
-    def __init__(self, unit_of_work: PostgresUnitOfWork) -> None:
-        self._unit_of_work = unit_of_work
-
-    async def acquire(self, key: str) -> None:
-        await self._unit_of_work.session.execute(
-            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
-            {"key": key},
-        )
-
 
 #: 終端に達した処方箋の状態。状態を足したときに、ここも自動で追随する。
 _TERMINAL_PRESCRIPTION_STATUSES: Final = tuple(

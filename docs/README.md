@@ -155,7 +155,7 @@ Event参照へ移行し、推測できない発生日時と独立した確定監
 
 ## 実装と検証
 
-- 現在の実装: `app/domain/`、`app/application/`、`app/infrastructure/postgres/`、`migrations/`
+- 現在の実装: `app/domain/`、`app/application/`、`app/infrastructure/`、`migrations/`
 - 実行可能な契約: `tests/domain/`、`tests/application/`、`tests/contracts/`
 - アーキテクチャ検査: `tools/check_imports.py`、`tools/check_lcom.py`、`tools/check_fake_conformance.py`
 - コマンドとCI: [AGENTS.md](../AGENTS.md)、`.github/workflows/quality-gate.yml`

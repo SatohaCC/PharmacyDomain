@@ -30,11 +30,11 @@ from app.domain.store.manager_assignment import (
     StoreManagerAssignment,
     StoreManagerAssignmentId,
 )
-from app.infrastructure.di.root import PostgresCompositionRoot
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.di.root import PostgresCompositionRoot
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
 from tests.application.dispensing.helpers import create_medicine_input, create_rp_input
 from tests.factories.prescription_factory import (

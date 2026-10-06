@@ -206,7 +206,9 @@ def create_corporate_use_cases(
         get=GetCorporateUseCase(access),
         change_name=ChangeCorporateNameUseCase(repository, uniqueness, access),
         change_representative=ChangeRepresentativeUseCase(repository, access),
-        change_status=ChangeCorporateStatusUseCase(repository, access),
+        change_status=ChangeCorporateStatusUseCase(
+            repository, access, FakeOrganizationLock()
+        ),
     )
 
 

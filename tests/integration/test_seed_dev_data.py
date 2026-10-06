@@ -23,11 +23,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.application.access_control.models import ActorRole
 from app.application.identity.resolve_actor import VerifiedSubject
 from app.domain.store.lifecycle import StoreStatus, StoreStatusReason
-from app.infrastructure.di.root import PostgresCompositionRoot
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.di.root import PostgresCompositionRoot
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.presentational.app_factory import create_app
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
 from app.presentational.dev_main import build_actor_provider

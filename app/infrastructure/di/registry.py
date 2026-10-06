@@ -47,10 +47,10 @@ from app.infrastructure.di.bundles.patient_care import (
     build_patient_use_cases,
     build_reception_use_cases,
 )
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 
 
 class PostgresUseCaseRegistry:
@@ -81,7 +81,7 @@ class PostgresUseCaseRegistry:
     def corporate(self) -> CorporateUseCases:
         if "corporate" not in self._cache:
             self._cache["corporate"] = build_corporate_use_cases(
-                self._repositories, self._corporate_access
+                self._repositories, self._corporate_access, self._unit_of_work
             )
         return cast(CorporateUseCases, self._cache["corporate"])
 

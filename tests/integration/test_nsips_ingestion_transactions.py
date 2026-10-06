@@ -67,11 +67,11 @@ from app.domain.reception.primitives import ReceptionId
 from app.domain.reception.reception import Reception
 from app.domain.reception.repository import ReceptionRepository
 from app.domain.store.primitives import StoreId
-from app.infrastructure.postgres.codec import decode_aggregate
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.postgres.codec import decode_aggregate
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from tests.factories.medication_history_factory import (
     create_record,
     create_soap,

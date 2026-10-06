@@ -68,14 +68,12 @@ from app.domain.store.services import (
     StoreCodeUniquenessService,
     StoreNameUniquenessService,
 )
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.organization import (
-    PostgresOrganizationLock,
-    PostgresStoreWorkBoundary,
-)
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
+from app.infrastructure.postgres.organization_lock import PostgresOrganizationLock
+from app.infrastructure.store.postgres.work_boundary import PostgresStoreWorkBoundary
 
 # --------------------------------------------------------------------------
 # 法人
@@ -97,6 +95,7 @@ class CorporateUseCases:
 def build_corporate_use_cases(
     repositories: PostgresRepositorySet,
     corporate_access: CorporateAccessService,
+    unit_of_work: PostgresUnitOfWork,
 ) -> CorporateUseCases:
     """法人ユースケースを組み立てる。"""
     repository = repositories.corporate
@@ -111,7 +110,9 @@ def build_corporate_use_cases(
             repository, uniqueness, corporate_access
         ),
         change_representative=ChangeRepresentativeUseCase(repository, corporate_access),
-        change_status=ChangeCorporateStatusUseCase(repository, corporate_access),
+        change_status=ChangeCorporateStatusUseCase(
+            repository, corporate_access, PostgresOrganizationLock(unit_of_work)
+        ),
     )
 
 

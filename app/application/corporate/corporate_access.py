@@ -29,6 +29,14 @@ class CorporateAccessService:
         """認可と監査で共有する信頼済み操作主体を返す。"""
         return self._authorization.actor
 
+    def require_permission(
+        self, *, corporate_id: CorporateId, permission: Permission
+    ) -> None:
+        """法人を読み出さず、テナント境界を含む操作権限を確認する。"""
+        self._authorization.require(
+            permission=permission, target_corporate_id=corporate_id
+        )
+
     async def require_active(
         self,
         *,
@@ -36,9 +44,9 @@ class CorporateAccessService:
         permission: Permission,
     ) -> Corporate:
         """権限を確認し、有効な対象法人を返す。"""
-        self._authorization.require(
+        self.require_permission(
             permission=permission,
-            target_corporate_id=corporate_id,
+            corporate_id=corporate_id,
         )
         return await load_active_corporate_or_raise(self._repository, corporate_id)
 
@@ -49,9 +57,9 @@ class CorporateAccessService:
         permission: Permission,
     ) -> Corporate:
         """権限を確認し、状態にかかわらず対象法人を返す。"""
-        self._authorization.require(
+        self.require_permission(
             permission=permission,
-            target_corporate_id=corporate_id,
+            corporate_id=corporate_id,
         )
         return await load_corporate_or_raise(self._repository, corporate_id)
 

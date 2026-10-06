@@ -21,10 +21,10 @@ from app.domain.store.manager_repository import (
     ManagerAssignmentConflictError,
     ManagerExclusiveDutyConflictError,
 )
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store
 from tests.infrastructure.postgres.helpers import create_corporate

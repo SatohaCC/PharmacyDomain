@@ -68,10 +68,10 @@ from app.application.reception.associate_reception_medication_history import (
 )
 from app.domain.coverage.combination import CoverageSelectionService
 from app.domain.coverage.services import PatientCoverageConflictService
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 
 # --------------------------------------------------------------------------
 # 患者

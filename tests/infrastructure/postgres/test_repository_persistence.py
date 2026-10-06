@@ -10,17 +10,17 @@ from app.domain.foundation.exceptions import ConcurrentModificationError
 from app.domain.prescription.exceptions import (
     PrescriptionDocumentNumberAlreadyExistsError,
 )
+from app.infrastructure.corporate.postgres.corporate import (
+    PostgresCorporateRepository,
+)
+from app.infrastructure.dispensing.postgres.dispensing_process import (
+    PostgresDispensingProcessRepository,
+)
 from app.infrastructure.postgres.codec import (
     PersistenceMappingError,
     encode_aggregate,
 )
-from app.infrastructure.postgres.repositories.corporate import (
-    PostgresCorporateRepository,
-)
-from app.infrastructure.postgres.repositories.dispensing_process import (
-    PostgresDispensingProcessRepository,
-)
-from app.infrastructure.postgres.repositories.prescription import (
+from app.infrastructure.prescription.postgres.prescription import (
     PostgresPrescriptionRepository,
 )
 from tests.factories.dispensing_factory import create_dispensing

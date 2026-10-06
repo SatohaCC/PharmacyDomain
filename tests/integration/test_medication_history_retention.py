@@ -25,10 +25,10 @@ from app.domain.shared.preservation import (
     PreservationPolicyCatalog,
     PreservationRecordKind,
 )
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
 from tests.factories.medication_history_factory import (
     create_adverse_reaction_intent,

@@ -18,6 +18,9 @@ from app.application.access_control.models import ActorRole, ResolvedActorContex
 from app.application.access_control.policy import AuthorizationService
 from app.application.common.clock import Clock, business_date
 from app.application.composition.clinical_store_guard import ClinicalStoreWriteGuard
+from app.application.composition.corporate_activity_guard import (
+    CorporateActivityWriteGuard,
+)
 from app.application.composition.resolved_actor_guard import (
     CompositeWriteGuard,
     ResolvedActorWriteGuard,
@@ -31,6 +34,9 @@ from app.application.identity.invitation_access import InvitationOnlyAccess
 from app.application.identity.resolve_actor import VerifiedSubject
 from app.infrastructure.di.bundles.identity import build_identity_use_cases
 from app.infrastructure.di.registry import PostgresUseCaseRegistry
+from app.infrastructure.di.repositories import (
+    PostgresRepositorySet,
+)
 from app.infrastructure.postgres.connection import (
     PostgresSettings,
     PostgresUnitOfWork,
@@ -38,11 +44,8 @@ from app.infrastructure.postgres.connection import (
     create_session_factory,
 )
 from app.infrastructure.postgres.operation_audit import append_pending_audits
-from app.infrastructure.postgres.organization import PostgresOrganizationLock
+from app.infrastructure.postgres.organization_lock import PostgresOrganizationLock
 from app.infrastructure.postgres.read_scope import RepositoryReadScope
-from app.infrastructure.postgres.repositories.repository_set import (
-    PostgresRepositorySet,
-)
 
 # --------------------------------------------------------------------------
 # 1リクエスト分の実行文脈
@@ -109,6 +112,7 @@ class PostgresRequestScope:
                 StaffAssignmentWriteGuard(
                     repositories.store, repositories.manager_assignment, clock, lock
                 ).check,
+                CorporateActivityWriteGuard(repositories.corporate, lock).check,
             ]
         ).check
         self._repositories = repositories

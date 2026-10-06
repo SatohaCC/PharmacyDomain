@@ -37,21 +37,21 @@ from app.domain.medication_history.value_objects import (
 )
 from app.domain.reception.primitives import ReceptionId
 from app.domain.staff.primitives import StaffId
-from app.infrastructure.postgres import schema
-from app.infrastructure.postgres.codec import decode_aggregate, encode_aggregate
-from app.infrastructure.postgres.repositories.corporate import CORPORATE_MAPPING
-from app.infrastructure.postgres.repositories.dispensing_process import (
+from app.infrastructure.corporate.postgres.corporate import CORPORATE_MAPPING
+from app.infrastructure.dispensing.postgres.dispensing_process import (
     DISPENSING_PROCESS_MAPPING,
 )
-from app.infrastructure.postgres.repositories.medication_history import (
+from app.infrastructure.medication_history.postgres.medication_history import (
     MEDICATION_HISTORY_RECORD_MAPPING,
 )
-from app.infrastructure.postgres.repositories.patient import PATIENT_MAPPING
-from app.infrastructure.postgres.repositories.prescription import (
+from app.infrastructure.patient.postgres.patient import PATIENT_MAPPING
+from app.infrastructure.postgres import schema
+from app.infrastructure.postgres.codec import decode_aggregate, encode_aggregate
+from app.infrastructure.postgres.repository_base import AggregateMapping
+from app.infrastructure.prescription.postgres.prescription import (
     PRESCRIPTION_MAPPING,
 )
-from app.infrastructure.postgres.repositories.store import STORE_MAPPING
-from app.infrastructure.postgres.repository_base import AggregateMapping
+from app.infrastructure.store.postgres.store import STORE_MAPPING
 from tests.factories.dispensing_factory import create_dispensing
 from tests.factories.medication_history_factory import (
     create_allergy_intent,

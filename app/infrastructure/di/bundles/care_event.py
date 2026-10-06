@@ -22,7 +22,7 @@ from app.application.composition.care_event_references import (
 )
 from app.application.composition.store_operation_adapter import StoreOperationAdapter
 from app.application.corporate.corporate_access import CorporateAccessService
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
 

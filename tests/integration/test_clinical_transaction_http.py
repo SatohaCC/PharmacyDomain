@@ -62,11 +62,11 @@ from app.domain.staff.primitives import (
     StaffQualifications,
     StoreAffiliation,
 )
-from app.infrastructure.di.root import PostgresCompositionRoot
-from app.infrastructure.postgres.connection import PostgresSettings, PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.di.root import PostgresCompositionRoot
+from app.infrastructure.postgres.connection import PostgresSettings, PostgresUnitOfWork
 from app.presentational.app_factory import create_app
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
 from app.presentational.routers.dispensing import (

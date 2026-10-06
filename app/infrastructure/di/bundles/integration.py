@@ -14,10 +14,10 @@ from app.infrastructure.di.bundles.clinical import (
 from app.infrastructure.di.bundles.patient_care import (
     PatientUseCases,
 )
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 
 
 @dataclass(frozen=True, slots=True)

@@ -46,11 +46,11 @@ from app.domain.staff.primitives import (
 from app.domain.store.lifecycle import StoreStatus
 from app.domain.store.primitives import StoreId
 from app.domain.store.store import Store
-from app.infrastructure.postgres import schema
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.postgres import schema
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from tests.factories.medication_history_factory import (
     create_record,
     create_tracing_report,

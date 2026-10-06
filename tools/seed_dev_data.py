@@ -72,14 +72,14 @@ from app.domain.store.primitives import (
     StorePostalCode,
 )
 from app.domain.store.store import Store
+from app.infrastructure.di.repositories import (
+    PostgresRepositorySet,
+)
 from app.infrastructure.postgres.connection import (
     PostgresSettings,
     PostgresUnitOfWork,
     create_async_engine_from_settings,
     create_session_factory,
-)
-from app.infrastructure.postgres.repositories.repository_set import (
-    PostgresRepositorySet,
 )
 
 # --------------------------------------------------------------------------

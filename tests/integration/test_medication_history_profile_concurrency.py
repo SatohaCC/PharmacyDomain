@@ -55,12 +55,12 @@ from app.domain.store.primitives import StoreId
 from app.infrastructure.di.bundles.clinical import (
     build_medication_history_use_cases,
 )
-from app.infrastructure.di.root import PostgresCompositionRoot
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.organization import PostgresOrganizationLock
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.di.root import PostgresCompositionRoot
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
+from app.infrastructure.postgres.organization_lock import PostgresOrganizationLock
 from tests.factories.medication_history_factory import (
     create_adverse_reaction_intent,
     create_allergy_intent,

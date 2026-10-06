@@ -22,10 +22,10 @@ from app.domain.reception.primitives import (
 )
 from app.domain.reception.reception import Reception, ReceptionCorrection
 from app.domain.store.primitives import StoreId
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.schema import patient_external_identifiers, receptions
 from tests.factories.persistence_factory import create_patient
 from tests.factories.store_factory import create_store

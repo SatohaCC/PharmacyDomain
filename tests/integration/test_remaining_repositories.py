@@ -46,34 +46,34 @@ from app.domain.store.exceptions import (
     StoreNameAlreadyExistsError,
 )
 from app.domain.store.primitives import StoreName
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.corporate import (
+from app.infrastructure.corporate.postgres.corporate import (
     PostgresCorporateRepository,
 )
-from app.infrastructure.postgres.repositories.coverage_selection_record import (
+from app.infrastructure.coverage.postgres.coverage_selection_record import (
     PostgresCoverageSelectionRecordRepository,
 )
-from app.infrastructure.postgres.repositories.medication_history import (
-    PostgresMedicationHistoryRepository,
-)
-from app.infrastructure.postgres.repositories.medicine_catalog import (
-    PostgresMedicineCatalogRepository,
-)
-from app.infrastructure.postgres.repositories.patient import PostgresPatientRepository
-from app.infrastructure.postgres.repositories.patient_coverage import (
+from app.infrastructure.coverage.postgres.patient_coverage import (
     PostgresPatientCoverageRepository,
 )
-from app.infrastructure.postgres.repositories.patient_external_identifier import (
-    PostgresPatientExternalIdentifierRepository,
-)
-from app.infrastructure.postgres.repositories.patient_medical_profile import (
-    PostgresPatientMedicalProfileRepository,
-)
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
-from app.infrastructure.postgres.repositories.staff import PostgresStaffRepository
-from app.infrastructure.postgres.repositories.store import PostgresStoreRepository
+from app.infrastructure.medication_history.postgres.medication_history import (
+    PostgresMedicationHistoryRepository,
+)
+from app.infrastructure.medication_history.postgres.patient_medical_profile import (
+    PostgresPatientMedicalProfileRepository,
+)
+from app.infrastructure.medicine_catalog.postgres.medicine_catalog import (
+    PostgresMedicineCatalogRepository,
+)
+from app.infrastructure.patient.postgres.patient import PostgresPatientRepository
+from app.infrastructure.patient.postgres.patient_external_identifier import (
+    PostgresPatientExternalIdentifierRepository,
+)
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
+from app.infrastructure.staff.postgres.staff import PostgresStaffRepository
+from app.infrastructure.store.postgres.store import PostgresStoreRepository
 from tests.factories.medication_history_factory import (
     create_independent_follow_up_record,
     create_record,

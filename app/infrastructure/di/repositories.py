@@ -1,78 +1,66 @@
-"""PostgreSQL Repository 実装。
-
-**1集約1ファイル**とする。集約は互いに独立して変わる（処方箋の検索列を足しても
-調剤・薬歴・頭書きは変わらない）ので、束ねてもファイル内で区切り線を引き直す
-ことになり、境界を探す手間だけが残る。ここに並ぶファイル名は Repository 名
-（``Postgres`` と ``Repository`` を除いたもの）と一致するので、集約から実装へ
-一意にたどれる。
-
-ユースケースの配線側（``app/infrastructure/postgres`` 直下）は逆に束のままに
-する。あちらは ``CorporateAccessService`` / ``Clock`` / ``UnitOfWork`` という
-同じ依存を配り回しており、渡すものが増えると束の中の複数のユースケースが同時に
-変わるため、変更の単位が束と一致する。
-"""
+"""共通のUnit of Workを各コンテキストのPostgreSQL Repositoryへ配る束。"""
 
 from dataclasses import dataclass
 from typing import Self
 
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.account_person import (
-    PostgresAccountPersonRepository,
-)
-from app.infrastructure.postgres.repositories.care_event import PostgresEventRepository
-from app.infrastructure.postgres.repositories.corporate import (
-    PostgresCorporateRepository,
-)
-from app.infrastructure.postgres.repositories.corporate_membership import (
-    PostgresCorporateMembershipRepository,
-)
-from app.infrastructure.postgres.repositories.coverage_selection_record import (
-    PostgresCoverageSelectionRecordRepository,
-)
-from app.infrastructure.postgres.repositories.dispensing_process import (
-    PostgresDispensingProcessRepository,
-)
-from app.infrastructure.postgres.repositories.event_definition import (
+from app.infrastructure.care_event.postgres.care_event import PostgresEventRepository
+from app.infrastructure.care_event.postgres.event_definition import (
     PostgresEventDefinitionRepository,
 )
-from app.infrastructure.postgres.repositories.medication_history import (
-    PostgresMedicationHistoryRepository,
+from app.infrastructure.corporate.postgres.corporate import (
+    PostgresCorporateRepository,
 )
-from app.infrastructure.postgres.repositories.medication_history_category_catalog import (
-    PostgresMedicationHistoryCategoryCatalogRepository,
+from app.infrastructure.coverage.postgres.coverage_selection_record import (
+    PostgresCoverageSelectionRecordRepository,
 )
-from app.infrastructure.postgres.repositories.medicine_catalog import (
-    PostgresMedicineCatalogRepository,
-)
-from app.infrastructure.postgres.repositories.patient import PostgresPatientRepository
-from app.infrastructure.postgres.repositories.patient_coverage import (
+from app.infrastructure.coverage.postgres.patient_coverage import (
     PostgresPatientCoverageRepository,
 )
-from app.infrastructure.postgres.repositories.patient_external_identifier import (
-    PostgresPatientExternalIdentifierRepository,
+from app.infrastructure.dispensing.postgres.dispensing_process import (
+    PostgresDispensingProcessRepository,
 )
-from app.infrastructure.postgres.repositories.patient_medical_profile import (
-    PostgresPatientMedicalProfileRepository,
+from app.infrastructure.identity.postgres.account_person import (
+    PostgresAccountPersonRepository,
 )
-from app.infrastructure.postgres.repositories.prescription import (
-    PostgresPrescriptionRepository,
+from app.infrastructure.identity.postgres.corporate_membership import (
+    PostgresCorporateMembershipRepository,
 )
-from app.infrastructure.postgres.repositories.reception import (
-    PostgresReceptionRepository,
-)
-from app.infrastructure.postgres.repositories.staff import PostgresStaffRepository
-from app.infrastructure.postgres.repositories.staff_person_link import (
+from app.infrastructure.identity.postgres.staff_person_link import (
     PostgresStaffPersonLinkRepository,
 )
-from app.infrastructure.postgres.repositories.store import PostgresStoreRepository
-from app.infrastructure.postgres.repositories.store_manager_assignment import (
-    PostgresStoreManagerAssignmentRepository,
-)
-from app.infrastructure.postgres.repositories.user_account import (
+from app.infrastructure.identity.postgres.user_account import (
     PostgresUserAccountRepository,
 )
-from app.infrastructure.postgres.repositories.user_invitation import (
+from app.infrastructure.identity.postgres.user_invitation import (
     PostgresUserInvitationRepository,
+)
+from app.infrastructure.medication_history.postgres.medication_history import (
+    PostgresMedicationHistoryRepository,
+)
+from app.infrastructure.medication_history.postgres.medication_history_category_catalog import (
+    PostgresMedicationHistoryCategoryCatalogRepository,
+)
+from app.infrastructure.medication_history.postgres.patient_medical_profile import (
+    PostgresPatientMedicalProfileRepository,
+)
+from app.infrastructure.medicine_catalog.postgres.medicine_catalog import (
+    PostgresMedicineCatalogRepository,
+)
+from app.infrastructure.patient.postgres.patient import PostgresPatientRepository
+from app.infrastructure.patient.postgres.patient_external_identifier import (
+    PostgresPatientExternalIdentifierRepository,
+)
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
+from app.infrastructure.prescription.postgres.prescription import (
+    PostgresPrescriptionRepository,
+)
+from app.infrastructure.reception.postgres.reception import (
+    PostgresReceptionRepository,
+)
+from app.infrastructure.staff.postgres.staff import PostgresStaffRepository
+from app.infrastructure.store.postgres.store import PostgresStoreRepository
+from app.infrastructure.store.postgres.store_manager_assignment import (
+    PostgresStoreManagerAssignmentRepository,
 )
 
 

@@ -6,8 +6,8 @@ from sqlalchemy import Select
 
 from app.domain.corporate.primitives import CorporateId
 from app.domain.patient.primitives import PatientId
+from app.infrastructure.care_event.postgres.care_event import PostgresEventRepository
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.care_event import PostgresEventRepository
 from tests.infrastructure.postgres.helpers import compiled_sql
 
 

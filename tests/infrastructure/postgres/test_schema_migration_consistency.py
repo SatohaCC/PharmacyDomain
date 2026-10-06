@@ -24,6 +24,7 @@ from sqlalchemy import Table
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.schema import CreateIndex, CreateTable
 
+import app.infrastructure as infrastructure
 from app.domain.care_event.event import Event
 from app.domain.care_event.event_definition import EventDefinition
 from app.domain.care_event.primitives import (
@@ -60,54 +61,56 @@ from app.domain.store.manager_assignment import (
     StoreManagerAssignment,
     StoreManagerAssignmentId,
 )
-from app.infrastructure.postgres import repositories, schema
-from app.infrastructure.postgres.repositories.account_person import (
-    ACCOUNT_PERSON_MAPPING,
-)
-from app.infrastructure.postgres.repositories.care_event import EVENT_MAPPING
-from app.infrastructure.postgres.repositories.corporate import CORPORATE_MAPPING
-from app.infrastructure.postgres.repositories.corporate_membership import (
-    MEMBERSHIP_MAPPING,
-)
-from app.infrastructure.postgres.repositories.coverage_selection_record import (
-    COVERAGE_SELECTION_RECORD_MAPPING,
-)
-from app.infrastructure.postgres.repositories.dispensing_process import (
-    DISPENSING_PROCESS_MAPPING,
-)
-from app.infrastructure.postgres.repositories.event_definition import (
+from app.infrastructure.care_event.postgres.care_event import EVENT_MAPPING
+from app.infrastructure.care_event.postgres.event_definition import (
     EVENT_DEFINITION_MAPPING,
 )
-from app.infrastructure.postgres.repositories.medication_history import (
-    MEDICATION_HISTORY_RECORD_MAPPING,
+from app.infrastructure.corporate.postgres.corporate import CORPORATE_MAPPING
+from app.infrastructure.coverage.postgres.coverage_selection_record import (
+    COVERAGE_SELECTION_RECORD_MAPPING,
 )
-from app.infrastructure.postgres.repositories.medication_history_category_catalog import (
-    MEDICATION_HISTORY_CATEGORY_CATALOG_MAPPING,
-)
-from app.infrastructure.postgres.repositories.medicine_catalog import MEDICINE_MAPPING
-from app.infrastructure.postgres.repositories.patient import PATIENT_MAPPING
-from app.infrastructure.postgres.repositories.patient_coverage import (
+from app.infrastructure.coverage.postgres.patient_coverage import (
     PATIENT_COVERAGE_MAPPING,
 )
-from app.infrastructure.postgres.repositories.patient_external_identifier import (
-    PATIENT_EXTERNAL_IDENTIFIER_MAPPING,
+from app.infrastructure.dispensing.postgres.dispensing_process import (
+    DISPENSING_PROCESS_MAPPING,
 )
-from app.infrastructure.postgres.repositories.patient_medical_profile import (
-    PATIENT_MEDICAL_PROFILE_MAPPING,
+from app.infrastructure.identity.postgres.account_person import (
+    ACCOUNT_PERSON_MAPPING,
 )
-from app.infrastructure.postgres.repositories.prescription import PRESCRIPTION_MAPPING
-from app.infrastructure.postgres.repositories.reception import RECEPTION_MAPPING
-from app.infrastructure.postgres.repositories.staff import STAFF_MAPPING
-from app.infrastructure.postgres.repositories.staff_person_link import (
+from app.infrastructure.identity.postgres.corporate_membership import (
+    MEMBERSHIP_MAPPING,
+)
+from app.infrastructure.identity.postgres.staff_person_link import (
     STAFF_PERSON_LINK_MAPPING,
 )
-from app.infrastructure.postgres.repositories.store import STORE_MAPPING
-from app.infrastructure.postgres.repositories.store_manager_assignment import (
+from app.infrastructure.identity.postgres.user_account import USER_ACCOUNT_MAPPING
+from app.infrastructure.identity.postgres.user_invitation import INVITATION_MAPPING
+from app.infrastructure.medication_history.postgres.medication_history import (
+    MEDICATION_HISTORY_RECORD_MAPPING,
+)
+from app.infrastructure.medication_history.postgres.medication_history_category_catalog import (
+    MEDICATION_HISTORY_CATEGORY_CATALOG_MAPPING,
+)
+from app.infrastructure.medication_history.postgres.patient_medical_profile import (
+    PATIENT_MEDICAL_PROFILE_MAPPING,
+)
+from app.infrastructure.medicine_catalog.postgres.medicine_catalog import (
+    MEDICINE_MAPPING,
+)
+from app.infrastructure.patient.postgres.patient import PATIENT_MAPPING
+from app.infrastructure.patient.postgres.patient_external_identifier import (
+    PATIENT_EXTERNAL_IDENTIFIER_MAPPING,
+)
+from app.infrastructure.postgres import schema
+from app.infrastructure.postgres.repository_base import AggregateMapping
+from app.infrastructure.prescription.postgres.prescription import PRESCRIPTION_MAPPING
+from app.infrastructure.reception.postgres.reception import RECEPTION_MAPPING
+from app.infrastructure.staff.postgres.staff import STAFF_MAPPING
+from app.infrastructure.store.postgres.store import STORE_MAPPING
+from app.infrastructure.store.postgres.store_manager_assignment import (
     MANAGER_ASSIGNMENT_MAPPING,
 )
-from app.infrastructure.postgres.repositories.user_account import USER_ACCOUNT_MAPPING
-from app.infrastructure.postgres.repositories.user_invitation import INVITATION_MAPPING
-from app.infrastructure.postgres.repository_base import AggregateMapping
 from tests.factories.dispensing_factory import create_dispensing
 from tests.factories.medication_history_factory import create_record
 from tests.factories.medicine_catalog_factory import create_medicine
@@ -260,12 +263,12 @@ def _row_value_cases() -> list[tuple[AggregateMapping[Any], Mapping[str, object]
 
 
 def _declared_mappings() -> list[AggregateMapping[Any]]:
-    """``app/infrastructure/postgres/repositories`` の全ての対応を集める。"""
+    """全コンテキストの永続化アダプタから、集約とテーブルの対応を集める。"""
     # SQLAlchemy の ``Table`` は ``==`` がSQL式を作るので、値としては比較できない。
     # 同じ対応を複数のモジュールから見ても1つに畳めるよう、同一性で束ねる。
     found: dict[int, AggregateMapping[Any]] = {}
     for module_info in pkgutil.walk_packages(
-        repositories.__path__, prefix=f"{repositories.__name__}."
+        infrastructure.__path__, prefix=f"{infrastructure.__name__}."
     ):
         module = importlib.import_module(module_info.name)
         for value in vars(module).values():

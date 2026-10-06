@@ -128,13 +128,13 @@ from app.domain.prescription.services import (
     PublicExpenseBurdenService,
     RefillEligibilityService,
 )
-from app.infrastructure.external.drug_interaction import (
-    BlackBoxDrugInteractionDataSource,
+from app.infrastructure.di.repositories import (
+    PostgresRepositorySet,
 )
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.organization import PostgresOrganizationLock
-from app.infrastructure.postgres.repositories.repository_set import (
-    PostgresRepositorySet,
+from app.infrastructure.postgres.organization_lock import PostgresOrganizationLock
+from app.infrastructure.prescription.external.drug_interaction import (
+    BlackBoxDrugInteractionDataSource,
 )
 
 # --------------------------------------------------------------------------

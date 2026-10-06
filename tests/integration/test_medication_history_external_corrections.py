@@ -26,10 +26,10 @@ from app.domain.medication_history.value_objects import (
 from app.domain.patient.primitives import PatientId
 from app.domain.staff.primitives import StaffId
 from app.domain.store.primitives import StoreId
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from tests.factories.medication_history_factory import (
     COUNSELED_AT,
     create_nsips_draft_record,

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.application.access_control.models import Permission
+from app.application.common.organization_lock import OrganizationLock
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.domain.corporate.primitives import CorporateId
 from app.domain.corporate.repository import CorporateRepository
@@ -25,12 +26,20 @@ class ChangeCorporateStatusUseCase:
         self,
         repository: CorporateRepository,
         corporate_access: CorporateAccessService,
+        lock: OrganizationLock,
     ) -> None:
         self._repository = repository
         self._corporate_access = corporate_access
+        self._lock = lock
 
     async def execute(self, command: ChangeCorporateStatusCommand) -> None:
         corporate_id = CorporateId.parse(command.corporate_id)
+        self._corporate_access.require_permission(
+            corporate_id=corporate_id,
+            permission=Permission.MANAGE_CORPORATE_STATUS,
+        )
+        # 通常業務の保存と同じ鍵を取り、状態の読み出しから確定まで直列化する。
+        await self._lock.acquire(f"corporate:{corporate_id.value}")
         corporate = await self._corporate_access.require_existing(
             corporate_id=corporate_id,
             permission=Permission.MANAGE_CORPORATE_STATUS,
