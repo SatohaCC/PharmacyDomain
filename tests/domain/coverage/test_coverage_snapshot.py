@@ -1,25 +1,25 @@
-"""Claimドメインの不変条件テスト。"""
+"""Coverageドメインの適用固定値不変条件テスト。"""
 
 from __future__ import annotations
 
 import pytest
 
-from app.domain.claim.coverage_snapshot import (
+from app.domain.coverage.coverage_snapshot import (
     CoverageSnapshot,
     InsuranceCoverageSnapshot,
     PublicExpenseCoverageSnapshot,
 )
-from app.domain.claim.exceptions import CoverageCombinationInvalidError
-from app.domain.claim.primitives import (
-    ClaimCoverageBenefitRatio,
-    ClaimCoverageBranchNumber,
-    ClaimCoverageCode,
-    ClaimCoverageInsuredType,
-    ClaimCoveragePriority,
-    ClaimCoverageSymbol,
-    ClaimInsurerNumber,
-    ClaimPublicPayerNumber,
-    ClaimPublicRecipientNumber,
+from app.domain.coverage.exceptions import CoverageCombinationInvalidError
+from app.domain.coverage.primitives import (
+    CoverageBenefitRatio,
+    CoverageBranchNumber,
+    CoverageCode,
+    CoverageInsuredType,
+    CoveragePriority,
+    CoverageSymbol,
+    InsurerNumber,
+    PublicPayerNumber,
+    PublicRecipientNumber,
 )
 from app.domain.foundation.exceptions import DomainValidationError
 
@@ -27,20 +27,20 @@ from app.domain.foundation.exceptions import DomainValidationError
 def _create_insurance_snapshot() -> InsuranceCoverageSnapshot:
     """テスト用の医療保険スナップショットを生成する。"""
     return InsuranceCoverageSnapshot(
-        insurer_number=ClaimInsurerNumber("01130012"),
-        insured_symbol=ClaimCoverageSymbol("A"),
-        insured_number=ClaimCoverageCode("456"),
-        insured_type=ClaimCoverageInsuredType.SELF,
-        benefit_ratio=ClaimCoverageBenefitRatio(70),
+        insurer_number=InsurerNumber("01130012"),
+        insured_symbol=CoverageSymbol("A"),
+        insured_number=CoverageCode("456"),
+        insured_type=CoverageInsuredType.SELF,
+        benefit_ratio=CoverageBenefitRatio(70),
     )
 
 
 def _create_public_snapshot(priority: int) -> PublicExpenseCoverageSnapshot:
     """テスト用の公費スナップショットを生成する。"""
     return PublicExpenseCoverageSnapshot(
-        priority=ClaimCoveragePriority(priority),
-        payer_number=ClaimPublicPayerNumber(f"1234567{priority}"),
-        recipient_number=ClaimPublicRecipientNumber(f"123456{priority}"),
+        priority=CoveragePriority(priority),
+        payer_number=PublicPayerNumber(f"1234567{priority}"),
+        recipient_number=PublicRecipientNumber(f"123456{priority}"),
     )
 
 
@@ -50,7 +50,7 @@ def test_請求側保険者番号_桁数か文字種が不正だと_ドメイン
 ) -> None:
     # Arrange / Act / Assert
     with pytest.raises(DomainValidationError):
-        ClaimInsurerNumber(value)
+        InsurerNumber(value)
 
 
 @pytest.mark.parametrize("value", ["1", "123456789", "payer-1"])
@@ -59,7 +59,7 @@ def test_請求側公費負担者番号_8桁の数字以外だと_ドメイン�
 ) -> None:
     # Arrange / Act / Assert
     with pytest.raises(DomainValidationError):
-        ClaimPublicPayerNumber(value)
+        PublicPayerNumber(value)
 
 
 @pytest.mark.parametrize("value", ["1", "12345678", "recipient-1"])
@@ -68,14 +68,14 @@ def test_請求側公費受給者番号_7桁の数字以外だと_ドメイン�
 ) -> None:
     # Arrange / Act / Assert
     with pytest.raises(DomainValidationError):
-        ClaimPublicRecipientNumber(value)
+        PublicRecipientNumber(value)
 
 
 @pytest.mark.parametrize("value", ["1", "123", "1a"])
 def test_請求側枝番_2桁の数字以外だと_ドメイン検証エラーになる(value: str) -> None:
     # Arrange / Act / Assert
     with pytest.raises(DomainValidationError):
-        ClaimCoverageBranchNumber(value)
+        CoverageBranchNumber(value)
 
 
 def test_資格スナップショット_社保1件と公費2件を渡すと_順位順に保持される() -> None:
@@ -107,9 +107,9 @@ def test_資格スナップショット_公費順位が重複すると_検証エ
     # Arrange
     public_first = _create_public_snapshot(1)
     another_public_first = PublicExpenseCoverageSnapshot(
-        priority=ClaimCoveragePriority(1),
-        payer_number=ClaimPublicPayerNumber("99999999"),
-        recipient_number=ClaimPublicRecipientNumber("9999999"),
+        priority=CoveragePriority(1),
+        payer_number=PublicPayerNumber("99999999"),
+        recipient_number=PublicRecipientNumber("9999999"),
     )
 
     # Act / Assert
@@ -154,8 +154,8 @@ def test_医療保険スナップショット_給付割合を省略すると_生
     # 給付割合は患者負担額を決める値であり、凍結対象として必須である。
     with pytest.raises(TypeError):
         InsuranceCoverageSnapshot(  # type: ignore[call-arg]
-            insurer_number=ClaimInsurerNumber("01130012"),
-            insured_symbol=ClaimCoverageSymbol("A"),
-            insured_number=ClaimCoverageCode("456"),
-            insured_type=ClaimCoverageInsuredType.SELF,
+            insurer_number=InsurerNumber("01130012"),
+            insured_symbol=CoverageSymbol("A"),
+            insured_number=CoverageCode("456"),
+            insured_type=CoverageInsuredType.SELF,
         )

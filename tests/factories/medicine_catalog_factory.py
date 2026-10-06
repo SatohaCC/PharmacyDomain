@@ -8,17 +8,15 @@ from app.domain.medicine_catalog.medicine import Medicine, MedicineEffectivePeri
 from app.domain.medicine_catalog.primitives import (
     GenericCategory,
     MedicineCatalogVersion,
-    MedicineDosageForm,
-    MedicineListedOn,
-    MedicineWithdrawnOn,
-    NarcoticCategory,
-)
-from app.domain.shared.medicine import (
     MedicineCode,
     MedicineCodeType,
+    MedicineDosageForm,
     MedicineIdentifier,
+    MedicineListedOn,
     MedicineName,
     MedicineUnit,
+    MedicineWithdrawnOn,
+    NarcoticCategory,
 )
 
 LISTED_ON = date(2020, 4, 1)

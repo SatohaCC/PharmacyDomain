@@ -25,6 +25,7 @@ from app.application.integration.nsips.parser import NsipsParser
 from app.domain.corporate.primitives import CorporateId
 from app.domain.dispensing.exceptions import DispensingPharmacistQualificationError
 from app.domain.dispensing.primitives import DispensingId
+from app.domain.medicine_catalog.primitives import MedicineCode, MedicineCodeType
 from app.domain.patient.external_identifier import PatientExternalIdentifier
 from app.domain.patient.heading import (
     PatientHeadingContent,
@@ -42,7 +43,6 @@ from app.domain.prescription.primitives import PrescriptionId
 from app.domain.reception.primitives import ReceptionFingerprint, ReceptionId
 from app.domain.reception.reception import Reception
 from app.domain.shared.actor import AccountPersonId, UserAccountId
-from app.domain.shared.medicine import MedicineCode, MedicineCodeType
 from app.domain.shared.person_name import PersonNames
 from app.domain.staff.primitives import (
     AffiliationPeriod,

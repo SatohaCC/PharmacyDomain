@@ -38,6 +38,11 @@ from app.domain.dispensing.services import (
     DispensingIterationUniquenessService,
     DispensingPharmacistService,
 )
+from app.domain.medicine_catalog.primitives import (
+    MedicineCode,
+    MedicineCodeType,
+    MedicineIdentifier,
+)
 from app.domain.prescription.services import (
     NarcoticPrescriptionService,
     PrescriptionDocumentNumberUniquenessService,
@@ -47,11 +52,6 @@ from app.domain.prescription.services import (
 from app.domain.prescription.value_objects import (
     MedicineClassification,
     MedicineRestrictionFlag,
-)
-from app.domain.shared.medicine import (
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
 )
 from app.domain.staff.primitives import (
     AffiliationPeriod,

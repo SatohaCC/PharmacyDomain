@@ -18,6 +18,7 @@ import pytest
 
 from app.application.composition.coverage_references import (
     CoveragePatientReferenceAdapter,
+    CoverageStoreReferenceAdapter,
 )
 from app.application.composition.dispensing_references import (
     DispensingStaffQualificationAdapter,
@@ -35,11 +36,10 @@ from app.application.composition.prescription_references import (
     PrescriptionStaffQualificationAdapter,
     PrescriptionStoreReferenceAdapter,
 )
-from app.application.composition.reception_references import (
-    ReceptionPatientReferenceAdapter,
-    ReceptionStoreReferenceAdapter,
+from app.application.coverage.exceptions import (
+    CoveragePatientNotFoundError,
+    CoverageStoreNotFoundError,
 )
-from app.application.coverage.exceptions import CoveragePatientNotFoundError
 from app.application.dispensing.exceptions import (
     DispensingPrescriptionNotFoundError,
     DispensingStaffNotFoundError,
@@ -56,32 +56,26 @@ from app.application.prescription.exceptions import (
     PrescriptionPharmacistNotFoundError,
     PrescriptionStoreNotFoundError,
 )
-from app.application.reception.exceptions import (
-    ReceptionPatientNotFoundError,
-    ReceptionStoreNotFoundError,
-)
-from app.domain.claim.coverage_snapshot import PublicExpenseCoverageSnapshot
-from app.domain.claim.primitives import (
-    ClaimCoveragePriority,
-    ClaimPublicPayerNumber,
-    ClaimPublicRecipientNumber,
-)
 from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing.primitives import DispensingId
-from app.domain.patient.primitives import PatientId
-from app.domain.prescription.primitives import PrescriptionId, PrescriptionStatus
-from app.domain.reception.coverage_selection import (
+from app.domain.coverage.coverage_selection import (
     CoverageSelection,
     SelectedPublicExpenseSource,
 )
-from app.domain.reception.coverage_selection_record import CoverageSelectionRecord
-from app.domain.reception.primitives import (
+from app.domain.coverage.coverage_selection_record import CoverageSelectionRecord
+from app.domain.coverage.coverage_snapshot import PublicExpenseCoverageSnapshot
+from app.domain.coverage.primitives import (
     CoverageAppliedOn,
+    CoveragePriority,
     CoverageRecordedAt,
     CoverageSelectionRecordId,
     OperatorPrincipalId,
-    SourceCoverageId,
+    PatientCoverageId,
+    PublicPayerNumber,
+    PublicRecipientNumber,
 )
+from app.domain.dispensing.primitives import DispensingId
+from app.domain.patient.primitives import PatientId
+from app.domain.prescription.primitives import PrescriptionId, PrescriptionStatus
 from app.domain.staff.primitives import StaffId
 from app.domain.store.primitives import StoreId
 from tests.factories.dispensing_factory import create_dispensing
@@ -113,7 +107,7 @@ _STORE_ADAPTERS = [
         id="薬歴",
     ),
     pytest.param(
-        ReceptionStoreReferenceAdapter, ReceptionStoreNotFoundError, id="受付"
+        CoverageStoreReferenceAdapter, CoverageStoreNotFoundError, id="資格台帳"
     ),
 ]
 
@@ -122,9 +116,6 @@ _PATIENT_ADAPTERS = [
         PrescriptionPatientReferenceAdapter,
         PrescriptionPatientNotFoundError,
         id="処方箋",
-    ),
-    pytest.param(
-        ReceptionPatientReferenceAdapter, ReceptionPatientNotFoundError, id="受付"
     ),
     pytest.param(
         CoveragePatientReferenceAdapter, CoveragePatientNotFoundError, id="資格台帳"
@@ -432,11 +423,11 @@ def _record_with_priorities(
         insurance=None,
         public_expenses=tuple(
             SelectedPublicExpenseSource(
-                source_coverage_id=SourceCoverageId.generate(),
+                source_coverage_id=PatientCoverageId.generate(),
                 values=PublicExpenseCoverageSnapshot(
-                    priority=ClaimCoveragePriority(priority),
-                    payer_number=ClaimPublicPayerNumber(f"1234567{priority}"),
-                    recipient_number=ClaimPublicRecipientNumber(f"123456{priority}"),
+                    priority=CoveragePriority(priority),
+                    payer_number=PublicPayerNumber(f"1234567{priority}"),
+                    recipient_number=PublicRecipientNumber(f"123456{priority}"),
                 ),
             )
             for priority in priorities

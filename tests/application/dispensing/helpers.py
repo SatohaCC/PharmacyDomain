@@ -33,9 +33,9 @@ from app.domain.dispensing.services import (
     DispensingIterationUniquenessService,
     DispensingPharmacistService,
 )
+from app.domain.medicine_catalog.primitives import MedicineCodeType
 from app.domain.prescription.prescription import Prescription
 from app.domain.prescription.primitives import PrescriptionStatus
-from app.domain.shared.medicine import MedicineCodeType
 from app.domain.staff.primitives import (
     PharmacistLicenseNumber,
     PharmacistProfile,

@@ -10,12 +10,12 @@ from app.application.access_control.policy import AuthorizationService
 from app.application.medicine_catalog.exceptions import MedicineNotFoundError
 from app.application.medicine_catalog.support import parse_enum, required_text
 from app.domain.medicine_catalog.medicine import Medicine
-from app.domain.medicine_catalog.repository import MedicineCatalogRepository
-from app.domain.shared.medicine import (
+from app.domain.medicine_catalog.primitives import (
     MedicineCode,
     MedicineCodeType,
     MedicineIdentifier,
 )
+from app.domain.medicine_catalog.repository import MedicineCatalogRepository
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -16,16 +16,10 @@ from app.application.access_control.policy import AuthorizationService
 from app.application.common.clock import Clock
 from app.application.composition.coverage_references import (
     CoveragePatientReferenceAdapter,
-)
-from app.application.composition.coverage_selection_adapter import (
-    CoverageSelectionAdapter,
+    CoverageStoreReferenceAdapter,
 )
 from app.application.composition.reception_medication_history import (
     ReceptionMedicationHistoryAssociationAdapter,
-)
-from app.application.composition.reception_references import (
-    ReceptionPatientReferenceAdapter,
-    ReceptionStoreReferenceAdapter,
 )
 from app.application.composition.staff_person_adapter import StaffPersonAdapter
 from app.application.corporate.change_corporate_name import ChangeCorporateNameUseCase
@@ -43,11 +37,18 @@ from app.application.coverage.change_patient_coverage_period import (
 from app.application.coverage.deactivate_patient_coverage import (
     DeactivatePatientCoverageUseCase,
 )
+from app.application.coverage.get_last_coverage_selection import (
+    GetLastCoverageSelectionUseCase,
+)
 from app.application.coverage.get_patient_coverage import GetPatientCoverageUseCase
 from app.application.coverage.list_patient_coverages import ListPatientCoveragesUseCase
+from app.application.coverage.record_coverage_selection import (
+    RecordCoverageSelectionUseCase,
+)
 from app.application.coverage.register_patient_coverage import (
     RegisterPatientCoverageUseCase,
 )
+from app.application.coverage.selection import CoverageSelectionBuilder
 from app.application.medicine_catalog.get_medicine import GetEffectiveMedicineUseCase
 from app.application.medicine_catalog.import_yj_catalog import ImportYjCatalogUseCase
 from app.application.medicine_catalog.register_medicine import RegisterMedicineUseCase
@@ -77,12 +78,6 @@ from app.application.patient.register_patient_external_identifier import (
 )
 from app.application.reception.associate_reception_medication_history import (
     AssociateReceptionMedicationHistoryUseCase,
-)
-from app.application.reception.get_last_coverage_selection import (
-    GetLastCoverageSelectionUseCase,
-)
-from app.application.reception.record_coverage_selection import (
-    RecordCoverageSelectionUseCase,
 )
 from app.application.staff.activate_staff import ActivateStaffUseCase
 from app.application.staff.assign_concurrent_store import (
@@ -342,11 +337,16 @@ def create_patient_use_cases(
 def create_coverage_use_cases(
     coverages: InMemoryPatientCoverageRepository,
     patients: InMemoryPatientRepository,
+    stores: InMemoryStoreRepository,
+    records: InMemoryCoverageSelectionRecordRepository,
     corporate_repository: InMemoryCorporateRepository,
+    clock: Clock,
 ) -> CoverageUseCases:
     """インメモリRepositoryの上に資格台帳ユースケース束を組み立てる。"""
     access = _access_for(corporate_repository)
     patient_reference = CoveragePatientReferenceAdapter(patients)
+    store_reference = CoverageStoreReferenceAdapter(stores)
+    selection = CoverageSelectionBuilder(coverages, CoverageSelectionService())
     conflict = PatientCoverageConflictService()
     return CoverageUseCases(
         register=RegisterPatientCoverageUseCase(
@@ -358,35 +358,32 @@ def create_coverage_use_cases(
         ),
         change_period=ChangePatientCoveragePeriodUseCase(coverages, conflict, access),
         deactivate=DeactivatePatientCoverageUseCase(coverages, access),
+        record_coverage_selection=RecordCoverageSelectionUseCase(
+            records,
+            access,
+            store_reference,
+            patient_reference,
+            selection,
+            clock,
+        ),
+        get_last_coverage_selection=GetLastCoverageSelectionUseCase(
+            records,
+            access,
+            store_reference,
+            patient_reference,
+            selection,
+        ),
     )
 
 
 def create_reception_use_cases(
-    records: InMemoryCoverageSelectionRecordRepository,
     receptions: InMemoryReceptionRepository,
     medication_histories: InMemoryMedicationHistoryRepository,
-    stores: InMemoryStoreRepository,
-    patients: InMemoryPatientRepository,
-    coverages: InMemoryPatientCoverageRepository,
     corporate_repository: InMemoryCorporateRepository,
-    clock: Clock,
 ) -> ReceptionUseCases:
-    """インメモリRepositoryの上に受付ユースケース束を組み立てる。
-
-    本番と同じく、資格の構築と再検証を同一のアダプタが担う。別実装に分けると、
-    記録したときの規則と検証するときの規則が食い違いうる。
-    """
+    """インメモリRepositoryの上に受付固有のユースケース束を組み立てる。"""
     access = _access_for(corporate_repository)
-    store_reference = ReceptionStoreReferenceAdapter(stores)
-    patient_reference = ReceptionPatientReferenceAdapter(patients)
-    selection = CoverageSelectionAdapter(coverages, CoverageSelectionService())
     return ReceptionUseCases(
-        record_coverage_selection=RecordCoverageSelectionUseCase(
-            records, access, store_reference, patient_reference, selection, clock
-        ),
-        get_last_coverage_selection=GetLastCoverageSelectionUseCase(
-            records, access, store_reference, patient_reference, selection
-        ),
         associate_medication_history=AssociateReceptionMedicationHistoryUseCase(
             reception_repository=receptions,
             medication_history_reference=ReceptionMedicationHistoryAssociationAdapter(

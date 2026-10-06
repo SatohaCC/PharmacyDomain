@@ -29,6 +29,20 @@ from app.application.prescription.inputs import (
 )
 from app.domain.corporate.primitives import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.medicine_catalog.primitives import (
+    MedicineCode,
+    MedicineCodeType,
+    MedicineIdentifier,
+    MedicineName,
+    MedicineUnit,
+)
+from app.domain.prescription.dosage import (
+    DailyFrequency,
+    DosageCode,
+    DosageCodeType,
+    DosageInstruction,
+    DosageName,
+)
 from app.domain.prescription.prescription import (
     Prescription,
     PrescriptionMedicine,
@@ -37,9 +51,13 @@ from app.domain.prescription.prescription import (
 from app.domain.prescription.primitives import (
     ApplicationSiteCode,
     ClinicalInformationText,
+    ConversionFactor,
     DepartmentCode,
     DepartmentCodeType,
     DepartmentName,
+    DispensingQuantity,
+    DosageAmount,
+    DosageFormCategory,
     DosageFormName,
     DosageSupplementCode,
     DosageSupplementText,
@@ -54,6 +72,7 @@ from app.domain.prescription.primitives import (
     MedicalInstitutionPhoneNumber,
     MedicalInstitutionPostalCode,
     MedicalInstitutionPrefectureCode,
+    MedicineLineNumber,
     MedicineSupplementText,
     MedicineSupplementType,
     NarcoticLicenseNumber,
@@ -67,6 +86,8 @@ from app.domain.prescription.primitives import (
     PrescriptionValidTo,
     RefillCount,
     ResidualDrugInstruction,
+    RpNumber,
+    SingleDoseAmount,
     SplitCount,
     SplitIteration,
     SubstitutionRestrictionReason,
@@ -90,27 +111,6 @@ from app.domain.prescription.value_objects import (
     SplitInstruction,
     UnequalDosageInstruction,
     UnitConversion,
-)
-from app.domain.shared.dosage import (
-    DailyFrequency,
-    DosageCode,
-    DosageCodeType,
-    DosageInstruction,
-    DosageName,
-)
-from app.domain.shared.medicine import (
-    ConversionFactor,
-    DispensingQuantity,
-    DosageAmount,
-    DosageFormCategory,
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
-    MedicineLineNumber,
-    MedicineName,
-    MedicineUnit,
-    RpNumber,
-    SingleDoseAmount,
 )
 from app.domain.shared.person_name import PersonName, PersonNameKana
 from app.domain.shared.public_expense import PublicExpenseBurden

@@ -71,6 +71,7 @@ from app.domain.dispensing.services import (
     DispensingIterationUniquenessService,
     DispensingPharmacistService,
 )
+from app.domain.medicine_catalog.primitives import MedicineCodeType
 from app.domain.prescription.exceptions import PrescriptionDomainError
 from app.domain.prescription.primitives import (
     GenericSubstitutionRestrictionType,
@@ -83,7 +84,6 @@ from app.domain.prescription.value_objects import (
     PrescriptionManagementInfo,
     RefillInstruction,
 )
-from app.domain.shared.medicine import MedicineCodeType
 from app.domain.shared.preservation import (
     PreservationPolicyCatalog,
     PreservationRecordKind,
@@ -1012,7 +1012,7 @@ class Test変更調剤の記録:
         assert substitution.category == "generic_substitution"
 
     async def test_一包化と自家製剤を_同時に記録できる(self) -> None:
-        """加算の排他は Claim の責務。ここで排他にすると事実を残せない。"""
+        """加算の排他は請求算定側の責務。ここで排他にすると事実を残せない。"""
         # Arrange
         fixture = create_fixture()
         dispensing_id = await _start(fixture)

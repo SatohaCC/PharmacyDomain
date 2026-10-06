@@ -34,6 +34,11 @@ from app.application.prescription.register_prescription import (
 from app.application.prescription.resolve_inquiry import ResolveInquiryUseCase
 from app.application.prescription.start_inquiry import StartInquiryUseCase
 from app.domain.corporate.primitives import CorporateId
+from app.domain.medicine_catalog.primitives import (
+    MedicineCode,
+    MedicineCodeType,
+    MedicineIdentifier,
+)
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.services import (
     InquiryPharmacistService,
@@ -45,11 +50,6 @@ from app.domain.prescription.services import (
 from app.domain.prescription.value_objects import (
     MedicineClassification,
     MedicineRestrictionFlag,
-)
-from app.domain.shared.medicine import (
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
 )
 from app.domain.staff.primitives import (
     PharmacistLicenseNumber,

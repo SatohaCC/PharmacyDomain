@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 
+from app.domain.medicine_catalog.primitives import MedicineIdentifier
 from app.domain.prescription.exceptions import (
     InquiryPharmacistQualificationError,
     MedicineClassificationMissingError,
@@ -24,7 +25,6 @@ from app.domain.prescription.value_objects import (
     MedicineClassification,
     MedicineRestrictionFlag,
 )
-from app.domain.shared.medicine import MedicineIdentifier
 from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.staff.primitives import PharmacistProfile, StaffQualifications
 

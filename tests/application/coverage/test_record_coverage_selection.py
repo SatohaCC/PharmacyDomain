@@ -7,47 +7,47 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from app.application.reception.exceptions import (
-    ReceptionCoverageSelectionError,
-    ReceptionPatientNotFoundError,
-    ReceptionStoreNotFoundError,
+from app.application.coverage.exceptions import (
+    CoveragePatientNotFoundError,
+    CoverageSelectionError,
+    CoverageStoreNotFoundError,
 )
-from app.application.reception.record_coverage_selection import (
+from app.application.coverage.record_coverage_selection import (
     RecordCoverageSelectionCommand,
     RecordCoverageSelectionUseCase,
 )
-from app.domain.claim.coverage_snapshot import (
-    InsuranceCoverageSnapshot,
-    PublicExpenseCoverageSnapshot,
-)
-from app.domain.claim.primitives import (
-    ClaimCoverageBenefitRatio,
-    ClaimCoverageCode,
-    ClaimCoverageInsuredType,
-    ClaimCoveragePriority,
-    ClaimCoverageSymbol,
-    ClaimInsurerNumber,
-    ClaimPublicPayerNumber,
-    ClaimPublicRecipientNumber,
-)
 from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientId
-from app.domain.reception.coverage_selection import (
+from app.domain.coverage.coverage_selection import (
     CoverageSelection,
     SelectedInsuranceSource,
     SelectedPublicExpenseSource,
 )
-from app.domain.reception.primitives import SourceCoverageId
+from app.domain.coverage.coverage_snapshot import (
+    InsuranceCoverageSnapshot,
+    PublicExpenseCoverageSnapshot,
+)
+from app.domain.coverage.primitives import (
+    CoverageBenefitRatio,
+    CoverageCode,
+    CoverageInsuredType,
+    CoveragePriority,
+    CoverageSymbol,
+    InsurerNumber,
+    PatientCoverageId,
+    PublicPayerNumber,
+    PublicRecipientNumber,
+)
+from app.domain.patient.primitives import PatientId
 from app.domain.store.primitives import StoreId
 from tests.application.access_helpers import create_vendor_corporate_access
-from tests.fakes.fake_clock import DEFAULT_NOW, FakeClock
-from tests.fakes.in_memory_coverage_selection_record_repository import (
-    InMemoryCoverageSelectionRecordRepository,
-)
-from tests.fakes.reception_reference_boundaries import (
+from tests.fakes.coverage_reference_boundaries import (
     FakeCoverageSelectionSource,
     FakePatientReference,
     FakeStoreReference,
+)
+from tests.fakes.fake_clock import DEFAULT_NOW, FakeClock
+from tests.fakes.in_memory_coverage_selection_record_repository import (
+    InMemoryCoverageSelectionRecordRepository,
 )
 
 _APPLIED_ON = date(2026, 8, 23)
@@ -68,28 +68,28 @@ class _Fixture:
 
 
 def _create_selection(
-    insurance_id: SourceCoverageId,
-    public_id: SourceCoverageId,
+    insurance_id: PatientCoverageId,
+    public_id: PatientCoverageId,
 ) -> CoverageSelection:
     """医療保険1件と第一公費1件の選択を生成する。"""
     return CoverageSelection(
         insurance=SelectedInsuranceSource(
             source_coverage_id=insurance_id,
             values=InsuranceCoverageSnapshot(
-                insurer_number=ClaimInsurerNumber("01130012"),
-                insured_symbol=ClaimCoverageSymbol("A"),
-                insured_number=ClaimCoverageCode("456"),
-                insured_type=ClaimCoverageInsuredType.SELF,
-                benefit_ratio=ClaimCoverageBenefitRatio(70),
+                insurer_number=InsurerNumber("01130012"),
+                insured_symbol=CoverageSymbol("A"),
+                insured_number=CoverageCode("456"),
+                insured_type=CoverageInsuredType.SELF,
+                benefit_ratio=CoverageBenefitRatio(70),
             ),
         ),
         public_expenses=(
             SelectedPublicExpenseSource(
                 source_coverage_id=public_id,
                 values=PublicExpenseCoverageSnapshot(
-                    priority=ClaimCoveragePriority(1),
-                    payer_number=ClaimPublicPayerNumber("12345671"),
-                    recipient_number=ClaimPublicRecipientNumber("1234561"),
+                    priority=CoveragePriority(1),
+                    payer_number=PublicPayerNumber("12345671"),
+                    recipient_number=PublicRecipientNumber("1234561"),
                 ),
             ),
         ),
@@ -146,7 +146,7 @@ async def test_受付資格選択登録_医療保険と公費を選ぶと_枠ご
 ):
     # Arrange
     fixture = _create_fixture()
-    insurance_id, public_id = SourceCoverageId.generate(), SourceCoverageId.generate()
+    insurance_id, public_id = PatientCoverageId.generate(), PatientCoverageId.generate()
     coverage_ids = (str(insurance_id.value), str(public_id.value))
     fixture.coverage_selection.register(
         coverage_ids=coverage_ids,
@@ -171,7 +171,7 @@ async def test_受付資格選択登録_登録すると_注入Clockの時刻と�
 ):
     # Arrange
     fixture = _create_fixture()
-    insurance_id, public_id = SourceCoverageId.generate(), SourceCoverageId.generate()
+    insurance_id, public_id = PatientCoverageId.generate(), PatientCoverageId.generate()
     coverage_ids = (str(insurance_id.value), str(public_id.value))
     fixture.coverage_selection.register(
         coverage_ids=coverage_ids,
@@ -190,7 +190,7 @@ async def test_受付資格選択登録_登録すると_注入Clockの時刻と�
 async def test_受付資格選択登録_保存すると_履歴が取得できる() -> None:
     # Arrange
     fixture = _create_fixture()
-    insurance_id, public_id = SourceCoverageId.generate(), SourceCoverageId.generate()
+    insurance_id, public_id = PatientCoverageId.generate(), PatientCoverageId.generate()
     coverage_ids = (str(insurance_id.value), str(public_id.value))
     selection = _create_selection(insurance_id, public_id)
     fixture.coverage_selection.register(coverage_ids=coverage_ids, selection=selection)
@@ -216,11 +216,11 @@ async def test_受付資格選択登録_別法人の店舗を指定すると_店
         store_id=str(StoreId.generate().value),
         patient_id=str(fixture.patient_id.value),
         applied_on=_APPLIED_ON,
-        coverage_ids=(str(SourceCoverageId.generate().value),),
+        coverage_ids=(str(PatientCoverageId.generate().value),),
     )
 
     # Act / Assert: 他テナントの存在を隠すため404相当へ畳む
-    with pytest.raises(ReceptionStoreNotFoundError):
+    with pytest.raises(CoverageStoreNotFoundError):
         await fixture.use_case.execute(command)
 
 
@@ -232,28 +232,28 @@ async def test_受付資格選択登録_別法人の患者を指定すると_患
         store_id=str(fixture.store_id.value),
         patient_id=str(PatientId.generate().value),
         applied_on=_APPLIED_ON,
-        coverage_ids=(str(SourceCoverageId.generate().value),),
+        coverage_ids=(str(PatientCoverageId.generate().value),),
     )
 
     # Act / Assert
-    with pytest.raises(ReceptionPatientNotFoundError):
+    with pytest.raises(CoveragePatientNotFoundError):
         await fixture.use_case.execute(command)
 
 
 async def test_受付資格選択登録_選択を構成できないと_選択エラーになる() -> None:
     # Arrange
     fixture = _create_fixture()
-    command = _create_command(fixture, (str(SourceCoverageId.generate().value),))
+    command = _create_command(fixture, (str(PatientCoverageId.generate().value),))
 
     # Act / Assert: 資格の不在を例外の種類で区別して漏らさない
-    with pytest.raises(ReceptionCoverageSelectionError):
+    with pytest.raises(CoverageSelectionError):
         await fixture.use_case.execute(command)
 
 
 async def test_受付資格選択登録_記録時刻は_タイムゾーン付きUTCで保存される() -> None:
     # Arrange
     fixture = _create_fixture()
-    insurance_id, public_id = SourceCoverageId.generate(), SourceCoverageId.generate()
+    insurance_id, public_id = PatientCoverageId.generate(), PatientCoverageId.generate()
     coverage_ids = (str(insurance_id.value), str(public_id.value))
     fixture.coverage_selection.register(
         coverage_ids=coverage_ids,

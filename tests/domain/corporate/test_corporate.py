@@ -105,7 +105,7 @@ def test_change_representative_updates_representative() -> None:
     assert corporate.representative_name.full_name == "佐藤 花子"
 
 
-def test_change_name_is_noop_for_same_value() -> None:
+def test_法人名変更_同じ名称を指定_戻り値と元の法人の状態を維持する() -> None:
     # Arrange
     original_name = CorporateName("法人")
     corporate = Corporate.create(
@@ -114,9 +114,13 @@ def test_change_name_is_noop_for_same_value() -> None:
     )
 
     # Act
-    corporate.change_name(CorporateName("法人"))
+    updated = corporate.change_name(CorporateName("法人"))
 
     # Assert
+    assert updated.id == corporate.id
+    assert updated.name == original_name
+    assert updated.representative_name == corporate.representative_name
+    assert updated.status == corporate.status
     assert corporate.name == original_name
 
 

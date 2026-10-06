@@ -11,7 +11,19 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from app.domain.corporate.primitives import CorporateId
+from app.domain.medicine_catalog.primitives import (
+    MedicineCode,
+    MedicineCodeType,
+    MedicineIdentifier,
+    MedicineName,
+    MedicineUnit,
+)
 from app.domain.patient.primitives import PatientId
+from app.domain.prescription.dosage import (
+    DosageCodeType,
+    DosageInstruction,
+    DosageName,
+)
 from app.domain.prescription.prescription import (
     Prescription,
     PrescriptionMedicine,
@@ -20,6 +32,9 @@ from app.domain.prescription.prescription import (
 from app.domain.prescription.primitives import (
     DepartmentCodeType,
     DepartmentName,
+    DispensingQuantity,
+    DosageAmount,
+    DosageFormCategory,
     GenericSubstitutionRestrictionType,
     InquiryCategory,
     InquiryContent,
@@ -30,11 +45,13 @@ from app.domain.prescription.primitives import (
     MedicalInstitutionCodeType,
     MedicalInstitutionName,
     MedicalInstitutionPrefectureCode,
+    MedicineLineNumber,
     PrescriberName,
     PrescriptionDocumentNumber,
     PrescriptionIssuedDate,
     PrescriptionSourceType,
     PrescriptionValidTo,
+    RpNumber,
 )
 from app.domain.prescription.value_objects import (
     DepartmentInfo,
@@ -44,23 +61,6 @@ from app.domain.prescription.value_objects import (
     PrescriberResponse,
     PrescriptionManagementInfo,
     PrescriptionPeriod,
-)
-from app.domain.shared.dosage import (
-    DosageCodeType,
-    DosageInstruction,
-    DosageName,
-)
-from app.domain.shared.medicine import (
-    DispensingQuantity,
-    DosageAmount,
-    DosageFormCategory,
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
-    MedicineLineNumber,
-    MedicineName,
-    MedicineUnit,
-    RpNumber,
 )
 from app.domain.shared.person_name import PersonName, PersonNameKana
 from app.domain.shared.public_expense import PublicExpenseBurden

@@ -23,20 +23,18 @@ from app.domain.medicine_catalog.medicine import (
 from app.domain.medicine_catalog.primitives import (
     GenericCategory,
     MedicineCatalogVersion,
+    MedicineCode,
+    MedicineCodeType,
     MedicineDosageForm,
+    MedicineIdentifier,
     MedicineListedOn,
+    MedicineName,
+    MedicineUnit,
     MedicineWithdrawnOn,
     NarcoticCategory,
 )
 from app.domain.medicine_catalog.repository import MedicineCatalogRepository
 from app.domain.medicine_catalog.services import MedicineEffectivePeriodConflictService
-from app.domain.shared.medicine import (
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
-    MedicineName,
-    MedicineUnit,
-)
 
 
 @dataclass(frozen=True, kw_only=True)

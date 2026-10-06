@@ -10,12 +10,14 @@ from collections.abc import Sequence
 from datetime import date
 
 from app.domain.medicine_catalog.medicine import Medicine
-from app.domain.medicine_catalog.primitives import MedicineCatalogEntryId
+from app.domain.medicine_catalog.primitives import (
+    MedicineCatalogEntryId,
+    MedicineIdentifier,
+)
 from app.domain.medicine_catalog.repository import MedicineCatalogRepository
 from app.domain.medicine_catalog.services import (
     MedicineEffectivePeriodConflictService,
 )
-from app.domain.shared.medicine import MedicineIdentifier
 
 
 class InMemoryMedicineCatalogRepository(MedicineCatalogRepository):

@@ -69,6 +69,13 @@ _REACHED_THROUGH_COMPOSITION_ROOT: dict[str, str] = {
     "identity.accept": "root.accept_invitation(",
 }
 
+# URL上は受付の業務フローに属するが、保険資格の適用選択を所有するユースケース。
+# APIの公開境界とドメインの所有コンテキストを同一ルータへ固定しない。
+_ROUTER_OVERRIDES: Mapping[str, ModuleType] = {
+    "coverage.record_coverage_selection": reception,
+    "coverage.get_last_coverage_selection": reception,
+}
+
 
 def test_全ユースケースが_HTTPルートから到達できる() -> None:
     """束へ足したユースケースにルートが無いと、配線だけされて実行できない。"""
@@ -82,7 +89,8 @@ def test_全ユースケースが_HTTPルートから到達できる() -> None:
         for use_case_field in get_type_hints(bundle_types[bundle_name])
         if (name := f"{bundle_name}.{use_case_field}")
         not in _REACHED_THROUGH_COMPOSITION_ROOT
-        and f"use_cases.{use_case_field}." not in inspect.getsource(module)
+        and f"use_cases.{use_case_field}."
+        not in inspect.getsource(_ROUTER_OVERRIDES.get(name, module))
     ]
 
     # Assert

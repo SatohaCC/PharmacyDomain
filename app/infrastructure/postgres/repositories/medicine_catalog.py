@@ -17,9 +17,11 @@ from app.domain.medicine_catalog.exceptions import (
     MedicineEffectivePeriodConflictError,
 )
 from app.domain.medicine_catalog.medicine import Medicine
-from app.domain.medicine_catalog.primitives import MedicineCatalogEntryId
+from app.domain.medicine_catalog.primitives import (
+    MedicineCatalogEntryId,
+    MedicineIdentifier,
+)
 from app.domain.medicine_catalog.repository import MedicineCatalogRepository
-from app.domain.shared.medicine import MedicineIdentifier
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,

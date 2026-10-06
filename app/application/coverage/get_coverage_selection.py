@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.application.common.optional_conversion import unwrap
-from app.domain.reception.coverage_selection import CoverageSelection
-from app.domain.reception.coverage_selection_record import CoverageSelectionRecord
+from app.domain.coverage.coverage_selection import CoverageSelection
+from app.domain.coverage.coverage_selection_record import CoverageSelectionRecord
 
 
 @dataclass(frozen=True, kw_only=True)

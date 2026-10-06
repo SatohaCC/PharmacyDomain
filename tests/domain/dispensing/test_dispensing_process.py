@@ -50,13 +50,15 @@ from app.domain.dispensing.value_objects import (
     SubstitutionDetail,
 )
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.prescription.primitives import InquiryNumber
-from app.domain.shared.medicine import (
-    DispensingQuantity,
+from app.domain.medicine_catalog.primitives import (
     MedicineCode,
     MedicineCodeType,
     MedicineIdentifier,
     MedicineName,
+)
+from app.domain.prescription.primitives import (
+    DispensingQuantity,
+    InquiryNumber,
     RpNumber,
 )
 from app.domain.staff.primitives import StaffId
@@ -355,7 +357,7 @@ class Test変更調剤:
             )
 
     def test_一包化と自家製剤は_同時に記録できる(self) -> None:
-        """加算の排他は Claim の責務。ここで排他にすると実施した事実を残せない。"""
+        """加算の排他は請求算定側の責務。ここで排他にすると実施した事実を残せない。"""
         # Arrange / Act
         actual = create_dispensed_medicine(
             preparations=(

@@ -34,6 +34,7 @@ from app.application.common.exceptions import (
 )
 from app.application.coverage.exceptions import (
     CoveragePatientNotFoundError,
+    CoverageStoreNotFoundError,
     PatientCoverageNotFoundError,
 )
 from app.application.dispensing.exceptions import (
@@ -67,10 +68,6 @@ from app.application.prescription.exceptions import (
     PrescriptionPatientNotFoundError,
     PrescriptionPharmacistNotFoundError,
     PrescriptionStoreNotFoundError,
-)
-from app.application.reception.exceptions import (
-    ReceptionPatientNotFoundError,
-    ReceptionStoreNotFoundError,
 )
 from app.application.staff.exceptions import (
     StaffNotFoundError as StaffApplicationNotFoundError,
@@ -204,6 +201,7 @@ _STATUS_BY_EXCEPTION: Final[Mapping[type[BaseException], HTTPStatus]] = {
     # コンテキストごとの *NotFoundError は基底がまちまちなので個別に載せる。
     NotFoundError: HTTPStatus.NOT_FOUND,
     CoveragePatientNotFoundError: HTTPStatus.NOT_FOUND,
+    CoverageStoreNotFoundError: HTTPStatus.NOT_FOUND,
     PatientCoverageNotFoundError: HTTPStatus.NOT_FOUND,
     DispensingNotFoundError: HTTPStatus.NOT_FOUND,
     DispensingPrescriptionNotFoundError: HTTPStatus.NOT_FOUND,
@@ -225,8 +223,6 @@ _STATUS_BY_EXCEPTION: Final[Mapping[type[BaseException], HTTPStatus]] = {
     PrescriptionPatientNotFoundError: HTTPStatus.NOT_FOUND,
     PrescriptionPharmacistNotFoundError: HTTPStatus.NOT_FOUND,
     PrescriptionStoreNotFoundError: HTTPStatus.NOT_FOUND,
-    ReceptionPatientNotFoundError: HTTPStatus.NOT_FOUND,
-    ReceptionStoreNotFoundError: HTTPStatus.NOT_FOUND,
     StaffApplicationNotFoundError: HTTPStatus.NOT_FOUND,
     StoreNotFoundError: HTTPStatus.NOT_FOUND,
     ConcurrentMedicationNotFoundError: HTTPStatus.NOT_FOUND,

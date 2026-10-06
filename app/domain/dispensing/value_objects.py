@@ -25,12 +25,8 @@ from app.domain.dispensing.primitives import (
     VerificationTimestamp,
 )
 from app.domain.foundation.value_object import ValueObject
-from app.domain.prescription.primitives import InquiryNumber
-from app.domain.shared.medicine import (
-    DispensingQuantity,
-    MedicineIdentifier,
-    MedicineName,
-)
+from app.domain.medicine_catalog.primitives import MedicineIdentifier, MedicineName
+from app.domain.prescription.primitives import DispensingQuantity, InquiryNumber
 from app.domain.staff.primitives import StaffId
 
 

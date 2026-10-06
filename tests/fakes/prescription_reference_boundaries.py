@@ -26,12 +26,10 @@ from app.application.prescription.reference import (
     StoreReferenceBoundary,
 )
 from app.domain.corporate.primitives import CorporateId
+from app.domain.coverage.primitives import CoverageSelectionRecordId
+from app.domain.medicine_catalog.primitives import MedicineIdentifier
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.value_objects import MedicineClassification
-from app.domain.reception.primitives import CoverageSelectionRecordId
-from app.domain.shared.medicine import (
-    MedicineIdentifier,
-)
 from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.staff.primitives import StaffId, StaffQualifications
 from app.domain.store.primitives import StoreId

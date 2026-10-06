@@ -28,11 +28,13 @@ from app.domain.medicine_catalog.primitives import (
     MedicineCatalogEntryId,
     MedicineCatalogVersion,
     MedicineDosageForm,
+    MedicineIdentifier,
     MedicineListedOn,
+    MedicineName,
+    MedicineUnit,
     MedicineWithdrawnOn,
     NarcoticCategory,
 )
-from app.domain.shared.medicine import MedicineIdentifier, MedicineName, MedicineUnit
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -90,7 +92,7 @@ class Medicine(AggregateRoot[MedicineCatalogEntryId]):
     保持するのは**マスタの生の事実**だけである。「リフィル不可の貼付剤か」の
     ような判定は、薬価基準ではなくリフィルの規則が定める組み合わせなので、
     ここではなく利用側（Composition のアダプタ）が導出する。
-    生の事実だけを持つことで、Dispensing や Claim が別の導出を必要としても
+    生の事実だけを持つことで、Dispensing や請求算定側が別の導出を必要としても
     このマスタを作り直さずに済む。
     """
 

@@ -58,17 +58,19 @@ from app.domain.dispensing.value_objects import (
 )
 from app.domain.foundation.entity import AggregateRoot
 from app.domain.foundation.value_object import ValueObject
+from app.domain.medicine_catalog.primitives import (
+    MedicineIdentifier,
+    MedicineName,
+    MedicineUnit,
+)
 from app.domain.patient.primitives import PatientId
-from app.domain.prescription.primitives import PrescriptionId
-from app.domain.shared.dosage import DosageInstruction
-from app.domain.shared.medicine import (
+from app.domain.prescription.dosage import DosageInstruction
+from app.domain.prescription.primitives import (
     DispensingQuantity,
     DosageAmount,
     DosageFormCategory,
-    MedicineIdentifier,
     MedicineLineNumber,
-    MedicineName,
-    MedicineUnit,
+    PrescriptionId,
     RpNumber,
 )
 from app.domain.shared.preservation import (

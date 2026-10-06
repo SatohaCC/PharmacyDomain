@@ -15,19 +15,17 @@ from app.domain.medicine_catalog.medicine import Medicine, MedicineEffectivePeri
 from app.domain.medicine_catalog.primitives import (
     GenericCategory,
     MedicineCatalogVersion,
+    MedicineCode,
+    MedicineCodeType,
     MedicineDosageForm,
+    MedicineIdentifier,
     MedicineListedOn,
+    MedicineName,
+    MedicineUnit,
     MedicineWithdrawnOn,
     NarcoticCategory,
 )
 from app.domain.medicine_catalog.repository import MedicineCatalogRepository
-from app.domain.shared.medicine import (
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
-    MedicineName,
-    MedicineUnit,
-)
 
 DEFAULT_CATALOG_VERSION = date(2026, 8, 15)
 DEFAULT_LISTED_ON = date(1950, 1, 1)

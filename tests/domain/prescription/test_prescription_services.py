@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import pytest
 
+from app.domain.medicine_catalog.primitives import MedicineIdentifier
 from app.domain.prescription.exceptions import (
     InquiryPharmacistQualificationError,
     MedicineClassificationMissingError,
@@ -39,9 +40,6 @@ from app.domain.prescription.value_objects import (
     NarcoticPrescriptionDetails,
     PrescriptionManagementInfo,
     RefillInstruction,
-)
-from app.domain.shared.medicine import (
-    MedicineIdentifier,
 )
 from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.staff.primitives import (
@@ -436,7 +434,7 @@ class Test公費負担の裏付け:
         )
 
     def test_特殊公費は_資格側で表せなければ拒否される(self) -> None:
-        """特殊公費の負担者番号は ``N20`` で Claim の8桁制約を満たせない。
+        """特殊公費の負担者番号は ``N20`` で資格固定値の8桁制約を満たせない。
 
         表せない枠を ``True`` で埋めない限り、この向きで必ず落ちる。
         """

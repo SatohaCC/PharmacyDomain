@@ -18,7 +18,7 @@ FastAPI、DB、Application層へ依存しません。現在の型やメソッド
 | 領域 | コンテキスト | 境界の要点 |
 | :--- | :--- | :--- |
 | 組織 | Corporate / Store / Staff | 法人をテナント境界とし、店舗所属は履歴として扱う |
-| 患者・保険 | Patient / Coverage / Reception / Claim | 資格台帳、受付時選択、請求Snapshotを別の事実として分ける |
+| 患者・保険 | Patient / Coverage / Reception | 資格台帳・適用固定値と、受付原本・業務判断を別の事実として分ける |
 | 調剤業務 | Prescription / Dispensing / MedicationHistory | 原本、調剤作業、服薬指導記録を別集約で管理する |
 | 参照データ | MedicineCatalog | 国が定める非テナントの版付きマスタとして扱う |
 | 認証・認可 | Identity | 本人、アカウント、法人アクセス権を法人の外側に独立させる |
@@ -56,7 +56,7 @@ RepositoryはDomain層のProtocolです。Applicationの事前readは分かり�
 一意性や期間競合の最終防衛は `save()` の原子的な契約です。
 永続化対象の全コンテキストについて PostgreSQL の一意制約・排他制約と
 Repository 実装で原子性の最終防衛を置き、Unit of Work から commit します。
-Claim は現時点では Domain 層のみのため、永続化対象には含めません。
+Coverage の資格台帳と選択履歴は永続化対象であり、適用選択には元資格IDと固定値を保存します。
 
 ## 時間とライフサイクル
 
@@ -79,9 +79,9 @@ Claim は現時点では Domain 層のみのため、永続化対象には含め
 
 ## 重要な設計判断
 
-- 資格台帳は履歴の真実、Receptionの選択はその時点の業務判断、Claim Snapshotは請求用の固定値である
+- Coverageは資格台帳・有効性・適用組み合わせ・適用固定値・選択履歴の真実を持ち、Receptionは受信原本・訂正履歴・受付時の業務判断を持つ
 - CoverageSelectionは元資格IDと固定値を同じ枠に束ね、並び順の暗黙契約を作らない
-- 公費順位の規則本体はShared Kernelの1箇所に置き、CoverageとClaimは各自の例外へ変換する
+- 公費順位の規則本体と、保険・公費の資格固定値規則はCoverageに集約する
 - 医薬品規制区分が不明な場合は非該当に倒さず、危険な処方をfail-closedで拒否する
 - 子レコードに、期間から導出できる `is_active` を重ねて持たせない
 - 患者医療プロファイルは薬歴からの投影とし、直接編集できる独立集約にはしない

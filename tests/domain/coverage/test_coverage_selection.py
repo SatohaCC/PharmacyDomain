@@ -11,66 +11,66 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from app.domain.claim.coverage_snapshot import (
-    InsuranceCoverageSnapshot,
-    PublicExpenseCoverageSnapshot,
-)
-from app.domain.claim.exceptions import CoverageCombinationInvalidError
-from app.domain.claim.primitives import (
-    ClaimCoverageBenefitRatio,
-    ClaimCoverageCode,
-    ClaimCoverageInsuredType,
-    ClaimCoveragePriority,
-    ClaimCoverageSymbol,
-    ClaimInsurerNumber,
-    ClaimPublicPayerNumber,
-    ClaimPublicRecipientNumber,
-)
 from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientId
-from app.domain.reception.coverage_selection import (
+from app.domain.coverage.coverage_selection import (
     CoverageSelection,
     SelectedInsuranceSource,
     SelectedPublicExpenseSource,
 )
-from app.domain.reception.coverage_selection_record import CoverageSelectionRecord
-from app.domain.reception.exceptions import CoverageSelectionInvalidError
-from app.domain.reception.primitives import (
-    CoverageAppliedOn,
-    CoverageRecordedAt,
-    OperatorPrincipalId,
-    SourceCoverageId,
+from app.domain.coverage.coverage_selection_record import CoverageSelectionRecord
+from app.domain.coverage.coverage_snapshot import (
+    InsuranceCoverageSnapshot,
+    PublicExpenseCoverageSnapshot,
 )
+from app.domain.coverage.exceptions import (
+    CoverageCombinationInvalidError,
+    CoverageSelectionInvalidError,
+)
+from app.domain.coverage.primitives import (
+    CoverageAppliedOn,
+    CoverageBenefitRatio,
+    CoverageCode,
+    CoverageInsuredType,
+    CoveragePriority,
+    CoverageRecordedAt,
+    CoverageSymbol,
+    InsurerNumber,
+    OperatorPrincipalId,
+    PatientCoverageId,
+    PublicPayerNumber,
+    PublicRecipientNumber,
+)
+from app.domain.patient.primitives import PatientId
 from app.domain.store.primitives import StoreId
 
 
 def _insurance_frame(
-    source_coverage_id: SourceCoverageId | None = None,
+    source_coverage_id: PatientCoverageId | None = None,
 ) -> SelectedInsuranceSource:
     """テスト用の医療保険枠を生成する。"""
     return SelectedInsuranceSource(
-        source_coverage_id=source_coverage_id or SourceCoverageId.generate(),
+        source_coverage_id=source_coverage_id or PatientCoverageId.generate(),
         values=InsuranceCoverageSnapshot(
-            insurer_number=ClaimInsurerNumber("01130012"),
-            insured_symbol=ClaimCoverageSymbol("A"),
-            insured_number=ClaimCoverageCode("456"),
-            insured_type=ClaimCoverageInsuredType.SELF,
-            benefit_ratio=ClaimCoverageBenefitRatio(70),
+            insurer_number=InsurerNumber("01130012"),
+            insured_symbol=CoverageSymbol("A"),
+            insured_number=CoverageCode("456"),
+            insured_type=CoverageInsuredType.SELF,
+            benefit_ratio=CoverageBenefitRatio(70),
         ),
     )
 
 
 def _public_frame(
     priority: int,
-    source_coverage_id: SourceCoverageId | None = None,
+    source_coverage_id: PatientCoverageId | None = None,
 ) -> SelectedPublicExpenseSource:
     """テスト用の公費枠を生成する。"""
     return SelectedPublicExpenseSource(
-        source_coverage_id=source_coverage_id or SourceCoverageId.generate(),
+        source_coverage_id=source_coverage_id or PatientCoverageId.generate(),
         values=PublicExpenseCoverageSnapshot(
-            priority=ClaimCoveragePriority(priority),
-            payer_number=ClaimPublicPayerNumber(f"1234567{priority}"),
-            recipient_number=ClaimPublicRecipientNumber(f"123456{priority}"),
+            priority=CoveragePriority(priority),
+            payer_number=PublicPayerNumber(f"1234567{priority}"),
+            recipient_number=PublicRecipientNumber(f"123456{priority}"),
         ),
     )
 
@@ -124,7 +124,7 @@ def test_適用資格選択_同じ元IDを医療保険枠と公費枠に指定�
     None
 ):
     # Arrange
-    shared = SourceCoverageId.generate()
+    shared = PatientCoverageId.generate()
 
     # Act / Assert
     with pytest.raises(CoverageSelectionInvalidError):
@@ -136,7 +136,7 @@ def test_適用資格選択_同じ元IDを医療保険枠と公費枠に指定�
 
 def test_適用資格選択_枠が一つもないと_組み合わせ検証エラーになる() -> None:
     # Arrange / Act / Assert
-    # 値側の規則なので Claim の例外を透過させる（Receptionで包み直すと二重定義になる）
+    # 値側の規則なので Coverage の例外をそのまま返す。
     with pytest.raises(CoverageCombinationInvalidError):
         CoverageSelection()
 
@@ -151,7 +151,7 @@ def test_適用資格選択_公費順位が第一公費から連続しないと_
 
 def test_適用資格選択_公費が第五以降を含むと_組み合わせ検証エラーになる() -> None:
     # Arrange / Act / Assert
-    # ClaimCoveragePriority が 1..4 しか許さないため、5件目は必ず重複になる。
+    # CoveragePriority が 1..4 しか許さないため、5件目は必ず重複になる。
     with pytest.raises(CoverageCombinationInvalidError):
         CoverageSelection(
             public_expenses=(

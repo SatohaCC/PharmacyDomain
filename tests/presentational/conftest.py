@@ -113,17 +113,17 @@ def api() -> Iterator[Api]:
                 patients, external_identifiers, corporates
             ),
             get_coverage_use_cases: lambda: create_coverage_use_cases(
-                coverages, patients, corporates
-            ),
-            get_reception_use_cases: lambda: create_reception_use_cases(
-                selection_records,
-                receptions,
-                medication_histories,
-                stores,
-                patients,
                 coverages,
+                patients,
+                stores,
+                selection_records,
                 corporates,
                 clock,
+            ),
+            get_reception_use_cases: lambda: create_reception_use_cases(
+                receptions,
+                medication_histories,
+                corporates,
             ),
             get_medicine_catalog_use_cases: lambda: create_medicine_catalog_use_cases(
                 medicines

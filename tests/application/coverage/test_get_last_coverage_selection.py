@@ -7,44 +7,42 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
-from app.application.reception.exceptions import (
-    ReceptionPatientNotFoundError,
-    ReceptionStoreNotFoundError,
+from app.application.coverage.exceptions import (
+    CoveragePatientNotFoundError,
+    CoverageStoreNotFoundError,
 )
-from app.application.reception.get_last_coverage_selection import (
+from app.application.coverage.get_last_coverage_selection import (
     GetLastCoverageSelectionQuery,
     GetLastCoverageSelectionUseCase,
 )
-from app.domain.claim.coverage_snapshot import InsuranceCoverageSnapshot
-from app.domain.claim.primitives import (
-    ClaimCoverageBenefitRatio,
-    ClaimCoverageCode,
-    ClaimCoverageInsuredType,
-    ClaimCoverageSymbol,
-    ClaimInsurerNumber,
-)
 from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientId
-from app.domain.reception.coverage_selection import (
+from app.domain.coverage.coverage_selection import (
     CoverageSelection,
     SelectedInsuranceSource,
 )
-from app.domain.reception.coverage_selection_record import CoverageSelectionRecord
-from app.domain.reception.primitives import (
+from app.domain.coverage.coverage_selection_record import CoverageSelectionRecord
+from app.domain.coverage.coverage_snapshot import InsuranceCoverageSnapshot
+from app.domain.coverage.primitives import (
     CoverageAppliedOn,
+    CoverageBenefitRatio,
+    CoverageCode,
+    CoverageInsuredType,
     CoverageRecordedAt,
+    CoverageSymbol,
+    InsurerNumber,
     OperatorPrincipalId,
-    SourceCoverageId,
+    PatientCoverageId,
 )
+from app.domain.patient.primitives import PatientId
 from app.domain.store.primitives import StoreId
 from tests.application.access_helpers import create_vendor_corporate_access
-from tests.fakes.in_memory_coverage_selection_record_repository import (
-    InMemoryCoverageSelectionRecordRepository,
-)
-from tests.fakes.reception_reference_boundaries import (
+from tests.fakes.coverage_reference_boundaries import (
     FakeCoverageValidity,
     FakePatientReference,
     FakeStoreReference,
+)
+from tests.fakes.in_memory_coverage_selection_record_repository import (
+    InMemoryCoverageSelectionRecordRepository,
 )
 
 _RECORDED_AT = datetime(2026, 8, 23, 3, 0, tzinfo=UTC)
@@ -63,17 +61,17 @@ class _Fixture:
     patient_id: PatientId
 
 
-def _create_selection(source_id: SourceCoverageId) -> CoverageSelection:
+def _create_selection(source_id: PatientCoverageId) -> CoverageSelection:
     """医療保険1件だけの選択を生成する。"""
     return CoverageSelection(
         insurance=SelectedInsuranceSource(
             source_coverage_id=source_id,
             values=InsuranceCoverageSnapshot(
-                insurer_number=ClaimInsurerNumber("01130012"),
-                insured_symbol=ClaimCoverageSymbol("A"),
-                insured_number=ClaimCoverageCode("456"),
-                insured_type=ClaimCoverageInsuredType.SELF,
-                benefit_ratio=ClaimCoverageBenefitRatio(70),
+                insurer_number=InsurerNumber("01130012"),
+                insured_symbol=CoverageSymbol("A"),
+                insured_number=CoverageCode("456"),
+                insured_type=CoverageInsuredType.SELF,
+                benefit_ratio=CoverageBenefitRatio(70),
             ),
         )
     )
@@ -152,7 +150,7 @@ async def test_最新資格選択取得_履歴が無いと_Noneを返す() -> No
 async def test_最新資格選択取得_選択を丸ごと再検証境界へ渡す() -> None:
     # Arrange
     fixture = _create_fixture()
-    selection = _create_selection(SourceCoverageId.generate())
+    selection = _create_selection(PatientCoverageId.generate())
     await _save_record(fixture, selection=selection)
 
     # Act
@@ -170,7 +168,7 @@ async def test_最新資格選択取得_再検証が偽なら_真正でない候
     # Arrange
     fixture = _create_fixture(valid=False)
     await _save_record(
-        fixture, selection=_create_selection(SourceCoverageId.generate())
+        fixture, selection=_create_selection(PatientCoverageId.generate())
     )
 
     # Act
@@ -184,7 +182,7 @@ async def test_最新資格選択取得_再検証が偽なら_真正でない候
 async def test_最新資格選択取得_複数履歴があると_記録時刻が最新のものを返す() -> None:
     # Arrange
     fixture = _create_fixture()
-    older_id, newer_id = SourceCoverageId.generate(), SourceCoverageId.generate()
+    older_id, newer_id = PatientCoverageId.generate(), PatientCoverageId.generate()
     await _save_record(
         fixture,
         selection=_create_selection(older_id),
@@ -212,7 +210,7 @@ async def test_最新資格選択取得_別法人の店舗を指定すると_店
     )
 
     # Act / Assert
-    with pytest.raises(ReceptionStoreNotFoundError):
+    with pytest.raises(CoverageStoreNotFoundError):
         await fixture.use_case.execute(query)
 
 
@@ -227,5 +225,5 @@ async def test_最新資格選択取得_別法人の患者を指定すると_患
     )
 
     # Act / Assert
-    with pytest.raises(ReceptionPatientNotFoundError):
+    with pytest.raises(CoveragePatientNotFoundError):
         await fixture.use_case.execute(query)

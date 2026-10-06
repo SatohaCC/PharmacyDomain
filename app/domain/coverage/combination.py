@@ -17,12 +17,12 @@ from app.domain.coverage.primitives import (
     PatientCoverageId,
     PublicExpenseCoverageDetails,
 )
-from app.domain.foundation.value_object import ValueObject
-from app.domain.patient.primitives import PatientId
-from app.domain.shared.priority_rules import (
+from app.domain.coverage.priority_rules import (
     PriorityViolation,
     find_priority_violation,
 )
+from app.domain.foundation.value_object import ValueObject
+from app.domain.patient.primitives import PatientId
 
 #: 公費は第一公費から第四公費までを同時に適用できる。
 MAXIMUM_PUBLIC_EXPENSE_COUNT = 4

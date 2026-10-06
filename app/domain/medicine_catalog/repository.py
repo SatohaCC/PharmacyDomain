@@ -12,8 +12,10 @@ from datetime import date
 from typing import Protocol
 
 from app.domain.medicine_catalog.medicine import Medicine
-from app.domain.medicine_catalog.primitives import MedicineCatalogEntryId
-from app.domain.shared.medicine import MedicineIdentifier
+from app.domain.medicine_catalog.primitives import (
+    MedicineCatalogEntryId,
+    MedicineIdentifier,
+)
 
 
 class MedicineCatalogRepository(Protocol):

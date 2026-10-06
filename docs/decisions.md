@@ -3,6 +3,30 @@
 プロジェクトの重要な設計判断と、その採用理由・却下理由を時系列で残します。
 現在の型と振る舞いはコード、保証範囲はテストと静的チェッカを正とします。
 
+## 2026-10-04
+
+### ADR-65: 薬品コードと処方箋記載プリミティブの所有境界を分ける
+
+`app/domain/shared/medicine.py` に薬品コード、コード識別子、剤形、用量、RP番号、明細連番、調剤数量が同居すると、医薬品マスタの参照語彙と処方箋原本の記載事実が同じ所有者のない語彙に見える。実際には、薬品コードはマスタ照合・版付き参照のための語彙であり、剤形・用量・数量・連番は処方箋の構造と不変条件を表す。
+
+そこで、`MedicineCodeType`、`MedicineCode`、`MedicineIdentifier`、`YjCode` を `app/domain/medicine_catalog/primitives.py` へ移し、`DosageFormCategory`、`DosageAmount`、`SingleDoseAmount`、`ConversionFactor`、`DispensingQuantity`、`RpNumber`、`MedicineLineNumber` を `app/domain/prescription/primitives.py` へ移す。コードなしの処方やマスタ未収載の持参薬も表せるため、コード識別子の配置は「マスタ行の存在」を意味しない。
+
+処方・調剤・薬歴が共通に表示する薬品名称と単位も、薬品側の語彙として `app/domain/medicine_catalog/primitives.py` に置く。ただし、処方箋・調剤・薬歴がこれらをスナップショットとして保持しても、医薬品マスタ行の存在やコードとの対応を意味しない。未収載薬やOTCも表せるためである。電子処方箋で許可されるコード種別の判定はコード体系の責務ではなく、`Prescription` 集約が受領元形式と組み合わせて行う。これにより、`medicine_catalog` が処方規則へ依存せず、処方箋記載の不変条件が `prescription` に集約される。
+
+### ADR-66: 用法語彙の所有境界を処方箋へ置く
+
+`DosageInstruction` は処方箋の剤（Rp）が保持する用法レコードであり、JAHISおよび電子処方箋の処方編に定義された処方箋記載事実を表す。調剤の `DispensedRp` でも同じ値を保持するが、それは処方箋から引き渡された不変スナップショットであって、用法の所有権が調剤へ移ることを意味しない。複数コンテキストで再利用されることだけを理由に Shared Kernel へ置くと、処方箋固有の規格と不変条件の所有境界が隠れる。
+
+そこで `app/domain/shared/dosage.py` を `app/domain/prescription/dosage.py` へ移し、調剤側は処方箋の用法型をスナップショットの型として参照する。調剤セッション集約そのものが `Prescription` 集約を読むことは、`pyproject.toml` の import 規則で引き続き禁止する。Shared Kernel には、複数コンテキストに固有の所有者を持たない人名・操作者ID、保存期間ポリシー、処方と調剤で共有する公費負担区分だけを残す。保険・公費の適用順位規則はCoverageが所有する。
+
+### ADR-67: 保険・公費の資格事実と適用履歴をCoverageへ集約する
+
+保険に関する事実が `Coverage`、`Reception`、`Claim` に分散していると、資格台帳の有効性、受付時の業務判断、請求へ固定する値の境界が曖昧になり、同じ保険・公費の型を複数コンテキストが所有する。請求専用の独立コンテキストがまだ存在しない段階で `Claim` を残すことも、単なる重複所有者を温存する。
+
+そこで、`Coverage` を保険ドメインとして、患者資格台帳・有効性・保険と公費の適用組み合わせ・適用時点の固定値・選択履歴を所有する。`CoverageSelectionRecord` と公費順位規則、保険・公費の固定値Primitiveも `app/domain/coverage/` に置く。`Reception` はNSIPS等から届いた受付原本、訂正履歴、受付時の業務判断と監査を所有し、資格台帳への自動登録・自動選択は行わない。処方箋・調剤で共有する薬品単位の負担区分は、資格台帳の第一〜第四公費とは別軸なので `app/domain/shared/public_expense.py` に残す。
+
+既存のHTTP URL、入力・出力フィールド、権限、`coverage_selection_records` テーブル名、JSON payloadの形は維持する。これは責務の所有者を移す変更であり、受付原本の保険情報を資格台帳へ自動反映する振る舞いを追加する変更ではない。
+
 ## 2026-10-03
 
 ### ADR-64: NSIPSの保険・公費情報は受付時の受信記録として保存する
@@ -1080,7 +1104,7 @@ ADR-9 の基準（所有者がいるか）で言えば共有語彙ではなく**
 - 薬品名は MedicineCatalog の版付きマスタ行の同一性ではなく、処方・調剤・薬歴で共通に使う値である。カタログ未収載の持参薬やOTCも表せるため、**所有者のいない語彙**である。
 - 所有者のいないものを Prescription へ置くと、MedicationHistory が「他院で買ったOTCの名前」を表すために Prescription を import することになり、依存が語彙の実態と食い違う。
 
-→ 現在は `app/domain/shared/medicine.py`（薬品語彙）と `app/domain/shared/dosage.py`（用法語彙）に置く。用法補足（処方編 別表14）は処方箋固有なので移していない。
+→ 当時は `app/domain/shared/medicine.py`（薬品語彙）と `app/domain/shared/dosage.py`（用法語彙）に置いた。現在の所有境界は ADR-65 と ADR-66 で更新し、薬品語彙は `app/domain/medicine_catalog/primitives.py`、用法語彙は `app/domain/prescription/dosage.py` に置く。用法補足（処方編 別表14）は処方箋固有なので同じコンテキストに置く。
 
 ### ADR-10: 用量に `float` を使わない
 
@@ -1203,7 +1227,7 @@ Boundary を定義して Fake が「麻薬ではない」と答えると、**麻
 - **概要**:
   - `Staff` 集約の所属履歴（`affiliations`）において、主所属の重複禁止および同一店舗の重複禁止不変条件を `Staff.validate()` で構築時に全域で強制。
   - 適用資格の選択構造を元資格ID列とスナップショットの平坦分離から、`CoverageSelection`（枠構造で元資格IDと固定値を不可分に束ねる設計）へ移行。
-  - 公費順位の規則（上限4件・重複なし・第一公費から連続）を Shared Kernel（現在の `app/domain/shared/priority_rules.py`）に一元化。
+  - 公費順位の規則（上限4件・重複なし・第一公費から連続）を Coverage（現在の `app/domain/coverage/priority_rules.py`）に一元化。
 
 ---
 

@@ -38,6 +38,7 @@ from app.application.prescription.support import (
     to_optional_text,
 )
 from app.domain.corporate.primitives import CorporateId
+from app.domain.coverage.primitives import CoverageSelectionRecordId
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.prescription import Prescription
 from app.domain.prescription.primitives import PrescriptionDocumentNumber
@@ -48,7 +49,6 @@ from app.domain.prescription.services import (
     PublicExpenseBurdenService,
     RefillEligibilityService,
 )
-from app.domain.reception.primitives import CoverageSelectionRecordId
 from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.store.primitives import StoreId
 

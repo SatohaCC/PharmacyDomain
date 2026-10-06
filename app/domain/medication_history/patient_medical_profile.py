@@ -45,8 +45,8 @@ from app.domain.medication_history.value_objects import (
     ProfileProvenance,
     ProfileUpdateIntents,
 )
+from app.domain.medicine_catalog.primitives import MedicineName
 from app.domain.patient.primitives import PatientId
-from app.domain.shared.medicine import MedicineName
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)

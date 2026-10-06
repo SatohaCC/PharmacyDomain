@@ -14,6 +14,7 @@ from enum import StrEnum
 from typing import ClassVar
 
 from app.domain.foundation.value_object import ValueObject
+from app.domain.medicine_catalog.primitives import MedicineIdentifier, MedicineUnit
 from app.domain.prescription.exceptions import (
     ApplicationSiteCodeRequiredError,
     DepartmentCodeRequiredError,
@@ -25,9 +26,11 @@ from app.domain.prescription.exceptions import (
 from app.domain.prescription.primitives import (
     ApplicationSiteCode,
     ClinicalInformationText,
+    ConversionFactor,
     DepartmentCode,
     DepartmentCodeType,
     DepartmentName,
+    DosageAmount,
     DosageSupplementCode,
     DosageSupplementText,
     DosageSupplementType,
@@ -59,12 +62,6 @@ from app.domain.prescription.primitives import (
     SplitCount,
     SplitIteration,
     SubstitutionRestrictionReason,
-)
-from app.domain.shared.medicine import (
-    ConversionFactor,
-    DosageAmount,
-    MedicineIdentifier,
-    MedicineUnit,
 )
 from app.domain.shared.person_name import PersonName, PersonNameKana
 

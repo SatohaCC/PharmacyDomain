@@ -114,7 +114,6 @@ paths = ["app"]
     "app.domain.patient",
     "app.domain.coverage",
     "app.domain.reception",
-    "app.domain.claim",
     "app.domain.prescription",
     "app.domain.dispensing",
     "app.domain.medication_history",
@@ -133,7 +132,6 @@ paths = ["app"]
     "app.domain.patient",
     "app.domain.coverage",
     "app.domain.reception",
-    "app.domain.claim",
     "app.domain.prescription",
     "app.domain.dispensing",
     "app.domain.medication_history",
@@ -377,7 +375,6 @@ paths = ["app"]
     "app.domain.patient",
     "app.domain.coverage",
     "app.domain.reception",
-    "app.domain.claim",
     "app.domain.prescription",
     "app.domain.dispensing",
     "app.domain.medication_history",
@@ -418,23 +415,12 @@ paths = ["app"]
 ]
 # CoverageはPatientのAggregate/Repositoryを直接参照せず、資格自身のIDと境界だけを扱う。
 "app.domain.coverage" = [
-    "app.domain.claim",
     "app.domain.reception",
     "app.domain.patient.patient",
     "app.domain.patient.external_identifier",
     "app.domain.patient.repository",
 ]
-# ClaimはCoverage・Patient・Storeの集約やRepositoryを直接参照せず、スナップショットとIDだけを扱う。
-"app.domain.claim" = [
-    "app.domain.coverage",
-    "app.domain.reception",
-    "app.domain.patient.patient",
-    "app.domain.patient.external_identifier",
-    "app.domain.patient.repository",
-    "app.domain.store.store",
-    "app.domain.store.repository",
-]
-# ReceptionはClaim Snapshotと共有IDだけを持ち、資格台帳や他集約を直接参照しない。
+# Receptionは受信記録と訂正履歴だけを持ち、資格台帳や他集約を直接参照しない。
 "app.domain.reception" = [
     "app.domain.coverage",
     "app.domain.patient.patient",
@@ -443,15 +429,17 @@ paths = ["app"]
     "app.domain.store.store",
     "app.domain.store.repository",
 ]
-# Receptionは下流の処方箋・調剤・薬歴に依存しない（逆流の禁止）。
-"app.domain.reception.coverage_selection_record" = ["app.domain.prescription"]
 # 処方箋は下流コンテキストと資格台帳の集約・リポジトリを直接参照しない。
 # 他コンテキストの primitives（ID）は既存の Coverage→Patient と同じく許可する。
 "app.domain.prescription" = [
     "app.domain.dispensing",
     "app.domain.medication_history",
-    "app.domain.claim",
-    "app.domain.coverage",
+    "app.domain.coverage.coverage_selection",
+    "app.domain.coverage.coverage_selection_record",
+    "app.domain.coverage.coverage_snapshot",
+    "app.domain.coverage.combination",
+    "app.domain.coverage.patient_coverage",
+    "app.domain.coverage.repository",
     "app.domain.patient.patient",
     "app.domain.patient.external_identifier",
     "app.domain.patient.repository",
@@ -459,16 +447,12 @@ paths = ["app"]
     "app.domain.store.repository",
     "app.domain.staff.staff",
     "app.domain.staff.repository",
-    "app.domain.reception.coverage_selection_record",
-    "app.domain.reception.coverage_selection",
-    "app.domain.reception.repository",
 ]
 # 調剤は下流コンテキストと資格台帳へ依存せず、他集約はID・Snapshot・Boundaryで参照する。
 # 処方箋については集約そのものを Domain Service が引数で受け取るため、
 # パッケージ全体では禁止せず、集約モジュールにだけ禁止を課す（下の行）。
 "app.domain.dispensing" = [
     "app.domain.medication_history",
-    "app.domain.claim",
     "app.domain.coverage",
     "app.domain.reception",
     "app.domain.patient.patient",
@@ -488,7 +472,6 @@ paths = ["app"]
 ]
 # 薬歴は下流の請求と資格台帳へ依存せず、上流はIDと集約の引き渡しだけで扱う。
 "app.domain.medication_history" = [
-    "app.domain.claim",
     "app.domain.coverage",
     "app.domain.reception",
     "app.domain.patient.patient",
@@ -520,7 +503,6 @@ paths = ["app"]
     "app.domain.patient",
     "app.domain.coverage",
     "app.domain.reception",
-    "app.domain.claim",
     "app.domain.prescription",
     "app.domain.dispensing",
     "app.domain.medication_history",

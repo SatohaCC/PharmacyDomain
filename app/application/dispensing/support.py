@@ -37,24 +37,26 @@ from app.domain.dispensing.value_objects import (
     SubstitutionDetail,
 )
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.prescription.primitives import InquiryNumber
-from app.domain.shared.dosage import (
+from app.domain.medicine_catalog.primitives import (
+    MedicineCode,
+    MedicineCodeType,
+    MedicineIdentifier,
+    MedicineName,
+    MedicineUnit,
+)
+from app.domain.prescription.dosage import (
     DailyFrequency,
     DosageCode,
     DosageCodeType,
     DosageInstruction,
     DosageName,
 )
-from app.domain.shared.medicine import (
+from app.domain.prescription.primitives import (
     DispensingQuantity,
     DosageAmount,
     DosageFormCategory,
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
+    InquiryNumber,
     MedicineLineNumber,
-    MedicineName,
-    MedicineUnit,
     RpNumber,
 )
 from app.domain.shared.public_expense import PublicExpenseBurden

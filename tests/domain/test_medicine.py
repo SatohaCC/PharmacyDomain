@@ -1,7 +1,7 @@
-"""Shared Kernel の薬品語彙のテスト。
+"""薬品コードと処方箋記載プリミティブのテスト。
 
-処方・調剤・薬歴の3コンテキストが共有する語彙なので、規格由来の値集合と
-組み合わせ規則の境界はここで固定する。
+薬品コードは医薬品マスタ、剤形・用量・数量・連番は処方箋が所有する。
+複数コンテキストにまたがる名称と単位だけはShared Kernelに残す。
 """
 
 from __future__ import annotations
@@ -11,17 +11,19 @@ from decimal import Decimal
 import pytest
 
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.shared.medicine import (
+from app.domain.medicine_catalog.primitives import (
+    MedicineCode,
+    MedicineCodeType,
+    MedicineIdentifier,
+    MedicineName,
+    MedicineUnit,
+)
+from app.domain.prescription.primitives import (
     ConversionFactor,
     DispensingQuantity,
     DosageAmount,
     DosageFormCategory,
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
     MedicineLineNumber,
-    MedicineName,
-    MedicineUnit,
     RpNumber,
 )
 
@@ -45,27 +47,6 @@ class Test薬品コード種別:
     ) -> None:
         # Arrange / Act / Assert: 5・8 は欠番であり 6 は HOT である
         assert code_type.record_code == expected
-
-    @pytest.mark.parametrize(
-        "code_type",
-        [MedicineCodeType.RECEIPT, MedicineCodeType.YJ, MedicineCodeType.GENERIC],
-    )
-    def test_電子処方箋で使える種別は_処方編別表15の3つだけ(
-        self, code_type: MedicineCodeType
-    ) -> None:
-        # Arrange / Act / Assert
-        assert code_type.allowed_in_electronic_prescription
-
-    @pytest.mark.parametrize(
-        "code_type",
-        [MedicineCodeType.NONE, MedicineCodeType.MHLW, MedicineCodeType.HOT],
-    )
-    def test_紙でのみ使える種別は_電子処方箋では使えない(
-        self, code_type: MedicineCodeType
-    ) -> None:
-        """別表15 で 1 は「未使用」、3 と 6 は「使用しない」と定められている。"""
-        # Arrange / Act / Assert
-        assert not code_type.allowed_in_electronic_prescription
 
     def test_全種別に_日本語ラベルが定義されている(self) -> None:
         # Arrange / Act / Assert

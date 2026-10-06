@@ -258,7 +258,7 @@ def ensure_digits(value: str, *, field_name: str, lengths: tuple[int, ...]) -> N
     登録時に弾かないと不正値がそのまま Snapshot へ凍結され、請求まで気付けない
     ため、桁数はプリミティブの不変条件として持たせる。
 
-    同じ規則を Coverage / Claim / Prescription が必要とする。規則本体が複数箇所に
+    同じ規則を Coverage / Prescription が必要とする。規則本体が複数箇所に
     あると片方だけ直る事故が起きるので、Domain基盤に1つだけ置く
     （``priority_rules.py`` と同じ判断）。この関数は ``str`` と ``int`` しか
     扱わず、各Domainコンテキストへ依存しない。

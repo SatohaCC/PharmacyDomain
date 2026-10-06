@@ -1,4 +1,4 @@
-"""受付で確定した適用資格選択の履歴集約。"""
+"""適用資格選択の履歴集約。"""
 
 from __future__ import annotations
 
@@ -6,24 +6,24 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import ClassVar, Self
 
-from app.domain.claim.coverage_snapshot import CoverageSnapshot
 from app.domain.corporate.primitives import CorporateId
-from app.domain.foundation.entity import AggregateRoot
-from app.domain.patient.primitives import PatientId
-from app.domain.reception.coverage_selection import CoverageSelection
-from app.domain.reception.primitives import (
+from app.domain.coverage.coverage_selection import CoverageSelection
+from app.domain.coverage.coverage_snapshot import CoverageSnapshot
+from app.domain.coverage.primitives import (
     CoverageAppliedOn,
     CoverageRecordedAt,
     CoverageSelectionRecordId,
     OperatorPrincipalId,
-    SourceCoverageId,
+    PatientCoverageId,
 )
+from app.domain.foundation.entity import AggregateRoot
+from app.domain.patient.primitives import PatientId
 from app.domain.store.primitives import StoreId
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)
 class CoverageSelectionRecord(AggregateRoot[CoverageSelectionRecordId]):
-    """患者・店舗単位で受付時の資格選択と監査情報を保存する。
+    """患者・店舗単位で適用資格の選択と監査情報を保存する。
 
     選択は :class:`CoverageSelection` 1つとして持つ。元資格IDと請求固定値を
     平坦な2フィールドへ分けると両者の対応が並び順の規約になってしまうため、
@@ -77,10 +77,10 @@ class CoverageSelectionRecord(AggregateRoot[CoverageSelectionRecordId]):
 
     @property
     def snapshot(self) -> CoverageSnapshot:
-        """請求へ渡す不変スナップショット。"""
+        """適用時点の不変スナップショット。"""
         return self.selection.snapshot
 
     @property
-    def source_coverage_ids(self) -> tuple[SourceCoverageId, ...]:
+    def source_coverage_ids(self) -> tuple[PatientCoverageId, ...]:
         """選択元IDを医療保険、公費順位順で返す。"""
         return self.selection.source_coverage_ids

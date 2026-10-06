@@ -69,8 +69,8 @@ from app.domain.medication_history.value_objects import (
     StopConcurrentMedicationIntent,
     UpdateConditionStatusIntent,
 )
+from app.domain.medicine_catalog.primitives import MedicineName
 from app.domain.prescription.primitives import MedicalInstitutionName
-from app.domain.shared.medicine import MedicineName
 from app.domain.staff.primitives import StaffId
 
 __all__ = [

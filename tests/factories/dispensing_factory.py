@@ -35,19 +35,26 @@ from app.domain.dispensing.value_objects import (
     QuantityAdjustment,
     SubstitutionDetail,
 )
-from app.domain.patient.primitives import PatientId
-from app.domain.prescription.primitives import InquiryNumber, PrescriptionId
-from app.domain.shared.dosage import DosageCodeType, DosageInstruction, DosageName
-from app.domain.shared.medicine import (
-    DispensingQuantity,
-    DosageAmount,
-    DosageFormCategory,
+from app.domain.medicine_catalog.primitives import (
     MedicineCode,
     MedicineCodeType,
     MedicineIdentifier,
-    MedicineLineNumber,
     MedicineName,
     MedicineUnit,
+)
+from app.domain.patient.primitives import PatientId
+from app.domain.prescription.dosage import (
+    DosageCodeType,
+    DosageInstruction,
+    DosageName,
+)
+from app.domain.prescription.primitives import (
+    DispensingQuantity,
+    DosageAmount,
+    DosageFormCategory,
+    InquiryNumber,
+    MedicineLineNumber,
+    PrescriptionId,
     RpNumber,
 )
 from app.domain.staff.primitives import StaffId

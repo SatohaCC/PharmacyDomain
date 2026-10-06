@@ -18,10 +18,10 @@ from app.application.prescription.reference import (
     StoreReferenceBoundary,
 )
 from app.domain.corporate.primitives import CorporateId
+from app.domain.coverage.primitives import CoverageSelectionRecordId
+from app.domain.coverage.repository import CoverageSelectionRecordRepository
 from app.domain.patient.primitives import PatientId
 from app.domain.patient.repository import PatientRepository
-from app.domain.reception.primitives import CoverageSelectionRecordId
-from app.domain.reception.repository import CoverageSelectionRecordRepository
 from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.staff.primitives import StaffId, StaffQualifications
 from app.domain.staff.repository import StaffRepository
@@ -31,7 +31,7 @@ from app.domain.store.repository import StoreRepository
 #: 資格台帳の公費順位（第一〜第四）から、処方箋の公費枠への対応。
 #:
 #: 両者は別軸である。処方箋の枠は第一/第二/第三/**特殊**で、特殊公費の負担者番号は
-#: 数字以外を含みうるため ``ClaimPublicPayerNumber``（8桁）を満たせず、資格台帳から
+#: 数字以外を含みうるため資格台帳の ``PublicPayerNumber``（8桁）を満たせず、資格台帳から
 #: 写せない。したがって ``special`` はどの順位にも対応づけず、常に「裏付けなし」に
 #: なる。第四公費も処方箋側に受け皿が無いので、どの枠も立てない。
 #:

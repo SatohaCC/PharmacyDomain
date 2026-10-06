@@ -10,6 +10,7 @@ from typing import ClassVar
 
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.primitives.primitives import (
+    BaseAwareTimestamp,
     BaseDate,
     BaseNonNegativeInt,
     BaseNormalizedString,
@@ -96,6 +97,24 @@ class PublicRecipientNumber(BaseNormalizedString):
     def validate(self) -> None:
         super().validate()
         ensure_digits(self.value, field_name="公費受給者番号", lengths=(7,))
+
+
+class CoverageSelectionRecordId(EntityUUID):
+    """適用資格選択履歴の一意識別子。"""
+
+    identifier_name = "適用資格選択履歴ID"
+
+
+class CoverageAppliedOn(BaseDate):
+    """資格を適用する業務日。"""
+
+
+class CoverageRecordedAt(BaseAwareTimestamp):
+    """資格選択を記録したUTC時刻。"""
+
+
+class OperatorPrincipalId(BaseNormalizedString):
+    """認証基盤が確定した記録者の主体ID。"""
 
 
 class CoverageValidFrom(BaseDate):

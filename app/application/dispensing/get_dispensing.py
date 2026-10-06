@@ -25,7 +25,7 @@ from app.domain.dispensing.value_objects import (
     QuantityAdjustment,
     SubstitutionDetail,
 )
-from app.domain.shared.dosage import DosageInstruction
+from app.domain.prescription.dosage import DosageInstruction
 
 
 @dataclass(frozen=True, kw_only=True)

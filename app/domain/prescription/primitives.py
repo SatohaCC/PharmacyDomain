@@ -5,8 +5,10 @@
 - JAHIS 院外処方箋２次元シンボル記録条件規約 Ver.1.11 … レコード番号と備考欄
 - 厚労省 電子処方箋管理サービス 記録条件仕様（処方編）Ver.2.4 … 別表1〜16
 
-薬品そのものの語彙（``MedicineName`` / ``DosageAmount`` 等）は所有者がいないため
-Shared Kernel の ``app/domain/shared/medicine.py`` にある。
+薬品コードの語彙（``MedicineCode`` / ``MedicineIdentifier``）は
+``medicine_catalog`` が所有する。処方箋に記載される剤形・用量・数量・連番は
+このコンテキストが所有する。薬品コード・名称・単位は
+``medicine_catalog`` が所有する語彙を、処方箋記載時点の値として保持する。
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ from app.domain.foundation.primitives.primitives import (
     BaseDate,
     BaseFreeText,
     BaseNormalizedString,
+    BasePositiveDecimal,
     BasePositiveInt,
     BasePostalCode,
     BaseTelephoneNumber,
@@ -30,8 +33,127 @@ from app.domain.foundation.primitives.primitives import (
 )
 
 # --------------------------------------------------------------------------
-# 識別子
+# 処方箋記載の剤・数量・用量
 # --------------------------------------------------------------------------
+
+
+class DosageFormCategory(StrEnum):
+    """処方箋に記載する剤形区分。
+
+    出典は電子処方箋（処方編）別表13およびJAHISレコードNo.101備考欄。
+    """
+
+    INTERNAL = "internal"
+    PRN = "prn"
+    TOPICAL = "topical"
+    INTERNAL_DROPS = "internal_drops"
+    INJECTION = "injection"
+    SUPPLY = "supply"
+    OTHER = "other"
+
+    @property
+    def record_code(self) -> str:
+        """規格のレコードへ記録する数字コード。"""
+        codes = {
+            self.INTERNAL: "1",
+            self.PRN: "2",
+            self.TOPICAL: "3",
+            self.INTERNAL_DROPS: "4",
+            self.INJECTION: "5",
+            self.SUPPLY: "6",
+            self.OTHER: "9",
+        }
+        return codes[self]
+
+    @property
+    def label(self) -> str:
+        """画面表示・帳票出力用の日本語名称。"""
+        labels = {
+            self.INTERNAL: "内服",
+            self.PRN: "頓服",
+            self.TOPICAL: "外用",
+            self.INTERNAL_DROPS: "内服滴剤",
+            self.INJECTION: "注射",
+            self.SUPPLY: "医療材料",
+            self.OTHER: "不明",
+        }
+        return labels[self]
+
+    @property
+    def quantity_meaning(self) -> str:
+        """調剤数量が何を表すか。"""
+        if self is DosageFormCategory.INTERNAL:
+            return "投与日数"
+        if self is DosageFormCategory.PRN:
+            return "投与回数"
+        return "投与日数または回数"
+
+
+class DosageAmount(BasePositiveDecimal):
+    """処方箋に記載する薬品の分量。
+
+    内服は1日量、頓服は1回量、外用・材料は処方総量を表す（剤形区分で決まる）。
+    整数部6桁・小数部5桁で、``float`` は受け付けない。
+    """
+
+    max_integer_digits: ClassVar[int] = 6
+    max_decimal_places: ClassVar[int] = 5
+    quantity_name: ClassVar[str] = "分量"
+
+
+class SingleDoseAmount(BasePositiveDecimal):
+    """処方箋に記載する1回あたりの服用量。
+
+    JAHISレコードNo.241の1回服用量に対応する。``DosageAmount`` と意味が異なる
+    ため別の型にする。
+    """
+
+    max_integer_digits: ClassVar[int] = 6
+    max_decimal_places: ClassVar[int] = 5
+    quantity_name: ClassVar[str] = "1回服用量"
+
+
+class ConversionFactor(BasePositiveDecimal):
+    """処方箋表記単位から薬価収載単位への変換係数。
+
+    薬価収載単位用量は「処方用量 × 単位変換係数」で求める。JAHISレコード
+    No.211の単位変換レコードに対応する。
+    """
+
+    max_integer_digits: ClassVar[int] = 6
+    max_decimal_places: ClassVar[int] = 5
+    quantity_name: ClassVar[str] = "単位変換係数"
+
+
+class DispensingQuantity(BasePositiveInt):
+    """剤に記載する調剤数量。
+
+    剤形区分により投与日数、投与回数、その他の日数または回数を表す。
+    薬品の用量に総量を記録する場合は1を記録する。
+    """
+
+    def validate(self) -> None:
+        super().validate()
+        if self.value > 999:
+            raise DomainValidationError("調剤数量は999以内で指定してください。")
+
+
+class RpNumber(BasePositiveInt):
+    """処方箋内の剤番号（RP番号）。1から連番。"""
+
+    def validate(self) -> None:
+        super().validate()
+        if self.value > 999:
+            raise DomainValidationError("RP番号は999以内で指定してください。")
+
+
+class MedicineLineNumber(BasePositiveInt):
+    """RP内の薬品連番。1から連番。"""
+
+    def validate(self) -> None:
+        super().validate()
+        if self.value > 999:
+            raise DomainValidationError("RP内連番は999以内で指定してください。")
 
 
 class PrescriptionId(EntityUUID):

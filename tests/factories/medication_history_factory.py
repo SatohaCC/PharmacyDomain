@@ -73,6 +73,7 @@ from app.domain.medication_history.value_objects import (
     TracingReportResponse,
     UpdateConditionStatusIntent,
 )
+from app.domain.medicine_catalog.primitives import MedicineName
 from app.domain.patient.primitives import PatientBirthDate, PatientId
 from app.domain.prescription.primitives import (
     InquiryNumber,
@@ -81,7 +82,6 @@ from app.domain.prescription.primitives import (
     PrescriptionId,
     PrescriptionIssuedDate,
 )
-from app.domain.shared.medicine import MedicineName
 from app.domain.shared.person_name import PersonNames
 from app.domain.staff.primitives import StaffId
 from app.domain.store.primitives import StoreId

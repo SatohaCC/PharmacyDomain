@@ -59,6 +59,11 @@ from app.domain.medication_history.value_objects import (
     HandbookStatus,
     ResidualDrugRecord,
 )
+from app.domain.medicine_catalog.primitives import (
+    MedicineCode,
+    MedicineCodeType,
+    MedicineName,
+)
 from app.domain.patient.external_identifier import PatientExternalIdentifier
 from app.domain.patient.heading import PatientHeadingContent, PatientHeadingText
 from app.domain.patient.primitives import (
@@ -75,7 +80,6 @@ from app.domain.prescription.primitives import (
 from app.domain.reception.primitives import ReceptionId
 from app.domain.reception.reception import ReceptionSourceData
 from app.domain.shared.actor import AccountPersonId, UserAccountId
-from app.domain.shared.medicine import MedicineCode, MedicineCodeType, MedicineName
 from app.domain.shared.person_name import PersonNames
 from app.domain.store.primitives import StoreId
 from tests.application.access_helpers import create_vendor_corporate_access_for

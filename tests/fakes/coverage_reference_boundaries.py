@@ -1,4 +1,4 @@
-"""Reception Applicationが依存する参照境界のフェイク実装。
+"""Coverage Applicationが依存する参照境界のフェイク実装。
 
 AGENTS.md「Boundaryの例外契約」が求める「定義だけで raise されない例外を残さない」
 を実行可能にするため、各Protocolの ``Raises:`` に書かれた例外をここで実際に送出する。
@@ -6,21 +6,21 @@ AGENTS.md「Boundaryの例外契約」が求める「定義だけで raise さ�
 
 from __future__ import annotations
 
-from app.application.reception.exceptions import (
-    ReceptionCoverageSelectionError,
-    ReceptionPatientNotFoundError,
-    ReceptionStoreNotFoundError,
+from app.application.coverage.exceptions import (
+    CoveragePatientNotFoundError,
+    CoverageSelectionError,
+    CoverageStoreNotFoundError,
 )
-from app.application.reception.reference import (
+from app.application.coverage.reference import (
     CoverageSelectionBoundary,
     CoverageValidityBoundary,
     PatientReferenceBoundary,
     StoreReferenceBoundary,
 )
 from app.domain.corporate.primitives import CorporateId
+from app.domain.coverage.coverage_selection import CoverageSelection
+from app.domain.coverage.primitives import CoverageAppliedOn
 from app.domain.patient.primitives import PatientId
-from app.domain.reception.coverage_selection import CoverageSelection
-from app.domain.reception.primitives import CoverageAppliedOn
 from app.domain.store.primitives import StoreId
 
 
@@ -42,7 +42,7 @@ class FakeStoreReference(StoreReferenceBoundary):
     ) -> None:
         """店舗が存在しない、または別法人の場合は404相当を送出する。"""
         if (corporate_id, store_id) not in self.registered:
-            raise ReceptionStoreNotFoundError()
+            raise CoverageStoreNotFoundError()
 
 
 class FakePatientReference(PatientReferenceBoundary):
@@ -63,7 +63,7 @@ class FakePatientReference(PatientReferenceBoundary):
     ) -> None:
         """患者が存在しない、または別法人の場合は404相当を送出する。"""
         if (corporate_id, patient_id) not in self.registered:
-            raise ReceptionPatientNotFoundError()
+            raise CoveragePatientNotFoundError()
 
 
 class FakeCoverageSelectionSource(CoverageSelectionBoundary):
@@ -93,7 +93,7 @@ class FakeCoverageSelectionSource(CoverageSelectionBoundary):
         del corporate_id, patient_id, applied_on
         selection = self.selections.get(coverage_ids)
         if selection is None:
-            raise ReceptionCoverageSelectionError()
+            raise CoverageSelectionError()
         return selection
 
 

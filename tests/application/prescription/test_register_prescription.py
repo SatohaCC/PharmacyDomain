@@ -26,6 +26,8 @@ from app.application.prescription.inputs import (
     PublicExpenseBurdenInput,
 )
 from app.domain.corporate.primitives import CorporateId
+from app.domain.coverage.primitives import CoverageSelectionRecordId
+from app.domain.medicine_catalog.primitives import MedicineCodeType
 from app.domain.patient.primitives import PatientId
 from app.domain.prescription.exceptions import (
     MedicineClassificationMissingError,
@@ -41,10 +43,6 @@ from app.domain.prescription.primitives import (
     PrescriptionStatus,
 )
 from app.domain.prescription.value_objects import MedicineRestrictionFlag
-from app.domain.reception.primitives import CoverageSelectionRecordId
-from app.domain.shared.medicine import (
-    MedicineCodeType,
-)
 from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.store.primitives import StoreId
 from tests.application.prescription.helpers import (

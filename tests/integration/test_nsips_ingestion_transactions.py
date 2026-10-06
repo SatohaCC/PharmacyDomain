@@ -42,6 +42,11 @@ from app.domain.medication_history.primitives import (
 )
 from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.value_objects import ExternalCorrectionKind
+from app.domain.medicine_catalog.primitives import (
+    MedicineCode,
+    MedicineCodeType,
+    MedicineIdentifier,
+)
 from app.domain.patient.external_identifier import PatientExternalIdentifier
 from app.domain.patient.heading import PatientHeadingContent, PatientHeadingText
 from app.domain.patient.patient import Patient
@@ -61,11 +66,6 @@ from app.domain.prescription.primitives import (
 from app.domain.reception.primitives import ReceptionId
 from app.domain.reception.reception import Reception
 from app.domain.reception.repository import ReceptionRepository
-from app.domain.shared.medicine import (
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
-)
 from app.domain.store.primitives import StoreId
 from app.infrastructure.postgres.codec import decode_aggregate
 from app.infrastructure.postgres.connection import PostgresUnitOfWork

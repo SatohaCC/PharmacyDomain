@@ -1,4 +1,4 @@
-"""受付で選択した適用資格を記録するユースケース。"""
+"""適用資格ドメインで選択した資格を履歴へ記録するユースケース。"""
 
 from __future__ import annotations
 
@@ -8,21 +8,21 @@ from datetime import date
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.common.clock import Clock
-from app.application.reception.get_coverage_selection import CoverageSelectionRecordDto
-from app.application.reception.reference import (
+from app.application.coverage.get_coverage_selection import CoverageSelectionRecordDto
+from app.application.coverage.reference import (
     CoverageSelectionBoundary,
     PatientReferenceBoundary,
     StoreReferenceBoundary,
 )
 from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientId
-from app.domain.reception.coverage_selection_record import CoverageSelectionRecord
-from app.domain.reception.primitives import (
+from app.domain.coverage.coverage_selection_record import CoverageSelectionRecord
+from app.domain.coverage.primitives import (
     CoverageAppliedOn,
     CoverageRecordedAt,
     OperatorPrincipalId,
 )
-from app.domain.reception.repository import CoverageSelectionRecordRepository
+from app.domain.coverage.repository import CoverageSelectionRecordRepository
+from app.domain.patient.primitives import PatientId
 from app.domain.store.primitives import StoreId
 
 

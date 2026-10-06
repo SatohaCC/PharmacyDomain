@@ -38,6 +38,10 @@ from app.domain.dispensing.primitives import (
     DispensingSplitReason,
     SubstitutionCategory,
 )
+from app.domain.medicine_catalog.primitives import (
+    MedicineCodeType,
+    MedicineIdentifier,
+)
 from app.domain.prescription.prescription import (
     Prescription,
     PrescriptionInquiry,
@@ -48,10 +52,6 @@ from app.domain.prescription.primitives import (
     GenericSubstitutionRestrictionType,
     InquiryNumber,
     InquiryResultType,
-)
-from app.domain.shared.medicine import (
-    MedicineCodeType,
-    MedicineIdentifier,
     MedicineLineNumber,
     RpNumber,
 )

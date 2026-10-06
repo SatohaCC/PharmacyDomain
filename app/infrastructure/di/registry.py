@@ -130,7 +130,7 @@ class PostgresUseCaseRegistry:
     def coverage(self) -> CoverageUseCases:
         if "coverage" not in self._cache:
             self._cache["coverage"] = build_coverage_use_cases(
-                self._repositories, self._corporate_access
+                self._repositories, self._corporate_access, self._clock
             )
         return cast(CoverageUseCases, self._cache["coverage"])
 

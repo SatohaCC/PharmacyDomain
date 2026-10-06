@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from app.domain.medicine_catalog.primitives import YjCode
 from app.domain.prescription.interaction_audit import (
     DrugInteractionDataSource,
     DrugInteractionPair,
 )
-from app.domain.shared.medicine import YjCode
 
 
 class BlackBoxDrugInteractionDataSource(DrugInteractionDataSource):

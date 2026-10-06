@@ -44,6 +44,12 @@ from app.domain.dispensing.services import (
     DispensingConsistencyService,
     verify_substitution_restriction_table,
 )
+from app.domain.medicine_catalog.primitives import (
+    MedicineCode,
+    MedicineCodeType,
+    MedicineIdentifier,
+    MedicineName,
+)
 from app.domain.prescription.prescription import Prescription
 from app.domain.prescription.primitives import (
     GenericSubstitutionRestrictionType,
@@ -57,12 +63,6 @@ from app.domain.prescription.value_objects import (
     PrescriptionManagementInfo,
     RefillInstruction,
     SplitInstruction,
-)
-from app.domain.shared.medicine import (
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
-    MedicineName,
 )
 from tests.factories.dispensing_factory import (
     DISPENSED_ON,
