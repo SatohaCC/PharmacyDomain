@@ -7,9 +7,10 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.patient.exceptions import PatientStateConflictError
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.lifecycle import (
     PatientStatus,
     PatientStatusChange,
@@ -17,11 +18,7 @@ from app.domain.patient.lifecycle import (
 )
 from app.domain.patient.merge_service import PatientMergeService
 from app.domain.patient.patient import Patient
-from app.domain.patient.primitives import (
-    PatientBirthDate,
-    PatientId,
-    PatientNumber,
-)
+from app.domain.patient.primitives import PatientBirthDate, PatientNumber
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
 
@@ -90,7 +87,7 @@ def test_TC04_患者状態変更記録の不変条件() -> None:
             reason=reason,
             person_id=person_id,
             account_id=account_id,
-            recorded_at=datetime(2026, 9, 21, 12, 0, 0),  # noqa: DTZ001
+            recorded_at=datetime(2026, 9, 21, 12, 0, 0),
         )
 
     # 異常: MERGED なのに merged_into_id がない

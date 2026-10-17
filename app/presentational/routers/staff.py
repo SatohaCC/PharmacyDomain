@@ -36,9 +36,11 @@ from app.application.staff.transfer_home_store import TransferStaffHomeStoreComm
 from app.application.staff.update_qualifications import UpdateStaffQualificationsCommand
 from app.presentational.dependencies import StaffUseCasesDep, get_actor_context
 from app.presentational.errors import error_responses
+from app.presentational.routing import ApplicationRoute
 from app.presentational.schemas import RegisteredIdResponse, RequestModel
 
 router = APIRouter(
+    route_class=ApplicationRoute,
     prefix="/corporates/{corporate_id}/staffs",
     tags=["staff"],
     dependencies=[Depends(get_actor_context)],

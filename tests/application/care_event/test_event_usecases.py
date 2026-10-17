@@ -12,17 +12,16 @@ from app.application.access_control.store_access import StoreOperation
 from app.application.common.exceptions import AuthorizationError
 from app.domain.care_event.event import Event
 from app.domain.care_event.event_definition import EventDefinition
+from app.domain.care_event.identifiers import EventId, EventTypeId
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
-    EventId,
     EventOccurredTimestamp,
-    EventTypeId,
     EventTypeName,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainError
-from app.domain.patient.primitives import PatientId
-from app.domain.store.primitives import StoreId
+from app.domain.patient.identifiers import PatientId
+from app.domain.store.identifiers import StoreId
 from tests.application.care_event.helpers import create_command, create_fixture
 
 

@@ -5,20 +5,19 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import Range
 
-from app.domain.corporate.primitives import CorporateId
-from app.domain.staff.primitives import StaffId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId, StoreManagerAssignmentId
 from app.domain.store.manager_assignment import (
     ManagerAssignmentStatus,
     ManagerPersonUnresolvedError,
     StoreManagerAssignment,
-    StoreManagerAssignmentId,
 )
 from app.domain.store.manager_repository import (
     ManagerAssignmentConflictError,
     ManagerExclusiveDutyConflictError,
     StoreManagerAssignmentRepository,
 )
-from app.domain.store.primitives import StoreId
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,

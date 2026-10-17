@@ -34,32 +34,25 @@ from app.domain.care_event.primitives import (
     EventTypeStandardCode,
 )
 from app.domain.identity.account_person import AccountPerson
+from app.domain.identity.identifiers import CorporateMembershipId, UserInvitationId
 from app.domain.identity.invitation import InvitationDigest, UserInvitation
 from app.domain.identity.membership import CorporateMembership
-from app.domain.identity.primitives import (
-    AccountPersonId,
-    CorporateMembershipId,
-    MembershipRole,
-    UserAccountId,
-    UserInvitationId,
-)
+from app.domain.identity.primitives import MembershipRole
 from app.domain.identity.staff_person_link import StaffPersonLink
 from app.domain.identity.user_account import UserAccount
 from app.domain.medication_history.category_catalog import (
     MedicationHistoryCategoryCatalog,
 )
 from app.domain.medication_history.primitives import FollowUpRecordedTimestamp
-from app.domain.reception.primitives import (
-    ReceptionFieldPath,
-    ReceptionFingerprint,
-    ReceptionId,
-)
+from app.domain.reception.identifiers import ReceptionId
+from app.domain.reception.primitives import ReceptionFieldPath, ReceptionFingerprint
 from app.domain.reception.reception import Reception
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
+from app.domain.store.identifiers import StoreManagerAssignmentId
 from app.domain.store.manager_assignment import (
     ManagerAssignmentPeriod,
     StoreManagerAssignment,
-    StoreManagerAssignmentId,
 )
 from app.infrastructure.care_event.postgres.care_event import EVENT_MAPPING
 from app.infrastructure.care_event.postgres.event_definition import (

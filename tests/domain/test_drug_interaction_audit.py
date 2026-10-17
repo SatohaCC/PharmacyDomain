@@ -5,12 +5,12 @@ from __future__ import annotations
 import pytest
 
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.medicine_catalog.primitives import YjCode
 from app.domain.prescription.interaction_audit import (
     DrugInteractionAuditService,
     DrugInteractionPair,
     InteractionSeverity,
 )
+from app.domain.prescription.reference_primitives import YjCode
 from tests.fakes.fake_drug_interaction import FakeDrugInteractionDataSource
 
 

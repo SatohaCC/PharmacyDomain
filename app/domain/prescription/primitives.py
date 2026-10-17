@@ -28,7 +28,6 @@ from app.domain.foundation.primitives.primitives import (
     BasePositiveInt,
     BasePostalCode,
     BaseTelephoneNumber,
-    EntityUUID,
     ensure_digits,
 )
 
@@ -154,12 +153,6 @@ class MedicineLineNumber(BasePositiveInt):
         super().validate()
         if self.value > 999:
             raise DomainValidationError("RP内連番は999以内で指定してください。")
-
-
-class PrescriptionId(EntityUUID):
-    """処方箋集約の一意識別子（UUIDv7）。"""
-
-    identifier_name = "処方箋ID"
 
 
 # --------------------------------------------------------------------------

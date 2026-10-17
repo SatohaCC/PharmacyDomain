@@ -47,12 +47,13 @@ from app.application.store.management import (
     RevokeStoreClosureCommand,
 )
 from app.application.store.register_store import RegisterStoreCommand
-from app.domain.store.lifecycle import StoreStatus
 from app.presentational.dependencies import StoreUseCasesDep, get_actor_context
 from app.presentational.errors import error_responses
+from app.presentational.routing import ApplicationRoute
 from app.presentational.schemas import RegisteredIdResponse, RequestModel
 
 router = APIRouter(
+    route_class=ApplicationRoute,
     prefix="/corporates/{corporate_id}/stores",
     tags=["store"],
     dependencies=[Depends(get_actor_context)],
@@ -310,7 +311,7 @@ async def suspend_store(
         ChangeStoreStatusCommand(
             corporate_id=corporate_id,
             store_id=store_id,
-            status=StoreStatus.SUSPENDED,
+            status="suspended",
             reason=body.reason,
         )
     )
@@ -332,7 +333,7 @@ async def resume_store(
         ChangeStoreStatusCommand(
             corporate_id=corporate_id,
             store_id=store_id,
-            status=StoreStatus.ACTIVE,
+            status="active",
             reason=body.reason,
         )
     )
@@ -354,7 +355,7 @@ async def close_store(
         ChangeStoreStatusCommand(
             corporate_id=corporate_id,
             store_id=store_id,
-            status=StoreStatus.CLOSED,
+            status="closed",
             reason=body.reason,
         )
     )

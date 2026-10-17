@@ -25,14 +25,18 @@ from app.application.prescription.reference import (
     StaffQualificationBoundary,
     StoreReferenceBoundary,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.coverage.primitives import CoverageSelectionRecordId
-from app.domain.medicine_catalog.primitives import MedicineIdentifier
-from app.domain.patient.primitives import PatientId
-from app.domain.prescription.value_objects import MedicineClassification
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.coverage.identifiers import CoverageSelectionRecordId
+from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.reference_values import MedicineIdentifier
+from app.domain.prescription.value_objects import (
+    MedicineClassification,
+    PharmacistQualification,
+)
 from app.domain.shared.public_expense import PublicExpenseBurden
-from app.domain.staff.primitives import StaffId, StaffQualifications
-from app.domain.store.primitives import StoreId
+from app.domain.staff.identifiers import StaffId
+from app.domain.staff.value_objects import PharmacistProfile, StaffQualifications
+from app.domain.store.identifiers import StoreId
 
 
 class FakePrescriptionStoreReference(StoreReferenceBoundary):
@@ -98,7 +102,7 @@ class FakeStaffQualificationSource(StaffQualificationBoundary):
         *,
         corporate_id: CorporateId,
         staff_id: StaffId,
-    ) -> StaffQualifications:
+    ) -> PharmacistQualification:
         """未登録・別法人のスタッフは404相当を送出する。
 
         資格を持たないだけのスタッフは在籍しているので例外にしない
@@ -107,7 +111,9 @@ class FakeStaffQualificationSource(StaffQualificationBoundary):
         qualifications = self.qualifications.get((corporate_id, staff_id))
         if qualifications is None:
             raise PrescriptionPharmacistNotFoundError()
-        return qualifications
+        return PharmacistQualification(
+            has_pharmacist=qualifications.has(PharmacistProfile)
+        )
 
 
 class FakeMedicineRestrictionSource(MedicineRestrictionBoundary):

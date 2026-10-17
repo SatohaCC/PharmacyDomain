@@ -17,12 +17,12 @@ from app.application.coverage.support import (
     build_public_expense_details,
     parse_coverage_type,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.patient_coverage import PatientCoverage
 from app.domain.coverage.primitives import CoverageType
 from app.domain.coverage.repository import PatientCoverageRepository
 from app.domain.coverage.services import PatientCoverageConflictService
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
 
 
 @dataclass(frozen=True, kw_only=True)

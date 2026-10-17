@@ -6,6 +6,9 @@ from dataclasses import replace
 from datetime import datetime
 
 from app.application.common.exceptions import NotFoundError
+from app.application.composition.medication_history_snapshot_mapping import (
+    dispensing_source,
+)
 from app.application.composition.reference_support import load_store_in_corporate
 from app.application.medication_history.exceptions import (
     MedicationHistoryDispensingNotFoundError,
@@ -24,29 +27,39 @@ from app.application.medication_history.reference import (
     StatutoryRecordSourceBoundary,
     StoreReferenceBoundary,
 )
-from app.domain.care_event.primitives import EventId, EventOccurredTimestamp
+from app.domain.care_event.identifiers import EventId
+from app.domain.care_event.primitives import EventOccurredTimestamp
 from app.domain.care_event.repository import EventRepository
-from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing.dispensing_process import DispensingProcess
-from app.domain.dispensing.primitives import DispensingId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.dispensing.repository import DispensingProcessRepository
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.medication_history.dispensing_source import DispensingSource
 from app.domain.medication_history.exceptions import MedicationHistoryDomainError
-from app.domain.medication_history.primitives import MedicationHistoryRecordId
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
+from app.domain.medication_history.reference_primitives import (
+    InquiryNumber,
+    MedicalInstitutionAddressLine,
+    MedicalInstitutionName,
+    PatientBirthDate,
+    PrescriptionIssuedDate,
+)
 from app.domain.medication_history.value_objects import (
+    PharmacistQualification,
     StatutoryInquiryRecord,
     StatutoryPharmacistName,
     StatutoryRecordSource,
 )
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.repository import PatientRepository
-from app.domain.prescription.primitives import PrescriptionId
+from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.prescription.repository import PrescriptionRepository
-from app.domain.reception.primitives import ReceptionId
+from app.domain.reception.identifiers import ReceptionId
 from app.domain.reception.repository import ReceptionRepository
-from app.domain.staff.primitives import StaffId, StaffQualifications
+from app.domain.staff.identifiers import StaffId
 from app.domain.staff.repository import StaffRepository
-from app.domain.store.primitives import StoreId
+from app.domain.staff.value_objects import PharmacistProfile
+from app.domain.store.identifiers import StoreId
 from app.domain.store.repository import StoreRepository
 
 
@@ -73,11 +86,7 @@ class MedicationHistoryStoreReferenceAdapter(StoreReferenceBoundary):
 
 
 class DispensingSourceAdapter(DispensingReferenceBoundary):
-    """調剤セッション集約を取り出す。
-
-    ここだけは他コンテキストの集約そのものを返す。法人・患者・店舗の一致は
-    IDでは判定できず、Domain Service が本物の集約を必要とするため。
-    """
+    """調剤Repositoryの記録を薬歴が必要とする固定値へ変換する。"""
 
     def __init__(self, repository: DispensingProcessRepository) -> None:
         self._repository = repository
@@ -87,7 +96,7 @@ class DispensingSourceAdapter(DispensingReferenceBoundary):
         *,
         corporate_id: CorporateId,
         dispensing_id: DispensingId,
-    ) -> DispensingProcess:
+    ) -> DispensingSource:
         """未存在・別法人の調剤セッションを、存在を隠す404相当へ畳む。"""
         process = await self._repository.get(
             corporate_id=corporate_id,
@@ -95,7 +104,7 @@ class DispensingSourceAdapter(DispensingReferenceBoundary):
         )
         if process is None:
             raise MedicationHistoryDispensingNotFoundError()
-        return process
+        return dispensing_source(process)
 
 
 class ReceptionMedicationHistorySourceAdapter(ReceptionMedicationHistoryBoundary):
@@ -222,8 +231,8 @@ class CounselorQualificationAdapter(StaffQualificationBoundary):
         *,
         corporate_id: CorporateId,
         staff_id: StaffId,
-    ) -> StaffQualifications:
-        """未存在・別法人のスタッフを404相当へ畳み、資格をそのまま返す。
+    ) -> PharmacistQualification:
+        """未存在・別法人のスタッフを404相当へ畳み、利用側の資格保有事実へ変換する。
 
         薬剤師かどうかの判定は ``CounselorQualificationService`` の責務であり、
         ここでは行わない。資格が空でも在籍しているので例外にしない。
@@ -234,7 +243,9 @@ class CounselorQualificationAdapter(StaffQualificationBoundary):
         )
         if staff is None:
             raise MedicationHistoryStaffNotFoundError()
-        return staff.qualifications
+        return PharmacistQualification(
+            has_pharmacist=staff.qualifications.has(PharmacistProfile)
+        )
 
 
 class StatutoryRecordSourceAdapter(StatutoryRecordSourceBoundary):
@@ -281,18 +292,28 @@ class StatutoryRecordSourceAdapter(StatutoryRecordSourceBoundary):
         return StatutoryRecordSource(
             patient_id=patient.id,
             patient_names=patient.names,
-            patient_birth_date=patient.birth_date,
+            patient_birth_date=PatientBirthDate(patient.birth_date.value)
+            if patient.birth_date is not None
+            else None,
             pharmacist_names=await self._pharmacist_names(
                 corporate_id=corporate_id, staff_ids=staff_ids
             ),
             prescription_id=prescription.id,
-            prescription_issued_date=prescription.period.issued_date,
+            prescription_issued_date=PrescriptionIssuedDate(
+                prescription.period.issued_date.value
+            ),
             prescriber_names=prescription.prescriber.names,
-            medical_institution_name=prescription.medical_institution.name,
-            medical_institution_address=prescription.medical_institution.address,
+            medical_institution_name=MedicalInstitutionName(
+                prescription.medical_institution.name.value
+            ),
+            medical_institution_address=MedicalInstitutionAddressLine(
+                prescription.medical_institution.address.value
+            )
+            if prescription.medical_institution.address is not None
+            else None,
             inquiries=tuple(
                 StatutoryInquiryRecord(
-                    inquiry_number=inquiry.inquiry_number,
+                    inquiry_number=InquiryNumber(inquiry.inquiry_number.value),
                     has_response=not inquiry.is_open,
                 )
                 for inquiry in prescription.inquiries

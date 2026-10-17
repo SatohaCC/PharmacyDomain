@@ -11,7 +11,7 @@ from app.application.identity.support import (
     IdentityRepositories,
     ensure_administrator_preserved,
 )
-from app.domain.identity.primitives import UserAccountId
+from app.domain.shared.actor import UserAccountId
 
 
 class SuspendAccountUseCase:

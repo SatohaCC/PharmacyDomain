@@ -444,7 +444,7 @@ class Test照会日時:
         """どのタイムゾーンで記録されたか復元できず、監査に使えないため。"""
         # Arrange / Act / Assert
         with pytest.raises(DomainValidationError, match="タイムゾーン"):
-            InquiryTimestamp(datetime(2026, 8, 24, 1, 30))  # noqa: DTZ001
+            InquiryTimestamp(datetime(2026, 8, 24, 1, 30))
 
 
 class Test処方箋の状態:

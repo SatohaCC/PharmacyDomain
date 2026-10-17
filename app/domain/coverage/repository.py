@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.coverage_selection_record import CoverageSelectionRecord
+from app.domain.coverage.identifiers import CoverageSelectionRecordId, PatientCoverageId
 from app.domain.coverage.patient_coverage import PatientCoverage
-from app.domain.coverage.primitives import CoverageSelectionRecordId, PatientCoverageId
-from app.domain.patient.primitives import PatientId
-from app.domain.store.primitives import StoreId
+from app.domain.patient.identifiers import PatientId
+from app.domain.store.identifiers import StoreId
 
 
 class PatientCoverageRepository(Protocol):

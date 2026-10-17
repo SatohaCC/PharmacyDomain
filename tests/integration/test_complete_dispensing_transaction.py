@@ -25,16 +25,16 @@ from app.application.dispensing.complete_dispensing import CompleteDispensingCom
 from app.application.dispensing.exceptions import (
     DispensingPrescriptionNotFoundError,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.primitives import (
     DispensingCompletionType,
     DispensingProcessStatus,
 )
-from app.domain.identity.primitives import UserAccountId
 from app.domain.identity.user_account import UserAccount
 from app.domain.prescription.prescription import Prescription
 from app.domain.prescription.primitives import PrescriptionStatus
+from app.domain.shared.actor import UserAccountId
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )

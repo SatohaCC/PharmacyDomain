@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import Protocol
 
 from app.domain.corporate.corporate import Corporate
-from app.domain.corporate.primitives import CorporateId, CorporateName
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.corporate.primitives import CorporateName
 
 
 class CorporateRepository(Protocol):

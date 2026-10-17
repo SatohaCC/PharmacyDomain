@@ -25,15 +25,15 @@ from app.application.medication_history.profile_projection_service import (
 )
 from app.application.medication_history.reference import StaffQualificationBoundary
 from app.application.medication_history.support import load_record_or_raise
-from app.domain.corporate.primitives import CorporateId
-from app.domain.medication_history.primitives import MedicationHistoryRecordId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.repository import (
     MedicationHistoryCategoryCatalogRepository,
     MedicationHistoryRepository,
     PatientMedicalProfileRepository,
 )
 from app.domain.medication_history.services import CounselorQualificationService
-from app.domain.staff.primitives import StaffId
+from app.domain.staff.identifiers import StaffId
 
 _VALUE_ABSENT = object()
 

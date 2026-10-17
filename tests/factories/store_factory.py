@@ -9,31 +9,28 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.shared.actor import AccountPersonId
-from app.domain.staff.primitives import StaffId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId, StoreManagerAssignmentId
 from app.domain.store.manager_assignment import (
     ManagerAssignmentPeriod,
     StoreManagerAssignment,
-    StoreManagerAssignmentId,
 )
 from app.domain.store.primitives import (
-    ContactInfo,
     InsurancePharmacyNumber,
-    StoreAddress,
     StoreAddressLine,
     StoreCode,
     StoreEmailAddress,
     StoreFaxNumber,
-    StoreId,
     StoreName,
     StoreNameKana,
     StoreNameRomaji,
-    StoreNames,
     StorePhoneNumber,
     StorePostalCode,
 )
 from app.domain.store.store import Store
+from app.domain.store.value_objects import ContactInfo, StoreAddress, StoreNames
 
 #: 有効な保険薬局指定番号（都道府県コード13・調剤区分4）。
 VALID_INSURANCE_NUMBER = "1341234567"

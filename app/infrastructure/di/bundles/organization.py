@@ -5,14 +5,21 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from app.application.access_control.policy import AuthorizationService
 from app.application.common.clock import Clock
+from app.application.composition.organization_snapshot_mapping import (
+    ManagerStaffAdapter,
+    StaffStoreAdapter,
+)
 from app.application.composition.staff_integrity import (
     StaffAccessRevocationService,
 )
 from app.application.composition.staff_person_adapter import StaffPersonAdapter
+from app.application.composition.use_case_bundles import (
+    CorporateUseCases,
+    StaffUseCases,
+    StoreUseCases,
+)
 from app.application.corporate.change_corporate_name import ChangeCorporateNameUseCase
 from app.application.corporate.change_corporate_status import (
     ChangeCorporateStatusUseCase,
@@ -80,18 +87,6 @@ from app.infrastructure.store.postgres.work_boundary import PostgresStoreWorkBou
 # --------------------------------------------------------------------------
 
 
-@dataclass(frozen=True, slots=True)
-class CorporateUseCases:
-    """法人コンテキストのユースケース。"""
-
-    register: RegisterCorporateUseCase
-    list: ListCorporatesUseCase
-    get: GetCorporateUseCase
-    change_name: ChangeCorporateNameUseCase
-    change_representative: ChangeRepresentativeUseCase
-    change_status: ChangeCorporateStatusUseCase
-
-
 def build_corporate_use_cases(
     repositories: PostgresRepositorySet,
     corporate_access: CorporateAccessService,
@@ -119,25 +114,6 @@ def build_corporate_use_cases(
 # --------------------------------------------------------------------------
 # 店舗
 # --------------------------------------------------------------------------
-
-
-@dataclass(frozen=True, slots=True)
-class StoreUseCases:
-    """店舗コンテキストのユースケース。"""
-
-    register: RegisterStoreUseCase
-    change_status: ChangeStoreStatusUseCase
-    revoke_closure: RevokeStoreClosureUseCase
-    manage_manager: ManageStoreManagerUseCase
-    get: GetStoreUseCase
-    list_by_corporate: ListStoresUseCase
-    change_names: ChangeStoreNamesUseCase
-    change_code: ChangeStoreCodeUseCase
-    change_address: ChangeStoreAddressUseCase
-    change_contact_info: ChangeStoreContactInfoUseCase
-    change_insurance_pharmacy_number: ChangeInsurancePharmacyNumberUseCase
-    change_business_hours: ChangeStoreBusinessHoursUseCase
-    opening_status: GetStoreOpeningStatusUseCase
 
 
 def build_store_use_cases(
@@ -170,7 +146,7 @@ def build_store_use_cases(
         ),
         manage_manager=ManageStoreManagerUseCase(
             repository,
-            repositories.staff,
+            ManagerStaffAdapter(repositories.staff),
             repositories.manager_assignment,
             StaffPersonAdapter(repositories.staff_person_link),
             corporate_access,
@@ -212,23 +188,6 @@ def build_store_use_cases(
 # --------------------------------------------------------------------------
 
 
-@dataclass(frozen=True, slots=True)
-class StaffUseCases:
-    """スタッフコンテキストのユースケース。"""
-
-    register: RegisterStaffUseCase
-    get: GetStaffUseCase
-    list_by_corporate: ListStaffsUseCase
-    change_names: ChangeStaffNamesUseCase
-    change_job_title: ChangeStaffJobTitleUseCase
-    update_qualifications: UpdateStaffQualificationsUseCase
-    transfer_home_store: TransferStaffHomeStoreUseCase
-    assign_concurrent_store: AssignStaffConcurrentStoreUseCase
-    remove_concurrent_store: RemoveStaffConcurrentStoreUseCase
-    activate: ActivateStaffUseCase
-    deactivate: DeactivateStaffUseCase
-
-
 def build_staff_use_cases(
     repositories: PostgresRepositorySet,
     corporate_access: CorporateAccessService,
@@ -251,7 +210,7 @@ def build_staff_use_cases(
     return StaffUseCases(
         register=RegisterStaffUseCase(
             staff_repository,
-            store_repository,
+            StaffStoreAdapter(store_repository),
             code_uniqueness,
             assignment,
             corporate_access,
@@ -264,13 +223,22 @@ def build_staff_use_cases(
             staff_repository, corporate_access
         ),
         transfer_home_store=TransferStaffHomeStoreUseCase(
-            staff_repository, store_repository, assignment, corporate_access
+            staff_repository,
+            StaffStoreAdapter(store_repository),
+            assignment,
+            corporate_access,
         ),
         assign_concurrent_store=AssignStaffConcurrentStoreUseCase(
-            staff_repository, store_repository, assignment, corporate_access
+            staff_repository,
+            StaffStoreAdapter(store_repository),
+            assignment,
+            corporate_access,
         ),
         remove_concurrent_store=RemoveStaffConcurrentStoreUseCase(
-            staff_repository, store_repository, assignment, corporate_access
+            staff_repository,
+            StaffStoreAdapter(store_repository),
+            assignment,
+            corporate_access,
         ),
         activate=ActivateStaffUseCase(staff_repository, corporate_access),
         deactivate=DeactivateStaffUseCase(

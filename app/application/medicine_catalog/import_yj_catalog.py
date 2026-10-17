@@ -18,7 +18,6 @@ from app.domain.medicine_catalog.primitives import (
     MedicineCode,
     MedicineCodeType,
     MedicineDosageForm,
-    MedicineIdentifier,
     MedicineListedOn,
     MedicineName,
     MedicineUnit,
@@ -26,6 +25,7 @@ from app.domain.medicine_catalog.primitives import (
     NarcoticCategory,
 )
 from app.domain.medicine_catalog.repository import MedicineCatalogRepository
+from app.domain.medicine_catalog.value_objects import MedicineIdentifier
 
 DEFAULT_CATALOG_VERSION = date(2026, 8, 15)
 DEFAULT_LISTED_ON = date(1950, 1, 1)

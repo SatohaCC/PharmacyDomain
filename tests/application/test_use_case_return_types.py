@@ -23,7 +23,7 @@ import pytest
 import app.application
 from app.application.staff.register_staff import RegisterStaffUseCase
 from app.domain.foundation.entity import Entity
-from app.domain.staff.primitives import StaffId
+from app.domain.staff.identifiers import StaffId
 
 
 def _use_case_classes(package: ModuleType) -> Iterator[type]:

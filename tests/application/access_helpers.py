@@ -6,8 +6,8 @@ from app.application.access_control.models import ActorContext
 from app.application.access_control.policy import AuthorizationService
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.domain.corporate.corporate import Corporate
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.corporate.primitives import (
-    CorporateId,
     CorporateName,
     CorporateRepresentativeName,
     CorporateStatus,

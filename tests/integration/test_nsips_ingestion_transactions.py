@@ -27,10 +27,12 @@ from app.application.integration.nsips.models import (
     NsipsPrescriptionInfo,
     NsipsRpInfo,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.coverage.primitives import PatientCoverageId
-from app.domain.dispensing.primitives import DispensingId, DispensingProcessStatus
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.coverage.identifiers import PatientCoverageId
+from app.domain.dispensing.identifiers import DispensingId
+from app.domain.dispensing.primitives import DispensingProcessStatus
 from app.domain.foundation.exceptions import ConcurrentModificationError
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
@@ -38,15 +40,11 @@ from app.domain.medication_history.primitives import (
     AmendmentReason,
     AmendmentTimestamp,
     FinalizedTimestamp,
-    MedicationHistoryRecordId,
 )
 from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.value_objects import ExternalCorrectionKind
-from app.domain.medicine_catalog.primitives import (
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
-)
+from app.domain.medicine_catalog.primitives import MedicineCode, MedicineCodeType
+from app.domain.medicine_catalog.value_objects import MedicineIdentifier
 from app.domain.patient.external_identifier import PatientExternalIdentifier
 from app.domain.patient.heading import PatientHeadingContent, PatientHeadingText
 from app.domain.patient.patient import Patient
@@ -59,14 +57,12 @@ from app.domain.patient.profile_history import (
     PatientProfileChange,
     PatientProfileSnapshot,
 )
-from app.domain.prescription.primitives import (
-    PrescriptionId,
-    PrescriptionStatus,
-)
-from app.domain.reception.primitives import ReceptionId
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.prescription.primitives import PrescriptionStatus
+from app.domain.reception.identifiers import ReceptionId
 from app.domain.reception.reception import Reception
 from app.domain.reception.repository import ReceptionRepository
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )

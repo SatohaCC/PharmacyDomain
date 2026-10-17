@@ -54,9 +54,11 @@ from app.application.patient.register_patient_external_identifier import (
 )
 from app.presentational.dependencies import PatientUseCasesDep, get_actor_context
 from app.presentational.errors import error_responses
+from app.presentational.routing import ApplicationRoute
 from app.presentational.schemas import RegisteredIdResponse, RequestModel
 
 router = APIRouter(
+    route_class=ApplicationRoute,
     prefix="/corporates/{corporate_id}",
     tags=["patient"],
     dependencies=[Depends(get_actor_context)],

@@ -20,9 +20,9 @@ from typing import Any, get_args, get_origin
 import pytest
 from fastapi.routing import APIRoute
 
+from app.bootstrap import create_app
 from app.domain.foundation.primitives.base import DomainPrimitive
 from app.domain.foundation.value_object import ValueObject
-from app.presentational.app_factory import create_app
 
 #: 応答に出てはいけない基底。どちらも「値1つ」または「複数項目の塊」を表す
 #: ドメイン内部の語彙で、外向きの契約としては素の型へ落とす。

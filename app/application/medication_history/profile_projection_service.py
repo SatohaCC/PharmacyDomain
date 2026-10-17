@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
 from app.domain.medication_history.repository import (
     MedicationHistoryRepository,
     PatientMedicalProfileRepository,
 )
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
 
 
 class PatientMedicalProfileProjectionService:

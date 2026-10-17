@@ -5,8 +5,8 @@ from app.application.access_control.models import Permission
 from app.application.common.exceptions import NotFoundError
 from app.application.identity.dto import MembershipViewDto
 from app.application.identity.support import IdentityRepositories
-from app.domain.corporate.primitives import CorporateId
-from app.domain.identity.primitives import CorporateMembershipId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.identity.identifiers import CorporateMembershipId
 
 
 class GetUserUseCase:

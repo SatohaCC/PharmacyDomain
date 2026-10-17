@@ -14,10 +14,10 @@ from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.medicine_catalog.primitives import (
     MedicineCode,
     MedicineCodeType,
-    MedicineIdentifier,
     MedicineName,
     MedicineUnit,
 )
+from app.domain.medicine_catalog.value_objects import MedicineIdentifier
 from app.domain.prescription.primitives import (
     ConversionFactor,
     DispensingQuantity,

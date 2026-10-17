@@ -26,7 +26,6 @@ from app.domain.medicine_catalog.primitives import (
     MedicineCode,
     MedicineCodeType,
     MedicineDosageForm,
-    MedicineIdentifier,
     MedicineListedOn,
     MedicineName,
     MedicineUnit,
@@ -35,6 +34,7 @@ from app.domain.medicine_catalog.primitives import (
 )
 from app.domain.medicine_catalog.repository import MedicineCatalogRepository
 from app.domain.medicine_catalog.services import MedicineEffectivePeriodConflictService
+from app.domain.medicine_catalog.value_objects import MedicineIdentifier
 
 
 @dataclass(frozen=True, kw_only=True)

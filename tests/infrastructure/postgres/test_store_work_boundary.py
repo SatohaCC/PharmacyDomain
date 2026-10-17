@@ -11,10 +11,10 @@ from typing import Any
 
 import pytest
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.primitives import DispensingProcessStatus
 from app.domain.prescription.primitives import PrescriptionStatus
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 from app.infrastructure.store.postgres.work_boundary import PostgresStoreWorkBoundary
 from tests.fakes.recording_async_session import FakeResult, RecordingAsyncSession
 from tests.infrastructure.postgres.helpers import create_unit_of_work

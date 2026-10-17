@@ -12,12 +12,12 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import Range
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.exceptions import CoveragePeriodConflictError
+from app.domain.coverage.identifiers import PatientCoverageId
 from app.domain.coverage.patient_coverage import PatientCoverage
-from app.domain.coverage.primitives import PatientCoverageId
 from app.domain.coverage.repository import PatientCoverageRepository
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,

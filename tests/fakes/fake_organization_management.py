@@ -2,8 +2,8 @@
 
 from app.application.common.organization_lock import OrganizationLock
 from app.application.store.management import StoreWorkBoundary
-from app.domain.corporate.primitives import CorporateId
-from app.domain.store.primitives import StoreId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.store.identifiers import StoreId
 
 
 class FakeOrganizationLock(OrganizationLock):

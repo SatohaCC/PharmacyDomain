@@ -26,21 +26,21 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, JSONPATH
 from sqlalchemy.sql import cast as sql_cast
 
-from app.domain.care_event.primitives import EventId
-from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing.primitives import DispensingId
+from app.domain.care_event.identifiers import EventId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.foundation.exceptions import ConcurrentModificationError
 from app.domain.medication_history.exceptions import (
     MedicationHistoryAlreadyExistsError,
 )
+from app.domain.medication_history.identifiers import (
+    MedicationHistoryRecordId,
+    TracingReportId,
+)
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
-from app.domain.medication_history.primitives import (
-    MedicationHistoryRecordId,
-    MedicationHistoryStatus,
-    TracingReportId,
-)
+from app.domain.medication_history.primitives import MedicationHistoryStatus
 from app.domain.medication_history.repository import (
     FinalizedMedicationHistorySource,
     MedicationHistoryExternalCorrectionMatch,
@@ -49,8 +49,8 @@ from app.domain.medication_history.repository import (
 from app.domain.medication_history.value_objects import (
     ExternalCorrectionStatus,
 )
-from app.domain.patient.primitives import PatientId
-from app.domain.store.primitives import StoreId
+from app.domain.patient.identifiers import PatientId
+from app.domain.store.identifiers import StoreId
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,

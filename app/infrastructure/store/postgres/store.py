@@ -10,18 +10,14 @@ from typing import Any
 
 from sqlalchemy import Select, select
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.store.exceptions import (
     InsurancePharmacyNumberAlreadyExistsError,
     StoreCodeAlreadyExistsError,
     StoreNameAlreadyExistsError,
 )
-from app.domain.store.primitives import (
-    InsurancePharmacyNumber,
-    StoreCode,
-    StoreId,
-    StoreName,
-)
+from app.domain.store.identifiers import StoreId
+from app.domain.store.primitives import InsurancePharmacyNumber, StoreCode, StoreName
 from app.domain.store.repository import StoreCatalogRepository, StoreRepository
 from app.domain.store.store import Store
 from app.infrastructure.postgres.repository_base import (

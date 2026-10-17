@@ -5,8 +5,8 @@ from __future__ import annotations
 from app.application.composition.reference_support import load_store_in_corporate
 from app.application.patient.exceptions import PatientStoreNotFoundError
 from app.application.patient.reference import PatientStoreReferenceBoundary
-from app.domain.corporate.primitives import CorporateId
-from app.domain.store.primitives import StoreId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.store.identifiers import StoreId
 from app.domain.store.repository import StoreRepository
 
 

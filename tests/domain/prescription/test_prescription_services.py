@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import pytest
 
-from app.domain.medicine_catalog.primitives import MedicineIdentifier
 from app.domain.prescription.exceptions import (
     InquiryPharmacistQualificationError,
     MedicineClassificationMissingError,
@@ -28,6 +27,7 @@ from app.domain.prescription.primitives import (
     PatientPhoneNumber,
     RefillCount,
 )
+from app.domain.prescription.reference_values import MedicineIdentifier
 from app.domain.prescription.services import (
     InquiryPharmacistService,
     NarcoticPrescriptionService,
@@ -38,14 +38,17 @@ from app.domain.prescription.value_objects import (
     MedicineClassification,
     MedicineRestrictionFlag,
     NarcoticPrescriptionDetails,
+    PharmacistQualification,
     PrescriptionManagementInfo,
     RefillInstruction,
 )
 from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.staff.primitives import (
-    DietitianProfile,
     DietitianRegistrationNumber,
     PharmacistLicenseNumber,
+)
+from app.domain.staff.value_objects import (
+    DietitianProfile,
     PharmacistProfile,
     StaffQualifications,
 )
@@ -352,13 +355,21 @@ class Test疑義照会の実施者資格:
         )
 
         # Act / Assert: 例外を送出しないこと自体が表明
-        InquiryPharmacistService().ensure_pharmacist(qualifications)
+        InquiryPharmacistService().ensure_pharmacist(
+            PharmacistQualification(
+                has_pharmacist=(qualifications).has(PharmacistProfile)
+            )
+        )
 
     def test_資格なしのスタッフは_拒否される(self) -> None:
         """医療事務・調剤補助が疑義照会の実施者になってはならない。"""
         # Arrange / Act / Assert
         with pytest.raises(InquiryPharmacistQualificationError):
-            InquiryPharmacistService().ensure_pharmacist(StaffQualifications.empty())
+            InquiryPharmacistService().ensure_pharmacist(
+                PharmacistQualification(
+                    has_pharmacist=(StaffQualifications.empty()).has(PharmacistProfile)
+                )
+            )
 
     def test_管理栄養士だけでは_薬剤師と認めない(self) -> None:
         """「何らかの資格があれば通る」実装になっていないことを固定する。"""
@@ -369,7 +380,11 @@ class Test疑義照会の実施者資格:
 
         # Act / Assert
         with pytest.raises(InquiryPharmacistQualificationError):
-            InquiryPharmacistService().ensure_pharmacist(qualifications)
+            InquiryPharmacistService().ensure_pharmacist(
+                PharmacistQualification(
+                    has_pharmacist=(qualifications).has(PharmacistProfile)
+                )
+            )
 
     def test_薬剤師を含む複数資格でも_通る(self) -> None:
         # Arrange
@@ -379,7 +394,11 @@ class Test疑義照会の実施者資格:
         )
 
         # Act / Assert
-        InquiryPharmacistService().ensure_pharmacist(qualifications)
+        InquiryPharmacistService().ensure_pharmacist(
+            PharmacistQualification(
+                has_pharmacist=(qualifications).has(PharmacistProfile)
+            )
+        )
 
 
 class Test公費負担の裏付け:

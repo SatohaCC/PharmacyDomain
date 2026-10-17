@@ -10,7 +10,7 @@ from app.application.staff.update_qualifications import (
     UpdateStaffQualificationsCommand,
     UpdateStaffQualificationsUseCase,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.factories.staff_factory import create_staff
 from tests.fakes.in_memory_staff_repository import InMemoryStaffRepository

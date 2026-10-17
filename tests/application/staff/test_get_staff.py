@@ -9,8 +9,8 @@ from app.application.staff.get_staff import (
     GetStaffQuery,
     GetStaffUseCase,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.staff.primitives import StaffId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.staff.identifiers import StaffId
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.factories.staff_factory import create_staff
 from tests.fakes.fake_clock import FakeClock

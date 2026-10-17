@@ -2,29 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from app.application.common.clock import Clock
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.integration.nsips.ingest_nsips import IngestNsipsUseCase
-from app.infrastructure.di.bundles.clinical import (
+from app.application.composition.use_case_bundles import (
     DispensingUseCases,
+    IntegrationUseCases,
+    PatientUseCases,
     PrescriptionUseCases,
 )
-from app.infrastructure.di.bundles.patient_care import (
-    PatientUseCases,
-)
+from app.application.corporate.corporate_access import CorporateAccessService
+from app.application.integration.nsips.ingest_nsips import IngestNsipsUseCase
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
-
-
-@dataclass(frozen=True, slots=True)
-class IntegrationUseCases:
-    """外部連携コンテキストのユースケース一覧。"""
-
-    ingest_nsips: IngestNsipsUseCase
 
 
 def build_integration_use_cases(

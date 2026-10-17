@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from datetime import date
 
+from app.application.composition.dispensing_snapshot_mapping import prescription_source
 from app.application.dispensing.exceptions import (
     DispensingPrescriptionNotFoundError,
     DispensingStaffNotFoundError,
@@ -22,11 +23,15 @@ from app.application.dispensing.reference import (
     StaffQualificationBoundary,
     StoreReferenceBoundary,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.prescription_source import PrescriptionSource
+from app.domain.dispensing.value_objects import PharmacistQualification
+from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.prescription.prescription import Prescription
-from app.domain.prescription.primitives import PrescriptionId, PrescriptionStatus
-from app.domain.staff.primitives import StaffId, StaffQualifications
-from app.domain.store.primitives import StoreId
+from app.domain.prescription.primitives import PrescriptionStatus
+from app.domain.staff.identifiers import StaffId
+from app.domain.staff.value_objects import PharmacistProfile, StaffQualifications
+from app.domain.store.identifiers import StoreId
 
 
 class FakeDispensingStoreReference(StoreReferenceBoundary):
@@ -72,12 +77,12 @@ class FakePrescriptionSource(
         *,
         corporate_id: CorporateId,
         prescription_id: PrescriptionId,
-    ) -> Prescription:
+    ) -> PrescriptionSource:
         """未登録・別法人の処方箋は404相当を送出する。"""
         prescription = self.prescriptions.get((corporate_id, prescription_id))
         if prescription is None:
             raise DispensingPrescriptionNotFoundError()
-        return prescription
+        return prescription_source(prescription)
 
     async def complete_dispensing(
         self,
@@ -117,7 +122,7 @@ class FakeDispensingStaffQualificationSource(StaffQualificationBoundary):
         *,
         corporate_id: CorporateId,
         staff_id: StaffId,
-    ) -> StaffQualifications:
+    ) -> PharmacistQualification:
         """未登録・別法人のスタッフは404相当を送出する。
 
         資格を持たないだけのスタッフは在籍しているので例外にしない。
@@ -125,4 +130,6 @@ class FakeDispensingStaffQualificationSource(StaffQualificationBoundary):
         qualifications = self.qualifications.get((corporate_id, staff_id))
         if qualifications is None:
             raise DispensingStaffNotFoundError()
-        return qualifications
+        return PharmacistQualification(
+            has_pharmacist=qualifications.has(PharmacistProfile)
+        )

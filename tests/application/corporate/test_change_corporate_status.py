@@ -13,7 +13,8 @@ from app.application.corporate.change_corporate_status import (
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.application.corporate.get_corporate import GetCorporateUseCase
 from app.domain.corporate.corporate import Corporate
-from app.domain.corporate.primitives import CorporateId, CorporateStatus
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.corporate.primitives import CorporateStatus
 from tests.application.corporate.helpers import save_corporate
 from tests.fakes.fake_organization_management import FakeOrganizationLock
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository

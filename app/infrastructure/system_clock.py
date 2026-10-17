@@ -1,4 +1,4 @@
-"""実行環境のUTC現在時刻を供給するClock実装。"""
+"""実行環境のUTC時刻を供給する技術アダプタ。"""
 
 from datetime import UTC, datetime
 

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.domain.care_event.event_definition import EventDefinition
 from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
@@ -23,9 +23,9 @@ from app.domain.medication_history.value_objects import (
     ExternalCorrectionStatus,
     ExternalPrescriptionCorrection,
 )
-from app.domain.patient.primitives import PatientId
-from app.domain.staff.primitives import StaffId
-from app.domain.store.primitives import StoreId
+from app.domain.patient.identifiers import PatientId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )

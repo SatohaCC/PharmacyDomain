@@ -9,12 +9,14 @@ import pytest
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
+from app.application.composition.use_case_bundles import MedicationHistoryUseCases
 from app.application.medication_history.list_pending_external_corrections import (
     ListPendingExternalCorrectionsUseCase,
 )
 from app.application.medication_history.review_external_prescription_correction import (
     ReviewExternalPrescriptionCorrectionUseCase,
 )
+from app.bootstrap import create_app
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
@@ -26,8 +28,6 @@ from app.domain.medication_history.value_objects import (
     ExternalCorrectionKind,
     ExternalPrescriptionCorrection,
 )
-from app.infrastructure.di.bundles.clinical import MedicationHistoryUseCases
-from app.presentational.app_factory import create_app
 from app.presentational.dependencies import get_medication_history_use_cases
 from app.presentational.routers.medication_history import router as history_router
 from app.presentational.routers.nsips import (
@@ -332,4 +332,4 @@ def test_TC30_正規化済み更新削除区分をBundleへ保持する(
 
     bundle = _build_bundle_from_request(request)
 
-    assert bundle.correction_kind is expected
+    assert bundle.correction_kind == expected.value

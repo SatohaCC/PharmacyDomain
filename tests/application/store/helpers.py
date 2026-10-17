@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.store.store import Store
 from tests.factories.store_factory import create_store
 from tests.fakes.in_memory_store_repository import InMemoryStoreRepository

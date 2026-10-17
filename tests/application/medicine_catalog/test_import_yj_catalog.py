@@ -16,7 +16,7 @@ from app.application.medicine_catalog.import_yj_catalog import (
     YjCatalogCsvParser,
     YjCatalogParseError,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medicine_catalog.primitives import (
     GenericCategory,
     MedicineCodeType,

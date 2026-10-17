@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.exceptions import (
     PatientMedicalProfileAlreadyExistsError,
 )
@@ -16,7 +16,7 @@ from app.domain.medication_history.patient_medical_profile import (
     PatientMedicalProfile,
 )
 from app.domain.medication_history.repository import PatientMedicalProfileRepository
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,

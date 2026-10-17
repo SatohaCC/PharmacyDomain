@@ -30,7 +30,7 @@ from app.domain.medication_history.fact_correction import (
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
-from app.domain.staff.primitives import (
+from app.domain.staff.value_objects import (
     BaseQualificationProfile,
     DietitianProfile,
     PharmacistProfile,

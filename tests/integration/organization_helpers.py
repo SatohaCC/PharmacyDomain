@@ -8,23 +8,20 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.application.access_control.models import ActorRole, ResolvedActorContext
 from app.application.access_control.policy import AuthorizationService
 from app.domain.corporate.corporate import Corporate
+from app.domain.identity.identifiers import CorporateMembershipId
 from app.domain.identity.membership import CorporateMembership
-from app.domain.identity.primitives import (
-    CorporateMembershipId,
-    ExternalSubjectKey,
-    MembershipRole,
-    UserAccountId,
-)
+from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole
 from app.domain.identity.staff_person_link import StaffPersonLink
 from app.domain.identity.user_account import UserAccount
-from app.domain.staff.primitives import (
+from app.domain.shared.actor import UserAccountId
+from app.domain.staff.primitives import PharmacistLicenseNumber
+from app.domain.staff.staff import Staff
+from app.domain.staff.value_objects import (
     AffiliationPeriod,
-    PharmacistLicenseNumber,
     PharmacistProfile,
     StaffQualifications,
     StoreAffiliation,
 )
-from app.domain.staff.staff import Staff
 from app.domain.store.manager_assignment import StoreManagerAssignment
 from app.domain.store.store import Store
 from app.infrastructure.di.repositories import (

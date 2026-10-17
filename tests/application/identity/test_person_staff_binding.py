@@ -5,9 +5,11 @@ from dataclasses import replace
 import pytest
 
 from app.application.common.exceptions import NotFoundError
-from app.domain.corporate.primitives import CorporateId
+from app.application.identity.input_models import PersonNamesInput
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.exceptions import IdentityConflictError
-from app.domain.identity.primitives import AccountPersonId, MembershipRole
+from app.domain.identity.primitives import MembershipRole
+from app.domain.shared.actor import AccountPersonId
 from tests.application.identity.test_invitation_management import _setup
 from tests.factories.staff_factory import create_staff
 
@@ -16,7 +18,13 @@ from tests.factories.staff_factory import create_staff
 async def test_同名の本人を登録しても一人へ統合しない() -> None:
     fixture = await _setup()
     created = await fixture.service.register_person.execute(
-        fixture.command.corporate_id, fixture.person.names
+        fixture.command.corporate_id,
+        PersonNamesInput(
+            last_name=fixture.person.names.kanji.last_name.value,
+            first_name=fixture.person.names.kanji.first_name.value,
+            last_name_kana=fixture.person.names.kana.last_name.value,
+            first_name_kana=fixture.person.names.kana.first_name.value,
+        ),
     )
     assert created.id != fixture.person.id
     assert created.names == fixture.person.names

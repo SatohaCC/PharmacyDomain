@@ -3,12 +3,8 @@
 from dataclasses import dataclass, replace
 
 from app.domain.foundation.entity import AggregateRoot
-from app.domain.identity.primitives import (
-    AccountPersonId,
-    AccountStatus,
-    ExternalSubjectKey,
-    UserAccountId,
-)
+from app.domain.identity.primitives import AccountStatus, ExternalSubjectKey
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)

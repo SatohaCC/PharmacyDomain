@@ -5,10 +5,10 @@ from typing import Final
 from sqlalchemy import exists, or_, select
 
 from app.application.store.management import StoreWorkBoundary
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.primitives import DispensingProcessStatus
 from app.domain.prescription.primitives import PrescriptionStatus
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.schema import dispensing_processes, prescriptions
 

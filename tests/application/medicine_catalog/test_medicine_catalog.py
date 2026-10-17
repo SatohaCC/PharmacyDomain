@@ -25,7 +25,7 @@ from app.application.medicine_catalog.register_medicine import (
     RegisterMedicineCommand,
     RegisterMedicineUseCase,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.medicine_catalog.exceptions import MedicineEffectivePeriodConflictError
 from app.domain.medicine_catalog.services import MedicineEffectivePeriodConflictService

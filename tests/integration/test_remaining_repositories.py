@@ -13,7 +13,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.exceptions import CoveragePeriodConflictError
 from app.domain.coverage.primitives import CoverageDeactivatedOn
 from app.domain.medication_history.exceptions import (
@@ -24,11 +24,8 @@ from app.domain.medicine_catalog.exceptions import (
     MedicineEffectivePeriodConflictError,
 )
 from app.domain.patient.exceptions import PatientExternalIdentifierAlreadyExistsError
-from app.domain.patient.primitives import (
-    ExternalPatientId,
-    ExternalSystemName,
-    PatientId,
-)
+from app.domain.patient.identifiers import PatientId
+from app.domain.patient.primitives import ExternalPatientId, ExternalSystemName
 from app.domain.staff.exceptions import StaffCodeAlreadyExistsError
 from app.domain.staff.primitives import StaffCode
 from app.domain.store.business_hours import (

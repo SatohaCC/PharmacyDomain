@@ -13,14 +13,14 @@ from app.application.store.management import (
     ChangeStoreStatusUseCase,
 )
 from app.domain.foundation.exceptions import DomainError
-from app.domain.identity.primitives import AccountPersonId, UserAccountId
-from app.domain.staff.primitives import StaffId
+from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreManagerAssignmentId
 from app.domain.store.lifecycle import StoreStatus
 from app.domain.store.manager_assignment import (
     ManagerAssignmentPeriod,
     ManagerAssignmentStatus,
     StoreManagerAssignment,
-    StoreManagerAssignmentId,
 )
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.factories.store_factory import create_store

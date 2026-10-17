@@ -15,9 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.application.common.clock import Clock
 from app.domain.dispensing.primitives import DispensingCompletionTimestamp
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.primitives import (
     FinalizedTimestamp,
-    MedicationHistoryRecordId,
     MedicationHistoryStatus,
 )
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
@@ -28,6 +28,7 @@ from app.domain.shared.preservation import (
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.di.root import PostgresCompositionRoot
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
 from tests.factories.medication_history_factory import (
@@ -107,7 +108,7 @@ async def _finalize(
     """HTTP経由で薬歴を確定する。"""
     state = getattr(fixture.app.state, STATE_ATTRIBUTE, None)
     assert isinstance(state, PresentationState)
-    assert state.composition_root is not None
+    assert isinstance(state.composition_root, PostgresCompositionRoot)
     clock = state.composition_root.clock
 
     async def post() -> httpx.Response:

@@ -4,13 +4,11 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.prescription.prescription import Prescription
-from app.domain.prescription.primitives import (
-    PrescriptionDocumentNumber,
-    PrescriptionId,
-)
+from app.domain.prescription.primitives import PrescriptionDocumentNumber
 
 
 class PrescriptionRepository(Protocol):

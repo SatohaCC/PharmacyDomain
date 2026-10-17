@@ -7,20 +7,17 @@ from dataclasses import dataclass
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.store.support import to_optional_text
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.store.identifiers import StoreId
 from app.domain.store.primitives import (
-    ContactInfo,
     InsurancePharmacyNumber,
-    StoreAddress,
     StoreAddressLine,
     StoreCode,
     StoreEmailAddress,
     StoreFaxNumber,
-    StoreId,
     StoreName,
     StoreNameKana,
     StoreNameRomaji,
-    StoreNames,
     StorePhoneNumber,
     StorePostalCode,
 )
@@ -31,6 +28,7 @@ from app.domain.store.services import (
     StoreNameUniquenessService,
 )
 from app.domain.store.store import Store
+from app.domain.store.value_objects import ContactInfo, StoreAddress, StoreNames
 
 
 @dataclass(frozen=True, kw_only=True)

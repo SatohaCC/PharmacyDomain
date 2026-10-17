@@ -7,12 +7,12 @@ from dataclasses import dataclass
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.medication_history.inputs import UpdateCategoryCatalogCommand
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.category_catalog import (
     MedicationHistoryCategoryCatalog,
 )
+from app.domain.medication_history.identifiers import CategoryCatalogId
 from app.domain.medication_history.primitives import (
-    CategoryCatalogId,
     MajorCategoryCode,
     MajorCategoryName,
     MediumCategoryCode,

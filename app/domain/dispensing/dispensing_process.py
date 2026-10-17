@@ -14,7 +14,7 @@ from dataclasses import dataclass, replace
 from datetime import date
 from typing import Self
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.exceptions import (
     CancellationReasonMismatchError,
     DispensedMedicineRequiredError,
@@ -31,6 +31,7 @@ from app.domain.dispensing.exceptions import (
     VerificationNotPassedError,
     VerificationStatusMismatchError,
 )
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.dispensing.primitives import (
     AuditNotes,
     AuditTimestamp,
@@ -38,7 +39,6 @@ from app.domain.dispensing.primitives import (
     DispensingCancellationReason,
     DispensingCompletionTimestamp,
     DispensingCompletionType,
-    DispensingId,
     DispensingIteration,
     DispensingProcessStatus,
     DispensingSplitReason,
@@ -50,6 +50,16 @@ from app.domain.dispensing.primitives import (
     VerificationResult,
     VerificationTimestamp,
 )
+from app.domain.dispensing.reference_primitives import (
+    DispensingQuantity,
+    DosageAmount,
+    DosageFormCategory,
+    MedicineLineNumber,
+    MedicineName,
+    MedicineUnit,
+    RpNumber,
+)
+from app.domain.dispensing.reference_values import DosageInstruction, MedicineIdentifier
 from app.domain.dispensing.value_objects import (
     DispensingPrescriptionAudit,
     DispensingVerification,
@@ -58,29 +68,16 @@ from app.domain.dispensing.value_objects import (
 )
 from app.domain.foundation.entity import AggregateRoot
 from app.domain.foundation.value_object import ValueObject
-from app.domain.medicine_catalog.primitives import (
-    MedicineIdentifier,
-    MedicineName,
-    MedicineUnit,
-)
-from app.domain.patient.primitives import PatientId
-from app.domain.prescription.dosage import DosageInstruction
-from app.domain.prescription.primitives import (
-    DispensingQuantity,
-    DosageAmount,
-    DosageFormCategory,
-    MedicineLineNumber,
-    PrescriptionId,
-    RpNumber,
-)
+from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.shared.preservation import (
     PreservationObligation,
     PreservationRecordKind,
     resolve_latest_retention_expiry_date,
 )
 from app.domain.shared.public_expense import PublicExpenseBurden
-from app.domain.staff.primitives import StaffId
-from app.domain.store.primitives import StoreId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId
 
 #: ``status`` から遷移できる先。ここに無い組み合わせは拒否する。
 _ALLOWED_TRANSITIONS: dict[

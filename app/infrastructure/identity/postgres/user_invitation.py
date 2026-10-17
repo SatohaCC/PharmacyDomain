@@ -2,8 +2,8 @@
 
 from sqlalchemy import select
 
+from app.domain.identity.identifiers import UserInvitationId
 from app.domain.identity.invitation import InvitationDigest, UserInvitation
-from app.domain.identity.primitives import UserInvitationId
 from app.domain.identity.repository import UserInvitationRepository
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,

@@ -19,8 +19,9 @@ from app.domain.patient.heading import (
     PatientHeadingRevision,
     PatientHeadingText,
 )
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.patient import Patient
-from app.domain.patient.primitives import PatientAddress, PatientId
+from app.domain.patient.primitives import PatientAddress
 from app.domain.patient.profile_history import (
     PatientProfileChange,
     PatientProfileChangeSource,

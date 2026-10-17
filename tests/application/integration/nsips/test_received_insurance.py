@@ -19,8 +19,8 @@ from app.application.integration.nsips.ingest_nsips import IngestNsipsCommand
 from app.application.integration.nsips.models import NsipsBundle, NsipsInsuranceInfo
 from app.application.integration.nsips.parser import NsipsParser
 from app.domain.coverage.services import PatientCoverageConflictService
-from app.domain.patient.primitives import PatientId
-from app.domain.reception.primitives import ReceptionId
+from app.domain.patient.identifiers import PatientId
+from app.domain.reception.identifiers import ReceptionId
 from tests.application.access_helpers import create_vendor_corporate_access_for
 from tests.application.integration.nsips.helpers import create_fixture
 

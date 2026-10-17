@@ -24,9 +24,11 @@ from app.application.care_event.list_related_candidates import (
 )
 from app.presentational.dependencies import CareEventUseCasesDep, get_actor_context
 from app.presentational.errors import error_responses
+from app.presentational.routing import ApplicationRoute
 from app.presentational.schemas import RequestModel
 
 router = APIRouter(
+    route_class=ApplicationRoute,
     prefix="/corporates/{corporate_id}",
     tags=["care_event"],
     dependencies=[Depends(get_actor_context)],

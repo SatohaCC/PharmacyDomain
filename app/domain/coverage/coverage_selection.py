@@ -30,7 +30,8 @@ from app.domain.coverage.exceptions import (
     CoverageCombinationError,
     CoverageSelectionInvalidError,
 )
-from app.domain.coverage.primitives import CoveragePriority, PatientCoverageId
+from app.domain.coverage.identifiers import PatientCoverageId
+from app.domain.coverage.primitives import CoveragePriority
 from app.domain.foundation.value_object import ValueObject
 
 if TYPE_CHECKING:

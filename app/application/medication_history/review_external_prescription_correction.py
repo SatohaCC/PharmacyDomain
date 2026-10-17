@@ -20,20 +20,18 @@ from app.application.medication_history.support import (
     parse_enum,
     required_text,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.exceptions import (
     MedicationHistoryNotFinalizedError,
 )
-from app.domain.medication_history.primitives import (
-    ExternalCorrectionTimestamp,
-    MedicationHistoryRecordId,
-)
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
+from app.domain.medication_history.primitives import ExternalCorrectionTimestamp
 from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.services import CounselorQualificationService
 from app.domain.medication_history.value_objects import (
     ExternalCorrectionDecision,
 )
-from app.domain.prescription.primitives import PrescriptionId
+from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.prescription.repository import PrescriptionRepository
 
 

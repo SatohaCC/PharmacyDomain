@@ -10,7 +10,7 @@ from app.application.access_control.models import Permission
 from app.application.common.clock import BUSINESS_TIMEZONE, Clock, business_now
 from app.application.common.input_normalization import to_optional_text
 from app.application.store.support import load_store_or_raise
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.store.business_hours import (
     BusinessDayException,
@@ -20,7 +20,7 @@ from app.domain.store.business_hours import (
     BusinessWeekday,
     WeekdayBusinessHours,
 )
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 from app.domain.store.repository import StoreRepository
 from app.domain.store.store import Store
 

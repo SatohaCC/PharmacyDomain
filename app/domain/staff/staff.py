@@ -5,7 +5,7 @@ from datetime import date
 from itertools import pairwise
 from typing import Self
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.entity import AggregateRoot
 from app.domain.shared.person_name import PersonNames
 from app.domain.staff.exceptions import (
@@ -13,20 +13,22 @@ from app.domain.staff.exceptions import (
     ConcurrentStoreConflictError,
     PrimaryAffiliationDuplicationError,
 )
+from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import (
-    BaseQualificationProfile,
-    DietitianProfile,
     JobTitle,
-    PharmacistProfile,
-    RegisteredSellerProfile,
     StaffCode,
     StaffEmailAddress,
-    StaffId,
     StaffPhoneNumber,
+)
+from app.domain.staff.value_objects import (
+    BaseQualificationProfile,
+    DietitianProfile,
+    PharmacistProfile,
+    RegisteredSellerProfile,
     StaffQualifications,
     StoreAffiliation,
 )
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 
 
 def _has_overlapping_period(affiliations: Sequence[StoreAffiliation]) -> bool:

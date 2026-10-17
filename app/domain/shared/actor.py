@@ -14,7 +14,7 @@
 このモジュールは各コンテキストへ依存せず、Domain基盤だけに依存する。
 """
 
-from app.domain.foundation.primitives.primitives import EntityUUID
+from app.domain.foundation.primitives.identifiers import EntityUUID
 
 
 class AccountPersonId(EntityUUID):

@@ -22,33 +22,27 @@ from app.application.integration.nsips.models import (
     NsipsRpInfo,
 )
 from app.application.integration.nsips.parser import NsipsParser
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.exceptions import DispensingPharmacistQualificationError
-from app.domain.dispensing.primitives import DispensingId
-from app.domain.medicine_catalog.primitives import MedicineCode, MedicineCodeType
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.patient.external_identifier import PatientExternalIdentifier
 from app.domain.patient.heading import (
     PatientHeadingContent,
     PatientHeadingRevision,
     PatientHeadingText,
 )
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.patient import Patient
-from app.domain.patient.primitives import (
-    ExternalPatientId,
-    ExternalSystemName,
-    PatientId,
-)
+from app.domain.patient.primitives import ExternalPatientId, ExternalSystemName
 from app.domain.prescription.exceptions import MedicineClassificationMissingError
-from app.domain.prescription.primitives import PrescriptionId
-from app.domain.reception.primitives import ReceptionFingerprint, ReceptionId
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.reception.identifiers import ReceptionId
+from app.domain.reception.primitives import ReceptionFingerprint
 from app.domain.reception.reception import Reception
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
-from app.domain.staff.primitives import (
-    AffiliationPeriod,
-    StoreAffiliation,
-)
-from app.domain.store.primitives import StoreId
+from app.domain.staff.value_objects import AffiliationPeriod, StoreAffiliation
+from app.domain.store.identifiers import StoreId
 from tests.application.integration.nsips.helpers import (
     create_fixture,
     execute_structured_test_command,
@@ -180,10 +174,12 @@ async def test_NSIPS初回取込_薬品一件_保存処方と調剤の識別情�
     prescribed = prescribed_rp.medicines[0]
     dispensed = dispensed_rp.medicines[0]
     assert prescribed.line_number.value == dispensed.line_number.value == 1
-    assert prescribed.identifier.code_type == MedicineCodeType.RECEIPT
-    assert dispensed.identifier.code_type == MedicineCodeType.RECEIPT
-    assert prescribed.identifier.code == MedicineCode("610406001")
-    assert dispensed.identifier.code == MedicineCode("610406001")
+    assert prescribed.identifier.code_type.value == "receipt"
+    assert dispensed.identifier.code_type.value == "receipt"
+    assert prescribed.identifier.code is not None
+    assert prescribed.identifier.code.value == "610406001"
+    assert dispensed.identifier.code is not None
+    assert dispensed.identifier.code.value == "610406001"
     assert dispensed.substitution is None
     assert len(fixture.patient_repo.items) == 1
     assert len(fixture.reception_repo.items) == 1

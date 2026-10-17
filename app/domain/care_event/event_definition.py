@@ -5,12 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Self
 
-from app.domain.care_event.primitives import (
-    EventTypeId,
-    EventTypeName,
-    EventTypeStandardCode,
-)
-from app.domain.corporate.primitives import CorporateId
+from app.domain.care_event.identifiers import EventTypeId
+from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.entity import AggregateRoot
 from app.domain.foundation.exceptions import DomainError
 

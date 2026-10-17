@@ -6,12 +6,15 @@ from datetime import date
 
 import pytest
 
+from app.application.composition.organization_snapshot_mapping import (
+    StaffStoreAdapter,
+)
 from app.application.corporate.exceptions import CorporateInactiveError
 from app.application.staff.register_staff import (
     RegisterStaffCommand,
     RegisterStaffUseCase,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.staff.exceptions import StaffCodeAlreadyExistsError
 from app.domain.staff.services import (
     StaffCodeUniquenessService,
@@ -37,7 +40,7 @@ async def test_register_staff_success() -> None:
 
     use_case = RegisterStaffUseCase(
         staff_repository=staff_repo,
-        store_repository=store_repo,
+        store_repository=StaffStoreAdapter(store_repo),
         uniqueness_service=uniqueness_service,
         assignment_service=assignment_service,
         corporate_access=create_vendor_corporate_access(),
@@ -79,7 +82,7 @@ async def test_register_staff_rejects_inactive_corporate() -> None:
     corporate_repository.set_inactive(corporate_id)
     use_case = RegisterStaffUseCase(
         staff_repository=staff_repo,
-        store_repository=store_repo,
+        store_repository=StaffStoreAdapter(store_repo),
         uniqueness_service=StaffCodeUniquenessService(staff_repo),
         assignment_service=StaffStoreAssignmentService(),
         corporate_access=create_vendor_corporate_access_for(corporate_repository),
@@ -110,7 +113,7 @@ async def test_register_staff_with_pharmacist_qualification() -> None:
 
     use_case = RegisterStaffUseCase(
         staff_repository=staff_repo,
-        store_repository=store_repo,
+        store_repository=StaffStoreAdapter(store_repo),
         uniqueness_service=uniqueness_service,
         assignment_service=assignment_service,
         corporate_access=create_vendor_corporate_access(),
@@ -152,7 +155,7 @@ async def test_register_staff_raises_error_on_duplicate_code() -> None:
 
     use_case = RegisterStaffUseCase(
         staff_repository=staff_repo,
-        store_repository=store_repo,
+        store_repository=StaffStoreAdapter(store_repo),
         uniqueness_service=uniqueness_service,
         assignment_service=assignment_service,
         corporate_access=create_vendor_corporate_access(),

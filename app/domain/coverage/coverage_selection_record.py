@@ -6,19 +6,18 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import ClassVar, Self
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.coverage_selection import CoverageSelection
 from app.domain.coverage.coverage_snapshot import CoverageSnapshot
+from app.domain.coverage.identifiers import CoverageSelectionRecordId, PatientCoverageId
 from app.domain.coverage.primitives import (
     CoverageAppliedOn,
     CoverageRecordedAt,
-    CoverageSelectionRecordId,
     OperatorPrincipalId,
-    PatientCoverageId,
 )
 from app.domain.foundation.entity import AggregateRoot
-from app.domain.patient.primitives import PatientId
-from app.domain.store.primitives import StoreId
+from app.domain.patient.identifiers import PatientId
+from app.domain.store.identifiers import StoreId
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)

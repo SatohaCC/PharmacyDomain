@@ -24,7 +24,7 @@ from app.application.dispensing.support import (
     parse_enum,
     to_optional_text,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.primitives import (
     DispensedDate,
@@ -33,15 +33,16 @@ from app.domain.dispensing.primitives import (
     DispensingTimestamp,
     TotalSplitCount,
 )
+from app.domain.dispensing.reference_primitives import PrescriptionStatus
 from app.domain.dispensing.repository import DispensingProcessRepository
 from app.domain.dispensing.services import (
     DispensingConsistencyService,
     DispensingIterationUniquenessService,
     DispensingPharmacistService,
 )
-from app.domain.prescription.primitives import PrescriptionId, PrescriptionStatus
-from app.domain.staff.primitives import StaffId
-from app.domain.store.primitives import StoreId
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -2,15 +2,13 @@
 
 ``AccountPersonId`` と ``UserAccountId`` は Shared Kernel の語彙である。
 店舗の状態変更履歴や監査も「誰が操作したか」を残すため、所有コンテキストを
-Identity に置くと Store と相互依存になる。ここでは再エクスポートし、
-Identity 内からは自分の識別子として使う。
+Identity に置くと Store と相互依存になる。利用側は定義元のShared Kernelから直接参照する。
 """
 
 from enum import StrEnum
 
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.foundation.primitives.primitives import BaseNormalizedString, EntityUUID
-from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.domain.foundation.primitives.primitives import BaseNormalizedString
 
 
 class ExternalSubjectKey(BaseNormalizedString):
@@ -21,18 +19,6 @@ class ExternalSubjectKey(BaseNormalizedString):
             raise DomainValidationError(
                 "外部主体識別子は1から1000文字で指定してください。"
             )
-
-
-class CorporateMembershipId(EntityUUID):
-    """法人アクセス権の識別子。"""
-
-    identifier_name = "法人アクセス権ID"
-
-
-class UserInvitationId(EntityUUID):
-    """本人を指定した招待の識別子。"""
-
-    identifier_name = "招待ID"
 
 
 class AccountStatus(StrEnum):
@@ -48,14 +34,3 @@ class MembershipRole(StrEnum):
     CORPORATE_ADMIN = "corporate_admin"
     STORE_OPERATOR = "store_operator"
     STORE_VIEWER = "store_viewer"
-
-
-__all__ = [
-    "AccountPersonId",
-    "AccountStatus",
-    "CorporateMembershipId",
-    "ExternalSubjectKey",
-    "MembershipRole",
-    "UserAccountId",
-    "UserInvitationId",
-]

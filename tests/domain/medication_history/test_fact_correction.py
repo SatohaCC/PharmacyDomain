@@ -38,7 +38,7 @@ from app.domain.medication_history.value_objects import (
     ResidualDrugRecord,
     SoapRecord,
 )
-from app.domain.staff.primitives import StaffId
+from app.domain.staff.identifiers import StaffId
 from tests.factories.medication_history_factory import (
     create_adverse_reaction_intent,
     create_allergy_intent,
@@ -632,7 +632,7 @@ def test_tc23_取消済みの要素は再訂正できない(operation: str) -> N
     ("reason", "recorded_at"),
     (
         ("   ", _CORRECTED_AT),
-        ("誤記を訂正した。", datetime(2026, 8, 25, 3)),  # noqa: DTZ001
+        ("誤記を訂正した。", datetime(2026, 8, 25, 3)),
     ),
 )
 def test_tc24_理由と訂正時刻は監査値として妥当でなければならない(

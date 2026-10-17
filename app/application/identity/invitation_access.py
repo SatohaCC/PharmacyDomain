@@ -9,7 +9,7 @@ from app.application.access_control.models import (
 )
 from app.application.common.exceptions import AuthorizationError
 from app.domain.corporate.corporate import Corporate
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 
 
 class InvitationOnlyAccess(CorporateAccessBoundary):

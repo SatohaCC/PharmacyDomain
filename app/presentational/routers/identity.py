@@ -8,16 +8,19 @@ from fastapi import APIRouter, Depends, Query
 
 from app.application.access_control.models import ResolvedActorContext
 from app.application.common.pagination import Page
+from app.application.composition.runtime import CompositionRoot
 from app.application.identity.dto import (
     CurrentActorDto,
     InvitationViewDto,
     MembershipViewDto,
 )
+from app.application.identity.input_models import (
+    AccountStatus,
+    MembershipRole,
+    PersonNamesInput,
+)
 from app.application.identity.invite_user import InviteUserCommand, IssuedInvitation
 from app.application.identity.resolve_actor import VerifiedSubject
-from app.domain.identity.primitives import AccountStatus, MembershipRole
-from app.domain.shared.person_name import PersonNames
-from app.infrastructure.di.root import PostgresCompositionRoot
 from app.presentational.dependencies import (
     Actor,
     IdentityUseCasesDep,
@@ -28,6 +31,7 @@ from app.presentational.dependencies import (
 )
 from app.presentational.errors import error_responses
 from app.presentational.exceptions import AuthenticationError
+from app.presentational.routing import ApplicationRoute
 from app.presentational.schemas import RegisteredIdResponse, RequestModel
 
 #: 通常のIdentity操作。認証はルータ単位で掛ける。
@@ -36,6 +40,7 @@ from app.presentational.schemas import RegisteredIdResponse, RequestModel
 #: 無認証で公開される。アカウントと法人アクセス権を扱うルータで、それは最も
 #: 起きてはいけない漏れ方をする。
 router = APIRouter(
+    route_class=ApplicationRoute,
     tags=["identity"],
     dependencies=[Depends(get_actor_context)],
     responses=error_responses(
@@ -53,6 +58,7 @@ router = APIRouter(
 #: 書き分けると、本来Actorを要求すべきルートを間違えてこちらの認証で公開して
 #: しまう余地が残るため、ルータごと分ける。
 acceptance_router = APIRouter(
+    route_class=ApplicationRoute,
     tags=["identity"],
     dependencies=[Depends(get_verified_subject)],
     responses=error_responses(
@@ -109,7 +115,7 @@ async def invite_user(
 async def accept_invitation(
     body: AcceptInvitationRequest,
     subject: VerifiedSubjectDep,
-    root: Annotated[PostgresCompositionRoot, Depends(get_composition_root)],
+    root: Annotated[CompositionRoot, Depends(get_composition_root)],
 ) -> RegisteredIdResponse:
     """内部アカウント未作成でも検証済みの外部主体で招待を受諾できる。"""
     account = await root.accept_invitation(subject, body.secret)
@@ -261,7 +267,7 @@ async def register_person(
 ) -> RegisteredIdResponse:
     """自法人への招待に必要な本人を登録する。"""
     person = await use_cases.register_person.execute(
-        corporate_id, PersonNames.create(**body.model_dump())
+        corporate_id, PersonNamesInput(**body.model_dump())
     )
     return RegisteredIdResponse(id=str(person.id.value))
 

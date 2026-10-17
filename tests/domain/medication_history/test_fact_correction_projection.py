@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
 from app.domain.medication_history.primitives import (
     CounselingTimestamp,
@@ -13,8 +13,8 @@ from app.domain.medication_history.primitives import (
     GenericPreferenceType,
 )
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
-from app.domain.patient.primitives import PatientId
-from app.domain.staff.primitives import StaffId
+from app.domain.patient.identifiers import PatientId
+from app.domain.staff.identifiers import StaffId
 from tests.domain.medication_history.test_fact_correction import (
     _correct,
     _element_id,

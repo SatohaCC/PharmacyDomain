@@ -15,13 +15,14 @@ from app.application.coverage.get_last_coverage_selection import (
     GetLastCoverageSelectionQuery,
     GetLastCoverageSelectionUseCase,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.coverage_selection import (
     CoverageSelection,
     SelectedInsuranceSource,
 )
 from app.domain.coverage.coverage_selection_record import CoverageSelectionRecord
 from app.domain.coverage.coverage_snapshot import InsuranceCoverageSnapshot
+from app.domain.coverage.identifiers import PatientCoverageId
 from app.domain.coverage.primitives import (
     CoverageAppliedOn,
     CoverageBenefitRatio,
@@ -31,10 +32,9 @@ from app.domain.coverage.primitives import (
     CoverageSymbol,
     InsurerNumber,
     OperatorPrincipalId,
-    PatientCoverageId,
 )
-from app.domain.patient.primitives import PatientId
-from app.domain.store.primitives import StoreId
+from app.domain.patient.identifiers import PatientId
+from app.domain.store.identifiers import StoreId
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.fakes.coverage_reference_boundaries import (
     FakeCoverageValidity,

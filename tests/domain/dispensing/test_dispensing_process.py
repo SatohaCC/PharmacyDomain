@@ -44,24 +44,22 @@ from app.domain.dispensing.primitives import (
     VerificationResult,
     VerificationTimestamp,
 )
+from app.domain.dispensing.reference_primitives import (
+    DispensingQuantity,
+    InquiryNumber,
+    MedicineCode,
+    MedicineCodeType,
+    MedicineName,
+    RpNumber,
+)
+from app.domain.dispensing.reference_values import MedicineIdentifier
 from app.domain.dispensing.value_objects import (
     DispensingVerification,
     QuantityAdjustment,
     SubstitutionDetail,
 )
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.medicine_catalog.primitives import (
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
-    MedicineName,
-)
-from app.domain.prescription.primitives import (
-    DispensingQuantity,
-    InquiryNumber,
-    RpNumber,
-)
-from app.domain.staff.primitives import StaffId
+from app.domain.staff.identifiers import StaffId
 from tests.factories.dispensing_factory import (
     DISPENSED_ON,
     GENERIC_CODE,

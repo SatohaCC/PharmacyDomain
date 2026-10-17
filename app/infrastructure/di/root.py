@@ -25,9 +25,9 @@ from app.application.composition.resolved_actor_guard import (
     CompositeWriteGuard,
     ResolvedActorWriteGuard,
 )
+from app.application.composition.runtime import CompositionRoot, RequestScope
 from app.application.composition.staff_integrity import StaffAssignmentWriteGuard
 from app.application.composition.store_operation_adapter import StoreOperationAdapter
-from app.application.composition.system_clock import SystemUtcClock
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.application.identity.dto import AccountDto
 from app.application.identity.invitation_access import InvitationOnlyAccess
@@ -46,13 +46,14 @@ from app.infrastructure.postgres.connection import (
 from app.infrastructure.postgres.operation_audit import append_pending_audits
 from app.infrastructure.postgres.organization_lock import PostgresOrganizationLock
 from app.infrastructure.postgres.read_scope import RepositoryReadScope
+from app.infrastructure.system_clock import SystemUtcClock
 
 # --------------------------------------------------------------------------
 # 1リクエスト分の実行文脈
 # --------------------------------------------------------------------------
 
 
-class PostgresRequestScope:
+class PostgresRequestScope(RequestScope):
     """1リクエスト（=1トランザクション）分の実行文脈。
 
     **トランザクションの開始・確定はここ1箇所にある。** 複数集約を書き込む
@@ -167,7 +168,7 @@ class PostgresRequestScope:
 
 
 @dataclass(frozen=True, slots=True)
-class PostgresCompositionRoot:
+class PostgresCompositionRoot(CompositionRoot):
     """PostgreSQL アダプタを組み立てる唯一の入口。
 
     プロセスの寿命を持つのはエンジンとセッションファクトリだけで、Repository も
@@ -190,7 +191,7 @@ class PostgresCompositionRoot:
 
         業務処理へ渡す現在時刻の供給元も**ここでだけ**選ぶ。``SystemUtcClock`` は
         ``datetime.now(UTC)`` を呼ぶ唯一の場所であり、Domain / Application が
-        暗黙に「今」を読むことを禁じた規則（ruff の ``DTZ``）の逃げ道にしない。
+        暗黙に「今」を読むことを禁じた規則（環境日時取得のAST検査）の逃げ道にしない。
         """
         engine = create_async_engine_from_settings(settings)
         session_factory = create_session_factory(engine)

@@ -8,13 +8,13 @@ from datetime import date
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.common.optional_conversion import build_optional
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.patient import Patient
 from app.domain.patient.primitives import (
     PatientAddress,
     PatientBirthDate,
     PatientGenderCode,
-    PatientId,
     PatientPhoneNumber,
     PatientPostalCode,
 )

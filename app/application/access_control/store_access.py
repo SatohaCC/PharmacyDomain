@@ -4,8 +4,8 @@ from collections.abc import Mapping
 from enum import StrEnum
 from typing import Final, Protocol
 
-from app.domain.corporate.primitives import CorporateId
-from app.domain.store.primitives import StoreId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.store.identifiers import StoreId
 
 
 class StoreOperation(StrEnum):

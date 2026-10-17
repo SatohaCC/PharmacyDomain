@@ -4,22 +4,21 @@ from __future__ import annotations
 
 import copy
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.exceptions import PatientExternalIdentifierAlreadyExistsError
 from app.domain.patient.external_identifier import PatientExternalIdentifier
+from app.domain.patient.identifiers import PatientExternalIdentifierId, PatientId
 from app.domain.patient.patient import Patient
 from app.domain.patient.primitives import (
     ExternalPatientId,
     ExternalSystemName,
-    PatientExternalIdentifierId,
-    PatientId,
     PatientNumber,
 )
 from app.domain.patient.repository import (
     PatientExternalIdentifierRepository,
     PatientRepository,
 )
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 
 
 class InMemoryPatientRepository(PatientRepository):

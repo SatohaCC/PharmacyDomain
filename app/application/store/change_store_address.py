@@ -7,14 +7,11 @@ from dataclasses import dataclass
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.store.support import load_store_or_raise
-from app.domain.corporate.primitives import CorporateId
-from app.domain.store.primitives import (
-    StoreAddress,
-    StoreAddressLine,
-    StoreId,
-    StorePostalCode,
-)
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.store.identifiers import StoreId
+from app.domain.store.primitives import StoreAddressLine, StorePostalCode
 from app.domain.store.repository import StoreRepository
+from app.domain.store.value_objects import StoreAddress
 
 
 @dataclass(frozen=True, kw_only=True)

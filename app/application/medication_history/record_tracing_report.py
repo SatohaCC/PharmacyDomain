@@ -13,22 +13,24 @@ from app.application.medication_history.support import (
     load_record_or_raise,
     parse_enum,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.medication_history.primitives import (
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.medication_history.entities import TracingReport
+from app.domain.medication_history.identifiers import (
     MedicationHistoryRecordId,
+    TracingReportId,
+)
+from app.domain.medication_history.primitives import (
     PhysicianName,
     TracingReportCategory,
     TracingReportContent,
     TracingReportDeliveryMethod,
     TracingReportFeeCategory,
-    TracingReportId,
     TracingReportTimestamp,
 )
+from app.domain.medication_history.reference_primitives import MedicalInstitutionName
 from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.services import CounselorQualificationService
-from app.domain.medication_history.value_objects import TracingReport
-from app.domain.prescription.primitives import MedicalInstitutionName
-from app.domain.staff.primitives import StaffId
+from app.domain.staff.identifiers import StaffId
 
 
 class RecordTracingReportUseCase:

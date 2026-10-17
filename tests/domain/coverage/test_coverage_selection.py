@@ -11,7 +11,7 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.coverage_selection import (
     CoverageSelection,
     SelectedInsuranceSource,
@@ -26,6 +26,7 @@ from app.domain.coverage.exceptions import (
     CoverageCombinationInvalidError,
     CoverageSelectionInvalidError,
 )
+from app.domain.coverage.identifiers import PatientCoverageId
 from app.domain.coverage.primitives import (
     CoverageAppliedOn,
     CoverageBenefitRatio,
@@ -36,12 +37,11 @@ from app.domain.coverage.primitives import (
     CoverageSymbol,
     InsurerNumber,
     OperatorPrincipalId,
-    PatientCoverageId,
     PublicPayerNumber,
     PublicRecipientNumber,
 )
-from app.domain.patient.primitives import PatientId
-from app.domain.store.primitives import StoreId
+from app.domain.patient.identifiers import PatientId
+from app.domain.store.identifiers import StoreId
 
 
 def _insurance_frame(

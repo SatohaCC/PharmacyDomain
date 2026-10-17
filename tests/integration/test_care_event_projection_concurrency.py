@@ -15,10 +15,10 @@ from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
     EventOccurredTimestamp,
 )
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.patient_medical_profile import (
     PatientMedicalProfile,
 )
-from app.domain.medication_history.primitives import MedicationHistoryRecordId
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,

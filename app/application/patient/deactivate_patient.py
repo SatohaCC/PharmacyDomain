@@ -9,9 +9,9 @@ from app.application.access_control.models import Permission, ResolvedActorConte
 from app.application.common.clock import Clock
 from app.application.common.exceptions import AuthorizationError
 from app.application.patient.support import load_patient_or_raise
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.lifecycle import PatientStatusReason
-from app.domain.patient.primitives import PatientId
 from app.domain.patient.repository import PatientRepository
 
 

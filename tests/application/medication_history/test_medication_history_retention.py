@@ -12,7 +12,7 @@ from app.application.medication_history.finalize_medication_history import (
     FinalizeMedicationHistoryCommand,
     FinalizeMedicationHistoryUseCase,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
@@ -21,8 +21,8 @@ from app.domain.medication_history.primitives import (
     MedicationHistoryRecordedTimestamp,
 )
 from app.domain.medication_history.services import CounselorQualificationService
-from app.domain.patient.primitives import PatientId
-from app.domain.store.primitives import StoreId
+from app.domain.patient.identifiers import PatientId
+from app.domain.store.identifiers import StoreId
 from tests.application.medication_history.helpers import create_fixture
 from tests.factories.medication_history_factory import (
     create_record,

@@ -4,17 +4,16 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.external_identifier import PatientExternalIdentifier
+from app.domain.patient.identifiers import PatientExternalIdentifierId, PatientId
 from app.domain.patient.patient import Patient
 from app.domain.patient.primitives import (
     ExternalPatientId,
     ExternalSystemName,
-    PatientExternalIdentifierId,
-    PatientId,
     PatientNumber,
 )
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 
 
 class PatientRepository(Protocol):

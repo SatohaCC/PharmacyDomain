@@ -13,9 +13,9 @@ from app.application.dispensing.support import (
     build_dispensed_rps,
     load_dispensing_or_raise,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
-from app.domain.dispensing.primitives import DispensingId
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.dispensing.repository import DispensingProcessRepository
 from app.domain.dispensing.services import DispensingConsistencyService
 

@@ -22,11 +22,11 @@ from app.domain.medicine_catalog.medicine import Medicine, MedicineEffectivePeri
 from app.domain.medicine_catalog.primitives import (
     MedicineCodeType,
     MedicineDosageForm,
-    MedicineIdentifier,
     MedicineListedOn,
     MedicineWithdrawnOn,
     NarcoticCategory,
 )
+from app.domain.medicine_catalog.value_objects import MedicineIdentifier
 from tests.factories.medicine_catalog_factory import (
     LISTED_ON,
     create_medicine,

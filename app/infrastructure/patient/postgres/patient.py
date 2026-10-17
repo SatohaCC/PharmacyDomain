@@ -8,9 +8,10 @@ from __future__ import annotations
 
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.patient import Patient
-from app.domain.patient.primitives import PatientId, PatientNumber
+from app.domain.patient.primitives import PatientNumber
 from app.domain.patient.repository import PatientRepository
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,

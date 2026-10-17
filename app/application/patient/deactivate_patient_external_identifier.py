@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.patient.exceptions import PatientExternalIdentifierNotFoundError
-from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientExternalIdentifierId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.identifiers import PatientExternalIdentifierId
 from app.domain.patient.repository import PatientExternalIdentifierRepository
 
 

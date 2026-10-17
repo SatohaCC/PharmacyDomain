@@ -23,18 +23,18 @@ from app.domain.medicine_catalog.exceptions import (
     MedicineCodeRequiredError,
     MedicineEffectivePeriodInvertedError,
 )
+from app.domain.medicine_catalog.identifiers import MedicineCatalogEntryId
 from app.domain.medicine_catalog.primitives import (
     GenericCategory,
-    MedicineCatalogEntryId,
     MedicineCatalogVersion,
     MedicineDosageForm,
-    MedicineIdentifier,
     MedicineListedOn,
     MedicineName,
     MedicineUnit,
     MedicineWithdrawnOn,
     NarcoticCategory,
 )
+from app.domain.medicine_catalog.value_objects import MedicineIdentifier
 
 
 @dataclass(frozen=True, kw_only=True)

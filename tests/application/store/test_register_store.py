@@ -9,7 +9,7 @@ from app.application.store.register_store import (
     RegisterStoreCommand,
     RegisterStoreUseCase,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.store.exceptions import (
     InsurancePharmacyNumberAlreadyExistsError,

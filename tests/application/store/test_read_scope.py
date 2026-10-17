@@ -8,7 +8,7 @@ from app.application.corporate.corporate_access import CorporateAccessService
 from app.application.store.exceptions import StoreNotFoundError
 from app.application.store.get_store import GetStoreQuery, GetStoreUseCase
 from app.application.store.list_stores import ListStoresQuery, ListStoresUseCase
-from app.domain.identity.primitives import AccountPersonId, UserAccountId
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.factories.store_factory import create_store
 from tests.fakes.in_memory_store_repository import InMemoryStoreRepository

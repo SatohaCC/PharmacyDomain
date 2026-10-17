@@ -11,10 +11,10 @@ from app.application.common.exceptions import AuthorizationError
 from app.application.common.optional_conversion import build_optional
 from app.application.patient.get_patient_heading import PatientHeadingDto, _to_dto
 from app.application.patient.support import load_patient_or_raise
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.patient.heading import PatientHeadingContent, PatientHeadingText
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.repository import PatientRepository
 
 

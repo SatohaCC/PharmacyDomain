@@ -5,14 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from app.domain.corporate.primitives import CorporateId
-from app.domain.identity.primitives import (
-    AccountPersonId,
-    CorporateMembershipId,
-    UserAccountId,
-)
-from app.domain.staff.primitives import StaffId
-from app.domain.store.primitives import StoreId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.identity.identifiers import CorporateMembershipId
+from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId
 
 
 class ActorRole(StrEnum):

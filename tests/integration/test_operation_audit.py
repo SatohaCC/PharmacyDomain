@@ -14,8 +14,8 @@ from app.application.access_control.models import (
 from app.application.access_control.policy import AuthorizationService
 from app.application.corporate.register_corporate import RegisterCorporateCommand
 from app.application.identity.resolve_actor import UnavailableIdentityError
-from app.domain.identity.primitives import UserAccountId
 from app.domain.identity.user_account import UserAccount
+from app.domain.shared.actor import UserAccountId
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )

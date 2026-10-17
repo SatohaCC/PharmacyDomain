@@ -5,13 +5,10 @@ from collections.abc import Collection
 from sqlalchemy import select
 
 from app.domain.identity.exceptions import IdentityConflictError
-from app.domain.identity.primitives import (
-    AccountPersonId,
-    ExternalSubjectKey,
-    UserAccountId,
-)
+from app.domain.identity.primitives import ExternalSubjectKey
 from app.domain.identity.repository import UserAccountRepository
 from app.domain.identity.user_account import UserAccount
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,

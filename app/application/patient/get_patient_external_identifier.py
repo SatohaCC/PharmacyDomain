@@ -10,8 +10,8 @@ from app.application.patient.exceptions import PatientExternalIdentifierNotFound
 from app.application.patient.register_patient_external_identifier import (
     PatientExternalIdentifierDto,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientExternalIdentifierId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.identifiers import PatientExternalIdentifierId
 from app.domain.patient.repository import PatientExternalIdentifierRepository
 
 

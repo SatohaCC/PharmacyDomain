@@ -1,23 +1,7 @@
 """業務イベントコンテキストの識別子と値プリミティブ。"""
 
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.foundation.primitives.primitives import (
-    BaseAwareTimestamp,
-    BaseFreeText,
-    EntityUUID,
-)
-
-
-class EventTypeId(EntityUUID):
-    """イベント種別の一意識別子。"""
-
-    identifier_name = "イベント種別ID"
-
-
-class EventId(EntityUUID):
-    """業務イベントの一意識別子。"""
-
-    identifier_name = "イベントID"
+from app.domain.foundation.primitives.primitives import BaseAwareTimestamp, BaseFreeText
 
 
 class EventTypeName(BaseFreeText):

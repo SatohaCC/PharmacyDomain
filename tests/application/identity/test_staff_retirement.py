@@ -12,29 +12,25 @@ from app.application.staff.deactivate_staff import (
     DeactivateStaffCommand,
     DeactivateStaffUseCase,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.identity.identifiers import CorporateMembershipId
 from app.domain.identity.membership import CorporateMembership
-from app.domain.identity.primitives import (
-    AccountPersonId,
-    AccountStatus,
-    CorporateMembershipId,
-    MembershipRole,
-    UserAccountId,
-)
+from app.domain.identity.primitives import AccountStatus, MembershipRole
 from app.domain.identity.user_account import UserAccount
-from app.domain.staff.primitives import (
+from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.domain.staff.identifiers import StaffId
+from app.domain.staff.primitives import PharmacistLicenseNumber
+from app.domain.staff.staff import Staff
+from app.domain.staff.value_objects import (
     AffiliationPeriod,
-    PharmacistLicenseNumber,
     PharmacistProfile,
-    StaffId,
     StaffQualifications,
     StoreAffiliation,
 )
-from app.domain.staff.staff import Staff
+from app.domain.store.identifiers import StoreManagerAssignmentId
 from app.domain.store.manager_assignment import (
     ManagerAssignmentPeriod,
     StoreManagerAssignment,
-    StoreManagerAssignmentId,
 )
 from app.domain.store.manager_repository import ManagerAssignmentConflictError
 from tests.application.access_helpers import create_vendor_corporate_access

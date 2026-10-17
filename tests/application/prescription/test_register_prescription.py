@@ -25,10 +25,9 @@ from app.application.prescription.inputs import (
     PrescriptionManagementInput,
     PublicExpenseBurdenInput,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.coverage.primitives import CoverageSelectionRecordId
-from app.domain.medicine_catalog.primitives import MedicineCodeType
-from app.domain.patient.primitives import PatientId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.coverage.identifiers import CoverageSelectionRecordId
+from app.domain.patient.identifiers import PatientId
 from app.domain.prescription.exceptions import (
     MedicineClassificationMissingError,
     MedicineClassificationUnknownError,
@@ -38,13 +37,12 @@ from app.domain.prescription.exceptions import (
     PublicExpenseBurdenNotCoveredError,
     RefillNotAllowedError,
 )
-from app.domain.prescription.primitives import (
-    PrescriptionId,
-    PrescriptionStatus,
-)
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.prescription.primitives import PrescriptionStatus
+from app.domain.prescription.reference_primitives import MedicineCodeType
 from app.domain.prescription.value_objects import MedicineRestrictionFlag
 from app.domain.shared.public_expense import PublicExpenseBurden
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 from tests.application.prescription.helpers import (
     ISSUED_ON,
     create_classification,

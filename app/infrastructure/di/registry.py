@@ -6,43 +6,40 @@ from typing import cast
 
 from app.application.access_control.policy import AuthorizationService
 from app.application.common.clock import Clock
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.infrastructure.di.bundles.care_event import (
+from app.application.composition.runtime import UseCaseRegistry
+from app.application.composition.use_case_bundles import (
     CareEventUseCases,
-    build_care_event_use_cases,
-)
-from app.infrastructure.di.bundles.clinical import (
+    CorporateUseCases,
+    CoverageUseCases,
     DispensingUseCases,
+    IdentityUseCases,
+    IntegrationUseCases,
     MedicationHistoryUseCases,
+    MedicineCatalogUseCases,
+    PatientUseCases,
     PrescriptionUseCases,
+    ReceptionUseCases,
+    StaffUseCases,
+    StoreUseCases,
+)
+from app.application.corporate.corporate_access import CorporateAccessService
+from app.infrastructure.di.bundles.care_event import build_care_event_use_cases
+from app.infrastructure.di.bundles.clinical import (
     build_dispensing_use_cases,
     build_medication_history_use_cases,
     build_prescription_use_cases,
 )
-from app.infrastructure.di.bundles.identity import (
-    IdentityUseCases,
-    build_identity_use_cases,
-)
-from app.infrastructure.di.bundles.integration import (
-    IntegrationUseCases,
-    build_integration_use_cases,
-)
+from app.infrastructure.di.bundles.identity import build_identity_use_cases
+from app.infrastructure.di.bundles.integration import build_integration_use_cases
 from app.infrastructure.di.bundles.medicine_catalog import (
-    MedicineCatalogUseCases,
     build_medicine_catalog_use_cases,
 )
 from app.infrastructure.di.bundles.organization import (
-    CorporateUseCases,
-    StaffUseCases,
-    StoreUseCases,
     build_corporate_use_cases,
     build_staff_use_cases,
     build_store_use_cases,
 )
 from app.infrastructure.di.bundles.patient_care import (
-    CoverageUseCases,
-    PatientUseCases,
-    ReceptionUseCases,
     build_coverage_use_cases,
     build_patient_use_cases,
     build_reception_use_cases,
@@ -53,7 +50,7 @@ from app.infrastructure.di.repositories import (
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 
 
-class PostgresUseCaseRegistry:
+class PostgresUseCaseRegistry(UseCaseRegistry):
     """コンテキストごとのユースケース束をオンデマンドで生成するレジストリ。
 
     ここに並ぶ束の合計が、PostgreSQL 経路から実行できる操作のすべてになる。

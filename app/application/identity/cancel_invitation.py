@@ -5,8 +5,8 @@ from app.application.access_control.models import Permission
 from app.application.common.exceptions import NotFoundError
 from app.application.common.organization_lock import OrganizationLock
 from app.application.common.unit_of_work import UnitOfWork
-from app.domain.corporate.primitives import CorporateId
-from app.domain.identity.primitives import UserInvitationId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.identity.identifiers import UserInvitationId
 from app.domain.identity.repository import UserInvitationRepository
 
 

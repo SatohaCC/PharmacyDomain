@@ -61,31 +61,28 @@ from app.application.medication_history.verify_statutory_record import (
     VerifyStatutoryRecordUseCase,
 )
 from app.domain.care_event.event import Event
+from app.domain.care_event.identifiers import EventId, EventTypeId
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
-    EventId,
     EventOccurredTimestamp,
-    EventTypeId,
     EventTypeName,
     EventTypeStandardCode,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
-from app.domain.identity.primitives import AccountPersonId, UserAccountId
 from app.domain.medication_history.services import (
     CounselorQualificationService,
     StatutoryDispensingRecordService,
 )
-from app.domain.patient.primitives import PatientId
-from app.domain.reception.primitives import ReceptionFingerprint, ReceptionId
+from app.domain.patient.identifiers import PatientId
+from app.domain.reception.identifiers import ReceptionId
+from app.domain.reception.primitives import ReceptionFingerprint
 from app.domain.reception.reception import Reception, ReceptionSourceData
-from app.domain.staff.primitives import (
-    PharmacistLicenseNumber,
-    PharmacistProfile,
-    StaffId,
-    StaffQualifications,
-)
-from app.domain.store.primitives import StoreId
+from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.domain.staff.identifiers import StaffId
+from app.domain.staff.primitives import PharmacistLicenseNumber
+from app.domain.staff.value_objects import PharmacistProfile, StaffQualifications
+from app.domain.store.identifiers import StoreId
 from tests.application.access_helpers import (
     AutoProvisioningCorporateRepository,
 )

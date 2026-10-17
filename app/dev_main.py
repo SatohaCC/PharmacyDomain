@@ -37,11 +37,11 @@ from app.application.access_control.models import (
     ActorRole,
     ResolvedActorContext,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.bootstrap import create_app
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.identity.primitives import AccountPersonId, UserAccountId
-from app.domain.store.primitives import StoreId
-from app.presentational.app_factory import create_app
+from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.domain.store.identifiers import StoreId
 from app.presentational.authentication import ActorContextProvider
 from app.presentational.exceptions import AuthenticationError
 

@@ -32,27 +32,23 @@ from app.application.composition.resolved_actor_guard import (
     ResolvedActorWriteGuard,
 )
 from app.application.composition.staff_integrity import StaffAssignmentWriteGuard
-from app.application.identity.resolve_actor import UnavailableIdentityError
-from app.domain.identity.primitives import AccountPersonId, UserAccountId
-from app.infrastructure.di.bundles.care_event import CareEventUseCases
-from app.infrastructure.di.bundles.clinical import (
-    DispensingUseCases,
-    MedicationHistoryUseCases,
-    PrescriptionUseCases,
-)
-from app.infrastructure.di.bundles.identity import IdentityUseCases
-from app.infrastructure.di.bundles.integration import IntegrationUseCases
-from app.infrastructure.di.bundles.medicine_catalog import MedicineCatalogUseCases
-from app.infrastructure.di.bundles.organization import (
+from app.application.composition.use_case_bundles import (
+    CareEventUseCases,
     CorporateUseCases,
+    CoverageUseCases,
+    DispensingUseCases,
+    IdentityUseCases,
+    IntegrationUseCases,
+    MedicationHistoryUseCases,
+    MedicineCatalogUseCases,
+    PatientUseCases,
+    PrescriptionUseCases,
+    ReceptionUseCases,
     StaffUseCases,
     StoreUseCases,
 )
-from app.infrastructure.di.bundles.patient_care import (
-    CoverageUseCases,
-    PatientUseCases,
-    ReceptionUseCases,
-)
+from app.application.identity.resolve_actor import UnavailableIdentityError
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.infrastructure.di.registry import PostgresUseCaseRegistry
 from app.infrastructure.di.root import PostgresRequestScope
 from tests.fakes.fake_clock import FakeClock

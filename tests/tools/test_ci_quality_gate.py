@@ -28,6 +28,7 @@ REQUIRED_GATES: tuple[str, ...] = (
     "uv run mypy app tests tools",
     "uv run ruff check .",
     "uv run ruff format --check .",
+    "uv run lint-imports",
     "uv run pytest -m integration -q",
 )
 

@@ -12,16 +12,13 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.domain.dispensing.primitives import DispensingId
-from app.domain.medication_history.primitives import MedicationHistoryRecordId
-from app.domain.prescription.primitives import PrescriptionId
-from app.domain.reception.primitives import (
-    ReceptionFieldPath,
-    ReceptionFingerprint,
-    ReceptionId,
-)
+from app.domain.dispensing.identifiers import DispensingId
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.reception.identifiers import ReceptionId
+from app.domain.reception.primitives import ReceptionFieldPath, ReceptionFingerprint
 from app.domain.reception.reception import Reception, ReceptionCorrection
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )

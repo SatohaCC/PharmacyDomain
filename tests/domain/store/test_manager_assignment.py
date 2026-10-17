@@ -4,17 +4,16 @@ from datetime import date
 
 import pytest
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainError, DomainValidationError
 from app.domain.shared.actor import AccountPersonId
-from app.domain.staff.primitives import StaffId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId, StoreManagerAssignmentId
 from app.domain.store.manager_assignment import (
     ManagerAssignmentPeriod,
     ManagerAssignmentStatus,
     StoreManagerAssignment,
-    StoreManagerAssignmentId,
 )
-from app.domain.store.primitives import StoreId
 
 
 def _assignment() -> StoreManagerAssignment:

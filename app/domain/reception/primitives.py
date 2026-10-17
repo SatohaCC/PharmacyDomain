@@ -4,15 +4,6 @@ from __future__ import annotations
 
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.primitives.base import DomainPrimitive
-from app.domain.foundation.primitives.primitives import (
-    EntityUUID,
-)
-
-
-class ReceptionId(EntityUUID):
-    """受付の安定識別子。"""
-
-    identifier_name = "受付ID"
 
 
 class ReceptionFingerprint(DomainPrimitive[str]):

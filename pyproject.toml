@@ -18,13 +18,14 @@ dependencies = [
 [dependency-groups]
 dev = [
     "httpx>=0.28,<1.0",
+    "import-linter>=2.15",
     "mypy>=2.3,<3.0",
     "pytest>=8.0,<9.0",
     "pytest-asyncio>=0.24,<1.0",
     # CIワークフローが品質ゲートを全部走らせているかを検証するために使う。
     # 推移的依存としては既に入っているが、テストが依存する以上は明示する。
     "pyyaml>=6.0,<7.0",
-    "ruff>=0.12,<1.0",
+    "ruff>=0.16.9,<1.0",
     "types-pyyaml>=6.0,<7.0",
 ]
 
@@ -37,35 +38,31 @@ extend-exclude = [
 
 [tool.ruff.lint]
 select = [
-    "E4",   # pycodestyle: import and syntax errors
-    "E7",   # pycodestyle: statement errors
-    "E9",   # pycodestyle: runtime errors
-    "F",    # pyflakes
-    "I",    # isort
-    "UP",   # pyupgrade
-    "B",    # flake8-bugbear
-    "SIM",  # flake8-simplify
-    "DTZ",  # flake8-datetimez: date.today() / naive datetime.now() を禁止する
-            # （AGENTS.md「date.today() を暗黙利用せず、適用日を明示する」）
-    "RUF",  # Ruff-specific rules
+    "E",      # pycodestyleのエラー
+    "W",      # pycodestyleの警告
+    "F",      # 未定義名や未使用import
+    "I",      # importの並び順
+    "B",      # 誤りやすい構文
+    "UP",     # 新しいPython構文への統一
+    "C4",     # 内包表記の簡素化
+    "SIM",    # 条件分岐等の簡素化
+    "TID251", # 指定APIの使用禁止
+    "RUF012", # 可変なクラス属性の初期値
+    "RUF100", # 不要なnoqa
 ]
 ignore = [
-    "RUF001",  # 日本語の文字列に含まれる全角記号を許容する
-    "RUF002",  # 日本語の docstring に含まれる全角記号を許容する
-    "RUF003",  # 日本語のコメントに含まれる全角記号を許容する
+    "E501", # 行長はruff formatへ任せる
 ]
 
-[tool.ruff.lint.isort]
-known-first-party = [
-    "app",
-    "tests",
-]
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["TID251"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api."dataclasses.asdict"]
+msg = "公開JSONや辞書への変換に dataclasses.asdict() は使用せず、明示的なマッパーまたは .value 変換を使用してください。"
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
-line-ending = "lf"
-docstring-code-format = true
 
 [tool.mypy]
 python_version = "3.14"
@@ -104,7 +101,8 @@ root = "."
 paths = ["app"]
 
 [tool.import_rules.forbidden]
-# Domain基盤はShared Kernel・個別コンテキスト・外側の層に依存しない。
+# 個別Applicationの境界と外部フレームワーク禁止を維持する。
+# Domain越境と内部階層はImport Linterの包括契約で検査する。
 "app.domain.foundation" = [
     "app.domain.identity",
     "app.domain.shared",
@@ -123,7 +121,6 @@ paths = ["app"]
     "fastapi",
     "sqlalchemy",
 ]
-# Shared Kernel はDomain基盤にだけ依存し、個別コンテキストへ依存しない。
 "app.domain.shared" = [
     "app.domain.identity",
     "app.domain.corporate",
@@ -141,7 +138,6 @@ paths = ["app"]
     "fastapi",
     "sqlalchemy",
 ]
-# Domain層は Application層・Web/DBフレームワーク・Infrastructureに一切依存しない。
 "app.domain" = [
     "app.application",
     "app.infrastructure",
@@ -149,23 +145,9 @@ paths = ["app"]
     "fastapi",
     "sqlalchemy",
 ]
-# Application層は外側のInfrastructureとHTTP境界へ依存しない。具体的なDB adapterは
-# DIからProtocolへ接続する。フレームワークも直接は使わせない。
-# Domain だけを禁止しても、ユースケースが AsyncSession や Request を引数で
-# 受け取れる限り「Protocol 越しに接続する」という前提は静かに崩れる。
-"app.application" = [
-    "app.infrastructure",
-    "app.presentational",
-    "fastapi",
-    "sqlalchemy",
-]
-# 永続化アダプタとDIはHTTP境界を知らない。逆向き（Presentation → Infrastructure）だけを許す。
+"app.application" = ["app.infrastructure", "app.presentational", "fastapi", "sqlalchemy"]
 "app.infrastructure" = ["app.presentational"]
-# HTTP境界はDBドライバを直接触らない。トランザクションの開始と確定は
-# PostgresRequestScope だけが持つので、ルータが session や commit を掴めると
-# 境界が2箇所になる。fastapi は禁止しない（HTTP境界そのものなので）。
 "app.presentational" = ["sqlalchemy"]
-# Application共通基盤はDomain層や個別Applicationコンテキストに依存しない。
 "app.application.common" = [
     "app.application.care_event",
     "app.application.identity",
@@ -186,7 +168,6 @@ paths = ["app"]
     "fastapi",
     "sqlalchemy",
 ]
-# 認可基盤は個別コンテキストに依存しない（leafを維持する）。
 "app.application.access_control" = [
     "app.application.care_event",
     "app.application.corporate",
@@ -202,7 +183,6 @@ paths = ["app"]
     "app.application.medicine_catalog",
     "app.application.identity",
 ]
-# Corporate は他のApplicationコンテキストに依存しない。
 "app.application.corporate" = [
     "app.application.care_event",
     "app.application.store",
@@ -217,7 +197,6 @@ paths = ["app"]
     "app.application.medicine_catalog",
     "app.application.identity",
 ]
-# Store は Staff にも法人コンテキストの実装にも依存しない。
 "app.application.store" = [
     "app.application.care_event",
     "app.application.staff",
@@ -232,7 +211,6 @@ paths = ["app"]
     "app.application.medicine_catalog",
     "app.application.identity",
 ]
-# Staff は法人コンテキストの実装に依存しない（Store への依存は一方向で許可）。
 "app.application.staff" = [
     "app.application.care_event",
     "app.application.corporate",
@@ -246,7 +224,6 @@ paths = ["app"]
     "app.application.medicine_catalog",
     "app.application.identity",
 ]
-# Patient は他のApplicationコンテキストに依存しない。
 "app.application.patient" = [
     "app.application.care_event",
     "app.application.corporate",
@@ -261,7 +238,6 @@ paths = ["app"]
     "app.application.medicine_catalog",
     "app.application.identity",
 ]
-# Coverage は法人・PatientのApplication実装に依存せず、ID参照と境界Protocolだけを使う。
 "app.application.coverage" = [
     "app.application.care_event",
     "app.application.corporate",
@@ -276,7 +252,6 @@ paths = ["app"]
     "app.application.medicine_catalog",
     "app.application.identity",
 ]
-# Receptionは他コンテキストのApplication実装へ依存せず、参照Boundaryへ依存する。
 "app.application.reception" = [
     "app.application.care_event",
     "app.application.corporate",
@@ -291,7 +266,6 @@ paths = ["app"]
     "app.application.medicine_catalog",
     "app.application.identity",
 ]
-# Prescriptionは他コンテキストのApplication実装へ依存せず、参照Boundaryへ依存する。
 "app.application.prescription" = [
     "app.application.care_event",
     "app.application.corporate",
@@ -306,7 +280,6 @@ paths = ["app"]
     "app.application.medicine_catalog",
     "app.application.identity",
 ]
-# Dispensingは他コンテキストのApplication実装へ依存せず、参照Boundaryへ依存する。
 "app.application.dispensing" = [
     "app.application.care_event",
     "app.application.corporate",
@@ -321,7 +294,6 @@ paths = ["app"]
     "app.application.medicine_catalog",
     "app.application.identity",
 ]
-# MedicationHistoryは他コンテキストのApplication実装へ依存せず、参照Boundaryへ依存する。
 "app.application.medication_history" = [
     "app.application.care_event",
     "app.application.corporate",
@@ -336,7 +308,6 @@ paths = ["app"]
     "app.application.medicine_catalog",
     "app.application.identity",
 ]
-# care_eventは境界ProtocolとDomain ID参照を使い、他コンテキストのApplication実装へ依存しない。
 "app.application.care_event" = [
     "app.application.corporate",
     "app.application.store",
@@ -354,36 +325,7 @@ paths = ["app"]
     "fastapi",
     "sqlalchemy",
 ]
-# NSIPS取込はEventや薬歴を自動生成せず、受付の受信時刻を実施時刻に使わない。
 "app.application.integration" = ["app.application.care_event"]
-# Identityは店舗・スタッフ・法人の識別子だけを参照し、集約とRepositoryへは依存しない。
-# 逆向き（Store → Identity）は禁止する。操作者の識別子は Shared Kernel にあるので、
-# 店舗の状態変更履歴が Identity を知る必要はない。双方向にすると、どちらの
-# コンテキストも単独では取り出せなくなる。
-"app.domain.identity" = [
-    "app.domain.corporate.corporate",
-    "app.domain.corporate.repository",
-    "app.domain.store.store",
-    "app.domain.store.repository",
-    "app.domain.store.lifecycle",
-    "app.domain.store.manager_assignment",
-    "app.domain.store.manager_repository",
-    "app.domain.store.manager_service",
-    "app.domain.staff.staff",
-    "app.domain.staff.repository",
-    "app.domain.staff.services",
-    "app.domain.patient",
-    "app.domain.coverage",
-    "app.domain.reception",
-    "app.domain.prescription",
-    "app.domain.dispensing",
-    "app.domain.medication_history",
-    "app.domain.medicine_catalog",
-]
-"app.domain.store" = ["app.domain.identity"]
-"app.domain.staff" = ["app.domain.identity"]
-"app.domain.corporate" = ["app.domain.identity"]
-# 医薬品マスタのApplicationは、どのコンテキストのApplication実装にも依存しない。
 "app.application.medicine_catalog" = [
     "app.application.care_event",
     "app.application.corporate",
@@ -398,7 +340,6 @@ paths = ["app"]
     "app.application.composition",
     "app.application.identity",
 ]
-# Identityは他の個別Applicationコンテキストに依存しない。
 "app.application.identity" = [
     "app.application.care_event",
     "app.application.corporate",
@@ -413,100 +354,613 @@ paths = ["app"]
     "app.application.medicine_catalog",
     "app.application.composition",
 ]
-# CoverageはPatientのAggregate/Repositoryを直接参照せず、資格自身のIDと境界だけを扱う。
-"app.domain.coverage" = [
-    "app.domain.reception",
-    "app.domain.patient.patient",
-    "app.domain.patient.external_identifier",
-    "app.domain.patient.repository",
+
+[tool.import_rules.allowed_internal]
+"app.domain.foundation" = ["app.domain.foundation"]
+"app.domain.shared" = ["app.domain.shared", "app.domain.foundation"]
+"app.application.common" = ["app.application.common"]
+
+[tool.importlinter]
+root_package = "app"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+id = "domain-layers"
+name = "Domainは外側の層を参照しない"
+type = "forbidden"
+source_modules = ["app.domain"]
+forbidden_modules = [
+    "app.application",
+    "app.infrastructure",
+    "app.presentational",
+    "app.bootstrap",
+    "app.main",
+    "app.dev_main",
 ]
-# Receptionは受信記録と訂正履歴だけを持ち、資格台帳や他集約を直接参照しない。
-"app.domain.reception" = [
-    "app.domain.coverage",
-    "app.domain.patient.patient",
-    "app.domain.patient.external_identifier",
-    "app.domain.patient.repository",
-    "app.domain.store.store",
-    "app.domain.store.repository",
+
+[[tool.importlinter.contracts]]
+id = "application-layers"
+name = "Applicationは技術実装とHTTP境界を参照しない"
+type = "forbidden"
+source_modules = ["app.application"]
+forbidden_modules = [
+    "app.infrastructure",
+    "app.presentational",
+    "app.bootstrap",
+    "app.main",
+    "app.dev_main",
 ]
-# 処方箋は下流コンテキストと資格台帳の集約・リポジトリを直接参照しない。
-# 他コンテキストの primitives（ID）は既存の Coverage→Patient と同じく許可する。
-"app.domain.prescription" = [
-    "app.domain.dispensing",
-    "app.domain.medication_history",
+
+[[tool.importlinter.contracts]]
+id = "presentation-domain"
+name = "PresentationはDomainを直接参照しない"
+type = "forbidden"
+source_modules = ["app.presentational", "app.presentational.**"]
+forbidden_modules = ["app.domain", "app.domain.**"]
+as_packages = false
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+id = "presentation-infrastructure"
+name = "PresentationはInfrastructureを直接参照しない"
+type = "forbidden"
+source_modules = ["app.presentational", "app.presentational.**"]
+forbidden_modules = [
+    "app.infrastructure",
+    "app.infrastructure.**",
+    "app.bootstrap",
+    "app.main",
+    "app.dev_main",
+]
+as_packages = false
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+id = "infrastructure-presentation"
+name = "InfrastructureはHTTP境界を参照しない"
+type = "forbidden"
+source_modules = ["app.infrastructure"]
+forbidden_modules = ["app.presentational"]
+
+[[tool.importlinter.contracts]]
+id = "domain-primitives"
+name = "Domainの識別子・例外・プリミティブは上位の責務へ依存しない"
+type = "forbidden"
+source_modules = [
+    "app.domain.*.exceptions",
+    "app.domain.*.identifiers",
+    "app.domain.*.primitives",
+    "app.domain.*.reference_primitives",
+    "app.domain.care_event.exceptions",
+    "app.domain.care_event.identifiers",
+    "app.domain.care_event.primitives",
+    "app.domain.corporate.exceptions",
+    "app.domain.corporate.identifiers",
+    "app.domain.corporate.primitives",
+    "app.domain.coverage.exceptions",
+    "app.domain.coverage.identifiers",
+    "app.domain.coverage.primitives",
+    "app.domain.coverage.priority_rules",
+    "app.domain.dispensing.exceptions",
+    "app.domain.dispensing.identifiers",
+    "app.domain.dispensing.primitives",
+    "app.domain.dispensing.reference_primitives",
+    "app.domain.identity.exceptions",
+    "app.domain.identity.identifiers",
+    "app.domain.identity.primitives",
+    "app.domain.medication_history.exceptions",
+    "app.domain.medication_history.identifiers",
+    "app.domain.medication_history.primitives",
+    "app.domain.medication_history.reference_primitives",
+    "app.domain.medicine_catalog.exceptions",
+    "app.domain.medicine_catalog.identifiers",
+    "app.domain.medicine_catalog.primitives",
+    "app.domain.patient.exceptions",
+    "app.domain.patient.identifiers",
+    "app.domain.patient.primitives",
+    "app.domain.prescription.exceptions",
+    "app.domain.prescription.identifiers",
+    "app.domain.prescription.primitives",
+    "app.domain.prescription.reference_primitives",
+    "app.domain.reception.exceptions",
+    "app.domain.reception.identifiers",
+    "app.domain.reception.primitives",
+    "app.domain.staff.exceptions",
+    "app.domain.staff.identifiers",
+    "app.domain.staff.primitives",
+    "app.domain.store.exceptions",
+    "app.domain.store.identifiers",
+    "app.domain.store.primitives",
+]
+forbidden_modules = [
+    "app.domain.*.entities",
+    "app.domain.*.reference_values",
+    "app.domain.*.repositories",
+    "app.domain.*.repository",
+    "app.domain.*.services",
+    "app.domain.*.value_objects",
+    "app.domain.care_event.event",
+    "app.domain.care_event.event_definition",
+    "app.domain.care_event.repository",
+    "app.domain.corporate.corporate",
+    "app.domain.corporate.repository",
+    "app.domain.corporate.search",
+    "app.domain.corporate.services",
+    "app.domain.coverage.combination",
     "app.domain.coverage.coverage_selection",
     "app.domain.coverage.coverage_selection_record",
     "app.domain.coverage.coverage_snapshot",
-    "app.domain.coverage.combination",
     "app.domain.coverage.patient_coverage",
     "app.domain.coverage.repository",
-    "app.domain.patient.patient",
+    "app.domain.coverage.services",
+    "app.domain.coverage.value_objects",
+    "app.domain.dispensing.dispensing_process",
+    "app.domain.dispensing.prescription_source",
+    "app.domain.dispensing.reference_values",
+    "app.domain.dispensing.repository",
+    "app.domain.dispensing.services",
+    "app.domain.dispensing.value_objects",
+    "app.domain.identity.account_person",
+    "app.domain.identity.administrator_service",
+    "app.domain.identity.invitation",
+    "app.domain.identity.membership",
+    "app.domain.identity.repository",
+    "app.domain.identity.staff_person_link",
+    "app.domain.identity.user_account",
+    "app.domain.medication_history.category_catalog",
+    "app.domain.medication_history.dispensing_source",
+    "app.domain.medication_history.entities",
+    "app.domain.medication_history.fact_correction",
+    "app.domain.medication_history.medication_history_record",
+    "app.domain.medication_history.patient_medical_profile",
+    "app.domain.medication_history.repository",
+    "app.domain.medication_history.services",
+    "app.domain.medication_history.value_objects",
+    "app.domain.medicine_catalog.medicine",
+    "app.domain.medicine_catalog.repository",
+    "app.domain.medicine_catalog.services",
+    "app.domain.medicine_catalog.value_objects",
     "app.domain.patient.external_identifier",
-    "app.domain.patient.repository",
-    "app.domain.store.store",
-    "app.domain.store.repository",
-    "app.domain.staff.staff",
-    "app.domain.staff.repository",
-]
-# 調剤は下流コンテキストと資格台帳へ依存せず、他集約はID・Snapshot・Boundaryで参照する。
-# 処方箋については集約そのものを Domain Service が引数で受け取るため、
-# パッケージ全体では禁止せず、集約モジュールにだけ禁止を課す（下の行）。
-"app.domain.dispensing" = [
-    "app.domain.medication_history",
-    "app.domain.coverage",
-    "app.domain.reception",
+    "app.domain.patient.heading",
+    "app.domain.patient.lifecycle",
+    "app.domain.patient.merge_service",
     "app.domain.patient.patient",
-    "app.domain.patient.external_identifier",
+    "app.domain.patient.profile_history",
     "app.domain.patient.repository",
-    "app.domain.store.store",
-    "app.domain.store.repository",
-    "app.domain.staff.staff",
+    "app.domain.prescription.dosage",
+    "app.domain.prescription.interaction_audit",
+    "app.domain.prescription.prescription",
+    "app.domain.prescription.reference_values",
+    "app.domain.prescription.repository",
+    "app.domain.prescription.services",
+    "app.domain.prescription.value_objects",
+    "app.domain.reception.reception",
+    "app.domain.reception.repository",
     "app.domain.staff.repository",
+    "app.domain.staff.services",
+    "app.domain.staff.staff",
+    "app.domain.staff.store_source",
+    "app.domain.staff.value_objects",
+    "app.domain.store.business_hours",
+    "app.domain.store.lifecycle",
+    "app.domain.store.manager_assignment",
+    "app.domain.store.manager_repository",
+    "app.domain.store.manager_service",
+    "app.domain.store.manager_source",
+    "app.domain.store.repository",
+    "app.domain.store.services",
+    "app.domain.store.store",
+    "app.domain.store.value_objects",
 ]
-# 調剤セッション集約は処方箋集約を参照しない。
-# validate() から他集約を読めてしまうと、ロードできない検証を書けてしまう。
-"app.domain.dispensing.dispensing_process" = [
+as_packages = false
+
+[[tool.importlinter.contracts]]
+id = "domain-values"
+name = "Domainの複合値は上位の責務へ依存しない"
+type = "forbidden"
+source_modules = [
+    "app.domain.*.reference_values",
+    "app.domain.*.value_objects",
+    "app.domain.coverage.combination",
+    "app.domain.coverage.coverage_selection",
+    "app.domain.coverage.coverage_snapshot",
+    "app.domain.coverage.value_objects",
+    "app.domain.dispensing.prescription_source",
+    "app.domain.dispensing.reference_values",
+    "app.domain.dispensing.value_objects",
+    "app.domain.medication_history.dispensing_source",
+    "app.domain.medication_history.fact_correction",
+    "app.domain.medication_history.value_objects",
+    "app.domain.medicine_catalog.value_objects",
+    "app.domain.patient.heading",
+    "app.domain.patient.lifecycle",
+    "app.domain.patient.profile_history",
+    "app.domain.prescription.dosage",
+    "app.domain.prescription.reference_values",
+    "app.domain.prescription.value_objects",
+    "app.domain.staff.store_source",
+    "app.domain.staff.value_objects",
+    "app.domain.store.business_hours",
+    "app.domain.store.lifecycle",
+    "app.domain.store.manager_source",
+    "app.domain.store.value_objects",
+]
+forbidden_modules = [
+    "app.domain.*.entities",
+    "app.domain.*.repositories",
+    "app.domain.*.repository",
+    "app.domain.*.services",
+    "app.domain.care_event.event",
+    "app.domain.care_event.event_definition",
+    "app.domain.care_event.repository",
+    "app.domain.corporate.corporate",
+    "app.domain.corporate.repository",
+    "app.domain.corporate.search",
+    "app.domain.corporate.services",
+    "app.domain.coverage.coverage_selection_record",
+    "app.domain.coverage.patient_coverage",
+    "app.domain.coverage.repository",
+    "app.domain.coverage.services",
+    "app.domain.dispensing.dispensing_process",
+    "app.domain.dispensing.repository",
+    "app.domain.dispensing.services",
+    "app.domain.identity.account_person",
+    "app.domain.identity.administrator_service",
+    "app.domain.identity.invitation",
+    "app.domain.identity.membership",
+    "app.domain.identity.repository",
+    "app.domain.identity.staff_person_link",
+    "app.domain.identity.user_account",
+    "app.domain.medication_history.category_catalog",
+    "app.domain.medication_history.entities",
+    "app.domain.medication_history.medication_history_record",
+    "app.domain.medication_history.patient_medical_profile",
+    "app.domain.medication_history.repository",
+    "app.domain.medication_history.services",
+    "app.domain.medicine_catalog.medicine",
+    "app.domain.medicine_catalog.repository",
+    "app.domain.medicine_catalog.services",
+    "app.domain.patient.external_identifier",
+    "app.domain.patient.merge_service",
+    "app.domain.patient.patient",
+    "app.domain.patient.repository",
+    "app.domain.prescription.interaction_audit",
     "app.domain.prescription.prescription",
     "app.domain.prescription.repository",
     "app.domain.prescription.services",
-]
-# 薬歴は下流の請求と資格台帳へ依存せず、上流はIDと集約の引き渡しだけで扱う。
-"app.domain.medication_history" = [
-    "app.domain.coverage",
-    "app.domain.reception",
-    "app.domain.patient.patient",
-    "app.domain.patient.external_identifier",
-    "app.domain.patient.repository",
-    "app.domain.store.store",
-    "app.domain.store.repository",
-    "app.domain.staff.staff",
+    "app.domain.reception.reception",
+    "app.domain.reception.repository",
     "app.domain.staff.repository",
-    "app.domain.dispensing.repository",
+    "app.domain.staff.services",
+    "app.domain.staff.staff",
+    "app.domain.store.manager_assignment",
+    "app.domain.store.manager_repository",
+    "app.domain.store.manager_service",
+    "app.domain.store.repository",
+    "app.domain.store.services",
+    "app.domain.store.store",
+]
+as_packages = false
+
+[[tool.importlinter.contracts]]
+id = "domain-entities"
+name = "Domainのエンティティは上位の責務へ依存しない"
+type = "forbidden"
+source_modules = [
+    "app.domain.*.entities",
+    "app.domain.care_event.event",
+    "app.domain.care_event.event_definition",
+    "app.domain.corporate.corporate",
+    "app.domain.coverage.coverage_selection_record",
+    "app.domain.coverage.patient_coverage",
+    "app.domain.dispensing.dispensing_process",
+    "app.domain.identity.account_person",
+    "app.domain.identity.invitation",
+    "app.domain.identity.membership",
+    "app.domain.identity.staff_person_link",
+    "app.domain.identity.user_account",
+    "app.domain.medication_history.category_catalog",
+    "app.domain.medication_history.entities",
+    "app.domain.medication_history.medication_history_record",
+    "app.domain.medication_history.patient_medical_profile",
+    "app.domain.medicine_catalog.medicine",
+    "app.domain.patient.external_identifier",
+    "app.domain.patient.patient",
     "app.domain.prescription.prescription",
+    "app.domain.reception.reception",
+    "app.domain.staff.staff",
+    "app.domain.store.manager_assignment",
+    "app.domain.store.store",
+]
+forbidden_modules = [
+    "app.domain.*.repositories",
+    "app.domain.*.repository",
+    "app.domain.*.services",
+    "app.domain.care_event.repository",
+    "app.domain.corporate.repository",
+    "app.domain.corporate.search",
+    "app.domain.corporate.services",
+    "app.domain.coverage.repository",
+    "app.domain.coverage.services",
+    "app.domain.dispensing.repository",
+    "app.domain.dispensing.services",
+    "app.domain.identity.administrator_service",
+    "app.domain.identity.repository",
+    "app.domain.medication_history.repository",
+    "app.domain.medication_history.services",
+    "app.domain.medicine_catalog.repository",
+    "app.domain.medicine_catalog.services",
+    "app.domain.patient.merge_service",
+    "app.domain.patient.repository",
+    "app.domain.prescription.interaction_audit",
     "app.domain.prescription.repository",
+    "app.domain.prescription.services",
+    "app.domain.reception.repository",
+    "app.domain.staff.repository",
+    "app.domain.staff.services",
+    "app.domain.store.manager_repository",
+    "app.domain.store.manager_service",
+    "app.domain.store.repository",
+    "app.domain.store.services",
 ]
-# 2つの集約は調剤セッション集約を参照しない。
-# validate() から他集約を読めてしまうと、ロードできない検証を書けてしまう。
-# 調剤との一致は services.py が本物の集約を引数で受け取って判定する。
-"app.domain.medication_history.medication_history_record" = [
-    "app.domain.dispensing.dispensing_process",
+as_packages = false
+
+[[tool.importlinter.contracts]]
+id = "domain-repositories"
+name = "DomainのRepositoryの抽象は上位の責務へ依存しない"
+type = "forbidden"
+source_modules = [
+    "app.domain.*.repositories",
+    "app.domain.*.repository",
+    "app.domain.care_event.repository",
+    "app.domain.corporate.repository",
+    "app.domain.corporate.search",
+    "app.domain.coverage.repository",
+    "app.domain.dispensing.repository",
+    "app.domain.identity.repository",
+    "app.domain.medication_history.repository",
+    "app.domain.medicine_catalog.repository",
+    "app.domain.patient.repository",
+    "app.domain.prescription.repository",
+    "app.domain.reception.repository",
+    "app.domain.staff.repository",
+    "app.domain.store.manager_repository",
+    "app.domain.store.repository",
 ]
-"app.domain.medication_history.patient_medical_profile" = [
-    "app.domain.dispensing.dispensing_process",
+forbidden_modules = [
+    "app.domain.*.services",
+    "app.domain.corporate.services",
+    "app.domain.coverage.services",
+    "app.domain.dispensing.services",
+    "app.domain.identity.administrator_service",
+    "app.domain.medication_history.services",
+    "app.domain.medicine_catalog.services",
+    "app.domain.patient.merge_service",
+    "app.domain.prescription.interaction_audit",
+    "app.domain.prescription.services",
+    "app.domain.staff.services",
+    "app.domain.store.manager_service",
+    "app.domain.store.services",
 ]
-# 医薬品マスタは全コンテキストの下流に置かず、どのコンテキストにも依存しない葉にする。
-# 薬価基準は国が定める参照データであり、テナントも患者も処方も知らない。
-"app.domain.medicine_catalog" = [
-    "app.domain.corporate",
-    "app.domain.store",
-    "app.domain.staff",
-    "app.domain.patient",
-    "app.domain.coverage",
-    "app.domain.reception",
-    "app.domain.prescription",
-    "app.domain.dispensing",
-    "app.domain.medication_history",
+as_packages = false
+
+[[tool.importlinter.contracts]]
+id = "domain-contexts"
+name = "Domainコンテキストは公開ID以外で越境しない"
+type = "independence"
+modules = ["app.domain.*"]
+ignore_imports = [
+    "app.domain.** -> app.domain.foundation",
+    "app.domain.** -> app.domain.foundation.**",
+    "app.domain.** -> app.domain.shared",
+    "app.domain.** -> app.domain.shared.**",
+    "app.domain.** -> app.domain.*.identifiers",
 ]
+unmatched_ignore_imports_alerting = "none"
+
+[[tool.importlinter.contracts]]
+id = "foundation-boundary"
+name = "Domain基盤は共有語彙と業務の公開IDにも依存しない"
+type = "forbidden"
+source_modules = ["app.domain.foundation"]
+forbidden_modules = ["app.domain.shared", "app.domain.*.identifiers"]
+
+[[tool.importlinter.contracts]]
+id = "application-contexts"
+name = "Applicationの業務コンテキストは許可方向だけで依存する"
+type = "independence"
+modules = [
+    "app.application.care_event",
+    "app.application.corporate",
+    "app.application.coverage",
+    "app.application.dispensing",
+    "app.application.identity",
+    "app.application.medication_history",
+    "app.application.medicine_catalog",
+    "app.application.patient",
+    "app.application.prescription",
+    "app.application.reception",
+    "app.application.staff",
+    "app.application.store",
+]
+ignore_imports = ["app.application.staff.** -> app.application.store.**"]
+unmatched_ignore_imports_alerting = "none"
+
+[[tool.importlinter.contracts]]
+id = "presentation-hierarchy"
+name = "HTTP境界はルートと注入処理への逆依存を持たない"
+type = "forbidden"
+source_modules = ["app.presentational", "app.presentational.**"]
+forbidden_modules = [
+    "app.presentational.routers",
+    "app.presentational.routers.**",
+    "app.presentational.dependencies",
+]
+as_packages = false
+ignore_imports = ["app.presentational.routers.** -> app.presentational.dependencies"]
+unmatched_ignore_imports_alerting = "none"
+
+[[tool.importlinter.contracts]]
+id = "infrastructure-composition"
+name = "技術アダプタはDIと起動点へ依存しない"
+type = "forbidden"
+source_modules = ["app.infrastructure", "app.infrastructure.**"]
+forbidden_modules = [
+    "app.infrastructure.di",
+    "app.infrastructure.di.**",
+    "app.bootstrap",
+    "app.main",
+    "app.dev_main",
+]
+as_packages = false
+ignore_imports = ["app.infrastructure.di.** -> app.infrastructure.di.**"]
+unmatched_ignore_imports_alerting = "none"
+
+[[tool.importlinter.contracts]]
+id = "persistence-external"
+name = "PostgreSQL永続化は外部データ取得へ依存しない"
+type = "forbidden"
+source_modules = ["app.infrastructure.postgres", "app.infrastructure.*.postgres"]
+forbidden_modules = ["app.infrastructure.prescription.external"]
+
+[[tool.importlinter.contracts]]
+id = "payload-mapping"
+name = "JSONB変換は具象アダプタに依存しない"
+type = "forbidden"
+source_modules = ["app.infrastructure.postgres.codec"]
+forbidden_modules = ["app.infrastructure", "app.infrastructure.**"]
+as_packages = false
+
+[[tool.importlinter.contracts]]
+id = "technology-adapters"
+name = "外部情報取得とPostgreSQLは独立する"
+type = "independence"
+modules = ["app.infrastructure.prescription.external", "app.infrastructure.postgres"]
+
+[[tool.importlinter.contracts]]
+id = "application-models"
+name = "Applicationの入力・出力・参照契約は具象ユースケースへ逆依存しない"
+type = "forbidden"
+source_modules = [
+    "app.application.*.dto",
+    "app.application.*.inputs",
+    "app.application.*.models",
+    "app.application.*.reference",
+    "app.application.access_control.models",
+    "app.application.coverage.reference",
+    "app.application.dispensing.inputs",
+    "app.application.dispensing.reference",
+    "app.application.identity.dto",
+    "app.application.identity.input_models",
+    "app.application.integration.nsips.models",
+    "app.application.medication_history.inputs",
+    "app.application.medication_history.reference",
+    "app.application.patient.reference",
+    "app.application.prescription.inputs",
+    "app.application.prescription.reference",
+    "app.application.reception.reference",
+    "app.application.staff.reference",
+    "app.application.store.reference",
+]
+forbidden_modules = [
+    "app.application.care_event.create_event",
+    "app.application.care_event.event_definition",
+    "app.application.care_event.get_event",
+    "app.application.care_event.list_related_candidates",
+    "app.application.corporate.change_corporate_name",
+    "app.application.corporate.change_corporate_status",
+    "app.application.corporate.change_representative",
+    "app.application.corporate.get_corporate",
+    "app.application.corporate.list_corporates",
+    "app.application.corporate.register_corporate",
+    "app.application.coverage.change_patient_coverage_period",
+    "app.application.coverage.deactivate_patient_coverage",
+    "app.application.coverage.get_last_coverage_selection",
+    "app.application.coverage.get_patient_coverage",
+    "app.application.coverage.list_patient_coverages",
+    "app.application.coverage.record_coverage_selection",
+    "app.application.coverage.register_patient_coverage",
+    "app.application.dispensing.complete_dispensing",
+    "app.application.dispensing.get_dispensing",
+    "app.application.dispensing.list_dispensings_by_prescription",
+    "app.application.dispensing.record_audit",
+    "app.application.dispensing.record_dispensed_content",
+    "app.application.dispensing.start_dispensing",
+    "app.application.dispensing.verify_dispensing",
+    "app.application.identity.accept_invitation",
+    "app.application.identity.cancel_invitation",
+    "app.application.identity.change_account_status",
+    "app.application.identity.change_membership",
+    "app.application.identity.get_invitation",
+    "app.application.identity.get_user",
+    "app.application.identity.invite_user",
+    "app.application.identity.link_staff",
+    "app.application.identity.list_users",
+    "app.application.identity.register_person",
+    "app.application.identity.resolve_actor",
+    "app.application.integration.nsips.ingest_nsips",
+    "app.application.medication_history.amend_medication_history",
+    "app.application.medication_history.category_catalog",
+    "app.application.medication_history.correct_medication_history_fact",
+    "app.application.medication_history.finalize_medication_history",
+    "app.application.medication_history.get_medication_history",
+    "app.application.medication_history.get_medication_history_view",
+    "app.application.medication_history.get_patient_medical_profile",
+    "app.application.medication_history.list_pending_external_corrections",
+    "app.application.medication_history.record_tracing_report",
+    "app.application.medication_history.record_tracing_report_response",
+    "app.application.medication_history.review_external_prescription_correction",
+    "app.application.medication_history.start_medication_history",
+    "app.application.medication_history.update_medication_history_draft",
+    "app.application.medication_history.verify_statutory_record",
+    "app.application.medicine_catalog.get_medicine",
+    "app.application.medicine_catalog.import_yj_catalog",
+    "app.application.medicine_catalog.register_medicine",
+    "app.application.patient.change_patient_birth_date",
+    "app.application.patient.change_patient_heading",
+    "app.application.patient.change_patient_names",
+    "app.application.patient.change_patient_profile",
+    "app.application.patient.deactivate_patient",
+    "app.application.patient.deactivate_patient_external_identifier",
+    "app.application.patient.get_patient",
+    "app.application.patient.get_patient_external_identifier",
+    "app.application.patient.get_patient_heading",
+    "app.application.patient.list_patient_external_identifiers",
+    "app.application.patient.merge_patients",
+    "app.application.patient.reactivate_patient",
+    "app.application.patient.register_patient",
+    "app.application.patient.register_patient_external_identifier",
+    "app.application.prescription.audit_interactions",
+    "app.application.prescription.cancel_prescription",
+    "app.application.prescription.get_prescription",
+    "app.application.prescription.ready_for_dispensing",
+    "app.application.prescription.register_prescription",
+    "app.application.prescription.resolve_inquiry",
+    "app.application.prescription.start_inquiry",
+    "app.application.reception.associate_reception_medication_history",
+    "app.application.staff.activate_staff",
+    "app.application.staff.assign_concurrent_store",
+    "app.application.staff.change_staff_job_title",
+    "app.application.staff.change_staff_names",
+    "app.application.staff.deactivate_staff",
+    "app.application.staff.get_staff",
+    "app.application.staff.list_staffs",
+    "app.application.staff.register_staff",
+    "app.application.staff.remove_concurrent_store",
+    "app.application.staff.transfer_home_store",
+    "app.application.staff.update_qualifications",
+    "app.application.store.business_hours",
+    "app.application.store.change_insurance_pharmacy_number",
+    "app.application.store.change_store_address",
+    "app.application.store.change_store_code",
+    "app.application.store.change_store_contact_info",
+    "app.application.store.change_store_name",
+    "app.application.store.get_store",
+    "app.application.store.list_stores",
+    "app.application.store.management",
+    "app.application.store.register_store",
+]
+
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

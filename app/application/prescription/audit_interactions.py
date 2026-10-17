@@ -8,11 +8,11 @@ from dataclasses import dataclass
 from app.application.access_control.models import ActorContext
 from app.application.access_control.policy import AuthorizationService
 from app.application.common.exceptions import AuthorizationError
-from app.domain.medicine_catalog.primitives import YjCode
 from app.domain.prescription.interaction_audit import (
     DrugInteractionAuditService,
     DrugInteractionDataSource,
 )
+from app.domain.prescription.reference_primitives import YjCode
 
 
 @dataclass(frozen=True, kw_only=True)

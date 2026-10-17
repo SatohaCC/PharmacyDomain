@@ -2,8 +2,8 @@
 
 from app.application.common.input_normalization import to_optional_text
 from app.application.store.exceptions import StoreNotFoundError
-from app.domain.corporate.primitives import CorporateId
-from app.domain.store.primitives import StoreId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.store.identifiers import StoreId
 from app.domain.store.repository import StoreRepository
 from app.domain.store.store import Store
 

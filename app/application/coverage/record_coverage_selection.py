@@ -14,7 +14,7 @@ from app.application.coverage.reference import (
     PatientReferenceBoundary,
     StoreReferenceBoundary,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.coverage_selection_record import CoverageSelectionRecord
 from app.domain.coverage.primitives import (
     CoverageAppliedOn,
@@ -22,8 +22,8 @@ from app.domain.coverage.primitives import (
     OperatorPrincipalId,
 )
 from app.domain.coverage.repository import CoverageSelectionRecordRepository
-from app.domain.patient.primitives import PatientId
-from app.domain.store.primitives import StoreId
+from app.domain.patient.identifiers import PatientId
+from app.domain.store.identifiers import StoreId
 
 
 @dataclass(frozen=True, kw_only=True)

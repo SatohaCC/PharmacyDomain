@@ -10,11 +10,8 @@ from app.application.corporate.list_corporates import (
     ListCorporatesUseCase,
 )
 from app.domain.corporate.corporate import Corporate
-from app.domain.corporate.primitives import (
-    CorporateId,
-    CorporateName,
-    CorporateRepresentativeName,
-)
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.corporate.primitives import CorporateName, CorporateRepresentativeName
 from app.domain.foundation.exceptions import DomainValidationError
 from tests.fakes.in_memory_corporate_search_repository import (
     InMemoryCorporateSearchRepository,

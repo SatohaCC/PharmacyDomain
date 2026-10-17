@@ -6,7 +6,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Self
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.entity import AggregateRoot
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.patient.exceptions import (
@@ -14,6 +14,7 @@ from app.domain.patient.exceptions import (
     PatientStateConflictError,
 )
 from app.domain.patient.heading import PatientHeadingContent, PatientHeadingRevision
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.lifecycle import (
     PatientStatus,
     PatientStatusChange,
@@ -23,7 +24,6 @@ from app.domain.patient.primitives import (
     PatientAddress,
     PatientBirthDate,
     PatientGenderCode,
-    PatientId,
     PatientNumber,
     PatientPhoneNumber,
     PatientPostalCode,

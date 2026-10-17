@@ -34,8 +34,9 @@ from app.application.reception.associate_reception_medication_history import (
     AssociateReceptionMedicationHistoryCommand,
     AssociateReceptionMedicationHistoryUseCase,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing.primitives import DispensingId, DispensingProcessStatus
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.identifiers import DispensingId
+from app.domain.dispensing.primitives import DispensingProcessStatus
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
@@ -59,29 +60,24 @@ from app.domain.medication_history.value_objects import (
     HandbookStatus,
     ResidualDrugRecord,
 )
-from app.domain.medicine_catalog.primitives import (
-    MedicineCode,
-    MedicineCodeType,
-    MedicineName,
-)
 from app.domain.patient.external_identifier import PatientExternalIdentifier
 from app.domain.patient.heading import PatientHeadingContent, PatientHeadingText
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.primitives import (
     ExternalPatientId,
     ExternalSystemName,
     PatientAddress,
-    PatientId,
 )
+from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.prescription.primitives import (
     PrescriptionDocumentNumber,
-    PrescriptionId,
     PrescriptionStatus,
 )
-from app.domain.reception.primitives import ReceptionId
+from app.domain.reception.identifiers import ReceptionId
 from app.domain.reception.reception import ReceptionSourceData
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 from tests.application.access_helpers import create_vendor_corporate_access_for
 from tests.application.integration.nsips.helpers import (
     NsipsFixture,
@@ -484,11 +480,13 @@ async def test_NSIPS数量のみ訂正_下書き薬歴あり_薬品と関連ID�
     prescribed = prescribed_rp.medicines[0]
     dispensed = dispensed_rp.medicines[0]
     assert prescribed.line_number.value == dispensed.line_number.value == 1
-    assert prescribed.identifier.code_type == MedicineCodeType.RECEIPT
-    assert dispensed.identifier.code_type == MedicineCodeType.RECEIPT
-    assert prescribed.identifier.code == MedicineCode("610406001")
-    assert dispensed.identifier.code == MedicineCode("610406001")
-    assert prescribed.name == dispensed.name == MedicineName("アムロジピン")
+    assert prescribed.identifier.code_type.value == "receipt"
+    assert dispensed.identifier.code_type.value == "receipt"
+    assert prescribed.identifier.code is not None
+    assert prescribed.identifier.code.value == "610406001"
+    assert dispensed.identifier.code is not None
+    assert dispensed.identifier.code.value == "610406001"
+    assert prescribed.name.value == dispensed.name.value == "アムロジピン"
     assert dispensed.substitution is None
 
 

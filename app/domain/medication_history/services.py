@@ -1,16 +1,14 @@
-"""服薬指導記録（薬歴）および調剤録の記載充足に関わるドメインサービス。
+"""薬歴の資格要件と調剤録の記載充足を判定するドメインサービス。
 
-無状態（Stateless）であり、本物の薬歴レコードや調剤プロセス、資格情報等を引数で受け取る。
-薬歴単独では判定できない服薬指導者の薬剤師資格や、調剤録としての法定要件充足などを検証する。
-"""
+薬歴自身の記録と、境界で固定された調剤・処方・患者・資格の事実を使用し、
+他コンテキストの集約実装は参照しない。"""
 
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
 from typing import Final
 
-from app.domain.dispensing.dispensing_process import DispensingProcess
-from app.domain.dispensing.primitives import DispensingProcessStatus
+from app.domain.medication_history.dispensing_source import DispensingSource
 from app.domain.medication_history.exceptions import (
     CounselorQualificationError,
     MedicationHistoryAlreadyExistsError,
@@ -28,16 +26,17 @@ from app.domain.medication_history.primitives import (
     StatutoryItemState,
     StatutoryRecordBlocker,
 )
+from app.domain.medication_history.reference_primitives import DispensingProcessStatus
 from app.domain.medication_history.value_objects import (
+    PharmacistQualification,
     StatutoryItemAssessment,
     StatutoryRecordSource,
     StatutoryRecordSufficiency,
 )
-from app.domain.staff.primitives import PharmacistProfile, StaffQualifications
 
 #: 記載事項1つの充足状態を判定する関数の形。
 StatutoryItemResolver = Callable[
-    [MedicationHistoryRecord, DispensingProcess, StatutoryRecordSource],
+    [MedicationHistoryRecord, DispensingSource, StatutoryRecordSource],
     StatutoryItemState,
 ]
 
@@ -48,16 +47,16 @@ class CounselorQualificationService:
     薬剤師法第25条の2は情報の提供及び指導の義務を薬剤師に課している。
     薬剤師資格の有無はスタッフ側の管理情報であり、服薬指導記録（薬歴）側には
     指導者IDのみを保持しているため、Application層経由で取得した本物の
-    資格情報（StaffQualifications）を本サービスが受け取って検証する。
+    資格情報（PharmacistQualification）を本サービスが受け取って検証する。
     """
 
-    def ensure_pharmacist(self, qualifications: StaffQualifications) -> None:
+    def ensure_pharmacist(self, qualifications: PharmacistQualification) -> None:
         """薬剤師資格を保有していることを検証する。
 
         Raises:
             CounselorQualificationError: 薬剤師資格が無い場合。
         """
-        if not qualifications.has(PharmacistProfile):
+        if not qualifications.has_pharmacist:
             raise CounselorQualificationError()
 
 
@@ -127,7 +126,7 @@ def _recorded_if(condition: bool) -> StatutoryItemState:
 
 def _assess_patient_name_and_age(
     record: MedicationHistoryRecord,
-    dispensing: DispensingProcess,
+    dispensing: DispensingSource,
     source: StatutoryRecordSource,
 ) -> StatutoryItemState:
     """第一号。氏名は必須項目だが、生年月日は任意なので年齢を書けないことがある。"""
@@ -137,7 +136,7 @@ def _assess_patient_name_and_age(
 
 def _assess_medicine_name_and_amount(
     record: MedicationHistoryRecord,
-    dispensing: DispensingProcess,
+    dispensing: DispensingSource,
     source: StatutoryRecordSource,
 ) -> StatutoryItemState:
     """第二号。調剤した剤と薬品明細の存在は調剤集約の不変条件が保証する。"""
@@ -150,7 +149,7 @@ def _assess_medicine_name_and_amount(
 
 def _assess_dispensed_and_counseled_date(
     record: MedicationHistoryRecord,
-    dispensing: DispensingProcess,
+    dispensing: DispensingSource,
     source: StatutoryRecordSource,
 ) -> StatutoryItemState:
     """第三号。調剤日と指導日はどちらも必須項目なので、型が存在を保証する。
@@ -167,7 +166,7 @@ def _assess_dispensed_and_counseled_date(
 
 def _assess_dispensed_quantity(
     record: MedicationHistoryRecord,
-    dispensing: DispensingProcess,
+    dispensing: DispensingSource,
     source: StatutoryRecordSource,
 ) -> StatutoryItemState:
     """第四号。剤ごとの調剤数量は必須項目。"""
@@ -180,7 +179,7 @@ def _assess_dispensed_quantity(
 
 def _assess_pharmacist_names(
     record: MedicationHistoryRecord,
-    dispensing: DispensingProcess,
+    dispensing: DispensingSource,
     source: StatutoryRecordSource,
 ) -> StatutoryItemState:
     """第五号。調剤した薬剤師と指導した薬剤師の**両方**の氏名が要る。
@@ -200,7 +199,7 @@ def _assess_pharmacist_names(
 
 def _assess_counseling_summary(
     record: MedicationHistoryRecord,
-    dispensing: DispensingProcess,
+    dispensing: DispensingSource,
     source: StatutoryRecordSource,
 ) -> StatutoryItemState:
     """第六号。読まれるのは追記後の実効SOAPなので、そちらで判定する。"""
@@ -210,7 +209,7 @@ def _assess_counseling_summary(
 
 def _assess_prescription_issued_date(
     record: MedicationHistoryRecord,
-    dispensing: DispensingProcess,
+    dispensing: DispensingSource,
     source: StatutoryRecordSource,
 ) -> StatutoryItemState:
     """第七号。処方箋の交付日は必須項目。"""
@@ -220,7 +219,7 @@ def _assess_prescription_issued_date(
 
 def _assess_prescriber_name(
     record: MedicationHistoryRecord,
-    dispensing: DispensingProcess,
+    dispensing: DispensingSource,
     source: StatutoryRecordSource,
 ) -> StatutoryItemState:
     """第八号。処方医の漢字氏名は必須項目。"""
@@ -230,7 +229,7 @@ def _assess_prescriber_name(
 
 def _assess_medical_institution_location(
     record: MedicationHistoryRecord,
-    dispensing: DispensingProcess,
+    dispensing: DispensingSource,
     source: StatutoryRecordSource,
 ) -> StatutoryItemState:
     """第九号。名称は必須だが**所在地は任意項目**なので、実際に欠けうる。"""
@@ -243,7 +242,7 @@ def _assess_medical_institution_location(
 
 def _assess_change_and_inquiry_detail(
     record: MedicationHistoryRecord,
-    dispensing: DispensingProcess,
+    dispensing: DispensingSource,
     source: StatutoryRecordSource,
 ) -> StatutoryItemState:
     """第十号（第15条第一号・第二号）。3値すべてが起きる唯一の記載事項。
@@ -311,7 +310,7 @@ class StatutoryDispensingRecordService:
     def verify(
         self,
         record: MedicationHistoryRecord,
-        dispensing: DispensingProcess,
+        dispensing: DispensingSource,
         source: StatutoryRecordSource,
     ) -> StatutoryRecordSufficiency:
         """記載事項ごとの充足状態と、代替を妨げる要因を判定する。
@@ -336,7 +335,7 @@ class StatutoryDispensingRecordService:
     def _ensure_same_subject(
         self,
         record: MedicationHistoryRecord,
-        dispensing: DispensingProcess,
+        dispensing: DispensingSource,
         source: StatutoryRecordSource,
     ) -> None:
         """薬歴・調剤・処方原本が同じ1件の調剤を指していることを保証する。
@@ -348,7 +347,7 @@ class StatutoryDispensingRecordService:
         処方箋控え等から判定されるため、照合が漏れると別人の情報を根拠にしてしまう危険を防ぐ。
         """
         if (
-            record.dispensing_id != dispensing.id
+            record.dispensing_id != dispensing.dispensing_id
             or record.corporate_id != dispensing.corporate_id
             or record.patient_id != dispensing.patient_id
             or record.prescription_id != dispensing.prescription_id
@@ -360,7 +359,7 @@ class StatutoryDispensingRecordService:
     def _blockers(
         self,
         record: MedicationHistoryRecord,
-        dispensing: DispensingProcess,
+        dispensing: DispensingSource,
     ) -> tuple[StatutoryRecordBlocker, ...]:
         """記載事項とは別軸で、調剤録の代替を妨げる要因を並べる。
 

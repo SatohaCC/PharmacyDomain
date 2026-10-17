@@ -16,12 +16,12 @@ from datetime import timedelta
 import pytest
 
 from app.application.access_control.models import ResolvedActorContext
+from app.dev_main import build_actor_provider
 from app.domain.corporate.primitives import CorporateStatus
 from app.domain.identity.primitives import AccountStatus
 from app.domain.store.lifecycle import StoreStatus
 from app.domain.store.manager_assignment import ManagerAssignmentStatus
 from app.infrastructure.postgres.connection import PostgresConfigurationError
-from app.presentational.dev_main import build_actor_provider
 from tools.seed_dev_data import (
     SeedData,
     build_seed_data,

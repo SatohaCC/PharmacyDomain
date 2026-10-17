@@ -15,11 +15,11 @@ from app.application.patient.register_patient_external_identifier import (
     RegisterPatientExternalIdentifierCommand,
     RegisterPatientExternalIdentifierUseCase,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.exceptions import PatientExternalIdentifierAlreadyExistsError
 from app.domain.patient.patient import Patient
 from app.domain.shared.person_name import PersonNames
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.factories.store_factory import create_store
 from tests.fakes.in_memory_patient_repository import (

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
-from app.domain.dispensing.primitives import DispensingId
-from app.domain.prescription.primitives import PrescriptionId
+from app.domain.dispensing.identifiers import DispensingId
+from app.domain.prescription.identifiers import PrescriptionId
 
 
 class DispensingProcessRepository(Protocol):

@@ -3,7 +3,7 @@
 from dataclasses import dataclass, replace
 
 from app.domain.foundation.entity import AggregateRoot
-from app.domain.identity.primitives import AccountPersonId
+from app.domain.shared.actor import AccountPersonId
 from app.domain.shared.person_name import PersonNames
 
 

@@ -25,9 +25,11 @@ from app.application.corporate.list_corporates import (
 from app.application.corporate.register_corporate import RegisterCorporateCommand
 from app.presentational.dependencies import CorporateUseCasesDep, get_actor_context
 from app.presentational.errors import error_responses
+from app.presentational.routing import ApplicationRoute
 from app.presentational.schemas import RegisteredIdResponse, RequestModel
 
 router = APIRouter(
+    route_class=ApplicationRoute,
     prefix="/corporates",
     tags=["corporate"],
     # ルータ単位で認証を要求する。ルート関数の引数に頼ると、新しいルートを

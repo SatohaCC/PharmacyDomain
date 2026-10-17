@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.category_catalog import (
     MedicationHistoryCategoryCatalog,
 )
@@ -14,8 +14,8 @@ from app.domain.medication_history.exceptions import (
     MajorCategoryNotFoundError,
     RequiredCategoryMissingError,
 )
+from app.domain.medication_history.identifiers import CategoryCatalogId
 from app.domain.medication_history.primitives import (
-    CategoryCatalogId,
     MajorCategoryCode,
     MajorCategoryName,
     MediumCategoryCode,

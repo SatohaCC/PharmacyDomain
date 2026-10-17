@@ -4,8 +4,8 @@ from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.common.exceptions import NotFoundError
 from app.application.identity.dto import InvitationViewDto
-from app.domain.corporate.primitives import CorporateId
-from app.domain.identity.primitives import UserInvitationId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.identity.identifiers import UserInvitationId
 from app.domain.identity.repository import UserInvitationRepository
 
 

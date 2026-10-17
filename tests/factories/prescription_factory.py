@@ -10,15 +10,8 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from app.domain.corporate.primitives import CorporateId
-from app.domain.medicine_catalog.primitives import (
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
-    MedicineName,
-    MedicineUnit,
-)
-from app.domain.patient.primitives import PatientId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.identifiers import PatientId
 from app.domain.prescription.dosage import (
     DosageCodeType,
     DosageInstruction,
@@ -53,6 +46,13 @@ from app.domain.prescription.primitives import (
     PrescriptionValidTo,
     RpNumber,
 )
+from app.domain.prescription.reference_primitives import (
+    MedicineCode,
+    MedicineCodeType,
+    MedicineName,
+    MedicineUnit,
+)
+from app.domain.prescription.reference_values import MedicineIdentifier
 from app.domain.prescription.value_objects import (
     DepartmentInfo,
     GenericSubstitutionRestriction,
@@ -64,8 +64,8 @@ from app.domain.prescription.value_objects import (
 )
 from app.domain.shared.person_name import PersonName, PersonNameKana
 from app.domain.shared.public_expense import PublicExpenseBurden
-from app.domain.staff.primitives import StaffId
-from app.domain.store.primitives import StoreId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId
 
 ISSUED_ON = date(2026, 8, 24)
 VALID_TO = date(2026, 8, 27)
@@ -131,19 +131,19 @@ def create_dosage_instruction(name: str = "1日3回毎食後") -> DosageInstruct
 def create_medicine(
     *,
     line_number: int = 1,
-    code_type: MedicineCodeType = MedicineCodeType.YJ,
+    code_type: str = MedicineCodeType.YJ,
     code: str | None = "2171022F1029",
     name: str = "ノルバスク錠２．５ｍｇ",
     amount: str = "3",
     unit: str = "錠",
     burden: PublicExpenseBurden | None = None,
-    restriction: GenericSubstitutionRestrictionType | None = None,
+    restriction: str | None = None,
 ) -> PrescriptionMedicine:
     """処方薬品の1明細を組み立てる。"""
     return PrescriptionMedicine(
         line_number=MedicineLineNumber(line_number),
         identifier=MedicineIdentifier(
-            code_type=code_type,
+            code_type=MedicineCodeType(code_type),
             code=MedicineCode(code) if code is not None else None,
         ),
         name=MedicineName(name),
@@ -151,7 +151,9 @@ def create_medicine(
         unit=MedicineUnit(unit),
         public_expense_burden=burden,
         substitution_restriction=(
-            GenericSubstitutionRestriction(restriction_type=restriction)
+            GenericSubstitutionRestriction(
+                restriction_type=GenericSubstitutionRestrictionType(restriction)
+            )
             if restriction is not None
             else None
         ),
@@ -232,7 +234,7 @@ def start_inquiry(
 
 def create_response(
     *,
-    result_type: InquiryResultType = InquiryResultType.UNCHANGED,
+    result_type: str = InquiryResultType.UNCHANGED,
     content: str = "処方どおりで問題ない旨の回答を得た。",
     responded_by: str = "佐藤 一郎",
 ) -> PrescriberResponse:
@@ -240,6 +242,6 @@ def create_response(
     return PrescriberResponse(
         responded_by=PrescriberName(responded_by),
         responded_at=create_inquiry_timestamp(datetime(2026, 8, 24, 2, 0, tzinfo=UTC)),
-        result_type=result_type,
+        result_type=InquiryResultType(result_type),
         content=InquiryResponseContent(content),
     )

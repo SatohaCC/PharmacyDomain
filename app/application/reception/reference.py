@@ -5,11 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing.primitives import DispensingId
-from app.domain.medication_history.primitives import MedicationHistoryRecordId
-from app.domain.patient.primitives import PatientId
-from app.domain.prescription.primitives import PrescriptionId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.identifiers import DispensingId
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
+from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.identifiers import PrescriptionId
 
 
 @dataclass(frozen=True, kw_only=True)

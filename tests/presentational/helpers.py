@@ -18,10 +18,23 @@ from app.application.composition.coverage_references import (
     CoveragePatientReferenceAdapter,
     CoverageStoreReferenceAdapter,
 )
+from app.application.composition.organization_snapshot_mapping import (
+    ManagerStaffAdapter,
+    StaffStoreAdapter,
+)
 from app.application.composition.reception_medication_history import (
     ReceptionMedicationHistoryAssociationAdapter,
 )
 from app.application.composition.staff_person_adapter import StaffPersonAdapter
+from app.application.composition.use_case_bundles import (
+    CorporateUseCases,
+    CoverageUseCases,
+    MedicineCatalogUseCases,
+    PatientUseCases,
+    ReceptionUseCases,
+    StaffUseCases,
+    StoreUseCases,
+)
 from app.application.corporate.change_corporate_name import ChangeCorporateNameUseCase
 from app.application.corporate.change_corporate_status import (
     ChangeCorporateStatusUseCase,
@@ -116,10 +129,12 @@ from app.application.store.management import (
 )
 from app.application.store.register_store import RegisterStoreUseCase
 from app.domain.corporate.services import CorporateNameUniquenessService
-from app.domain.coverage.combination import CoverageSelectionService
-from app.domain.coverage.services import PatientCoverageConflictService
-from app.domain.identity.primitives import AccountPersonId, UserAccountId
+from app.domain.coverage.services import (
+    CoverageSelectionService,
+    PatientCoverageConflictService,
+)
 from app.domain.medicine_catalog.services import MedicineEffectivePeriodConflictService
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.services import (
     StaffCodeUniquenessService,
     StaffStoreAssignmentService,
@@ -128,17 +143,6 @@ from app.domain.store.services import (
     InsurancePharmacyNumberUniquenessService,
     StoreCodeUniquenessService,
     StoreNameUniquenessService,
-)
-from app.infrastructure.di.bundles.medicine_catalog import MedicineCatalogUseCases
-from app.infrastructure.di.bundles.organization import (
-    CorporateUseCases,
-    StaffUseCases,
-    StoreUseCases,
-)
-from app.infrastructure.di.bundles.patient_care import (
-    CoverageUseCases,
-    PatientUseCases,
-    ReceptionUseCases,
 )
 from tests.application.staff.access_revocation_helpers import (
     create_access_revocation,
@@ -240,7 +244,7 @@ def create_store_use_cases(
         ),
         manage_manager=ManageStoreManagerUseCase(
             repository,
-            InMemoryStaffRepository(),
+            ManagerStaffAdapter(InMemoryStaffRepository()),
             InMemoryStoreManagerAssignmentRepository(),
             StaffPersonAdapter(InMemoryStaffPersonLinkRepository()),
             access,
@@ -275,7 +279,7 @@ def create_staff_use_cases(
     assignment = StaffStoreAssignmentService()
     return StaffUseCases(
         register=RegisterStaffUseCase(
-            staffs, stores, code_uniqueness, assignment, access
+            staffs, StaffStoreAdapter(stores), code_uniqueness, assignment, access
         ),
         get=GetStaffUseCase(staffs, access, clock),
         list_by_corporate=ListStaffsUseCase(staffs, access),
@@ -283,13 +287,13 @@ def create_staff_use_cases(
         change_job_title=ChangeStaffJobTitleUseCase(staffs, access),
         update_qualifications=UpdateStaffQualificationsUseCase(staffs, access),
         transfer_home_store=TransferStaffHomeStoreUseCase(
-            staffs, stores, assignment, access
+            staffs, StaffStoreAdapter(stores), assignment, access
         ),
         assign_concurrent_store=AssignStaffConcurrentStoreUseCase(
-            staffs, stores, assignment, access
+            staffs, StaffStoreAdapter(stores), assignment, access
         ),
         remove_concurrent_store=RemoveStaffConcurrentStoreUseCase(
-            staffs, stores, assignment, access
+            staffs, StaffStoreAdapter(stores), assignment, access
         ),
         activate=ActivateStaffUseCase(staffs, access),
         deactivate=DeactivateStaffUseCase(staffs, access, create_access_revocation()),

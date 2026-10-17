@@ -23,16 +23,13 @@ from app.application.common.exceptions import (
 )
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.domain.care_event.event_definition import EventDefinition
-from app.domain.care_event.primitives import (
-    EventTypeId,
-    EventTypeName,
-    EventTypeStandardCode,
-)
-from app.domain.corporate.primitives import CorporateId
+from app.domain.care_event.identifiers import EventTypeId
+from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainError
-from app.domain.identity.primitives import AccountPersonId, UserAccountId
-from app.domain.staff.primitives import StaffId
-from app.domain.store.primitives import StoreId
+from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.fakes.in_memory_event_definition_repository import (
     InMemoryEventDefinitionRepository,

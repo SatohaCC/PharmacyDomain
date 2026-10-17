@@ -12,30 +12,32 @@ import pytest
 
 from app.application.coverage.exceptions import CoverageSelectionError
 from app.application.coverage.selection import CoverageSelectionBuilder
-from app.domain.corporate.primitives import CorporateId
-from app.domain.coverage.combination import CoverageSelectionService
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.patient_coverage import PatientCoverage
 from app.domain.coverage.primitives import (
     CoverageActivatedOn,
-    CoverageActivation,
     CoverageAppliedOn,
     CoverageBenefitRatio,
     CoverageCode,
     CoverageDeactivatedOn,
     CoverageInsuredType,
-    CoveragePeriod,
     CoveragePriority,
     CoverageSymbol,
     CoverageType,
     CoverageValidFrom,
     CoverageValidTo,
-    InsuranceCoverageDetails,
     InsurerNumber,
-    PublicExpenseCoverageDetails,
     PublicPayerNumber,
     PublicRecipientNumber,
 )
-from app.domain.patient.primitives import PatientId
+from app.domain.coverage.services import CoverageSelectionService
+from app.domain.coverage.value_objects import (
+    CoverageActivation,
+    CoveragePeriod,
+    InsuranceCoverageDetails,
+    PublicExpenseCoverageDetails,
+)
+from app.domain.patient.identifiers import PatientId
 from tests.fakes.in_memory_patient_coverage_repository import (
     InMemoryPatientCoverageRepository,
 )

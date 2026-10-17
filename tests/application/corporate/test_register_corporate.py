@@ -11,7 +11,7 @@ from app.application.corporate.register_corporate import (
     RegisterCorporateUseCase,
 )
 from app.domain.corporate.exceptions import CorporateNameAlreadyExistsError
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.corporate.services import CorporateNameUniquenessService
 from app.domain.foundation.exceptions import DomainValidationError
 from tests.application.access_helpers import create_vendor_corporate_access_for

@@ -6,8 +6,9 @@ from typing import cast
 import pytest
 
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.identity.primitives import AccountPersonId, AccountStatus, UserAccountId
+from app.domain.identity.primitives import AccountStatus
 from app.domain.identity.user_account import UserAccount
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 
 
 def test_本人のないアカウントを構築できない() -> None:

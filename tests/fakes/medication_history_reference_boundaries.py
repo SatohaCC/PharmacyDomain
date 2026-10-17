@@ -8,6 +8,9 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from app.application.composition.medication_history_snapshot_mapping import (
+    dispensing_source,
+)
 from app.application.medication_history.exceptions import (
     MedicationHistoryDispensingNotFoundError,
     MedicationHistoryPatientNotFoundError,
@@ -21,17 +24,20 @@ from app.application.medication_history.reference import (
     StatutoryRecordSourceBoundary,
     StoreReferenceBoundary,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
-from app.domain.dispensing.primitives import DispensingId
+from app.domain.dispensing.identifiers import DispensingId
+from app.domain.medication_history.dispensing_source import DispensingSource
 from app.domain.medication_history.value_objects import (
+    PharmacistQualification,
     StatutoryPharmacistName,
     StatutoryRecordSource,
 )
-from app.domain.patient.primitives import PatientId
-from app.domain.prescription.primitives import PrescriptionId
-from app.domain.staff.primitives import StaffId, StaffQualifications
-from app.domain.store.primitives import StoreId
+from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.staff.identifiers import StaffId
+from app.domain.staff.value_objects import PharmacistProfile, StaffQualifications
+from app.domain.store.identifiers import StoreId
 
 
 class FakeMedicationHistoryStoreReference(StoreReferenceBoundary):
@@ -70,12 +76,12 @@ class FakeDispensingSource(DispensingReferenceBoundary):
         *,
         corporate_id: CorporateId,
         dispensing_id: DispensingId,
-    ) -> DispensingProcess:
+    ) -> DispensingSource:
         """未登録・別法人の調剤セッションは404相当を送出する。"""
         process = self.processes.get((corporate_id, dispensing_id))
         if process is None:
             raise MedicationHistoryDispensingNotFoundError()
-        return process
+        return dispensing_source(process)
 
 
 class FakeCounselorQualificationSource(StaffQualificationBoundary):
@@ -99,7 +105,7 @@ class FakeCounselorQualificationSource(StaffQualificationBoundary):
         *,
         corporate_id: CorporateId,
         staff_id: StaffId,
-    ) -> StaffQualifications:
+    ) -> PharmacistQualification:
         """未登録・別法人のスタッフは404相当を送出する。
 
         資格を持たないだけのスタッフは在籍しているので例外にしない。
@@ -107,7 +113,9 @@ class FakeCounselorQualificationSource(StaffQualificationBoundary):
         qualifications = self.qualifications.get((corporate_id, staff_id))
         if qualifications is None:
             raise MedicationHistoryStaffNotFoundError()
-        return qualifications
+        return PharmacistQualification(
+            has_pharmacist=qualifications.has(PharmacistProfile)
+        )
 
 
 class FakeStatutoryRecordSource(StatutoryRecordSourceBoundary):

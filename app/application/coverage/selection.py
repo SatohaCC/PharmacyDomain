@@ -7,13 +7,14 @@ from app.application.coverage.reference import (
     CoverageSelectionBoundary,
     CoverageValidityBoundary,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.coverage.combination import CoverageSelectionService
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.coverage_selection import CoverageSelection
-from app.domain.coverage.primitives import CoverageAppliedOn, PatientCoverageId
+from app.domain.coverage.identifiers import PatientCoverageId
+from app.domain.coverage.primitives import CoverageAppliedOn
 from app.domain.coverage.repository import PatientCoverageRepository
+from app.domain.coverage.services import CoverageSelectionService
 from app.domain.foundation.exceptions import DomainError
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
 
 
 class CoverageSelectionBuilder(CoverageSelectionBoundary, CoverageValidityBoundary):

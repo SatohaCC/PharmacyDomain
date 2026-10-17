@@ -56,7 +56,7 @@ from app.application.medication_history.inputs import (
 from app.application.medication_history.update_medication_history_draft import (
     UpdateMedicationHistoryDraftCommand,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.exceptions import (
     CounselorQualificationError,
     FinalizationDelayReasonRequiredError,
@@ -66,6 +66,7 @@ from app.domain.medication_history.exceptions import (
     MedicationHistoryNotFinalizedError,
     SoapContentRequiredError,
 )
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
@@ -77,13 +78,13 @@ from app.domain.medication_history.primitives import (
     FinalizationDelayReason,
     FinalizedTimestamp,
     FollowUpRecordedTimestamp,
-    MedicationHistoryRecordId,
     MedicationHistoryStatus,
 )
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
-from app.domain.reception.primitives import ReceptionId
-from app.domain.staff.primitives import StaffId, StaffQualifications
-from app.domain.store.primitives import StoreId
+from app.domain.reception.identifiers import ReceptionId
+from app.domain.staff.identifiers import StaffId
+from app.domain.staff.value_objects import StaffQualifications
+from app.domain.store.identifiers import StoreId
 from tests.application.medication_history.helpers import (
     MedicationHistoryFixture,
     create_fixture,

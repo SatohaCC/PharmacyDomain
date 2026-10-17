@@ -4,8 +4,8 @@ from app.application.access_control.store_access import (
     StoreOperation,
     StoreOperationBoundary,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.store.primitives import StoreId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.store.identifiers import StoreId
 
 
 class FakeMedicationHistoryStoreOperations(StoreOperationBoundary):

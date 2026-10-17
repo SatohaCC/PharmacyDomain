@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.store.exceptions import (
     StoreCodeAlreadyExistsError,
     StoreNameAlreadyExistsError,

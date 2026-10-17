@@ -28,7 +28,7 @@ from app.application.store.change_store_name import (
     ChangeStoreNamesCommand,
     ChangeStoreNamesUseCase,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.store.services import (
     InsurancePharmacyNumberUniquenessService,
     StoreCodeUniquenessService,

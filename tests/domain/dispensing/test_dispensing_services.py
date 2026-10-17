@@ -15,6 +15,7 @@ from typing import cast
 
 import pytest
 
+from app.application.composition.dispensing_snapshot_mapping import prescription_source
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.exceptions import (
     DispensedMedicineNotInPrescriptionError,
@@ -39,25 +40,29 @@ from app.domain.dispensing.primitives import (
     QuantityAdjustmentReason,
     SubstitutionCategory,
 )
+from app.domain.dispensing.reference_primitives import (
+    GenericSubstitutionRestrictionType,
+    InquiryNumber,
+    InquiryResultType,
+    MedicineCode,
+    MedicineCodeType,
+    MedicineName,
+)
+from app.domain.dispensing.reference_values import MedicineIdentifier
 from app.domain.dispensing.services import (
     REFILL_SCHEDULE_TOLERANCE_DAYS,
     DispensingConsistencyService,
     verify_substitution_restriction_table,
 )
-from app.domain.medicine_catalog.primitives import (
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
-    MedicineName,
-)
 from app.domain.prescription.prescription import Prescription
-from app.domain.prescription.primitives import (
-    GenericSubstitutionRestrictionType,
-    InquiryNumber,
-    InquiryResultType,
-    RefillCount,
-    SplitCount,
-    SplitIteration,
+from app.domain.prescription.primitives import InquiryNumber as RxInquiryNumber
+from app.domain.prescription.primitives import RefillCount, SplitCount, SplitIteration
+from app.domain.prescription.reference_primitives import MedicineCode as RxMedicineCode
+from app.domain.prescription.reference_primitives import (
+    MedicineCodeType as RxMedicineCodeType,
+)
+from app.domain.prescription.reference_values import (
+    MedicineIdentifier as RxMedicineIdentifier,
 )
 from app.domain.prescription.value_objects import (
     PrescriptionManagementInfo,
@@ -215,7 +220,9 @@ class Test剤と薬品の対応:
 
         # Act / Assert
         with pytest.raises(expected_error) as exc_info:
-            _SERVICE.ensure_rps_match_prescription(process, prescription)
+            _SERVICE.ensure_rps_match_prescription(
+                process, prescription_source(prescription)
+            )
         assert "RP番号: 2" in exc_info.value.message
         assert "薬品連番: 2" in exc_info.value.message
         assert asdict(prescription) == prescription_before
@@ -281,7 +288,9 @@ class Test剤と薬品の対応:
         process_before = asdict(process)
 
         # Act
-        _SERVICE.ensure_rps_match_prescription(process, prescription)
+        _SERVICE.ensure_rps_match_prescription(
+            process, prescription_source(prescription)
+        )
 
         # Assert
         assert asdict(prescription) == prescription_before
@@ -308,7 +317,9 @@ class Test剤と薬品の対応:
         process_before = asdict(process)
 
         # Act
-        _SERVICE.ensure_rps_match_prescription(process, prescription)
+        _SERVICE.ensure_rps_match_prescription(
+            process, prescription_source(prescription)
+        )
 
         # Assert
         assert asdict(prescription) == prescription_before
@@ -348,7 +359,9 @@ class Test剤と薬品の対応:
         process_before = asdict(process)
 
         # Act
-        _SERVICE.ensure_rps_match_prescription(process, prescription)
+        _SERVICE.ensure_rps_match_prescription(
+            process, prescription_source(prescription)
+        )
 
         # Assert
         assert asdict(prescription) == prescription_before
@@ -369,7 +382,8 @@ class Test剤と薬品の対応:
             code_type=code_type, code=MedicineCode("2171022F1029")
         )
         prescribed_medicine = replace(
-            create_medicine(name="原本の薬品名"), identifier=prescribed_identifier
+            create_medicine(name="原本の薬品名"),
+            identifier=prescription_identifier(prescribed_identifier),
         )
         prescription = create_prescription(
             rps=(create_rp(medicines=(prescribed_medicine,)),)
@@ -395,7 +409,9 @@ class Test剤と薬品の対応:
         process_before = asdict(process)
 
         # Act
-        _SERVICE.ensure_rps_match_prescription(process, prescription)
+        _SERVICE.ensure_rps_match_prescription(
+            process, prescription_source(prescription)
+        )
 
         # Assert
         assert asdict(prescription) == prescription_before
@@ -455,7 +471,9 @@ class Test剤と薬品の対応:
         process_before = asdict(process)
 
         # Act
-        _SERVICE.ensure_rps_match_prescription(process, prescription)
+        _SERVICE.ensure_rps_match_prescription(
+            process, prescription_source(prescription)
+        )
 
         # Assert
         assert asdict(prescription) == prescription_before
@@ -504,7 +522,9 @@ class Test剤と薬品の対応:
         process_before = asdict(process)
 
         # Act
-        _SERVICE.ensure_rps_match_prescription(process, prescription)
+        _SERVICE.ensure_rps_match_prescription(
+            process, prescription_source(prescription)
+        )
 
         # Assert
         assert asdict(prescription) == prescription_before
@@ -530,7 +550,9 @@ class Test剤と薬品の対応:
         process_before = asdict(process)
 
         # Act
-        _SERVICE.ensure_rps_match_prescription(process, prescription)
+        _SERVICE.ensure_rps_match_prescription(
+            process, prescription_source(prescription)
+        )
 
         # Assert
         assert asdict(prescription) == prescription_before
@@ -571,7 +593,9 @@ class Test剤と薬品の対応:
 
         # Act / Assert
         with pytest.raises(SubstitutionOriginalMismatchError):
-            _SERVICE.ensure_rps_match_prescription(process, prescription)
+            _SERVICE.ensure_rps_match_prescription(
+                process, prescription_source(prescription)
+            )
 
     @pytest.mark.parametrize(
         "other_rp_number",
@@ -617,7 +641,9 @@ class Test剤と薬品の対応:
 
         # Act / Assert
         with pytest.raises(SubstitutionOriginalMismatchError) as exc_info:
-            _SERVICE.ensure_rps_match_prescription(process, prescription)
+            _SERVICE.ensure_rps_match_prescription(
+                process, prescription_source(prescription)
+            )
         assert "RP番号: 1" in exc_info.value.message
         assert "薬品連番: 1" in exc_info.value.message
         assert asdict(prescription) == prescription_before
@@ -643,11 +669,13 @@ class Test剤と薬品の対応:
         # Arrange
         prescribed_medicine = replace(
             create_medicine(),
-            identifier=MedicineIdentifier(
-                code_type=prescribed_type,
-                code=None
-                if prescribed_type is MedicineCodeType.NONE
-                else MedicineCode("2171022F1029"),
+            identifier=prescription_identifier(
+                MedicineIdentifier(
+                    code_type=prescribed_type,
+                    code=None
+                    if prescribed_type is MedicineCodeType.NONE
+                    else MedicineCode("2171022F1029"),
+                )
             ),
         )
         prescription = create_prescription(
@@ -678,7 +706,9 @@ class Test剤と薬品の対応:
 
         # Act / Assert
         with pytest.raises(SubstitutionOriginalMismatchError):
-            _SERVICE.ensure_rps_match_prescription(process, prescription)
+            _SERVICE.ensure_rps_match_prescription(
+                process, prescription_source(prescription)
+            )
 
     @pytest.mark.parametrize(
         "category",
@@ -696,7 +726,7 @@ class Test剤と薬品の対応:
         prescription = _prescription()
         if category is SubstitutionCategory.INQUIRY_MODIFIED:
             prescription = start_inquiry(prescription).resolve_inquiry(
-                inquiry_number=InquiryNumber(1),
+                inquiry_number=RxInquiryNumber((InquiryNumber(1)).value),
                 response=create_response(result_type=InquiryResultType.MODIFIED),
             )
         process = create_dispensing(
@@ -718,7 +748,9 @@ class Test剤と薬品の対応:
 
         # Act / Assert
         with pytest.raises(SubstitutionOriginalMismatchError):
-            _SERVICE.ensure_rps_match_prescription(process, prescription)
+            _SERVICE.ensure_rps_match_prescription(
+                process, prescription_source(prescription)
+            )
 
     @pytest.mark.parametrize(
         "category",
@@ -736,7 +768,7 @@ class Test剤と薬品の対応:
         prescription = _prescription()
         if category is SubstitutionCategory.INQUIRY_MODIFIED:
             prescription = start_inquiry(prescription).resolve_inquiry(
-                inquiry_number=InquiryNumber(1),
+                inquiry_number=RxInquiryNumber((InquiryNumber(1)).value),
                 response=create_response(result_type=InquiryResultType.MODIFIED),
             )
         process = _substituted_dispensing(category)
@@ -744,7 +776,7 @@ class Test剤と薬品の対応:
         process_before = asdict(process)
 
         # Act
-        _SERVICE.ensure_consistent(process, prescription)
+        _SERVICE.ensure_consistent(process, prescription_source(prescription))
 
         # Assert
         assert asdict(prescription) == prescription_before
@@ -768,8 +800,10 @@ class Test剤と薬品の対応:
         # Arrange
         prescribed_medicine = replace(
             create_medicine(name="薬品A"),
-            identifier=MedicineIdentifier(
-                code_type=code_type, code=MedicineCode("2171022F1029")
+            identifier=prescription_identifier(
+                MedicineIdentifier(
+                    code_type=code_type, code=MedicineCode("2171022F1029")
+                )
             ),
         )
         prescription = create_prescription(
@@ -789,7 +823,9 @@ class Test剤と薬品の対応:
 
         # Act / Assert
         with pytest.raises(SubstitutionRequiredError):
-            _SERVICE.ensure_rps_match_prescription(process, prescription)
+            _SERVICE.ensure_rps_match_prescription(
+                process, prescription_source(prescription)
+            )
         assert asdict(prescription) == prescription_before
         assert asdict(process) == process_before
 
@@ -799,7 +835,9 @@ class Test剤と薬品の対応:
 
         # Act / Assert
         with pytest.raises(DispensedRpNotInPrescriptionError):
-            _SERVICE.ensure_rps_match_prescription(process, _prescription())
+            _SERVICE.ensure_rps_match_prescription(
+                process, prescription_source(_prescription())
+            )
 
     def test_処方箋に無い薬品連番を調剤すると_拒否される(self) -> None:
         # Arrange
@@ -813,7 +851,9 @@ class Test剤と薬品の対応:
 
         # Act / Assert
         with pytest.raises(DispensedMedicineNotInPrescriptionError):
-            _SERVICE.ensure_rps_match_prescription(process, _prescription())
+            _SERVICE.ensure_rps_match_prescription(
+                process, prescription_source(_prescription())
+            )
 
     def test_処方箋の一部だけ調剤しても_通る(self) -> None:
         """分割調剤・減数調剤では処方箋の一部だけを調剤しうる。
@@ -833,7 +873,9 @@ class Test剤と薬品の対応:
         process = create_dispensing(dispensed_rps=(create_dispensed_rp(rp_number=1),))
 
         # Act / Assert: 例外を送出しないこと自体が表明
-        _SERVICE.ensure_rps_match_prescription(process, prescription)
+        _SERVICE.ensure_rps_match_prescription(
+            process, prescription_source(prescription)
+        )
 
 
 class Test変更制限:
@@ -848,7 +890,9 @@ class Test変更制限:
 
         # Act / Assert
         with pytest.raises(SubstitutionNotAllowedError, match="後発品変更不可"):
-            _SERVICE.ensure_substitutions_are_allowed(process, prescription)
+            _SERVICE.ensure_substitutions_are_allowed(
+                process, prescription_source(prescription)
+            )
 
     def test_先発医薬品患者希望でも_後発品への変更は拒否される(self) -> None:
         """選定療養の患者希望も、後発品へ替えると希望に反する。"""
@@ -860,7 +904,9 @@ class Test変更制限:
 
         # Act / Assert
         with pytest.raises(SubstitutionNotAllowedError):
-            _SERVICE.ensure_substitutions_are_allowed(process, prescription)
+            _SERVICE.ensure_substitutions_are_allowed(
+                process, prescription_source(prescription)
+            )
 
     def test_後発品変更不可でも_剤形変更は禁じられない(self) -> None:
         """制限の種類ごとに禁じる代替が違う。一括で禁じる実装に倒さない。"""
@@ -871,7 +917,9 @@ class Test変更制限:
         )
 
         # Act / Assert: 例外を送出しないこと自体が表明
-        _SERVICE.ensure_substitutions_are_allowed(process, prescription)
+        _SERVICE.ensure_substitutions_are_allowed(
+            process, prescription_source(prescription)
+        )
 
     @pytest.mark.parametrize(
         "category",
@@ -890,14 +938,18 @@ class Test変更制限:
 
         # Act / Assert
         with pytest.raises(SubstitutionNotAllowedError):
-            _SERVICE.ensure_substitutions_are_allowed(process, prescription)
+            _SERVICE.ensure_substitutions_are_allowed(
+                process, prescription_source(prescription)
+            )
 
     def test_変更制限が無ければ_何も課さない(self) -> None:
         # Arrange
         process = _substituted_dispensing()
 
         # Act / Assert: 例外を送出しないこと自体が表明
-        _SERVICE.ensure_substitutions_are_allowed(process, _prescription())
+        _SERVICE.ensure_substitutions_are_allowed(
+            process, prescription_source(_prescription())
+        )
 
     def test_代替調剤していなければ_変更制限があっても通る(self) -> None:
         # Arrange
@@ -907,7 +959,9 @@ class Test変更制限:
         )
 
         # Act / Assert: 例外を送出しないこと自体が表明
-        _SERVICE.ensure_substitutions_are_allowed(process, prescription)
+        _SERVICE.ensure_substitutions_are_allowed(
+            process, prescription_source(prescription)
+        )
 
     def test_疑義照会による処方変更調剤は_変更不可の指示があっても許される(
         self,
@@ -920,7 +974,9 @@ class Test変更制限:
         )
 
         # Act / Assert: 例外を送出しないこと自体が表明
-        _SERVICE.ensure_substitutions_are_allowed(process, prescription)
+        _SERVICE.ensure_substitutions_are_allowed(
+            process, prescription_source(prescription)
+        )
 
     def test_全ての変更制限が_対応表に定義されている(self) -> None:
         """TC-CAT-02: 読み込み時チェックが空振りしていないことを、利用側からも確かめる。"""
@@ -968,7 +1024,9 @@ class Test調剤回数と処方箋の指示:
 
         # Act / Assert
         with pytest.raises(IterationExceedsInstructionError, match="通常処方箋"):
-            _SERVICE.ensure_iteration_is_within_instruction(process, _prescription())
+            _SERVICE.ensure_iteration_is_within_instruction(
+                process, prescription_source(_prescription())
+            )
 
     def test_リフィル3回の処方箋なら_3回目まで通る(self) -> None:
         # Arrange
@@ -980,7 +1038,7 @@ class Test調剤回数と処方箋の指示:
 
         # Act / Assert: 例外を送出しないこと自体が表明
         _SERVICE.ensure_iteration_is_within_instruction(
-            create_dispensing(iteration=3), prescription
+            create_dispensing(iteration=3), prescription_source(prescription)
         )
 
     def test_リフィル総使用回数を超えると_拒否される(self) -> None:
@@ -994,7 +1052,7 @@ class Test調剤回数と処方箋の指示:
         # Act / Assert
         with pytest.raises(IterationExceedsInstructionError, match="リフィル"):
             _SERVICE.ensure_iteration_is_within_instruction(
-                create_dispensing(iteration=4), prescription
+                create_dispensing(iteration=4), prescription_source(prescription)
             )
 
     def test_医師の分割指示なのに処方箋に指示が無いと_拒否される(self) -> None:
@@ -1005,7 +1063,9 @@ class Test調剤回数と処方箋の指示:
 
         # Act / Assert
         with pytest.raises(SplitInstructionMissingError):
-            _SERVICE.ensure_iteration_is_within_instruction(process, _prescription())
+            _SERVICE.ensure_iteration_is_within_instruction(
+                process, prescription_source(_prescription())
+            )
 
     def test_処方箋の分割回数を超えると_拒否される(self) -> None:
         """集約は注11の上限3回までしか見ない。処方箋が2分割なら3回目は不正。"""
@@ -1024,7 +1084,9 @@ class Test調剤回数と処方箋の指示:
 
         # Act / Assert
         with pytest.raises(IterationExceedsInstructionError, match="医師の分割指示"):
-            _SERVICE.ensure_iteration_is_within_instruction(process, prescription)
+            _SERVICE.ensure_iteration_is_within_instruction(
+                process, prescription_source(prescription)
+            )
 
     def test_合計分割回数が処方箋の指示を超えると_拒否される(self) -> None:
         """処方箋が2分割なのにレセコンから3分割で指示された場合は拒否する。"""
@@ -1045,7 +1107,9 @@ class Test調剤回数と処方箋の指示:
 
         # Act / Assert
         with pytest.raises(IterationExceedsInstructionError, match="全分割回数"):
-            _SERVICE.ensure_iteration_is_within_instruction(process, prescription)
+            _SERVICE.ensure_iteration_is_within_instruction(
+                process, prescription_source(prescription)
+            )
 
     def test_薬局判断の分割調剤は_処方箋に指示が無くても通る(self) -> None:
         """注9・注10 は薬局の判断であり、処方箋には現れない。"""
@@ -1055,7 +1119,9 @@ class Test調剤回数と処方箋の指示:
         )
 
         # Act / Assert: 例外を送出しないこと自体が表明
-        _SERVICE.ensure_iteration_is_within_instruction(process, _prescription())
+        _SERVICE.ensure_iteration_is_within_instruction(
+            process, prescription_source(_prescription())
+        )
 
 
 class Test1回目の調剤日:
@@ -1063,7 +1129,9 @@ class Test1回目の調剤日:
 
     def test_使用期間内なら_通る(self) -> None:
         # Arrange / Act / Assert: 例外を送出しないこと自体が表明
-        _SERVICE.ensure_schedule_is_valid(create_dispensing(), _prescription())
+        _SERVICE.ensure_schedule_is_valid(
+            create_dispensing(), prescription_source(_prescription())
+        )
 
     def test_使用期限当日は_通る(self) -> None:
         """使用期限は当日を含む。"""
@@ -1071,7 +1139,7 @@ class Test1回目の調剤日:
         process = create_dispensing(dispensed_on=date(2026, 8, 27))
 
         # Act / Assert: 例外を送出しないこと自体が表明
-        _SERVICE.ensure_schedule_is_valid(process, _prescription())
+        _SERVICE.ensure_schedule_is_valid(process, prescription_source(_prescription()))
 
     def test_使用期限の翌日は_拒否される(self) -> None:
         # Arrange
@@ -1079,7 +1147,9 @@ class Test1回目の調剤日:
 
         # Act / Assert
         with pytest.raises(DispensingOutsidePrescriptionPeriodError):
-            _SERVICE.ensure_schedule_is_valid(process, _prescription())
+            _SERVICE.ensure_schedule_is_valid(
+                process, prescription_source(_prescription())
+            )
 
     def test_交付日より前は_拒否される(self) -> None:
         # Arrange
@@ -1087,7 +1157,9 @@ class Test1回目の調剤日:
 
         # Act / Assert
         with pytest.raises(DispensingOutsidePrescriptionPeriodError):
-            _SERVICE.ensure_schedule_is_valid(process, _prescription())
+            _SERVICE.ensure_schedule_is_valid(
+                process, prescription_source(_prescription())
+            )
 
 
 class Test2回目以降の調剤日:
@@ -1106,7 +1178,9 @@ class Test2回目以降の調剤日:
 
         # Act / Assert: 例外を送出しないこと自体が表明
         _SERVICE.ensure_schedule_is_valid(
-            process, _prescription(), previous=_continuing_previous()
+            process,
+            prescription_source(_prescription()),
+            previous=_continuing_previous(),
         )
 
     @pytest.mark.parametrize("offset", [-8, 8])
@@ -1117,7 +1191,9 @@ class Test2回目以降の調剤日:
         # Act / Assert
         with pytest.raises(DispensingScheduleOutOfRangeError):
             _SERVICE.ensure_schedule_is_valid(
-                process, _prescription(), previous=_continuing_previous()
+                process,
+                prescription_source(_prescription()),
+                previous=_continuing_previous(),
             )
 
     def test_使用期限を過ぎていても_2回目以降は使用期間を課さない(self) -> None:
@@ -1127,7 +1203,9 @@ class Test2回目以降の調剤日:
 
         # Act / Assert: 使用期限（2026-08-27）を大きく過ぎていても通る
         _SERVICE.ensure_schedule_is_valid(
-            process, _prescription(), previous=_continuing_previous()
+            process,
+            prescription_source(_prescription()),
+            previous=_continuing_previous(),
         )
 
     def test_前回セッションが渡されないと_通さずに拒否される(self) -> None:
@@ -1137,7 +1215,9 @@ class Test2回目以降の調剤日:
 
         # Act / Assert
         with pytest.raises(PreviousDispensingUnknownError):
-            _SERVICE.ensure_schedule_is_valid(process, _prescription())
+            _SERVICE.ensure_schedule_is_valid(
+                process, prescription_source(_prescription())
+            )
 
     def test_前回が調剤終了なら_次の回はできない(self) -> None:
         # Arrange
@@ -1149,7 +1229,7 @@ class Test2回目以降の調剤日:
         # Act / Assert
         with pytest.raises(PreviousDispensingCompletedError):
             _SERVICE.ensure_schedule_is_valid(
-                process, _prescription(), previous=previous
+                process, prescription_source(_prescription()), previous=previous
             )
 
     def test_基準は投薬期間ではなく_記録された次回予定日(self) -> None:
@@ -1161,10 +1241,14 @@ class Test2回目以降の調剤日:
         # Act / Assert: 元の予定日ちょうどでは範囲外になる
         with pytest.raises(DispensingScheduleOutOfRangeError):
             _SERVICE.ensure_schedule_is_valid(
-                self._second(_NEXT_DATE), _prescription(), previous=previous
+                self._second(_NEXT_DATE),
+                prescription_source(_prescription()),
+                previous=previous,
             )
         _SERVICE.ensure_schedule_is_valid(
-            self._second(shifted), _prescription(), previous=previous
+            self._second(shifted),
+            prescription_source(_prescription()),
+            previous=previous,
         )
 
 
@@ -1181,7 +1265,7 @@ class Test入口からの一括検証:
 
         # Act / Assert
         with pytest.raises(DispensedRpNotInPrescriptionError):
-            _SERVICE.ensure_consistent(process, _prescription())
+            _SERVICE.ensure_consistent(process, prescription_source(_prescription()))
 
     def test_変更制限違反を_入口が検出する(self) -> None:
         # Arrange
@@ -1191,7 +1275,9 @@ class Test入口からの一括検証:
 
         # Act / Assert
         with pytest.raises(SubstitutionNotAllowedError):
-            _SERVICE.ensure_consistent(_substituted_dispensing(), prescription)
+            _SERVICE.ensure_consistent(
+                _substituted_dispensing(), prescription_source(prescription)
+            )
 
     def test_回数超過を_入口が検出する(self) -> None:
         # Arrange: リフィル総使用回数3回に対して4回目
@@ -1201,9 +1287,11 @@ class Test入口からの一括検証:
         with pytest.raises(IterationExceedsInstructionError):
             _SERVICE.ensure_consistent(
                 process,
-                _prescription(
-                    management_info=PrescriptionManagementInfo(
-                        refill=RefillInstruction(total_refill_count=RefillCount(3))
+                prescription_source(
+                    _prescription(
+                        management_info=PrescriptionManagementInfo(
+                            refill=RefillInstruction(total_refill_count=RefillCount(3))
+                        )
                     )
                 ),
                 previous=_continuing_previous(),
@@ -1215,11 +1303,13 @@ class Test入口からの一括検証:
 
         # Act / Assert
         with pytest.raises(DispensingOutsidePrescriptionPeriodError):
-            _SERVICE.ensure_consistent(process, _prescription())
+            _SERVICE.ensure_consistent(process, prescription_source(_prescription()))
 
     def test_すべて満たしていれば_通る(self) -> None:
         # Arrange / Act / Assert: 例外を送出しないこと自体が表明
-        _SERVICE.ensure_consistent(create_dispensing(), _prescription())
+        _SERVICE.ensure_consistent(
+            create_dispensing(), prescription_source(_prescription())
+        )
 
     def test_リフィル2回目も_すべて満たせば通る(self) -> None:
         # Arrange
@@ -1232,7 +1322,7 @@ class Test入口からの一括検証:
 
         # Act / Assert: 例外を送出しないこと自体が表明
         _SERVICE.ensure_consistent(
-            process, prescription, previous=_continuing_previous()
+            process, prescription_source(prescription), previous=_continuing_previous()
         )
 
 
@@ -1243,7 +1333,7 @@ class Test疑義照会と調剤の整合性:
         """TC-SRV-01: 処方箋にMODIFIEDの照会が存在し、調剤側がその連番を参照してINQUIRY_MODIFIED。"""
         # Arrange
         prescription = start_inquiry(_prescription()).resolve_inquiry(
-            inquiry_number=InquiryNumber(1),
+            inquiry_number=RxInquiryNumber((InquiryNumber(1)).value),
             response=create_response(result_type=InquiryResultType.MODIFIED),
         )
         process = create_dispensing(
@@ -1264,25 +1354,25 @@ class Test疑義照会と調剤の整合性:
         )
 
         # Act / Assert: 例外を送出しないこと自体が表明
-        _SERVICE.ensure_consistent(process, prescription)
+        _SERVICE.ensure_consistent(process, prescription_source(prescription))
 
     def test_処方変更を伴わない疑義照会があっても_通常調剤は検証を通る(self) -> None:
         """TC-SRV-02: 処方箋にUNCHANGEDの照会が存在し、調剤側は代替調剤なし（原本通り）。"""
         # Arrange
         prescription = start_inquiry(_prescription()).resolve_inquiry(
-            inquiry_number=InquiryNumber(1),
+            inquiry_number=RxInquiryNumber((InquiryNumber(1)).value),
             response=create_response(result_type=InquiryResultType.UNCHANGED),
         )
         process = create_dispensing()
 
         # Act / Assert: 例外を送出しないこと自体が表明
-        _SERVICE.ensure_consistent(process, prescription)
+        _SERVICE.ensure_consistent(process, prescription_source(prescription))
 
     def test_変更なし回答の疑義照会を根拠にした処方変更調剤は_拒否される(self) -> None:
         """TC-SRV-03: UNCHANGED回答の照会連番を根拠にINQUIRY_MODIFIEDを行うとInquiryNotAgreedError。"""
         # Arrange
         prescription = start_inquiry(_prescription()).resolve_inquiry(
-            inquiry_number=InquiryNumber(1),
+            inquiry_number=RxInquiryNumber((InquiryNumber(1)).value),
             response=create_response(result_type=InquiryResultType.UNCHANGED),
         )
         process = create_dispensing(
@@ -1304,13 +1394,13 @@ class Test疑義照会と調剤の整合性:
 
         # Act / Assert
         with pytest.raises(InquiryNotAgreedError):
-            _SERVICE.ensure_consistent(process, prescription)
+            _SERVICE.ensure_consistent(process, prescription_source(prescription))
 
     def test_処方削除回答の疑義照会を根拠にした処方変更調剤は_拒否される(self) -> None:
         """TC-SRV-04: DELETED回答の照会連番を根拠にINQUIRY_MODIFIEDを行うとInquiryNotAgreedError。"""
         # Arrange
         prescription = start_inquiry(_prescription()).resolve_inquiry(
-            inquiry_number=InquiryNumber(1),
+            inquiry_number=RxInquiryNumber((InquiryNumber(1)).value),
             response=create_response(result_type=InquiryResultType.DELETED),
         )
         process = create_dispensing(
@@ -1332,7 +1422,7 @@ class Test疑義照会と調剤の整合性:
 
         # Act / Assert
         with pytest.raises(InquiryNotAgreedError):
-            _SERVICE.ensure_consistent(process, prescription)
+            _SERVICE.ensure_consistent(process, prescription_source(prescription))
 
     def test_未回答の疑義照会を根拠にした処方変更調剤は_拒否される(self) -> None:
         """TC-SRV-05: response is Noneの照会連番を根拠にINQUIRY_MODIFIEDを行うとInquiryNotAgreedError。"""
@@ -1357,7 +1447,7 @@ class Test疑義照会と調剤の整合性:
 
         # Act / Assert
         with pytest.raises(InquiryNotAgreedError):
-            _SERVICE.ensure_consistent(process, prescription)
+            _SERVICE.ensure_consistent(process, prescription_source(prescription))
 
     def test_存在しない疑義照会連番を参照する代替調剤は_拒否される(self) -> None:
         """TC-SRV-06: 処方箋に存在しないinquiry_number(999)を参照するとInquiryReferenceNotInPrescriptionError。"""
@@ -1382,13 +1472,13 @@ class Test疑義照会と調剤の整合性:
 
         # Act / Assert
         with pytest.raises(InquiryReferenceNotInPrescriptionError):
-            _SERVICE.ensure_consistent(process, prescription)
+            _SERVICE.ensure_consistent(process, prescription_source(prescription))
 
     def test_疑義照会で処方変更が合意されている減数調剤は_検証を通る(self) -> None:
         """TC-SRV-07: 処方箋にMODIFIEDの照会が存在し、調剤側がINQUIRY_AGREEDで当該連番を参照。"""
         # Arrange
         prescription = start_inquiry(_prescription()).resolve_inquiry(
-            inquiry_number=InquiryNumber(1),
+            inquiry_number=RxInquiryNumber((InquiryNumber(1)).value),
             response=create_response(result_type=InquiryResultType.MODIFIED),
         )
         process = create_dispensing(
@@ -1405,7 +1495,7 @@ class Test疑義照会と調剤の整合性:
         )
 
         # Act / Assert: 例外を送出しないこと自体が表明
-        _SERVICE.ensure_consistent(process, prescription)
+        _SERVICE.ensure_consistent(process, prescription_source(prescription))
 
     def test_存在しない疑義照会連番を参照する減数調剤は_拒否される(self) -> None:
         """TC-SRV-08: 減数調剤INQUIRY_AGREEDで存在しない照会連番を参照するとInquiryReferenceNotInPrescriptionError。"""
@@ -1426,13 +1516,13 @@ class Test疑義照会と調剤の整合性:
 
         # Act / Assert
         with pytest.raises(InquiryReferenceNotInPrescriptionError):
-            _SERVICE.ensure_consistent(process, prescription)
+            _SERVICE.ensure_consistent(process, prescription_source(prescription))
 
     def test_変更なし回答の疑義照会を根拠にした減数調剤は_拒否される(self) -> None:
         """TC-SRV-09: UNCHANGED回答の照会連番を根拠にINQUIRY_AGREEDを行うとInquiryNotAgreedError。"""
         # Arrange
         prescription = start_inquiry(_prescription()).resolve_inquiry(
-            inquiry_number=InquiryNumber(1),
+            inquiry_number=RxInquiryNumber((InquiryNumber(1)).value),
             response=create_response(result_type=InquiryResultType.UNCHANGED),
         )
         process = create_dispensing(
@@ -1450,7 +1540,7 @@ class Test疑義照会と調剤の整合性:
 
         # Act / Assert
         with pytest.raises(InquiryNotAgreedError):
-            _SERVICE.ensure_consistent(process, prescription)
+            _SERVICE.ensure_consistent(process, prescription_source(prescription))
 
 
 def test_調剤日の既定値が_処方箋の使用期間内である() -> None:
@@ -1460,3 +1550,11 @@ def test_調剤日の既定値が_処方箋の使用期間内である() -> None
 
     # Assert
     assert prescription.period.includes(DISPENSED_ON)
+
+
+def prescription_identifier(value: MedicineIdentifier) -> RxMedicineIdentifier:
+    """テストの調剤入力を処方原本の独立した値として構成する。"""
+    return RxMedicineIdentifier(
+        code_type=RxMedicineCodeType(value.code_type.value),
+        code=RxMedicineCode(value.code.value) if value.code is not None else None,
+    )

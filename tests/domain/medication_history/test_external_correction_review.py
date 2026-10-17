@@ -19,8 +19,8 @@ from app.domain.medication_history.value_objects import (
     ExternalPrescriptionCorrection,
     SoapRecord,
 )
-from app.domain.prescription.primitives import PrescriptionId
-from app.domain.staff.primitives import StaffId
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.staff.identifiers import StaffId
 from tests.factories.medication_history_factory import (
     COUNSELED_AT,
     create_record,

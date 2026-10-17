@@ -5,8 +5,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from app.application.common.clock import Clock
 from app.application.composition.coverage_references import (
     CoveragePatientReferenceAdapter,
@@ -17,6 +15,11 @@ from app.application.composition.patient_references import (
 )
 from app.application.composition.reception_medication_history import (
     ReceptionMedicationHistoryAssociationAdapter,
+)
+from app.application.composition.use_case_bundles import (
+    CoverageUseCases,
+    PatientUseCases,
+    ReceptionUseCases,
 )
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.application.coverage.change_patient_coverage_period import (
@@ -66,8 +69,10 @@ from app.application.patient.register_patient_external_identifier import (
 from app.application.reception.associate_reception_medication_history import (
     AssociateReceptionMedicationHistoryUseCase,
 )
-from app.domain.coverage.combination import CoverageSelectionService
-from app.domain.coverage.services import PatientCoverageConflictService
+from app.domain.coverage.services import (
+    CoverageSelectionService,
+    PatientCoverageConflictService,
+)
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
@@ -76,26 +81,6 @@ from app.infrastructure.postgres.connection import PostgresUnitOfWork
 # --------------------------------------------------------------------------
 # 患者
 # --------------------------------------------------------------------------
-
-
-@dataclass(frozen=True, slots=True)
-class PatientUseCases:
-    """患者コンテキストのユースケース。"""
-
-    register: RegisterPatientUseCase
-    get: GetPatientUseCase
-    change_names: ChangePatientNamesUseCase
-    change_birth_date: ChangePatientBirthDateUseCase
-    deactivate: DeactivatePatientUseCase
-    reactivate: ReactivatePatientUseCase
-    merge: MergePatientsUseCase
-    register_external_identifier: RegisterPatientExternalIdentifierUseCase
-    get_external_identifier: GetPatientExternalIdentifierUseCase
-    list_external_identifiers: ListPatientExternalIdentifiersUseCase
-    deactivate_external_identifier: DeactivatePatientExternalIdentifierUseCase
-    change_profile: ChangePatientProfileUseCase
-    get_heading: GetPatientHeadingUseCase
-    change_heading: ChangePatientHeadingUseCase
 
 
 def build_patient_use_cases(
@@ -158,19 +143,6 @@ def build_patient_use_cases(
 # --------------------------------------------------------------------------
 
 
-@dataclass(frozen=True, slots=True)
-class CoverageUseCases:
-    """資格台帳コンテキストのユースケース。"""
-
-    register: RegisterPatientCoverageUseCase
-    get: GetPatientCoverageUseCase
-    list_by_patient: ListPatientCoveragesUseCase
-    change_period: ChangePatientCoveragePeriodUseCase
-    deactivate: DeactivatePatientCoverageUseCase
-    record_coverage_selection: RecordCoverageSelectionUseCase
-    get_last_coverage_selection: GetLastCoverageSelectionUseCase
-
-
 def build_coverage_use_cases(
     repositories: PostgresRepositorySet,
     corporate_access: CorporateAccessService,
@@ -219,13 +191,6 @@ def build_coverage_use_cases(
 # --------------------------------------------------------------------------
 # 受付
 # --------------------------------------------------------------------------
-
-
-@dataclass(frozen=True, slots=True)
-class ReceptionUseCases:
-    """受付コンテキストのユースケース。"""
-
-    associate_medication_history: AssociateReceptionMedicationHistoryUseCase
 
 
 def build_reception_use_cases(

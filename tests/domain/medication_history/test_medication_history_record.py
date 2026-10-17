@@ -56,7 +56,7 @@ from app.domain.medication_history.value_objects import (
     ResidualDrugRecord,
     SoapRecord,
 )
-from app.domain.staff.primitives import StaffId
+from app.domain.staff.identifiers import StaffId
 from tests.factories.medication_history_factory import (
     create_note,
     create_nsips_draft_record,
@@ -612,7 +612,7 @@ class Test確定プリミティブ:
 
     def test_tc02_確定日時に_タイムゾーンが無いと拒否される(self) -> None:
         # Arrange / Act / Assert
-        naive = datetime(2026, 9, 21, 10, 0, 0)  # noqa: DTZ001
+        naive = datetime(2026, 9, 21, 10, 0, 0)
         with pytest.raises(DomainValidationError):
             FinalizedTimestamp(naive)
 

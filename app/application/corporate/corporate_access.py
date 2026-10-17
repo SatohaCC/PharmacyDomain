@@ -9,7 +9,7 @@ from app.application.corporate.support import (
     load_corporate_or_raise,
 )
 from app.domain.corporate.corporate import Corporate
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.corporate.repository import CorporateRepository
 
 

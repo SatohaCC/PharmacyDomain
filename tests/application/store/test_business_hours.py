@@ -155,7 +155,7 @@ async def test_タイムゾーンの無い日時は拒否される() -> None:
     # Arrange
     store = create_store()
     stores = await _registered(store)
-    naive = datetime(2026, 9, 17, 12, 0)  # noqa: DTZ001
+    naive = datetime(2026, 9, 17, 12, 0)
 
     # Act & Assert
     with pytest.raises(DomainValidationError, match="タイムゾーンが必要"):

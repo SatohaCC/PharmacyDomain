@@ -5,22 +5,21 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Self
 
+from app.domain.care_event.identifiers import EventId, EventTypeId
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
-    EventId,
     EventOccurredTimestamp,
-    EventTypeId,
     EventTypeName,
     EventTypeStandardCode,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing.primitives import DispensingId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.foundation.entity import AggregateRoot
 from app.domain.foundation.exceptions import DomainError
-from app.domain.patient.primitives import PatientId
-from app.domain.prescription.primitives import PrescriptionId
-from app.domain.reception.primitives import ReceptionId
-from app.domain.store.primitives import StoreId
+from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.reception.identifiers import ReceptionId
+from app.domain.store.identifiers import StoreId
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)

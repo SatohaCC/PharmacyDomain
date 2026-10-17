@@ -2,24 +2,19 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime, time
 from typing import Self
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.entity import AggregateRoot
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.store.business_hours import BusinessHours, StoreOpeningState
+from app.domain.store.identifiers import StoreId
 from app.domain.store.lifecycle import (
     StoreStateConflictError,
     StoreStatus,
     StoreStatusChange,
     StoreStatusReason,
 )
-from app.domain.store.primitives import (
-    ContactInfo,
-    InsurancePharmacyNumber,
-    StoreAddress,
-    StoreCode,
-    StoreId,
-    StoreNames,
-)
+from app.domain.store.primitives import InsurancePharmacyNumber, StoreCode
+from app.domain.store.value_objects import ContactInfo, StoreAddress, StoreNames
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)

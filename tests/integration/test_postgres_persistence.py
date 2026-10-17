@@ -13,10 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.domain.corporate.corporate import Corporate
 from app.domain.corporate.exceptions import CorporateNameAlreadyExistsError
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.exceptions import DispensingAlreadyExistsError
 from app.domain.foundation.exceptions import ConcurrentModificationError
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
 from app.domain.prescription.exceptions import (
     PrescriptionDocumentNumberAlreadyExistsError,
 )

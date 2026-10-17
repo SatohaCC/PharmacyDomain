@@ -23,12 +23,12 @@ from app.domain.dispensing.exceptions import (
     SubstitutionOriginalMismatchError,
     SubstitutionRequiredError,
 )
-from app.domain.dispensing.primitives import DispensingId
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.prescription.prescription import Prescription
+from app.domain.store.identifiers import StoreManagerAssignmentId
 from app.domain.store.manager_assignment import (
     ManagerAssignmentPeriod,
     StoreManagerAssignment,
-    StoreManagerAssignmentId,
 )
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
@@ -64,7 +64,7 @@ async def setup_dispensing_content(
     clinical = await setup_clinical(engine, session_factory)
     state = getattr(clinical.app.state, STATE_ATTRIBUTE)
     assert isinstance(state, PresentationState)
-    assert state.composition_root is not None
+    assert isinstance(state.composition_root, PostgresCompositionRoot)
     actor = await state.actor_provider.authenticate(VALID_TOKEN)
     assert isinstance(actor, ResolvedActorContext)
     assert actor.staff_id is not None

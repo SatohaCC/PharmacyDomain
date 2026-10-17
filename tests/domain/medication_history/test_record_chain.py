@@ -5,7 +5,7 @@ from datetime import timedelta
 
 import pytest
 
-from app.domain.care_event.primitives import EventId
+from app.domain.care_event.identifiers import EventId
 from app.domain.medication_history.exceptions import (
     MedicationHistoryAlreadyFinalizedError,
 )

@@ -8,9 +8,9 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.application.access_control.models import ActorRole, ResolvedActorContext
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.lifecycle import PatientStatus
-from app.domain.patient.primitives import PatientId
 from app.presentational.dependencies import get_patient_use_cases
 from tests.factories.persistence_factory import create_patient
 from tests.fakes.stub_actor_context_provider import VALID_TOKEN

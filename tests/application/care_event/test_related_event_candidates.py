@@ -11,16 +11,15 @@ from app.application.care_event.list_related_candidates import (
     RelatedEventCandidateDto,
 )
 from app.domain.care_event.event import Event
+from app.domain.care_event.identifiers import EventId, EventTypeId
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
-    EventId,
     EventOccurredTimestamp,
-    EventTypeId,
     EventTypeName,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientId
-from app.domain.store.primitives import StoreId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.identifiers import PatientId
+from app.domain.store.identifiers import StoreId
 from tests.application.care_event.helpers import EventFixture, create_fixture
 
 

@@ -8,9 +8,9 @@ from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.common.optional_conversion import unwrap
 from app.application.patient.support import load_patient_or_raise
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.heading import PatientHeadingRevision
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.repository import PatientRepository
 
 

@@ -11,11 +11,11 @@ from app.application.staff.update_qualifications import UpdateStaffQualification
 from app.application.store.management import ManagerAction, ManageStoreManagerCommand
 from app.domain.foundation.exceptions import DomainError
 from app.domain.identity.staff_person_link import StaffPersonLink
+from app.domain.store.identifiers import StoreManagerAssignmentId
 from app.domain.store.manager_assignment import (
     ManagerAssignmentPeriod,
     ManagerPersonUnresolvedError,
     StoreManagerAssignment,
-    StoreManagerAssignmentId,
 )
 from app.domain.store.manager_repository import (
     ManagerAssignmentConflictError,

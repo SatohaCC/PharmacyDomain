@@ -2,11 +2,14 @@
 
 from app.application.common.input_normalization import to_optional_text
 from app.application.staff.exceptions import StaffNotFoundError
-from app.application.store.support import load_store_or_raise
-from app.domain.corporate.primitives import CorporateId
-from app.domain.staff.primitives import StaffId
+from app.application.staff.reference import StaffStoreReference
+from app.application.store.exceptions import StoreNotFoundError
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.staff.identifiers import StaffId
 from app.domain.staff.repository import StaffRepository
 from app.domain.staff.staff import Staff
+from app.domain.staff.store_source import StoreSource
+from app.domain.store.identifiers import StoreId
 
 __all__ = ["load_staff_or_raise", "load_store_or_raise", "to_optional_text"]
 
@@ -26,3 +29,15 @@ async def load_staff_or_raise(
         )
 
     return staff
+
+
+async def load_store_or_raise(
+    repository: StaffStoreReference, *, corporate_id: CorporateId, store_id: StoreId
+) -> StoreSource:
+    """別法人の存在を隠し、配属用の店舗事実だけを読み込む。"""
+    store = await repository.get(corporate_id=corporate_id, store_id=store_id)
+    if store is None:
+        raise StoreNotFoundError(
+            f"指定された店舗（ID: {store_id.value}）が見つかりません。"
+        )
+    return store

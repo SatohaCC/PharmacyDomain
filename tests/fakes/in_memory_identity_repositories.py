@@ -2,19 +2,13 @@
 
 from collections.abc import Collection
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.account_person import AccountPerson
 from app.domain.identity.exceptions import IdentityConflictError
+from app.domain.identity.identifiers import CorporateMembershipId, UserInvitationId
 from app.domain.identity.invitation import InvitationDigest, UserInvitation
 from app.domain.identity.membership import CorporateMembership
-from app.domain.identity.primitives import (
-    AccountPersonId,
-    AccountStatus,
-    CorporateMembershipId,
-    ExternalSubjectKey,
-    UserAccountId,
-    UserInvitationId,
-)
+from app.domain.identity.primitives import AccountStatus, ExternalSubjectKey
 from app.domain.identity.repository import (
     AccountPersonRepository,
     CorporateMembershipRepository,
@@ -24,7 +18,8 @@ from app.domain.identity.repository import (
 )
 from app.domain.identity.staff_person_link import StaffPersonLink
 from app.domain.identity.user_account import UserAccount
-from app.domain.staff.primitives import StaffId
+from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.domain.staff.identifiers import StaffId
 
 
 class InMemoryAccountPersonRepository(AccountPersonRepository):

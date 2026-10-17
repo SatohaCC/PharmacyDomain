@@ -11,10 +11,10 @@ from app.application.coverage.reference import (
     PatientReferenceBoundary,
     StoreReferenceBoundary,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.repository import PatientRepository
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 from app.domain.store.repository import StoreRepository
 
 

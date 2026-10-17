@@ -11,12 +11,12 @@ from app.application.common.exceptions import AuthorizationError
 from app.application.common.optional_conversion import build_optional
 from app.application.patient.profile_history import record_manual_profile_change
 from app.application.patient.support import load_patient_or_raise
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.primitives import (
     PatientAddress,
     PatientGenderCode,
-    PatientId,
     PatientPhoneNumber,
     PatientPostalCode,
 )

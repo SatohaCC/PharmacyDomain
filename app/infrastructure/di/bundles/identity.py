@@ -1,9 +1,8 @@
 """本人確認境界から個人アカウント・法人アクセス権へ接続する。"""
 
-from dataclasses import dataclass
-
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.common.clock import Clock
+from app.application.composition.use_case_bundles import IdentityUseCases
 from app.application.identity.accept_invitation import AcceptInvitationUseCase
 from app.application.identity.cancel_invitation import CancelInvitationUseCase
 from app.application.identity.change_account_status import (
@@ -24,24 +23,6 @@ from app.infrastructure.di.repositories import (
 )
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.organization_lock import PostgresOrganizationLock
-
-
-@dataclass(frozen=True, slots=True)
-class IdentityUseCases:
-    """本人・アカウント管理と最新の権限解決。"""
-
-    register_person: RegisterPersonUseCase
-    link_staff: LinkStaffPersonUseCase
-    invite: InviteUserUseCase
-    accept: AcceptInvitationUseCase
-    cancel_invitation: CancelInvitationUseCase
-    get_invitation: GetInvitationUseCase
-    change_membership: ChangeMembershipUseCase
-    list_users: ListUsersUseCase
-    get_user: GetUserUseCase
-    suspend_account: SuspendAccountUseCase
-    reactivate_account: ReactivateAccountUseCase
-    resolve_actor: ResolveActorUseCase
 
 
 def build_identity_use_cases(

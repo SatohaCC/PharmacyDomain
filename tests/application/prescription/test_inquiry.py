@@ -21,17 +21,16 @@ from app.application.prescription.get_prescription import PrescriptionDto
 from app.application.prescription.ready_for_dispensing import ReadyForDispensingCommand
 from app.application.prescription.resolve_inquiry import ResolveInquiryCommand
 from app.application.prescription.start_inquiry import StartInquiryCommand
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.prescription.exceptions import (
     InquiryAlreadyResolvedError,
     InquiryNotFoundError,
     InquiryPharmacistQualificationError,
 )
-from app.domain.prescription.primitives import (
-    PrescriptionId,
-    PrescriptionStatus,
-)
-from app.domain.staff.primitives import StaffId, StaffQualifications
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.prescription.primitives import PrescriptionStatus
+from app.domain.staff.identifiers import StaffId
+from app.domain.staff.value_objects import StaffQualifications
 from tests.application.prescription.helpers import (
     PrescriptionFixture,
     create_fixture,

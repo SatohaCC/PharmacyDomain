@@ -27,10 +27,10 @@ from app.application.medication_history.get_medication_history_view import (
     MedicationHistoryPatientProfileDto,
 )
 from app.domain.corporate.corporate import Corporate
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.primitives import FollowUpRecordedTimestamp
-from app.domain.patient.primitives import PatientId
-from app.domain.staff.primitives import StaffId
+from app.domain.patient.identifiers import PatientId
+from app.domain.staff.identifiers import StaffId
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.application.medication_history.helpers import (
     MedicationHistoryFixture,

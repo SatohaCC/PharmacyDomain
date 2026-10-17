@@ -22,9 +22,10 @@ from app.domain.care_event.primitives import (
 from app.domain.medication_history.exceptions import (
     MedicationHistoryAlreadyExistsError,
 )
-from app.domain.medication_history.primitives import MedicationHistoryRecordId
-from app.domain.patient.primitives import PatientId
-from app.domain.reception.primitives import ReceptionFingerprint, ReceptionId
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
+from app.domain.patient.identifiers import PatientId
+from app.domain.reception.identifiers import ReceptionId
+from app.domain.reception.primitives import ReceptionFingerprint
 from app.domain.reception.reception import Reception
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,

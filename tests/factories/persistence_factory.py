@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.coverage_selection import (
     CoverageSelection,
     SelectedInsuranceSource,
@@ -19,16 +19,15 @@ from app.domain.coverage.coverage_snapshot import (
     InsuranceCoverageSnapshot,
     PublicExpenseCoverageSnapshot,
 )
+from app.domain.coverage.identifiers import PatientCoverageId
 from app.domain.coverage.patient_coverage import PatientCoverage
 from app.domain.coverage.primitives import (
     CoverageActivatedOn,
-    CoverageActivation,
     CoverageAppliedOn,
     CoverageBenefitRatio,
     CoverageCode,
     CoverageDeactivatedOn,
     CoverageInsuredType,
-    CoveragePeriod,
     CoveragePriority,
     CoverageRecordedAt,
     CoverageSymbol,
@@ -37,21 +36,24 @@ from app.domain.coverage.primitives import (
     CoverageValidTo,
     InsurerNumber,
     OperatorPrincipalId,
-    PatientCoverageId,
-    PublicExpenseCoverageDetails,
     PublicPayerNumber,
     PublicRecipientNumber,
 )
+from app.domain.coverage.value_objects import (
+    CoverageActivation,
+    CoveragePeriod,
+    PublicExpenseCoverageDetails,
+)
 from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
 from app.domain.patient.external_identifier import PatientExternalIdentifier
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.patient import Patient
 from app.domain.patient.primitives import (
     ExternalPatientId,
     ExternalSystemName,
-    PatientId,
     PatientNumber,
 )
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 from tests.factories.staff_factory import create_person_names
 
 APPLIED_ON = date(2026, 8, 23)

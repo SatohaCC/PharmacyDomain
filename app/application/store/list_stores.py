@@ -10,7 +10,7 @@ from app.application.access_control.models import (
     Permission,
     ResolvedActorContext,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.store.repository import StoreCatalogRepository
 from app.domain.store.store import Store
 

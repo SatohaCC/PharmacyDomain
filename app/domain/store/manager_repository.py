@@ -3,14 +3,11 @@
 from datetime import date
 from typing import Protocol
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainError
-from app.domain.staff.primitives import StaffId
-from app.domain.store.manager_assignment import (
-    StoreManagerAssignment,
-    StoreManagerAssignmentId,
-)
-from app.domain.store.primitives import StoreId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId, StoreManagerAssignmentId
+from app.domain.store.manager_assignment import StoreManagerAssignment
 
 
 class ManagerAssignmentConflictError(DomainError):

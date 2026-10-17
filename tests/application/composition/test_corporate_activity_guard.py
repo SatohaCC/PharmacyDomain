@@ -12,7 +12,7 @@ from app.application.corporate.exceptions import (
 from app.domain.care_event.event_definition import EventDefinition
 from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
 from app.domain.corporate.corporate import Corporate
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from tests.application.corporate.helpers import create_corporate
 from tests.factories.prescription_factory import create_prescription
 from tests.factories.staff_factory import create_staff

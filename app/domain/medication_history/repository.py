@@ -7,27 +7,25 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Protocol
 
-from app.domain.care_event.primitives import EventId
-from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing.primitives import DispensingId
+from app.domain.care_event.identifiers import EventId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.medication_history.category_catalog import (
     MedicationHistoryCategoryCatalog,
 )
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
 from app.domain.medication_history.patient_medical_profile import (
     PatientMedicalProfile,
 )
-from app.domain.medication_history.primitives import (
-    MedicationHistoryRecordId,
-)
 from app.domain.medication_history.value_objects import (
     ExternalCorrectionStatus,
     ExternalPrescriptionCorrection,
 )
-from app.domain.patient.primitives import PatientId
-from app.domain.store.primitives import StoreId
+from app.domain.patient.identifiers import PatientId
+from app.domain.store.identifiers import StoreId
 
 
 @dataclass(frozen=True, kw_only=True)

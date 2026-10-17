@@ -5,15 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Self
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.entity import AggregateRoot
-from app.domain.patient.primitives import (
-    ExternalPatientId,
-    ExternalSystemName,
-    PatientExternalIdentifierId,
-    PatientId,
-)
-from app.domain.store.primitives import StoreId
+from app.domain.patient.identifiers import PatientExternalIdentifierId, PatientId
+from app.domain.patient.primitives import ExternalPatientId, ExternalSystemName
+from app.domain.store.identifiers import StoreId
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)

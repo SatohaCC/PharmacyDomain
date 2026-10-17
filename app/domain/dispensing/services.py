@@ -1,12 +1,7 @@
-"""調剤プロセス（調剤録・調剤鑑査）に関わるドメインサービス。
+"""調剤プロセスの原本対応・回数・使用期間・資格を判定するドメインサービス。
 
-無状態（Stateless）であり、調剤や処方箋などの本物のドメインオブジェクトを引数で受け取る。
-調剤回数（初回・リフィル・分割）、処方箋の使用期間、次回調剤予定日、後発医薬品等への変更可否、
-処方箋と調剤薬品の対応など、単体では判定できない処方原本との整合性チェックを担う。
-
-調剤者・鑑査者が薬剤師かどうかはスタッフ管理側の事実であり、
-Application層の資格Boundary経由で渡された資格情報（StaffQualifications）を検証する。
-"""
+自身の調剤記録と、処方原本から固定された利用側所有の値を照合する。
+スタッフの資格実装を参照せず、境界が提供する保有事実から要件を判定する。"""
 
 from __future__ import annotations
 
@@ -34,28 +29,24 @@ from app.domain.dispensing.exceptions import (
     SubstitutionOriginalMismatchError,
     SubstitutionRequiredError,
 )
+from app.domain.dispensing.prescription_source import (
+    PrescriptionInquiry,
+    PrescriptionMedicine,
+    PrescriptionRp,
+    PrescriptionSource,
+)
 from app.domain.dispensing.primitives import (
     DispensingSplitReason,
     SubstitutionCategory,
 )
-from app.domain.medicine_catalog.primitives import (
-    MedicineCodeType,
-    MedicineIdentifier,
-)
-from app.domain.prescription.prescription import (
-    Prescription,
-    PrescriptionInquiry,
-    PrescriptionMedicine,
-    PrescriptionRp,
-)
-from app.domain.prescription.primitives import (
+from app.domain.dispensing.reference_primitives import (
     GenericSubstitutionRestrictionType,
     InquiryNumber,
     InquiryResultType,
     MedicineLineNumber,
     RpNumber,
 )
-from app.domain.staff.primitives import PharmacistProfile, StaffQualifications
+from app.domain.dispensing.value_objects import PharmacistQualification
 
 #: リフィル2回目以降の調剤日が、前回の次回調剤予定日から離れてよい日数。
 #: 出典: 保険調剤の理解のために（令和8年度）。
@@ -71,15 +62,15 @@ class _MedicineCodeComparison(Enum):
 
 
 def _compare_medicine_codes(
-    prescribed: MedicineIdentifier, dispensed: MedicineIdentifier
+    prescribed_type: str,
+    prescribed_code: str | None,
+    dispensed_type: str,
+    dispensed_code: str | None,
 ) -> _MedicineCodeComparison:
     """同じ非NONE体系だけでコードを比較し、薬品の同等性は推測しない。"""
-    if (
-        prescribed.code_type != dispensed.code_type
-        or prescribed.code_type == MedicineCodeType.NONE
-    ):
+    if prescribed_type != dispensed_type or prescribed_type == "none":
         return _MedicineCodeComparison.UNKNOWN
-    if prescribed.code == dispensed.code:
+    if prescribed_code == dispensed_code:
         return _MedicineCodeComparison.MATCH
     return _MedicineCodeComparison.MISMATCH
 
@@ -199,7 +190,7 @@ class DispensingConsistencyService:
     def ensure_consistent(
         self,
         process: DispensingProcess,
-        prescription: Prescription,
+        prescription: PrescriptionSource,
         *,
         previous: DispensingProcess | None = None,
     ) -> None:
@@ -231,7 +222,7 @@ class DispensingConsistencyService:
         self.ensure_schedule_is_valid(process, prescription, previous=previous)
 
     def ensure_content_matches_prescription(
-        self, process: DispensingProcess, prescription: Prescription
+        self, process: DispensingProcess, prescription: PrescriptionSource
     ) -> None:
         """原本との薬品対応・代替前引用・変更制限を共通に検証する。
 
@@ -245,7 +236,7 @@ class DispensingConsistencyService:
     # ------------------------------------------------------------------
 
     def ensure_rps_match_prescription(
-        self, process: DispensingProcess, prescription: Prescription
+        self, process: DispensingProcess, prescription: PrescriptionSource
     ) -> None:
         """剤・薬品の対応、コード変更の代替記録、代替前情報の原本引用を検証する。
 
@@ -267,10 +258,22 @@ class DispensingConsistencyService:
                         line_number=medicine.line_number.value,
                     )
                 if medicine.substitution is not None and (
-                    medicine.substitution.original_identifier != prescribed.identifier
+                    (
+                        medicine.substitution.original_identifier.code_type.value,
+                        medicine.substitution.original_identifier.code.value
+                        if medicine.substitution.original_identifier.code is not None
+                        else None,
+                    )
+                    != (
+                        prescribed.identifier.code_type.value,
+                        prescribed.identifier.code.value
+                        if prescribed.identifier.code is not None
+                        else None,
+                    )
                     or (
-                        prescribed.identifier.code_type == MedicineCodeType.NONE
-                        and medicine.substitution.original_name != prescribed.name
+                        prescribed.identifier.code_type.value == "none"
+                        and medicine.substitution.original_name.value
+                        != prescribed.name.value
                     )
                 ):
                     raise SubstitutionOriginalMismatchError(
@@ -280,7 +283,14 @@ class DispensingConsistencyService:
                 if (
                     medicine.substitution is None
                     and _compare_medicine_codes(
-                        prescribed.identifier, medicine.identifier
+                        prescribed.identifier.code_type.value,
+                        prescribed.identifier.code.value
+                        if prescribed.identifier.code is not None
+                        else None,
+                        medicine.identifier.code_type.value,
+                        medicine.identifier.code.value
+                        if medicine.identifier.code is not None
+                        else None,
                     )
                     == _MedicineCodeComparison.MISMATCH
                 ):
@@ -294,7 +304,7 @@ class DispensingConsistencyService:
     # ------------------------------------------------------------------
 
     def ensure_substitutions_are_allowed(
-        self, process: DispensingProcess, prescription: Prescription
+        self, process: DispensingProcess, prescription: PrescriptionSource
     ) -> None:
         """代替調剤が処方箋の変更制限に反しないことを検証する。
 
@@ -320,7 +330,7 @@ class DispensingConsistencyService:
     # ------------------------------------------------------------------
 
     def ensure_inquiry_references_exist(
-        self, process: DispensingProcess, prescription: Prescription
+        self, process: DispensingProcess, prescription: PrescriptionSource
     ) -> None:
         """調剤が参照する疑義照会が処方箋に実在し、変更合意済みであることを検証する。
 
@@ -332,7 +342,9 @@ class DispensingConsistencyService:
             InquiryReferenceNotInPrescriptionError: 指定された照会連番が処方箋に存在しない場合。
             InquiryNotAgreedError: 照会が未回答、または結果区分が処方変更でない場合。
         """
-        inquiries_by_id = {inquiry.id: inquiry for inquiry in prescription.inquiries}
+        inquiries_by_id = {
+            inquiry.inquiry_number: inquiry for inquiry in prescription.inquiries
+        }
 
         for rp in process.dispensed_rps:
             if (
@@ -357,7 +369,7 @@ class DispensingConsistencyService:
     # ------------------------------------------------------------------
 
     def ensure_iteration_is_within_instruction(
-        self, process: DispensingProcess, prescription: Prescription
+        self, process: DispensingProcess, prescription: PrescriptionSource
     ) -> None:
         """調剤回数および合計分割回数が処方箋の指示の範囲内であることを検証する。
 
@@ -365,25 +377,25 @@ class DispensingConsistencyService:
         保証し、ここでは**処方箋側の指示（医師の分割指示・リフィル）との整合性**を検証する。
         """
         iteration = process.iteration.value
-        management = prescription.management_info
+        management = prescription
         if process.split_reason is DispensingSplitReason.PRESCRIBER_INSTRUCTED:
-            if management.split is None:
+            if management.split_count is None:
                 raise SplitInstructionMissingError()
             _ensure_within(
                 iteration=iteration,
-                limit=management.split.total_split_count.value,
+                limit=management.split_count,
                 instruction="医師の分割指示",
             )
             if process.total_split_count is not None:
                 _ensure_within(
                     iteration=process.total_split_count.value,
-                    limit=management.split.total_split_count.value,
+                    limit=management.split_count,
                     instruction="医師の分割指示の全分割回数",
                 )
-        if management.refill is not None:
+        if management.refill_count is not None:
             _ensure_within(
                 iteration=iteration,
-                limit=management.refill.total_refill_count.value,
+                limit=management.refill_count,
                 instruction="リフィル総使用回数",
             )
             return
@@ -397,7 +409,7 @@ class DispensingConsistencyService:
     def ensure_schedule_is_valid(
         self,
         process: DispensingProcess,
-        prescription: Prescription,
+        prescription: PrescriptionSource,
         *,
         previous: DispensingProcess | None = None,
     ) -> None:
@@ -409,17 +421,21 @@ class DispensingConsistencyService:
 
     @staticmethod
     def _ensure_within_prescription_period(
-        process: DispensingProcess, prescription: Prescription
+        process: DispensingProcess, prescription: PrescriptionSource
     ) -> None:
         """1回目の調剤日が処方箋の使用期間内であることを検証する。
 
         「1回目の調剤を行うことが可能な期間については、使用期間に記載されている
         日までとする」。2回目以降には使用期間を課さない。
         """
-        if not prescription.period.includes(process.dispensed_date.value):
+        if (
+            not prescription.issued_on
+            <= process.dispensed_date.value
+            <= prescription.valid_to
+        ):
             raise DispensingOutsidePrescriptionPeriodError(
                 dispensed_on=process.dispensed_date.value.isoformat(),
-                valid_to=prescription.period.valid_to.value.isoformat(),
+                valid_to=prescription.valid_to.isoformat(),
             )
 
     @staticmethod
@@ -459,7 +475,7 @@ def _ensure_within(*, iteration: int, limit: int, instruction: str) -> None:
 
 
 def _find_prescribed_rp(
-    prescription: Prescription, rp_number: RpNumber
+    prescription: PrescriptionSource, rp_number: RpNumber
 ) -> PrescriptionRp | None:
     """処方箋から指定のRP番号の剤を探す。"""
     for rp in prescription.rps:
@@ -469,7 +485,7 @@ def _find_prescribed_rp(
 
 
 def _find_prescribed_medicine(
-    prescription: Prescription,
+    prescription: PrescriptionSource,
     rp_number: RpNumber,
     line_number: MedicineLineNumber,
 ) -> PrescriptionMedicine | None:
@@ -526,18 +542,18 @@ class DispensingPharmacistService:
 
     薬剤師法第19条（調剤の制限）により、薬剤師でなければ販売または授与の目的で調剤してはならない。
     調剤プロセス側にはスタッフIDのみを保持しているため、Application層経由で渡された
-    本物の資格情報（StaffQualifications）を本サービスが受け取って検証する。
+    本物の資格情報（PharmacistQualification）を本サービスが受け取って検証する。
     """
 
-    def ensure_dispenser(self, qualifications: StaffQualifications) -> None:
+    def ensure_dispenser(self, qualifications: PharmacistQualification) -> None:
         """調剤者が薬剤師資格を持つことを検証する（薬剤師法第19条）。"""
         self._ensure_pharmacist(qualifications, role_label="調剤者")
 
-    def ensure_verifier(self, qualifications: StaffQualifications) -> None:
+    def ensure_verifier(self, qualifications: PharmacistQualification) -> None:
         """最終鑑査者が薬剤師資格を持つことを検証する。"""
         self._ensure_pharmacist(qualifications, role_label="最終鑑査者")
 
-    def ensure_auditor(self, qualifications: StaffQualifications) -> None:
+    def ensure_auditor(self, qualifications: PharmacistQualification) -> None:
         """処方鑑査者が薬剤師資格を持つことを検証する。
 
         相互作用・重複投薬・用量の確認は薬学的判断であり、調剤補助では行えない。
@@ -546,12 +562,12 @@ class DispensingPharmacistService:
 
     @staticmethod
     def _ensure_pharmacist(
-        qualifications: StaffQualifications, *, role_label: str
+        qualifications: PharmacistQualification, *, role_label: str
     ) -> None:
         """薬剤師資格の保有を検証する。
 
         Raises:
             DispensingPharmacistQualificationError: 薬剤師資格が無い場合。
         """
-        if not qualifications.has(PharmacistProfile):
+        if not qualifications.has_pharmacist:
             raise DispensingPharmacistQualificationError(role_label=role_label)

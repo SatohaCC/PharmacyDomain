@@ -14,7 +14,6 @@ from enum import StrEnum
 from typing import ClassVar
 
 from app.domain.foundation.value_object import ValueObject
-from app.domain.medicine_catalog.primitives import MedicineIdentifier, MedicineUnit
 from app.domain.prescription.exceptions import (
     ApplicationSiteCodeRequiredError,
     DepartmentCodeRequiredError,
@@ -63,6 +62,8 @@ from app.domain.prescription.primitives import (
     SplitIteration,
     SubstitutionRestrictionReason,
 )
+from app.domain.prescription.reference_primitives import MedicineUnit
+from app.domain.prescription.reference_values import MedicineIdentifier
 from app.domain.shared.person_name import PersonName, PersonNameKana
 
 #: 使用期限の指定がない場合の実効日数。交付日を含めて4日間。
@@ -151,7 +152,7 @@ class PrescriptionPeriod(ValueObject):
     """処方箋の交付日と使用期限。
 
     使用期限は**当日を含む**。適用日の判定は必ず引数で受け取り、
-    ``date.today()`` を暗黙に使わない（ruff ``DTZ011`` が禁止している）。
+    ``date.today()`` を暗黙に使わない（環境日時取得のAST検査で拒否する）。
     """
 
     issued_date: PrescriptionIssuedDate
@@ -594,3 +595,10 @@ class MedicineClassification(ValueObject):
             self.has_dosage_limit is MedicineRestrictionFlag.YES
             or self.is_refill_restricted_patch is MedicineRestrictionFlag.YES
         )
+
+
+@dataclass(frozen=True, kw_only=True)
+class PharmacistQualification(ValueObject):
+    """スタッフ境界で確認された薬剤師資格の保有事実。"""
+
+    has_pharmacist: bool

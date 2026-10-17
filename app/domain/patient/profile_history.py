@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
-from app.domain.identity.primitives import AccountPersonId, UserAccountId
 from app.domain.patient.primitives import (
     ExternalPatientId,
     PatientAddress,
@@ -15,9 +14,10 @@ from app.domain.patient.primitives import (
     PatientPhoneNumber,
     PatientPostalCode,
 )
-from app.domain.reception.primitives import ReceptionId
+from app.domain.reception.identifiers import ReceptionId
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 
 
 class PatientProfileChangeSource(StrEnum):

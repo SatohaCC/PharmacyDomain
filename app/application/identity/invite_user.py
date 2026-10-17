@@ -15,21 +15,19 @@ from app.application.identity.support import (
     IdentityRepositories,
     validate_membership_target,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.identity.identifiers import UserInvitationId
 from app.domain.identity.invitation import (
     InvitationAddressee,
     InvitationDigest,
     UserInvitation,
 )
-from app.domain.identity.primitives import (
-    AccountPersonId,
-    MembershipRole,
-    UserInvitationId,
-)
-from app.domain.staff.primitives import StaffId
+from app.domain.identity.primitives import MembershipRole
+from app.domain.shared.actor import AccountPersonId
+from app.domain.staff.identifiers import StaffId
 from app.domain.staff.repository import StaffRepository
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 from app.domain.store.repository import StoreRepository
 
 
@@ -40,7 +38,7 @@ class InviteUserCommand:
     corporate_id: str
     person_id: str
     addressee: str
-    role: MembershipRole
+    role: str
     expires_at: datetime
     store_ids: tuple[str, ...] = ()
     staff_id: str | None = None
@@ -104,7 +102,7 @@ class InviteUserUseCase:
         await validate_membership_target(
             person_id=person_id,
             corporate_id=corporate_id,
-            role=command.role,
+            role=MembershipRole(command.role),
             store_ids=store_ids,
             staff_id=staff_id,
             staff=self._staff,
@@ -116,7 +114,7 @@ class InviteUserUseCase:
             id=UserInvitationId.generate(),
             person_id=person_id,
             corporate_id=corporate_id,
-            role=command.role,
+            role=MembershipRole(command.role),
             store_ids=store_ids,
             staff_id=staff_id,
             expires_at=command.expires_at,

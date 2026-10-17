@@ -4,19 +4,15 @@ from dataclasses import replace
 
 import pytest
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.administrator_service import LastAdministratorService
 from app.domain.identity.exceptions import IdentityConflictError
+from app.domain.identity.identifiers import CorporateMembershipId
 from app.domain.identity.membership import CorporateMembership
-from app.domain.identity.primitives import (
-    AccountPersonId,
-    AccountStatus,
-    CorporateMembershipId,
-    MembershipRole,
-    UserAccountId,
-)
+from app.domain.identity.primitives import AccountStatus, MembershipRole
 from app.domain.identity.user_account import UserAccount
-from app.domain.staff.primitives import StaffId
+from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.domain.staff.identifiers import StaffId
 
 
 def _administrator(

@@ -14,8 +14,8 @@ from app.application.medication_history.get_patient_medical_profile import (
     GetPatientMedicalProfileUseCase,
 )
 from app.application.staff.get_staff import GetStaffQuery, GetStaffUseCase
-from app.domain.identity.primitives import AccountPersonId, UserAccountId
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.primitives import StaffEmailAddress, StaffPhoneNumber
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.factories.staff_factory import create_staff

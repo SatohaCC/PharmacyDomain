@@ -9,17 +9,17 @@ from sqlalchemy import select
 
 from app.domain.care_event.event import Event
 from app.domain.care_event.exceptions import EventAlreadyAssociatedError
+from app.domain.care_event.identifiers import EventId
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
-    EventId,
     EventOccurredTimestamp,
     EventTypeName,
 )
 from app.domain.care_event.repository import EventRepository, RelatedEventReference
-from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientId
-from app.domain.reception.primitives import ReceptionId
-from app.domain.store.primitives import StoreId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.identifiers import PatientId
+from app.domain.reception.identifiers import ReceptionId
+from app.domain.store.identifiers import StoreId
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,

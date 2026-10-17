@@ -1,7 +1,7 @@
 """本人の属性が変わっても操作主体の同一性を保つ。"""
 
 from app.domain.identity.account_person import AccountPerson
-from app.domain.identity.primitives import AccountPersonId
+from app.domain.shared.actor import AccountPersonId
 from app.domain.shared.person_name import PersonNames
 
 

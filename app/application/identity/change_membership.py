@@ -13,15 +13,12 @@ from app.application.identity.support import (
     ensure_administrator_preserved,
     validate_membership_target,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.exceptions import IdentityConflictError
-from app.domain.identity.primitives import (
-    AccountStatus,
-    CorporateMembershipId,
-    MembershipRole,
-)
+from app.domain.identity.identifiers import CorporateMembershipId
+from app.domain.identity.primitives import AccountStatus, MembershipRole
 from app.domain.staff.repository import StaffRepository
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 from app.domain.store.repository import StoreRepository
 
 
@@ -53,8 +50,8 @@ class ChangeMembershipUseCase:
         corporate_id: str,
         membership_id: str,
         *,
-        status: AccountStatus | None = None,
-        role: MembershipRole | None = None,
+        status: str | None = None,
+        role: str | None = None,
         store_ids: tuple[str, ...] | None = None,
     ) -> MembershipDto:
         """指定した項目だけを変更し、管理者不在になる変更を拒否する。"""
@@ -75,8 +72,8 @@ class ChangeMembershipUseCase:
             raise NotFoundError()
         updated = replace(
             membership,
-            status=status if status is not None else membership.status,
-            role=role if role is not None else membership.role,
+            status=AccountStatus(status) if status is not None else membership.status,
+            role=MembershipRole(role) if role is not None else membership.role,
             store_ids=frozenset(StoreId.parse(item) for item in store_ids)
             if store_ids is not None
             else membership.store_ids,

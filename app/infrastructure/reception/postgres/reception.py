@@ -7,11 +7,11 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from sqlalchemy import select
 
-from app.domain.corporate.primitives import CorporateId
-from app.domain.reception.primitives import ReceptionId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.reception.identifiers import ReceptionId
 from app.domain.reception.reception import Reception
 from app.domain.reception.repository import ReceptionRepository
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 from app.infrastructure.postgres.codec import PersistenceMappingError
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,

@@ -14,7 +14,7 @@ from app.application.medication_history.inputs import (
     MediumCategoryInput,
     UpdateCategoryCatalogCommand,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from tests.application.access_helpers import (
     AutoProvisioningCorporateRepository,
     create_vendor_corporate_access_for,

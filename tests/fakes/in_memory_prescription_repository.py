@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import copy
 
-from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.prescription.prescription import Prescription
-from app.domain.prescription.primitives import (
-    PrescriptionDocumentNumber,
-    PrescriptionId,
-)
+from app.domain.prescription.primitives import PrescriptionDocumentNumber
 from app.domain.prescription.repository import PrescriptionRepository
 from app.domain.prescription.services import (
     PrescriptionDocumentNumberUniquenessService,

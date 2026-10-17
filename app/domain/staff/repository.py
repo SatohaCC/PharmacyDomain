@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from app.domain.corporate.primitives import CorporateId
-from app.domain.staff.primitives import StaffCode, StaffId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.staff.identifiers import StaffId
+from app.domain.staff.primitives import StaffCode
 from app.domain.staff.staff import Staff
 
 

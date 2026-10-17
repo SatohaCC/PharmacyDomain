@@ -15,8 +15,13 @@ from datetime import date
 
 from app.application.prescription.reference import MedicineRestrictionBoundary
 from app.domain.medicine_catalog.medicine import Medicine
-from app.domain.medicine_catalog.primitives import MedicineIdentifier
+from app.domain.medicine_catalog.primitives import MedicineCode as CatalogCode
+from app.domain.medicine_catalog.primitives import MedicineCodeType as CatalogCodeType
 from app.domain.medicine_catalog.repository import MedicineCatalogRepository
+from app.domain.medicine_catalog.value_objects import (
+    MedicineIdentifier as CatalogIdentifier,
+)
+from app.domain.prescription.reference_values import MedicineIdentifier
 from app.domain.prescription.value_objects import (
     MedicineClassification,
     MedicineRestrictionFlag,
@@ -49,7 +54,13 @@ class MedicineCatalogRestrictionAdapter(MedicineRestrictionBoundary):
         classified: dict[MedicineIdentifier, MedicineClassification] = {}
         for identifier in identifiers:
             medicine = await self._repository.find_effective(
-                identifier=identifier, as_of=as_of
+                identifier=CatalogIdentifier(
+                    code_type=CatalogCodeType(identifier.code_type.value),
+                    code=CatalogCode(identifier.code.value)
+                    if identifier.code is not None
+                    else None,
+                ),
+                as_of=as_of,
             )
             if medicine is None:
                 continue
@@ -72,3 +83,16 @@ def _classify(
 def _flag(value: bool) -> MedicineRestrictionFlag:
     """真偽値を規制区分の値へ写す。"""
     return MedicineRestrictionFlag.YES if value else MedicineRestrictionFlag.NO
+
+
+def prescription_identifier(value: CatalogIdentifier) -> MedicineIdentifier:
+    """医薬品マスタの識別情報を処方記載時点の値へ固定する。"""
+    from app.domain.prescription.reference_primitives import (
+        MedicineCode,
+        MedicineCodeType,
+    )
+
+    return MedicineIdentifier(
+        code_type=MedicineCodeType(value.code_type.value),
+        code=MedicineCode(value.code.value) if value.code is not None else None,
+    )

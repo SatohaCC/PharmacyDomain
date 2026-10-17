@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
+from app.application.composition.dispensing_snapshot_mapping import prescription_source
 from app.application.composition.reference_support import load_store_in_corporate
 from app.application.dispensing.exceptions import (
     DispensingPrescriptionNotFoundError,
@@ -16,13 +17,16 @@ from app.application.dispensing.reference import (
     StaffQualificationBoundary,
     StoreReferenceBoundary,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.prescription.prescription import Prescription
-from app.domain.prescription.primitives import PrescriptionId, PrescriptionStatus
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.prescription_source import PrescriptionSource
+from app.domain.dispensing.value_objects import PharmacistQualification
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.prescription.primitives import PrescriptionStatus
 from app.domain.prescription.repository import PrescriptionRepository
-from app.domain.staff.primitives import StaffId, StaffQualifications
+from app.domain.staff.identifiers import StaffId
 from app.domain.staff.repository import StaffRepository
-from app.domain.store.primitives import StoreId
+from app.domain.staff.value_objects import PharmacistProfile
+from app.domain.store.identifiers import StoreId
 from app.domain.store.repository import StoreRepository
 
 
@@ -66,7 +70,7 @@ class PrescriptionSourceAdapter(
         *,
         corporate_id: CorporateId,
         prescription_id: PrescriptionId,
-    ) -> Prescription:
+    ) -> PrescriptionSource:
         """未存在・別法人の処方箋を、存在を隠す404相当へ畳む。"""
         prescription = await self._repository.get(
             corporate_id=corporate_id,
@@ -74,7 +78,7 @@ class PrescriptionSourceAdapter(
         )
         if prescription is None:
             raise DispensingPrescriptionNotFoundError()
-        return prescription
+        return prescription_source(prescription)
 
     async def complete_dispensing(
         self,
@@ -110,8 +114,8 @@ class DispensingStaffQualificationAdapter(StaffQualificationBoundary):
         *,
         corporate_id: CorporateId,
         staff_id: StaffId,
-    ) -> StaffQualifications:
-        """未存在・別法人のスタッフを404相当へ畳み、資格をそのまま返す。
+    ) -> PharmacistQualification:
+        """未存在・別法人のスタッフを404相当へ畳み、利用側の資格保有事実へ変換する。
 
         薬剤師かどうかの判定は ``DispensingPharmacistService`` の責務であり、
         ここでは行わない。資格が空でも在籍しているので例外にしない。
@@ -122,4 +126,6 @@ class DispensingStaffQualificationAdapter(StaffQualificationBoundary):
         )
         if staff is None:
             raise DispensingStaffNotFoundError()
-        return staff.qualifications
+        return PharmacistQualification(
+            has_pharmacist=staff.qualifications.has(PharmacistProfile)
+        )

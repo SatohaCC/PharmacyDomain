@@ -10,7 +10,8 @@ from sqlalchemy import select
 
 from app.domain.corporate.corporate import Corporate
 from app.domain.corporate.exceptions import CorporateNameAlreadyExistsError
-from app.domain.corporate.primitives import CorporateId, CorporateName
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.corporate.primitives import CorporateName
 from app.domain.corporate.repository import (
     CorporateCatalogRepository,
     CorporateRepository,

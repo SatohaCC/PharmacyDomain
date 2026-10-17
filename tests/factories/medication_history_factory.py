@@ -5,10 +5,16 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 
-from app.domain.care_event.primitives import EventId
-from app.domain.corporate.primitives import CorporateId
+from app.domain.care_event.identifiers import EventId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
-from app.domain.dispensing.primitives import DispensingId
+from app.domain.dispensing.identifiers import DispensingId
+from app.domain.medication_history.entities import FollowUpRecord, TracingReport
+from app.domain.medication_history.identifiers import (
+    FollowUpId,
+    MedicationHistoryRecordId,
+    TracingReportId,
+)
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
@@ -25,13 +31,11 @@ from app.domain.medication_history.primitives import (
     CounselingTimestamp,
     FinalizationDelayReason,
     FinalizedTimestamp,
-    FollowUpId,
     FollowUpRecordedTimestamp,
     GenericPreferenceType,
     HandbookNotPresentedReason,
     LifestyleNote,
     MedicationHistoryImportTimestamp,
-    MedicationHistoryRecordId,
     MedicationHistoryReviewResult,
     MedicationHistorySourceSystem,
     MedicationHistoryStatus,
@@ -43,14 +47,20 @@ from app.domain.medication_history.primitives import (
     TracingReportContent,
     TracingReportDeliveryMethod,
     TracingReportFeeCategory,
-    TracingReportId,
     TracingReportResponseContent,
     TracingReportTimestamp,
+)
+from app.domain.medication_history.reference_primitives import (
+    InquiryNumber,
+    MedicalInstitutionAddressLine,
+    MedicalInstitutionName,
+    MedicineName,
+    PatientBirthDate,
+    PrescriptionIssuedDate,
 )
 from app.domain.medication_history.value_objects import (
     BillingAddition,
     CategorizedNote,
-    FollowUpRecord,
     GenericPreferenceIntent,
     HandbookStatus,
     LabeledNote,
@@ -69,22 +79,14 @@ from app.domain.medication_history.value_objects import (
     StatutoryPharmacistName,
     StatutoryRecordSource,
     StopConcurrentMedicationIntent,
-    TracingReport,
     TracingReportResponse,
     UpdateConditionStatusIntent,
 )
-from app.domain.medicine_catalog.primitives import MedicineName
-from app.domain.patient.primitives import PatientBirthDate, PatientId
-from app.domain.prescription.primitives import (
-    InquiryNumber,
-    MedicalInstitutionAddressLine,
-    MedicalInstitutionName,
-    PrescriptionId,
-    PrescriptionIssuedDate,
-)
+from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.shared.person_name import PersonNames
-from app.domain.staff.primitives import StaffId
-from app.domain.store.primitives import StoreId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId
 
 COUNSELED_AT = datetime(2026, 8, 24, 5, 0, tzinfo=UTC)
 STARTED_ON = date(2026, 8, 1)

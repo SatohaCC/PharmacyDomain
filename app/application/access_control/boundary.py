@@ -16,7 +16,7 @@ from typing import Protocol
 
 from app.application.access_control.models import ActorContext, Permission
 from app.domain.corporate.corporate import Corporate
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 
 
 class CorporateAccessBoundary(Protocol):

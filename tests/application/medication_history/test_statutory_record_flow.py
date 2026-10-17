@@ -26,15 +26,15 @@ from app.application.medication_history.finalize_medication_history import (
 from app.application.medication_history.verify_statutory_record import (
     VerifyStatutoryRecordQuery,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.exceptions import MedicationHistoryDomainError
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.primitives import (
-    MedicationHistoryRecordId,
     StatutoryDispensingRecordItem,
     StatutoryItemState,
     StatutoryRecordBlocker,
 )
-from app.domain.staff.primitives import StaffId
+from app.domain.staff.identifiers import StaffId
 from tests.application.medication_history.helpers import (
     MedicationHistoryFixture,
     create_fixture,

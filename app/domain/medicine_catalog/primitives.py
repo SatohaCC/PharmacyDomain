@@ -16,17 +16,11 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from dataclasses import dataclass
 from enum import StrEnum
 from typing import ClassVar
 
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.foundation.primitives.primitives import (
-    BaseDate,
-    BaseNormalizedString,
-    EntityUUID,
-)
-from app.domain.foundation.value_object import ValueObject
+from app.domain.foundation.primitives.primitives import BaseDate, BaseNormalizedString
 
 
 class MedicineCodeType(StrEnum):
@@ -102,39 +96,6 @@ class MedicineUnit(BaseNormalizedString):
             raise DomainValidationError("単位名は20文字以内で指定してください。")
 
 
-@dataclass(frozen=True, kw_only=True)
-class MedicineIdentifier(ValueObject):
-    """薬品コード種別とコードを不可分に束ねる値オブジェクト。
-
-    桁数がコード種別に依存するため ``MedicineCode`` 単独では自己検証できない。
-    種別ごとに型を分けると、処方箋明細のフィールド型が動的になるため採らない。
-    コードなしの処方やマスタ未収載の持参薬も表せるため、医薬品マスタ行の存在を
-    意味しない。ここで所有するのは、外部データ間で薬品を照合するコード語彙である。
-    """
-
-    code_type: MedicineCodeType
-    code: MedicineCode | None = None
-
-    _FIELD_LABELS: ClassVar[dict[str, str]] = {
-        "code_type": "薬品コード種別",
-        "code": "薬品コード",
-    }
-
-    def validate(self) -> None:
-        """コード種別とコードの有無の整合性を検証する。"""
-        if self.code_type is MedicineCodeType.NONE:
-            if self.code is not None:
-                raise DomainValidationError(
-                    "薬品コード種別が「コードなし」のときは薬品コードを指定できません。"
-                )
-            return
-        if self.code is None:
-            raise DomainValidationError(
-                f"薬品コード種別が「{self.code_type.label}」のときは"
-                "薬品コードが必要です。"
-            )
-
-
 class YjCode(BaseNormalizedString):
     """厚生労働省薬価基準収載医薬品コード（YJコード、12桁英数字）。"""
 
@@ -156,17 +117,6 @@ class YjCode(BaseNormalizedString):
         if not isinstance(other, YjCode):
             return NotImplemented
         return self.value < other.value
-
-
-class MedicineCatalogEntryId(EntityUUID):
-    """医薬品マスタ1行の一意識別子（UUIDv7）。
-
-    ``MedicineIdentifier``（薬品コード）を同一性に使わない。同じ薬品コードでも
-    収載期間の異なる行が複数存在しうるためで、コードを識別子にすると
-    「いつ時点のマスタか」を表せなくなる。
-    """
-
-    identifier_name = "医薬品マスタ行ID"
 
 
 class MedicineListedOn(BaseDate):

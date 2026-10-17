@@ -5,6 +5,9 @@ from datetime import UTC, date, datetime
 
 import pytest
 
+from app.application.composition.organization_snapshot_mapping import (
+    ManagerStaffAdapter,
+)
 from app.application.composition.staff_person_adapter import StaffPersonAdapter
 from app.application.store.management import (
     ManagerAction,
@@ -13,14 +16,14 @@ from app.application.store.management import (
 )
 from app.domain.identity.staff_person_link import StaffPersonLink
 from app.domain.shared.actor import AccountPersonId
-from app.domain.staff.primitives import (
+from app.domain.staff.primitives import PharmacistLicenseNumber
+from app.domain.staff.staff import Staff
+from app.domain.staff.value_objects import (
     AffiliationPeriod,
-    PharmacistLicenseNumber,
     PharmacistProfile,
     StaffQualifications,
     StoreAffiliation,
 )
-from app.domain.staff.staff import Staff
 from app.domain.store.manager_assignment import ManagerPersonUnresolvedError
 from app.domain.store.store import Store
 from tests.application.access_helpers import create_vendor_corporate_access
@@ -64,7 +67,7 @@ async def _use_case(
     await staff_repository.save(staff)
     return ManageStoreManagerUseCase(
         stores,
-        staff_repository,
+        ManagerStaffAdapter(staff_repository),
         InMemoryStoreManagerAssignmentRepository(),
         StaffPersonAdapter(links),
         create_vendor_corporate_access(),

@@ -32,7 +32,7 @@ from app.domain.medication_history.value_objects import (
     StopConcurrentMedicationIntent,
     UpdateConditionStatusIntent,
 )
-from app.domain.staff.primitives import StaffId
+from app.domain.staff.identifiers import StaffId
 
 FACT_FIELD_TYPES: Final[dict[str, type[object]]] = {
     "counselor_id": StaffId,

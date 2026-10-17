@@ -12,9 +12,9 @@ from app.application.access_control.store_access import (
 )
 from app.application.care_event.references import EventPatientBoundary
 from app.domain.care_event.repository import EventRepository
-from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientId
-from app.domain.store.primitives import StoreId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.identifiers import PatientId
+from app.domain.store.identifiers import StoreId
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -22,8 +22,9 @@ from app.application.medication_history.inputs import (
     ResidualDrugInput,
     SoapInput,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
@@ -41,12 +42,15 @@ from app.domain.medication_history.primitives import (
     HandbookNotPresentedReason,
     LifestyleNote,
     MajorCategoryCode,
-    MedicationHistoryRecordId,
     MediumCategoryCode,
     ResidualDrugQuantity,
     ResidualDrugReason,
     RetractionReason,
     StatutoryCategory,
+)
+from app.domain.medication_history.reference_primitives import (
+    MedicalInstitutionName,
+    MedicineName,
 )
 from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.value_objects import (
@@ -69,9 +73,7 @@ from app.domain.medication_history.value_objects import (
     StopConcurrentMedicationIntent,
     UpdateConditionStatusIntent,
 )
-from app.domain.medicine_catalog.primitives import MedicineName
-from app.domain.prescription.primitives import MedicalInstitutionName
-from app.domain.staff.primitives import StaffId
+from app.domain.staff.identifiers import StaffId
 
 __all__ = [
     "build_additional_notes",

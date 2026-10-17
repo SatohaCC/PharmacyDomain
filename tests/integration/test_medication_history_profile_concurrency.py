@@ -24,34 +24,30 @@ from app.application.medication_history.finalize_medication_history import (
 from app.application.medication_history.get_patient_medical_profile import (
     RebuildPatientMedicalProfileCommand,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.identity.identifiers import CorporateMembershipId
 from app.domain.identity.membership import CorporateMembership
-from app.domain.identity.primitives import (
-    AccountPersonId,
-    CorporateMembershipId,
-    ExternalSubjectKey,
-    MembershipRole,
-    UserAccountId,
-)
+from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole
 from app.domain.identity.staff_person_link import StaffPersonLink
 from app.domain.identity.user_account import UserAccount
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
 from app.domain.medication_history.primitives import (
     FinalizedTimestamp,
-    MedicationHistoryRecordId,
     MedicationHistoryStatus,
 )
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
-from app.domain.patient.primitives import PatientId
-from app.domain.staff.primitives import (
+from app.domain.patient.identifiers import PatientId
+from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.domain.staff.identifiers import StaffId
+from app.domain.staff.primitives import PharmacistLicenseNumber
+from app.domain.staff.value_objects import (
     AffiliationPeriod,
-    PharmacistLicenseNumber,
     PharmacistProfile,
-    StaffId,
     StaffQualifications,
     StoreAffiliation,
 )
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 from app.infrastructure.di.bundles.clinical import (
     build_medication_history_use_cases,
 )

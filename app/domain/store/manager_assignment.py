@@ -4,20 +4,13 @@ from dataclasses import dataclass, replace
 from datetime import date
 from enum import StrEnum
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.entity import AggregateRoot
 from app.domain.foundation.exceptions import DomainError, DomainValidationError
-from app.domain.foundation.primitives.primitives import EntityUUID
 from app.domain.foundation.value_object import ValueObject
 from app.domain.shared.actor import AccountPersonId
-from app.domain.staff.primitives import StaffId
-from app.domain.store.primitives import StoreId
-
-
-class StoreManagerAssignmentId(EntityUUID):
-    """管理薬剤師任命の識別子。"""
-
-    identifier_name = "管理薬剤師任命ID"
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId, StoreManagerAssignmentId
 
 
 class ManagerAssignmentStateConflictError(DomainError):

@@ -4,8 +4,8 @@ from typing import Any, cast
 
 from sqlalchemy import Select
 
-from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.identifiers import PatientId
 from app.infrastructure.care_event.postgres.care_event import PostgresEventRepository
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from tests.infrastructure.postgres.helpers import compiled_sql

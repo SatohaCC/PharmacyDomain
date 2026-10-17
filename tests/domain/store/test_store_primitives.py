@@ -6,24 +6,22 @@ import uuid
 
 import pytest
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.store.identifiers import StoreId
 from app.domain.store.primitives import (
-    ContactInfo,
     InsurancePharmacyNumber,
-    StoreAddress,
     StoreAddressLine,
     StoreCode,
     StoreEmailAddress,
     StoreFaxNumber,
-    StoreId,
     StoreName,
     StoreNameKana,
     StoreNameRomaji,
-    StoreNames,
     StorePhoneNumber,
     StorePostalCode,
 )
+from app.domain.store.value_objects import ContactInfo, StoreAddress, StoreNames
 
 
 def test_store_id_generates_uuid7() -> None:

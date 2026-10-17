@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 
-from app.domain.medicine_catalog.primitives import MedicineIdentifier
 from app.domain.prescription.exceptions import (
     InquiryPharmacistQualificationError,
     MedicineClassificationMissingError,
@@ -21,12 +20,13 @@ from app.domain.prescription.exceptions import (
 )
 from app.domain.prescription.prescription import Prescription, PrescriptionMedicine
 from app.domain.prescription.primitives import PrescriptionSourceType
+from app.domain.prescription.reference_values import MedicineIdentifier
 from app.domain.prescription.value_objects import (
     MedicineClassification,
     MedicineRestrictionFlag,
+    PharmacistQualification,
 )
 from app.domain.shared.public_expense import PublicExpenseBurden
-from app.domain.staff.primitives import PharmacistProfile, StaffQualifications
 
 
 class PrescriptionDocumentNumberUniquenessService:
@@ -173,16 +173,16 @@ class InquiryPharmacistService:
     薬剤師法第24条（処方せん中の疑義）に基づき、処方箋中に疑わしい点があるときは、
     その処方箋を交付した医師等に確かめた後でなければ調剤してはならず、この照会は薬剤師が行う必要がある。
     処方箋側にはスタッフIDのみを保持しているため、Application層経由で渡された
-    本物の資格情報（StaffQualifications）を本サービスが受け取って検証する。
+    本物の資格情報（PharmacistQualification）を本サービスが受け取って検証する。
     """
 
-    def ensure_pharmacist(self, qualifications: StaffQualifications) -> None:
+    def ensure_pharmacist(self, qualifications: PharmacistQualification) -> None:
         """薬剤師資格を保有していることを検証する。
 
         Raises:
             InquiryPharmacistQualificationError: 薬剤師資格が無い場合。
         """
-        if not qualifications.has(PharmacistProfile):
+        if not qualifications.has_pharmacist:
             raise InquiryPharmacistQualificationError()
 
 

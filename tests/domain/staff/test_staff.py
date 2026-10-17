@@ -4,15 +4,20 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.domain.corporate.primitives import CorporateId
+from app.application.composition.organization_snapshot_mapping import (
+    staff_store_source,
+)
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.staff.primitives import (
-    InsurancePharmacistRegistration,
     InsurancePharmacistRegistrationNumber,
     PharmacistLicenseNumber,
+)
+from app.domain.staff.services import StaffStoreAssignmentService
+from app.domain.staff.value_objects import (
+    InsurancePharmacistRegistration,
     PharmacistProfile,
     StaffQualifications,
 )
-from app.domain.staff.services import StaffStoreAssignmentService
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store
 
@@ -51,7 +56,7 @@ def test_スタッフの所属導出_主所属と兼務が対象日から導出�
 
     # Act: store_a に主所属を設定
     staff = assignment_service.assign_home_store(
-        staff, store_a, start_date=date(2026, 1, 1)
+        staff, staff_store_source(store_a), start_date=date(2026, 1, 1)
     )
 
     # Assert
@@ -60,7 +65,7 @@ def test_スタッフの所属導出_主所属と兼務が対象日から導出�
 
     # Act: store_b に兼務追加
     staff = assignment_service.assign_concurrent_store(
-        staff, store_b, start_date=date(2026, 2, 1)
+        staff, staff_store_source(store_b), start_date=date(2026, 2, 1)
     )
 
     # Assert

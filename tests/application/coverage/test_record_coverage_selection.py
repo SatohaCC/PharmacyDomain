@@ -16,7 +16,7 @@ from app.application.coverage.record_coverage_selection import (
     RecordCoverageSelectionCommand,
     RecordCoverageSelectionUseCase,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.coverage_selection import (
     CoverageSelection,
     SelectedInsuranceSource,
@@ -26,6 +26,7 @@ from app.domain.coverage.coverage_snapshot import (
     InsuranceCoverageSnapshot,
     PublicExpenseCoverageSnapshot,
 )
+from app.domain.coverage.identifiers import PatientCoverageId
 from app.domain.coverage.primitives import (
     CoverageBenefitRatio,
     CoverageCode,
@@ -33,12 +34,11 @@ from app.domain.coverage.primitives import (
     CoveragePriority,
     CoverageSymbol,
     InsurerNumber,
-    PatientCoverageId,
     PublicPayerNumber,
     PublicRecipientNumber,
 )
-from app.domain.patient.primitives import PatientId
-from app.domain.store.primitives import StoreId
+from app.domain.patient.identifiers import PatientId
+from app.domain.store.identifiers import StoreId
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.fakes.coverage_reference_boundaries import (
     FakeCoverageSelectionSource,

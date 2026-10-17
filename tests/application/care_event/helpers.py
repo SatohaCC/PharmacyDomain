@@ -16,16 +16,13 @@ from app.application.care_event.list_related_candidates import (
 )
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.domain.care_event.event_definition import EventDefinition
-from app.domain.care_event.primitives import (
-    EventTypeId,
-    EventTypeName,
-    EventTypeStandardCode,
-)
-from app.domain.corporate.primitives import CorporateId
-from app.domain.identity.primitives import AccountPersonId, UserAccountId
-from app.domain.patient.primitives import PatientId
-from app.domain.staff.primitives import StaffId
-from app.domain.store.primitives import StoreId
+from app.domain.care_event.identifiers import EventTypeId
+from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.identifiers import PatientId
+from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.fakes.fake_clock import FakeClock
 from tests.fakes.fake_event_patient_boundary import FakeEventPatientBoundary

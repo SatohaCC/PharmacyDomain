@@ -17,15 +17,12 @@ from app.application.medication_history.support import (
     load_record_or_raise,
     required_text,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.medication_history.primitives import (
-    AmendmentReason,
-    AmendmentTimestamp,
-    MedicationHistoryRecordId,
-)
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
+from app.domain.medication_history.primitives import AmendmentReason, AmendmentTimestamp
 from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.services import CounselorQualificationService
-from app.domain.staff.primitives import StaffId
+from app.domain.staff.identifiers import StaffId
 
 
 @dataclass(frozen=True, kw_only=True)

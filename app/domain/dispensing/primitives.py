@@ -29,18 +29,11 @@ from app.domain.foundation.primitives.primitives import (
     BaseDate,
     BaseFreeText,
     BasePositiveInt,
-    EntityUUID,
 )
 
 # --------------------------------------------------------------------------
 # 識別子
 # --------------------------------------------------------------------------
-
-
-class DispensingId(EntityUUID):
-    """調剤セッション集約の一意識別子（UUIDv7）。"""
-
-    identifier_name = "調剤セッションID"
 
 
 # --------------------------------------------------------------------------

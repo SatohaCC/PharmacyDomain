@@ -16,10 +16,8 @@ from app.application.corporate.exceptions import (
     CorporateInactiveError,
     CorporateNotFoundError,
 )
-from app.domain.corporate.primitives import (
-    CorporateId,
-    CorporateStatus,
-)
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.corporate.primitives import CorporateStatus
 from tests.application.corporate.helpers import save_corporate
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository
 

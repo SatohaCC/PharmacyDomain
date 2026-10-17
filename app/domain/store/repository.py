@@ -4,13 +4,9 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from app.domain.corporate.primitives import CorporateId
-from app.domain.store.primitives import (
-    InsurancePharmacyNumber,
-    StoreCode,
-    StoreId,
-    StoreName,
-)
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.store.identifiers import StoreId
+from app.domain.store.primitives import InsurancePharmacyNumber, StoreCode, StoreName
 from app.domain.store.store import Store
 
 

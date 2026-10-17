@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.membership import CorporateMembership
 from app.domain.identity.primitives import AccountStatus, MembershipRole

@@ -41,20 +41,20 @@ from app.application.medication_history.start_medication_history import (
 from app.application.patient.get_patient import GetPatientQuery, GetPatientUseCase
 from app.application.patient.register_patient import RegisterPatientUseCase
 from app.domain.care_event.event import Event
+from app.domain.care_event.identifiers import EventTypeId
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
     EventOccurredTimestamp,
-    EventTypeId,
     EventTypeName,
     EventTypeStandardCode,
 )
 from app.domain.dispensing.exceptions import DispensingOutsidePrescriptionPeriodError
-from app.domain.dispensing.primitives import DispensingId
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.medication_history.exceptions import MedicationHistoryDomainError
 from app.domain.medication_history.services import CounselorQualificationService
-from app.domain.patient.primitives import PatientId
-from app.domain.prescription.primitives import PrescriptionId
-from app.domain.reception.primitives import ReceptionId
+from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.reception.identifiers import ReceptionId
 from tests.application.access_helpers import create_vendor_corporate_access_for
 from tests.application.integration.nsips.helpers import (
     create_fixture,
