@@ -1,0 +1,15 @@
+{
+  "name": "pharmacydomain-api",
+  "private": true,
+  "scripts": {
+    "dev": "docker compose --project-directory .. up api",
+    "dev:local": "uv run --env-file ../.env uvicorn app.dev_main:create_dev_app --factory --port 8000 --reload",
+    "sync": "uv sync --locked",
+    "lint": "uv run ruff check .",
+    "format:check": "uv run ruff format --check .",
+    "typecheck": "uv run mypy app tests tools",
+    "imports": "uv run lint-imports",
+    "test": "uv run pytest -q",
+    "test:integration": "uv run pytest -m integration -q"
+  }
+}

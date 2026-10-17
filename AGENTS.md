@@ -6,25 +6,27 @@ Pythonのソース・テスト・ツール・設定は `backend/` 配下に置�
 
 ## コマンド & 品質ゲート
 
-Pythonコマンドは `backend/` を作業ディレクトリとして実行する。Composeと.envは一つ上のリポジトリルートを指定する。
+すべての通常コマンドをリポジトリルートからpnpmで実行する。Pythonの依存解決・実行はbackend/package.json内のuvへ委譲する。
 
 ```bash
-uv sync --locked                 # 依存同期
-uv run pytest -q                 # 全テスト実行（アーキテクチャ規則の検証を含む）
-uv run mypy app tests tools      # 型チェック (strict = true)
-uv run ruff check . && uv run ruff format --check .  # Lint & Format チェック
-uv run lint-imports              # レイヤー・コンテキスト・内部階層の依存契約
+pnpm install --frozen-lockfile
+pnpm sync:backend
+pnpm test:backend
+pnpm typecheck:backend
+pnpm lint:backend
+pnpm format:check
+pnpm imports
 
-# 実PostgreSQLに対する結合テスト（TEST_DATABASE_URL が無ければ自動スキップ）
-docker compose --project-directory .. up -d postgres
-set -a; [ -f ../.env ] && . ../.env; set +a  # シェルは.envを自動で読まないので明示的に読み込む
+# 実PostgreSQLの結合テストはルート.envを明示読込する。
+pnpm db:up
+set -a; [ -f .env ] && . ./.env; set +a
 TEST_DATABASE_URL=postgresql+asyncpg://pharmacydomain:pharmacydomain-dev-password@127.0.0.1:${POSTGRES_PORT:-5432}/pharmacydomain \
-  uv run pytest -m integration -q
+  pnpm test:integration
 
-# 個別実行（違反箇所を特定したいとき）
-uv run python -m tools.check_imports --verbose --fail-on-violation  # 依存の向き
-uv run python -m tools.check_lcom --verbose --fail-on-violation     # クラス凝集度
-uv run python -m tools.check_fake_conformance --verbose --fail-on-violation  # フェイクのProtocol適合
+# 個別の静的検査もルートから実行できる。
+pnpm --filter pharmacydomain-api exec uv run python -m tools.check_imports --verbose --fail-on-violation
+pnpm --filter pharmacydomain-api exec uv run python -m tools.check_lcom --verbose --fail-on-violation
+pnpm --filter pharmacydomain-api exec uv run python -m tools.check_fake_conformance --verbose --fail-on-violation
 ```
 
 - **結合テストの接続ポートは `POSTGRES_PORT` から引く**: `compose.yaml` はホスト側の公開ポートを `.env` の `POSTGRES_PORT`（既定 5432）に従わせている。コマンド例で `5432` をベタ書きすると、`POSTGRES_PORT` を変えている環境（他プロジェクトとの衝突回避等）でこのコマンドをそのまま実行したときに接続エラーになる。`TEST_DATABASE_URL` が無いときの自動スキップと違い、間違ったポートへの接続は `ConnectionRefusedError` として失敗するので気づけはするが、そこで手が止まる。**シェルは `.env` を自動で読み込まない**（読むのは `docker compose` 自身だけ）ので、`${POSTGRES_PORT:-5432}` と書くだけでは足りず、`TEST_DATABASE_URL=...` を組み立てる前にコマンド例の側で `.env` を読み込む必要がある。読み込まなければ環境変数 `POSTGRES_PORT` は未設定のままなので既定値 5432 に落ち、`.env` で上書きしている環境では書いた本人の意図に反してベタ書きと同じ結果になる。
@@ -85,13 +87,13 @@ This project has a knowledge graph at graphify-out/ with god nodes, community st
 
 ## フロントエンドの品質ゲート
 
-`frontend/` で実行する。バックエンドの品質ゲートは `backend/` で実行する。
+リポジトリルートで実行する。JSのlockfileはルートの `pnpm-lock.yaml` だけを管理する。
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm typecheck
-pnpm lint
-pnpm test
+pnpm typecheck:frontend
+pnpm lint:frontend
+pnpm test:frontend
 pnpm build
 pnpm test:e2e
 ```

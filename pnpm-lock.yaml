@@ -164,7 +164,11 @@ settings:
 
 importers:
 
-  .:
+  .: {}
+
+  backend: {}
+
+  frontend:
     dependencies:
       '@tanstack/react-router':
         specifier: ^1.170.44

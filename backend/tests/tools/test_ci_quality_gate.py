@@ -21,19 +21,17 @@ _AGENTS_MD = _ROOT / "AGENTS.md"
 
 # AGENTS.md「コマンド & 品質ゲート」と一致させる。
 REQUIRED_GATES: tuple[str, ...] = (
-    "uv sync --locked",
-    "uv run pytest -q",
-    # tools/ にも実装（シード等）を置くので型検査の対象に含める。
-    # 型検査の無い場所へ実装を置くと、壊れていても実行するまで分からない。
-    "uv run mypy app tests tools",
-    "uv run ruff check .",
-    "uv run ruff format --check .",
-    "uv run lint-imports",
-    "uv run pytest -m integration -q",
+    "pnpm sync:backend",
+    "pnpm test:backend",
+    "pnpm typecheck:backend",
+    "pnpm lint:backend",
+    "pnpm format:check",
+    "pnpm imports",
+    "pnpm test:integration",
     "pnpm install --frozen-lockfile",
-    "pnpm typecheck",
-    "pnpm lint",
-    "pnpm test",
+    "pnpm typecheck:frontend",
+    "pnpm lint:frontend",
+    "pnpm test:frontend",
     "pnpm build",
     "pnpm test:e2e",
 )
