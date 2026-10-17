@@ -283,7 +283,7 @@ def test_本番の起動点が読む変数は_env_exampleに載っている() ->
     """
     # Arrange
     source = (_ROOT / "app" / "presentational" / "oidc.py").read_text(encoding="utf-8")
-    example = (_ROOT / ".env.example").read_text(encoding="utf-8")
+    example = (_ROOT.parent / ".env.example").read_text(encoding="utf-8")
 
     # Act
     names = set(re.findall(r'values\.get\(\s*"(OIDC_[A-Z_]+)"', source))

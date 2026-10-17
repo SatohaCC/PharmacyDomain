@@ -188,6 +188,10 @@ def test_出力する環境変数は_投入した集約のIDと一致する() ->
     values = _environment(data)
 
     # Assert
+    assert data.vendor_account.external_subject is not None
+    assert (
+        values["DEV_ACTOR_PRINCIPAL_ID"] == data.vendor_account.external_subject.value
+    )
     assert values["DEV_ACTOR_PERSON_ID"] == str(data.vendor_person.id.value)
     assert values["DEV_ACTOR_ACCOUNT_ID"] == str(data.vendor_account.id.value)
     assert values["DEV_ACTOR_CORPORATE_ID"] == str(data.corporate.id.value)

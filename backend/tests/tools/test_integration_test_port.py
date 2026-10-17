@@ -27,7 +27,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = Path(__file__).resolve().parents[3]
 _AGENTS_MD = _ROOT / "AGENTS.md"
 
 # ホストへポート番号を直接書いている形（例: @127.0.0.1:5432）を検出する。

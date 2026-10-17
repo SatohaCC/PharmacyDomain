@@ -281,8 +281,8 @@ def test_開発用の起動点は_compose_からだけ呼ばれる() -> None:
     """開発用の起動点を指す場所を1つに保つ。"""
     # Arrange
     referring = sorted(
-        path.relative_to(_ROOT).as_posix()
-        for path in (_ROOT / "compose.yaml", _ROOT / "Dockerfile")
+        path.relative_to(_ROOT.parent).as_posix()
+        for path in (_ROOT.parent / "compose.yaml", _ROOT / "Dockerfile")
         if "dev_main" in path.read_text(encoding="utf-8")
     )
 
@@ -308,7 +308,7 @@ def test_開発用の起動点が読む変数は_composeが全て渡している
     compose 側を更新しておらず、開発用の起動点が起動しなくなっていた。
     """
     # Arrange
-    compose = (_ROOT / "compose.yaml").read_text(encoding="utf-8")
+    compose = (_ROOT.parent / "compose.yaml").read_text(encoding="utf-8")
 
     # Act
     missing = sorted(name for name in _読む環境変数() if f"{name}:" not in compose)
@@ -320,7 +320,7 @@ def test_開発用の起動点が読む変数は_composeが全て渡している
 def test_開発用の起動点が読む変数は_env_exampleに載っている() -> None:
     """設定する側が、何を埋めればよいか一覧から分かる状態を保つ。"""
     # Arrange
-    example = (_ROOT / ".env.example").read_text(encoding="utf-8")
+    example = (_ROOT.parent / ".env.example").read_text(encoding="utf-8")
 
     # Act
     missing = sorted(name for name in _読む環境変数() if f"{name}=" not in example)

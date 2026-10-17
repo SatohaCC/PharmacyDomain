@@ -2,7 +2,11 @@
 
 薬局・調剤ドメイン（マルチテナント法人 / 店舗 / スタッフ）のオニオンアーキテクチャ開発ルール。
 
+Pythonのソース・テスト・ツール・設定は `backend/` 配下に置く。本書とレイヤー別ルール内の `app/`・`tests/`・`tools/`・`migrations/`・`pyproject.toml` はbackendからの相対パスとする。docs・.github・compose.yaml・AGENTS.mdはリポジトリルートに置く。
+
 ## コマンド & 品質ゲート
+
+Pythonコマンドは `backend/` を作業ディレクトリとして実行する。Composeと.envは一つ上のリポジトリルートを指定する。
 
 ```bash
 uv sync --locked                 # 依存同期
@@ -12,8 +16,8 @@ uv run ruff check . && uv run ruff format --check .  # Lint & Format チェッ�
 uv run lint-imports              # レイヤー・コンテキスト・内部階層の依存契約
 
 # 実PostgreSQLに対する結合テスト（TEST_DATABASE_URL が無ければ自動スキップ）
-docker compose up -d postgres
-set -a; [ -f .env ] && . ./.env; set +a  # シェルは.envを自動で読まないので明示的に読み込む
+docker compose --project-directory .. up -d postgres
+set -a; [ -f ../.env ] && . ../.env; set +a  # シェルは.envを自動で読まないので明示的に読み込む
 TEST_DATABASE_URL=postgresql+asyncpg://pharmacydomain:pharmacydomain-dev-password@127.0.0.1:${POSTGRES_PORT:-5432}/pharmacydomain \
   uv run pytest -m integration -q
 
@@ -77,3 +81,19 @@ This project has a knowledge graph at graphify-out/ with god nodes, community st
 - 新しい業務コンテキストやUseCaseを追加したら、Applicationの許可方向と、入力・出力・参照契約の禁止先を更新する。契約の網羅性と違反注入テストを通し、未登録の名前で検査をすり抜けさせない。
 - RuffはE/W/F/I/B/UP/C4/SIM/TID251/RUF012/RUF100を有効にし、E501はformatへ任せる。公開JSON・保存JSONはdataclasses.asdictを使わず明示変換する。テストの比較用変換だけは除外する。
 - 業務層の現在日時は注入時計から得る。RuffのDTZ設定への依存をやめ、環境日時取得のAST検査をpytestから実行する。実時計はInfrastructureに置く。
+
+
+## フロントエンドの品質ゲート
+
+`frontend/` で実行する。バックエンドの品質ゲートは `backend/` で実行する。
+
+```bash
+pnpm install --frozen-lockfile
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
+pnpm test:e2e
+```
+
+フロントエンドはReact・TypeScript・TanStack RouterのSPAとする。HTTP APIの型はOpenAPIから生成し、業務判断と最終認可はバックエンドが所有する。招待秘密をログ・永続ストレージへ保存しない。

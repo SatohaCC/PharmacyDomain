@@ -18,7 +18,7 @@ services:
       retries: 10
 
   api:
-    build: .
+    build: ./backend
     depends_on:
       postgres:
         condition: service_healthy
@@ -41,14 +41,26 @@ services:
       # 全法人を操作できるので、0.0.0.0 に開くと同一ネットワークから全部触れる。
       - "127.0.0.1:${API_PORT:-8000}:8000"
     volumes:
-      - ./app:/app/app
-      - ./migrations:/app/migrations
+      - ./backend/app:/app/app
+      - ./backend/migrations:/app/migrations
     # 開発用の起動点。`--factory` なのは、環境変数を読むのを import 時ではなく
     # 呼び出し時にするため。本番イメージの CMD は app.main:app のまま変えない。
     command: >
       uv run --frozen uvicorn --factory
       app.dev_main:create_dev_app
       --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:-}
+        VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-}
+        VITE_OIDC_SCOPE: ${VITE_OIDC_SCOPE:-openid profile}
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:80"
 
 volumes:
   postgres_data:
