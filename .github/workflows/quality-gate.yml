@@ -19,10 +19,6 @@ concurrency:
 permissions:
   contents: read
 
-defaults:
-  run:
-    working-directory: backend
-
 jobs:
   quality-gate:
     runs-on: ubuntu-latest
@@ -32,36 +28,41 @@ jobs:
       - name: リポジトリを取得する
         uses: actions/checkout@v7.0.1
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+
       - name: uv をセットアップする
         uses: astral-sh/setup-uv@v10.0.1
         with:
-          # Python のバージョンは .python-version が単一の出所なので、ここでは指定しない。
+          # Python のバージョンは backend/.python-version が単一の出所なので、ここでは指定しない。
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
 
       - name: 依存を同期する
-        run: uv sync --locked
+        run: pnpm sync:backend
 
       # 以降のゲートは互いに独立している。1つ落ちても残りを実行し、
       # 1回の push で全部の違反が見えるようにする（`!cancelled()`）。
       - name: テストを実行する（アーキテクチャ規則の検証を含む）
-        run: uv run pytest -q
+        run: pnpm test:backend
 
       - name: 型チェックする
         if: ${{ !cancelled() }}
-        run: uv run mypy app tests tools
+        run: pnpm typecheck:backend
 
       - name: Lint する
         if: ${{ !cancelled() }}
-        run: uv run ruff check .
+        run: pnpm lint:backend
 
       - name: フォーマットを検査する
         if: ${{ !cancelled() }}
-        run: uv run ruff format --check .
+        run: pnpm format:check
 
       - name: レイヤーとコンテキストの依存契約を検査する
         if: ${{ !cancelled() }}
-        run: uv run lint-imports
+        run: pnpm imports
 
   # 実PostgreSQLを要するテストは別ジョブにする。DBが無い環境では自動でスキップ
   # されるため、上のジョブでは「実行されたが何も確かめていない」状態になりうる。
@@ -88,6 +89,11 @@ jobs:
       - name: リポジトリを取得する
         uses: actions/checkout@v7.0.1
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+
       - name: uv をセットアップする
         uses: astral-sh/setup-uv@v10.0.1
         with:
@@ -95,19 +101,16 @@ jobs:
           cache-dependency-glob: backend/uv.lock
 
       - name: 依存を同期する
-        run: uv sync --locked
+        run: pnpm sync:backend
 
       - name: 実PostgreSQLに対する結合テストを実行する
         env:
           TEST_DATABASE_URL: postgresql+asyncpg://pharmacydomain:pharmacydomain-ci-password@localhost:5432/pharmacydomain
-        run: uv run pytest -m integration -q
+        run: pnpm test:integration
 
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-node@v4
@@ -115,10 +118,10 @@ jobs:
           node-version: 24
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm lint
-      - run: pnpm test
+      - run: pnpm typecheck:frontend
+      - run: pnpm lint:frontend
+      - run: pnpm test:frontend
       - run: pnpm build
-      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e:install
       - run: pnpm test:e2e
         timeout-minutes: 3

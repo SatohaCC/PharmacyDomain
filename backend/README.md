@@ -1,14 +1,17 @@
 # バックエンド
 
-このディレクトリでuvコマンドを実行する。起動・DB設定・管理画面との接続手順はリポジトリルートのREADME.md、品質ゲートはAGENTS.mdを参照する。
+Pythonの依存管理はuvに任せ、通常操作はリポジトリルートのpnpmから実行する。
 
 ```bash
-uv sync --locked
-uv run pytest -q
-uv run mypy app tests tools
-uv run ruff check .
-uv run ruff format --check .
-uv run lint-imports
+pnpm sync:backend
+pnpm dev:backend
+pnpm test:backend
+pnpm typecheck:backend
+pnpm lint:backend
+pnpm format:check
+pnpm imports
+pnpm db:migrate
+pnpm db:seed
 ```
 
-本番入口は `app.main:app`、固定トークンでの開発入口は `app.dev_main:create_dev_app --factory`。マイグレーションは `uv run alembic upgrade head`。DATABASE_URLは明示設定し、ルート.envは必要なシェルで明示読込する。
+本番入口はapp.main:app、開発入口はapp.dev_main:create_dev_app。既定のdev:backendとDB操作はDocker Composeを利用する。ホストのPython環境で起動する場合は `pnpm dev:backend:local` とし、ルート.envのDATABASE_URLをホスト用に設定する。backend/package.jsonがuvコマンドを定義し、pyproject.tomlとuv.lockはここに維持する。品質ゲートの正典はルートAGENTS.md。
