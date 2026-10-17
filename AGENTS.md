@@ -96,6 +96,14 @@ pnpm lint:frontend
 pnpm test:frontend
 pnpm build
 pnpm test:e2e
+pnpm test:stories
+pnpm build:storybook
 ```
 
 フロントエンドはReact・TypeScript・TanStack RouterのSPAとする。HTTP APIの型はOpenAPIから生成し、業務判断と最終認可はバックエンドが所有する。招待秘密をログ・永続ストレージへ保存しない。
+
+- routesはフォルダ階層とし、URL・認証ガード・画面への接続を所有する。画面表示はfeatures/*/uiのview、状態管理と非同期処理は画面用hook、React非依存の規則はmodel、通信はapiへ分離する。
+- React Aria ComponentsとStyleXはshared/ui内部とビルド設定に限定する。公開propsへライブラリ固有の型を漏らさず、画面は独自UI契約を利用する。依存境界はESLintと違反注入テストで検証する。
+- Storybookは必須。storyを部品・主要viewに併置し、実API・認証なしで状態を確認できるようにする。操作とアクセシビリティはVitest addonの実ブラウザテストで検証し、画像比較とは区別する。
+- Storybookとフロントエンドテストの表示用データは、「テスト薬局」「テスト薬局グループ」「テスト 太郎」等、「テスト」を含む名前にしてテスト用と明示する。
+- `pnpm storybook`で部品・画面・デザイントークンを確認する。画像比較は静的ビルド後に`pnpm test:visual`で実行し、基準画像は内容を確認して更新する。

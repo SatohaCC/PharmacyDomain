@@ -1,18 +1,9 @@
 import { createRoot } from "react-dom/client";
-import { createRouter, RouterProvider } from "@tanstack/react-router";
-import { routeTree } from "./routeTree.gen";
+import { RouterProvider } from "@tanstack/react-router";
+import { router } from "./app/router";
 import "./style.css";
-const router = createRouter({
-  routeTree,
-  defaultPreload: "intent",
-  defaultPreloadStaleTime: 0,
-  defaultStaleTime: 0,
-});
-declare module "@tanstack/react-router" {
-  interface Register {
-    router: typeof router;
-  }
-}
+import { configureApplication } from "./app/composition";
+configureApplication();
 createRoot(document.getElementById("root")!).render(
   <RouterProvider router={router} />,
 );

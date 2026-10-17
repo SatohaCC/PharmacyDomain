@@ -1,20 +1,35 @@
+import { Button } from "../shared/ui/controls/button";
+import { Page, Heading, Canvas } from "../shared/ui/layout/elements";
+import { Providers } from "../app/providers";
 import { createRootRoute, Outlet } from "@tanstack/react-router";
-import { ErrorNotice } from "../shared/ui/common";
+import { ErrorNotice } from "../app/error-notice";
 export const Route = createRootRoute({
-  component: () => <Outlet />,
+  component: () => (
+    <Providers>
+      <Outlet />
+    </Providers>
+  ),
   notFoundComponent: () => (
-    <main>
-      <h1>ページが見つかりません</h1>
-      <a href="/admin">管理画面へ</a>
-    </main>
+    <Canvas>
+      <Page>
+        <Heading>ページが見つかりません</Heading>
+        <a href="/admin">管理画面へ</a>
+      </Page>
+    </Canvas>
   ),
   errorComponent: ({ error, reset }) => (
-    <main>
-      <h1>画面を表示できません</h1>
-      <ErrorNotice error={error} />
-      <button onClick={reset}>再確認</button>
-      <a href="/admin">管理画面へ</a>
-    </main>
+    <Canvas>
+      <Page>
+        <Heading>画面を表示できません</Heading>
+        <ErrorNotice error={error} />
+        <Button onAction={reset}>再確認</Button>
+        <a href="/admin">管理画面へ</a>
+      </Page>
+    </Canvas>
   ),
-  pendingComponent: () => <main role="status">読み込み中…</main>,
+  pendingComponent: () => (
+    <Canvas>
+      <Page role="status">読み込み中…</Page>
+    </Canvas>
+  ),
 });

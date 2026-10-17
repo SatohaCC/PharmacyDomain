@@ -18,18 +18,18 @@ test("実APIとPostgreSQLで法人・店舗・ユーザー登録から受諾ま�
   await expect(
     page.getByRole("heading", { name: "法人登録", exact: true }),
   ).toBeVisible();
-  await page.getByLabel("法人名").fill("ブラウザー検証法人");
-  await page.getByLabel("代表者の姓").fill("検証");
+  await page.getByLabel("法人名").fill("ブラウザーテスト法人");
+  await page.getByLabel("代表者の姓").fill("テスト");
   await page.getByLabel("代表者の名").fill("太郎");
   await page.getByRole("button", { name: "登録する" }).click();
   await expect(
-    page.getByRole("heading", { name: "ブラウザー検証法人" }),
+    page.getByRole("heading", { name: "ブラウザーテスト法人" }),
   ).toBeVisible();
   const corporateUrl = new URL(page.url()).pathname;
   await page.getByRole("link", { name: /店舗を登録/ }).click();
   for (const [label, value] of [
-    ["店舗名", "検証薬局"],
-    ["店舗名カナ", "ケンショウヤッキョク"],
+    ["店舗名", "テスト薬局"],
+    ["店舗名カナ", "テストヤッキョク"],
     ["郵便番号", "1000001"],
     ["住所", "東京都千代田区千代田1"],
     ["電話番号", "0312345678"],
@@ -37,14 +37,14 @@ test("実APIとPostgreSQLで法人・店舗・ユーザー登録から受諾ま�
     await page.getByLabel(label, { exact: false }).first().fill(value);
   await page.getByRole("button", { name: "登録する" }).click();
   await expect(
-    page.getByRole("cell", { name: "検証薬局", exact: true }),
+    page.getByRole("cell", { name: "テスト薬局", exact: true }),
   ).toBeVisible();
   await page.getByRole("link", { name: "ユーザー", exact: true }).click();
   await page.getByRole("link", { name: "ユーザーを招待", exact: true }).click();
   for (const [label, value] of [
-    ["姓", "検証"],
+    ["姓", "テスト"],
     ["名", "花子"],
-    ["姓カナ", "ケンショウ"],
+    ["姓カナ", "テスト"],
     ["名カナ", "ハナコ"],
   ])
     await page.getByLabel(label, { exact: false }).first().fill(value);
@@ -76,10 +76,11 @@ test("実APIとPostgreSQLで法人・店舗・ユーザー登録から受諾ま�
     ).toBeVisible();
     await invitee.getByRole("link", { name: "法人管理へ" }).click();
     await expect(
-      invitee.getByRole("heading", { name: "ブラウザー検証法人" }),
+      invitee.getByRole("heading", { name: "ブラウザーテスト法人" }),
     ).toBeVisible();
     await page.getByRole("button", { name: "受諾状態を確認" }).click();
     await expect(page.getByRole("status")).toContainText("受諾済み");
+    page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("link", { name: "ユーザー一覧へ" }).click();
     await expect(
       page.getByRole("cell", { name: "法人管理者", exact: true }),

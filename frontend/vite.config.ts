@@ -3,6 +3,7 @@ import { defineConfig } from "vitest/config";
 import { loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
+import stylex from "@stylexjs/unplugin";
 const workspaceRoot = fileURLToPath(new URL("../", import.meta.url));
 export default defineConfig(({ mode }) => {
   const environment = loadEnv(mode, workspaceRoot, "");
@@ -10,6 +11,10 @@ export default defineConfig(({ mode }) => {
     envDir: workspaceRoot,
     plugins: [
       tanstackRouter({ target: "react", autoCodeSplitting: true }),
+      stylex.vite({
+        useCSSLayers: true,
+        devMode: process.env.VITEST ? "off" : "full",
+      }),
       react(),
     ],
     server: {
