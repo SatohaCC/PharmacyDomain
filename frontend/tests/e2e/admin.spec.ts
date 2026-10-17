@@ -180,6 +180,18 @@ test("未登録の人も招待画面へ到達でき秘密をURLから除去す�
   await page.reload();
   await expect(page.getByLabel("招待の秘密")).toHaveValue("");
 });
+test("招待画面から開発ログイン後に秘密を保存せず招待画面へ戻る", async ({ page }) => {
+  await mock(page);
+  await page.goto("/invitations/accept#secret=invitation-test");
+  await expect(page.getByLabel("招待の秘密")).toHaveValue("invitation-test");
+  await page.getByRole("link", { name: "開発用トークンで接続" }).click();
+  await expect(page).toHaveURL(/\/login\?returnTo=%2Finvitations%2Faccept$/);
+  await page.getByLabel("Bearerトークン").fill("test-token");
+  await page.getByRole("button", { name: "接続する" }).click();
+  await expect(page).toHaveURL(/\/invitations\/accept$/);
+  await expect(page.getByRole("heading", { name: "法人への招待" })).toBeVisible();
+  await expect(page.getByLabel("招待の秘密")).toHaveValue("");
+});
 test("店舗ロールは受諾完了後に管理画面へ飛ばされない", async ({ page }) => {
   await mock(page, ["store_viewer"]);
   await connect(page, "/invitations/accept");

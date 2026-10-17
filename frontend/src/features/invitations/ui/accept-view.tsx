@@ -69,7 +69,9 @@ export function AcceptView({
                 </Notice>
               )}
               {import.meta.env.DEV && (
-                <Link href={`/login`}>開発用トークンで接続</Link>
+                <Link href="/login?returnTo=%2Finvitations%2Faccept">
+                  開発用トークンで接続
+                </Link>
               )}
             </>
           )}
