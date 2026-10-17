@@ -16,14 +16,14 @@ from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
 from app.domain.medication_history.primitives import FollowUpRecordedTimestamp
-from app.infrastructure.postgres import schema
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.medication_history import (
-    MEDICATION_HISTORY_RECORD_MAPPING,
-)
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.medication_history.postgres.medication_history import (
+    MEDICATION_HISTORY_RECORD_MAPPING,
+)
+from app.infrastructure.postgres import schema
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from tests.factories.medication_history_factory import create_record
 from tests.infrastructure.postgres.helpers import ordered_migrations
 from tests.integration.medication_history_helpers import (

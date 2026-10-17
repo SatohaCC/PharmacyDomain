@@ -5,18 +5,16 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainError
+from app.domain.identity.identifiers import UserInvitationId
 from app.domain.identity.invitation import (
     InvitationDigest,
     InvitationStatus,
     UserInvitation,
 )
-from app.domain.identity.primitives import (
-    AccountPersonId,
-    MembershipRole,
-    UserInvitationId,
-)
+from app.domain.identity.primitives import MembershipRole
+from app.domain.shared.actor import AccountPersonId
 
 _EXPIRY = datetime(2026, 9, 18, 0, tzinfo=UTC)
 

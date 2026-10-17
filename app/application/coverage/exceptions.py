@@ -17,8 +17,24 @@ class PatientCoverageNotFoundError(CoverageApplicationError):
     default_code = "PATIENT_COVERAGE_NOT_FOUND"
 
 
+class CoverageStoreNotFoundError(CoverageApplicationError):
+    """適用資格を扱う店舗が存在しない、または法人が異なる場合の例外。"""
+
+    default_message = "適用資格を扱う対象店舗が見つかりません。"
+    # 既存のHTTP契約で公開しているコードは維持する。
+    default_code = "RECEPTION_STORE_NOT_FOUND"
+
+
 class CoveragePatientNotFoundError(CoverageApplicationError):
     """資格を関連付ける患者が存在しない場合の例外。"""
 
     default_message = "資格を関連付ける患者が見つかりません。"
     default_code = "COVERAGE_PATIENT_NOT_FOUND"
+
+
+class CoverageSelectionError(CoverageApplicationError):
+    """指定資格から有効な適用選択を構成できない場合の例外。"""
+
+    default_message = "適用資格の選択を構成できません。"
+    # 既存のHTTP契約で公開しているコードは維持する。
+    default_code = "RECEPTION_COVERAGE_SELECTION_ERROR"

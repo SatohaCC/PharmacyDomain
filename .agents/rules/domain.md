@@ -11,15 +11,15 @@ Domain層は業務上の事実、不変条件、状態遷移を所有する最�
 
 - **集約の不変性**: `Entity` / `AggregateRoot` は `@dataclass(frozen=True, eq=False, kw_only=True)`。状態変更メソッド（`change_*`）は `dataclasses.replace()` で新インスタンスを返すため**必ず戻り値を受け直す**。
 - **Domain Primitive**: フィールドは `value` 1つで位置引数で生成（`StoreName("サンプル名")`）。`Base*` は継承専用としフィールドの型には使わない。IDは UUIDv7（`XxxId.generate()` / `XxxId.parse()`）。
-- **複数集約ルール**: 複数集約に跨る検証（例: スタッフと店舗の法人一致）は、本物の集約を受け取る無状態 **Domain Service**（`StaffStoreAssignmentService` 等）が担当する。単一集約で完結する不変条件を Domain Service 側にも重複して置かない（片方を壊しても気づけなくなる）。
+- **複数集約ルール**: 他コンテキストの集約はDomain Serviceへ直接渡さない。Applicationで受信側コンテキストが定義する不変の参照値へ明示変換し、Domain Serviceが必要な業務上の事実を検証する。単一集約で完結する不変条件をDomain Serviceへ重複させない。
 - **Repositoryの最終防衛**: Repository は Domain 層の Protocol。`save()` は実効期間の競合や有効な一意キー重複を、同一集約IDを除外した上で原子的に拒否する契約とする。事前readは早期エラー用であり原子性の代替ではない。
 - **ライフサイクル表現**: 集約の無効化の表し方は `none` / `active_flag` / `status_enum` / `dated_activation` の4方言に限る。日付つき無効化（`dated_activation`）が最も表現力が高いが、遡及判定を必要とする到達可能なUseCaseが現れるまでは全集約へ広げない。方言の追加・集約の追加・既存集約の方言変更は `tests/domain/test_lifecycle_dialects.py` の表を編集しない限り pytest が落ちる。
 - **無効化と一意性**: 無効化後に一意キーを再利用できるかは**集約ごとに異なる業務判断**であり、全称のルールにしない。`PatientExternalIdentifier` は有効な行にだけ一意性を要求し再利用を許す。`Staff` はスタッフコードを無効化後も再利用させない。実挙動は各コンテキストの契約テストで固定する。
 - **`is_active` は集約ルートだけ**: 期間（`ended_on` 等）から導出できる子レコードに真偽フラグを足すと、同じ事実の表現が2つになり必ず食い違う。`tests/domain/test_active_flag_placement.py` が `app/domain` の全 dataclass を走査し、`is_active` を持つクラスの集合を表で固定する。
 - **用量に `float` を使わない**: 実在する用量刻み（0.05刻み等）で不均等服用の合計が一致せず、正当な処方を弾く。`BaseNonNegativeDecimal` / `BasePositiveDecimal` を使い、Application境界では `str` で受けて `Decimal` へ変換する。
-- **所有者のいない語彙はShared Kernelへ**: `PatientId` のような「集約の同一性」は所有コンテキストから import する。一方、薬品名・用量・用法などの語彙は `app/domain/shared/` に置く。
+- **共有語彙と公開ID**: 集約の識別子は所有コンテキストの `identifiers.py` から参照する。所有者のいない共有語彙だけを `app/domain/shared/` に置く。薬品名・用量・用法は、意味と不変条件を所有する各コンテキストに定義し、同じ表現という理由で共有しない。
 - **判定できないことを「該当しない」に倒さない**: 医薬品マスタが無い状態で麻薬区分を「該当しない」と答えると、麻薬処方箋の必須項目チェックが素通りする。`UNKNOWN` を明示的に持ち、Domain Service がそれを拒否する（fail-closed）。
-- **Domain依存規則**: `tools/check_imports.py` で集約間の直接依存を禁止する。集約間は ID Primitive、不変Snapshot、またはBoundaryで参照する。集約モジュール単位の禁止（`"app.domain.dispensing.dispensing_process"` 等）により、`validate()` から他集約を読めないようにする。
+- **Domain依存規則**: Import LinterとAST検査で、他コンテキストへの依存を公開IDだけに制限する。参照値・Protocol・例外・Serviceを他コンテキストからimportしない。foundation/sharedの共通基盤を除き、ID・Primitive・値オブジェクト・Entity・Repository・Serviceの責務間にも逆依存を作らない。公開IDの基底は `foundation/primitives/identifiers.py` に置く。
 
 ## 各コンテキストの不変条件 & 業務ルール
 
@@ -37,7 +37,7 @@ Domain層は業務上の事実、不変条件、状態遷移を所有する最�
 ### 保険・受付・請求（Patient / Coverage / Reception / Claim）
 
 - **資格の時間境界**: `CoveragePeriod` は終了日を含む `[valid_from, valid_to]`、`CoverageActivation` は無効化発効日を含まない `[activated_on, deactivated_on)`。実効期間は両者の交差で無効化発効日当日は無効。同日再無効化は冪等として許可、異なる発効日への変更は拒否。
-- **適用資格の履歴**: `PatientCoverage` は個別資格の台帳として維持し、最後に使った組み合わせを保持しない。受付時の選択は Reception の `CoverageSelectionRecord` に保存する。`CoverageValidityBoundary` で適用日ごとに再構築・等価比較し、`is_still_valid=False` を自動適用しない。
+- **適用資格の履歴**: `coverage` が資格台帳・適用組み合わせ・選択履歴を所有する。`PatientCoverage` は個別資格の台帳として維持し、最後に使った組み合わせは `CoverageSelectionRecord` に保存する。Applicationの `CoverageValidityBoundary` で適用日ごとに再構築・等価比較し、`is_still_valid=False` を自動適用しない。
 - **選択は枠で持つ**: `CoverageSelection` は医療保険枠0〜1個と公費枠0〜4個からなり、各枠が `source_coverage_id` と `values`（Claim Snapshot要素）を分離不能に1対1で束ねる。導出 property とし独立した記憶域を持たせない。
 - **資格の適用枠**: 医療保険は同一患者・同一期間に1件だけで順位は1に固定。公費は第一から第四までを順位で管理し、同じ順位の期間だけを競合させる。
 - **レセプト番号の桁数**: 保険者番号（`InsurerNumber`）は6桁または8桁、公費負担者番号は8桁、公費受給者番号は7桁、枝番は2桁。桁数規定のない記号・番号は空でないことを要求する。Claim 側にも同じ検証を持たせる。

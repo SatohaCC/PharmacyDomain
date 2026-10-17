@@ -10,14 +10,11 @@ from app.application.access_control.models import (
 )
 from app.application.access_control.policy import AuthorizationService
 from app.application.common.exceptions import AuthorizationError
-from app.domain.corporate.primitives import CorporateId
-from app.domain.identity.primitives import (
-    AccountPersonId,
-    CorporateMembershipId,
-    UserAccountId,
-)
-from app.domain.staff.primitives import StaffId
-from app.domain.store.primitives import StoreId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.identity.identifiers import CorporateMembershipId
+from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId
 
 _CORPORATE = CorporateId.generate()
 _STORE = StoreId.generate()

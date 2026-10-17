@@ -5,8 +5,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from app.application.access_control.policy import AuthorizationService
 from app.application.common.clock import Clock
 from app.application.common.organization_lock import OrganizationLock
@@ -39,6 +37,11 @@ from app.application.composition.prescription_references import (
     PrescriptionStoreReferenceAdapter,
 )
 from app.application.composition.store_operation_adapter import StoreOperationAdapter
+from app.application.composition.use_case_bundles import (
+    DispensingUseCases,
+    MedicationHistoryUseCases,
+    PrescriptionUseCases,
+)
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.application.dispensing.complete_dispensing import CompleteDispensingUseCase
 from app.application.dispensing.get_dispensing import GetDispensingUseCase
@@ -128,31 +131,18 @@ from app.domain.prescription.services import (
     PublicExpenseBurdenService,
     RefillEligibilityService,
 )
-from app.infrastructure.external.drug_interaction import (
-    BlackBoxDrugInteractionDataSource,
+from app.infrastructure.di.repositories import (
+    PostgresRepositorySet,
 )
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.organization import PostgresOrganizationLock
-from app.infrastructure.postgres.repositories.repository_set import (
-    PostgresRepositorySet,
+from app.infrastructure.postgres.organization_lock import PostgresOrganizationLock
+from app.infrastructure.prescription.external.drug_interaction import (
+    BlackBoxDrugInteractionDataSource,
 )
 
 # --------------------------------------------------------------------------
 # 処方箋
 # --------------------------------------------------------------------------
-
-
-@dataclass(frozen=True, slots=True)
-class PrescriptionUseCases:
-    """処方箋コンテキストのユースケース。"""
-
-    register: RegisterPrescriptionUseCase
-    get: GetPrescriptionUseCase
-    ready_for_dispensing: ReadyForDispensingUseCase
-    cancel: CancelPrescriptionUseCase
-    start_inquiry: StartInquiryUseCase
-    resolve_inquiry: ResolveInquiryUseCase
-    audit_interactions: AuditDrugInteractionsUseCase
 
 
 def build_prescription_use_cases(
@@ -200,19 +190,6 @@ def build_prescription_use_cases(
 # --------------------------------------------------------------------------
 # 調剤
 # --------------------------------------------------------------------------
-
-
-@dataclass(frozen=True, slots=True)
-class DispensingUseCases:
-    """調剤コンテキストのユースケース。"""
-
-    start: StartDispensingUseCase
-    record_dispensed_content: RecordDispensedContentUseCase
-    verify: VerifyDispensingUseCase
-    record_audit: RecordAuditUseCase
-    complete: CompleteDispensingUseCase
-    get: GetDispensingUseCase
-    list_by_prescription: ListDispensingsByPrescriptionUseCase
 
 
 def build_dispensing_use_cases(
@@ -270,30 +247,6 @@ def build_dispensing_use_cases(
 # --------------------------------------------------------------------------
 # 薬歴
 # --------------------------------------------------------------------------
-
-
-@dataclass(frozen=True, slots=True)
-class MedicationHistoryUseCases:
-    """薬歴コンテキストのユースケース。"""
-
-    start: StartMedicationHistoryUseCase
-    update_draft: UpdateMedicationHistoryDraftUseCase
-    finalize: FinalizeMedicationHistoryUseCase
-    amend: AmendMedicationHistoryUseCase
-    correct_fact: CorrectMedicationHistoryFactUseCase
-    get: GetMedicationHistoryUseCase
-    get_follow_up_source: GetFollowUpSourceUseCase
-    list_by_patient: ListMedicationHistoriesByPatientUseCase
-    get_medical_profile: GetPatientMedicalProfileUseCase
-    rebuild_medical_profile: RebuildPatientMedicalProfileUseCase
-    verify_statutory_record: VerifyStatutoryRecordUseCase
-    get_category_catalog: GetCategoryCatalogUseCase
-    update_category_catalog: UpdateCategoryCatalogUseCase
-    record_tracing_report: RecordTracingReportUseCase
-    record_tracing_report_response: RecordTracingReportResponseUseCase
-    get_view: GetMedicationHistoryViewUseCase
-    list_external_corrections: ListPendingExternalCorrectionsUseCase
-    review_external_correction: ReviewExternalPrescriptionCorrectionUseCase
 
 
 def build_medication_history_use_cases(

@@ -18,7 +18,7 @@ from app.application.store.management import (
     RevokeStoreClosureUseCase,
 )
 from app.domain.foundation.exceptions import DomainError
-from app.domain.identity.primitives import AccountPersonId, UserAccountId
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.store.lifecycle import StoreStatus
 from app.domain.store.store import Store
 from tests.application.access_helpers import AutoProvisioningCorporateRepository

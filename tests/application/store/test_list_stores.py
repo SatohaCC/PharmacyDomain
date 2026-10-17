@@ -6,7 +6,7 @@ from app.application.store.list_stores import (
     ListStoresQuery,
     ListStoresUseCase,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.application.store.helpers import save_store
 from tests.fakes.in_memory_store_repository import InMemoryStoreRepository

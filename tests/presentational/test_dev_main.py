@@ -15,17 +15,17 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.application.access_control.models import ActorRole, ResolvedActorContext
-from app.presentational.app_factory import create_app
+from app.bootstrap import create_app
+from app.dev_main import (
+    DevActorConfigurationError,
+    build_actor_provider,
+    create_dev_app,
+)
 from app.presentational.authentication import UnconfiguredActorContextProvider
 from app.presentational.dependencies import (
     STATE_ATTRIBUTE,
     PresentationState,
     get_corporate_use_cases,
-)
-from app.presentational.dev_main import (
-    DevActorConfigurationError,
-    build_actor_provider,
-    create_dev_app,
 )
 from app.presentational.exceptions import AuthenticationError
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository
@@ -296,9 +296,7 @@ def _読む環境変数() -> set[str]:
     一覧を手で持つと、変数を足したときに一覧だけが古くなる。読む側の本文から
     引くので、``values.get`` を書いた時点で検査の対象に入る。
     """
-    source = (_ROOT / "app" / "presentational" / "dev_main.py").read_text(
-        encoding="utf-8"
-    )
+    source = (_ROOT / "app" / "dev_main.py").read_text(encoding="utf-8")
     return set(re.findall(r'values\.get\(\s*"(DEV_ACTOR_[A-Z_]+)"', source))
 
 

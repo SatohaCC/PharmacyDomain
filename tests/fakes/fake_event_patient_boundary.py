@@ -2,8 +2,8 @@
 
 from app.application.access_control.exceptions import TenantBoundaryNotFoundError
 from app.application.care_event.references import EventPatientBoundary
-from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.identifiers import PatientId
 
 
 class FakeEventPatientBoundary(EventPatientBoundary):

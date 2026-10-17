@@ -18,45 +18,42 @@ from app.application.dispensing.inputs import (
     QuantityAdjustmentInput,
     SubstitutionInput,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.dispensing_process import (
     DispensedMedicine,
     DispensedRp,
     DispensingProcess,
 )
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.dispensing.primitives import (
-    DispensingId,
     PreparationMethod,
     QuantityAdjustmentReason,
     SubstitutionCategory,
     SubstitutionReason,
 )
+from app.domain.dispensing.reference_primitives import (
+    DailyFrequency,
+    DispensingQuantity,
+    DosageAmount,
+    DosageCode,
+    DosageCodeType,
+    DosageFormCategory,
+    DosageName,
+    InquiryNumber,
+    MedicineCode,
+    MedicineCodeType,
+    MedicineLineNumber,
+    MedicineName,
+    MedicineUnit,
+    RpNumber,
+)
+from app.domain.dispensing.reference_values import DosageInstruction, MedicineIdentifier
 from app.domain.dispensing.repository import DispensingProcessRepository
 from app.domain.dispensing.value_objects import (
     QuantityAdjustment,
     SubstitutionDetail,
 )
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.prescription.primitives import InquiryNumber
-from app.domain.shared.dosage import (
-    DailyFrequency,
-    DosageCode,
-    DosageCodeType,
-    DosageInstruction,
-    DosageName,
-)
-from app.domain.shared.medicine import (
-    DispensingQuantity,
-    DosageAmount,
-    DosageFormCategory,
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
-    MedicineLineNumber,
-    MedicineName,
-    MedicineUnit,
-    RpNumber,
-)
 from app.domain.shared.public_expense import PublicExpenseBurden
 
 __all__ = [

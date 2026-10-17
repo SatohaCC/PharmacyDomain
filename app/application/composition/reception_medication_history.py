@@ -6,8 +6,8 @@ from app.application.reception.reference import (
     MedicationHistoryAssociationBoundary,
     MedicationHistoryAssociationReference,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.medication_history.primitives import MedicationHistoryRecordId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.repository import MedicationHistoryRepository
 
 

@@ -1,24 +1,21 @@
 from dataclasses import replace
 from datetime import date, timedelta
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.staff.exceptions import (
     AffiliationDateConflictError,
+    ClosedStoreAssignmentError,
     ConcurrentStoreConflictError,
     InactiveStaffAssignmentError,
     InvalidCorporateAssignmentError,
     StaffCodeAlreadyExistsError,
 )
-from app.domain.staff.primitives import (
-    AffiliationPeriod,
-    StaffCode,
-    StaffId,
-    StoreAffiliation,
-)
+from app.domain.staff.identifiers import StaffId
+from app.domain.staff.primitives import StaffCode
 from app.domain.staff.repository import StaffRepository
 from app.domain.staff.staff import Staff
-from app.domain.store.lifecycle import StoreStateConflictError, StoreStatus
-from app.domain.store.store import Store
+from app.domain.staff.store_source import StoreSource
+from app.domain.staff.value_objects import AffiliationPeriod, StoreAffiliation
 
 
 class StaffCodeUniquenessService:
@@ -47,21 +44,13 @@ class StaffCodeUniquenessService:
 
 
 class StaffStoreAssignmentService:
-    """スタッフの店舗配属・異動に関するドメインルールを調整する無状態ドメインサービス。
+    """スタッフの配属・異動の法人境界と期間整合性を調整する。
 
-    .. note::
-        配属・異動・兼務変更のドメイン操作は、必ず本ドメインサービスを経由すること。
+    店舗境界で読み込んだStoreSourceの法人・閉局事実を受け取り、スタッフの
+    法人と一致することを検証する。HTTPから申告された法人IDだけで実在関係を
+    判定せず、配属を増やす操作では閉局・退職・期間衝突も拒否する。"""
 
-        ``Staff`` エンティティ単体に直接店舗IDと法人IDを個別の引数として渡して更新を行おうとすると、
-        他法人の店舗IDに自法人の法人IDを添えて渡された場合にエンティティ単体では実在関係を
-        検証できず、他法人の店舗が誤って登録されてしまう脆弱性（抜け道）が生じる。
-
-        本サービスでは、DBからロードされた不変の ``Store`` エンティティを受け取り、
-        ``store.corporate_id`` と ``staff.corporate_id`` の一致を厳格に検証することで、
-        法人境界の不変条件を確実に保護する。
-    """
-
-    def _ensure_same_corporate(self, staff: Staff, store: Store) -> None:
+    def _ensure_same_corporate(self, staff: Staff, store: StoreSource) -> None:
         """スタッフと店舗が同一法人に属しているか検証する。"""
         if store.corporate_id != staff.corporate_id:
             raise InvalidCorporateAssignmentError(
@@ -80,13 +69,15 @@ class StaffStoreAssignmentService:
             raise InactiveStaffAssignmentError()
 
     def transfer_home_store(
-        self, staff: Staff, store: Store, transfer_date: date
+        self, staff: Staff, store: StoreSource, transfer_date: date
     ) -> Staff:
         """主所属店舗の異動を行う。"""
         self._ensure_same_corporate(staff, store)
         self._ensure_staff_is_active(staff)
-        if store.status == StoreStatus.CLOSED:
-            raise StoreStateConflictError("閉局した店舗へ新しい所属を追加できません。")
+        if store.is_closed:
+            raise ClosedStoreAssignmentError(
+                "閉局した店舗へ新しい所属を追加できません。"
+            )
         new_affiliations = list(staff.affiliations)
 
         # 異動日より未来に既に開始されている主所属予約が存在する場合は衝突エラー
@@ -122,19 +113,21 @@ class StaffStoreAssignmentService:
 
         new_affiliations.append(
             StoreAffiliation(
-                store_id=store.id,
+                store_id=store.store_id,
                 period=AffiliationPeriod(start_date=transfer_date),
                 is_primary=True,
             )
         )
         return replace(staff, affiliations=tuple(new_affiliations))
 
-    def assign_home_store(self, staff: Staff, store: Store, start_date: date) -> Staff:
+    def assign_home_store(
+        self, staff: Staff, store: StoreSource, start_date: date
+    ) -> Staff:
         """スタッフに初回の主所属店舗を割り当てる。"""
         return self.transfer_home_store(staff, store, start_date)
 
     def assign_concurrent_store(
-        self, staff: Staff, store: Store, start_date: date
+        self, staff: Staff, store: StoreSource, start_date: date
     ) -> Staff:
         """兼務店舗を追加する。
 
@@ -145,11 +138,13 @@ class StaffStoreAssignmentService:
         """
         self._ensure_same_corporate(staff, store)
         self._ensure_staff_is_active(staff)
-        if store.status == StoreStatus.CLOSED:
-            raise StoreStateConflictError("閉局した店舗へ新しい所属を追加できません。")
+        if store.is_closed:
+            raise ClosedStoreAssignmentError(
+                "閉局した店舗へ新しい所属を追加できません。"
+            )
 
         new_affiliation = StoreAffiliation(
-            store_id=store.id,
+            store_id=store.store_id,
             period=AffiliationPeriod(start_date=start_date),
             is_primary=False,
         )
@@ -159,7 +154,7 @@ class StaffStoreAssignmentService:
         )
 
     def remove_concurrent_store(
-        self, staff: Staff, store: Store, end_date: date
+        self, staff: Staff, store: StoreSource, end_date: date
     ) -> Staff:
         """兼務店舗から外す。"""
         self._ensure_same_corporate(staff, store)
@@ -169,7 +164,7 @@ class StaffStoreAssignmentService:
             (index, affiliation)
             for index, affiliation in enumerate(new_affiliations)
             if not affiliation.is_primary
-            and affiliation.store_id == store.id
+            and affiliation.store_id == store.store_id
             and affiliation.period.is_active_on(end_date)
         ]
         if not matching_affiliations:

@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from app.domain.corporate.corporate import Corporate
-from app.domain.corporate.primitives import CorporateId, CorporateStatus
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.corporate.primitives import CorporateStatus
 
 
 @dataclass(frozen=True, kw_only=True)

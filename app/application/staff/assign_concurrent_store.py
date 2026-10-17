@@ -7,13 +7,13 @@ from datetime import date
 
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
+from app.application.staff.reference import StaffStoreReference
 from app.application.staff.support import load_staff_or_raise, load_store_or_raise
-from app.domain.corporate.primitives import CorporateId
-from app.domain.staff.primitives import StaffId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.staff.identifiers import StaffId
 from app.domain.staff.repository import StaffRepository
 from app.domain.staff.services import StaffStoreAssignmentService
-from app.domain.store.primitives import StoreId
-from app.domain.store.repository import StoreRepository
+from app.domain.store.identifiers import StoreId
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -32,7 +32,7 @@ class AssignStaffConcurrentStoreUseCase:
     def __init__(
         self,
         staff_repository: StaffRepository,
-        store_repository: StoreRepository,
+        store_repository: StaffStoreReference,
         assignment_service: StaffStoreAssignmentService,
         corporate_access: CorporateAccessBoundary,
     ) -> None:

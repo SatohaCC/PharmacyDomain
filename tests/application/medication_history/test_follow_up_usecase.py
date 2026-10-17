@@ -5,12 +5,8 @@ from dataclasses import replace
 import pytest
 
 from app.application.common.exceptions import NotFoundError
-from app.domain.care_event.primitives import (
-    EventId,
-    EventTypeId,
-    EventTypeName,
-    EventTypeStandardCode,
-)
+from app.domain.care_event.identifiers import EventId, EventTypeId
+from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
 from tests.application.medication_history.helpers import (
     create_fixture,
     create_start_command,

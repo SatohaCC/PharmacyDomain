@@ -15,7 +15,7 @@ from app.domain.prescription.interaction_audit import (
     DrugInteractionPair,
     InteractionSeverity,
 )
-from app.domain.shared.medicine import YjCode
+from app.domain.prescription.reference_primitives import YjCode
 from tests.application.access_helpers import create_vendor_authorization
 from tests.fakes.fake_drug_interaction import FakeDrugInteractionDataSource
 

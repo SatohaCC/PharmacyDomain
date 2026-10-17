@@ -5,9 +5,9 @@ from __future__ import annotations
 import copy
 
 from app.domain.care_event.event_definition import EventDefinition
-from app.domain.care_event.primitives import EventTypeId
+from app.domain.care_event.identifiers import EventTypeId
 from app.domain.care_event.repository import EventDefinitionRepository
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 
 
 class InMemoryEventDefinitionRepository(EventDefinitionRepository):

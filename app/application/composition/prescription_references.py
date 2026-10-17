@@ -17,21 +17,23 @@ from app.application.prescription.reference import (
     StaffQualificationBoundary,
     StoreReferenceBoundary,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.coverage.identifiers import CoverageSelectionRecordId
+from app.domain.coverage.repository import CoverageSelectionRecordRepository
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.repository import PatientRepository
-from app.domain.reception.primitives import CoverageSelectionRecordId
-from app.domain.reception.repository import CoverageSelectionRecordRepository
+from app.domain.prescription.value_objects import PharmacistQualification
 from app.domain.shared.public_expense import PublicExpenseBurden
-from app.domain.staff.primitives import StaffId, StaffQualifications
+from app.domain.staff.identifiers import StaffId
 from app.domain.staff.repository import StaffRepository
-from app.domain.store.primitives import StoreId
+from app.domain.staff.value_objects import PharmacistProfile
+from app.domain.store.identifiers import StoreId
 from app.domain.store.repository import StoreRepository
 
 #: 資格台帳の公費順位（第一〜第四）から、処方箋の公費枠への対応。
 #:
 #: 両者は別軸である。処方箋の枠は第一/第二/第三/**特殊**で、特殊公費の負担者番号は
-#: 数字以外を含みうるため ``ClaimPublicPayerNumber``（8桁）を満たせず、資格台帳から
+#: 数字以外を含みうるため資格台帳の ``PublicPayerNumber``（8桁）を満たせず、資格台帳から
 #: 写せない。したがって ``special`` はどの順位にも対応づけず、常に「裏付けなし」に
 #: なる。第四公費も処方箋側に受け皿が無いので、どの枠も立てない。
 #:
@@ -116,8 +118,8 @@ class PrescriptionStaffQualificationAdapter(StaffQualificationBoundary):
         *,
         corporate_id: CorporateId,
         staff_id: StaffId,
-    ) -> StaffQualifications:
-        """未存在・別法人のスタッフを404相当へ畳み、資格をそのまま返す。
+    ) -> PharmacistQualification:
+        """未存在・別法人のスタッフを404相当へ畳み、利用側の資格保有事実へ変換する。
 
         薬剤師かどうかの判定はここで行わない。判定を境界側へ寄せると、同じ規則が
         実装ごとに分岐する。資格が空でも在籍しているので例外にしない。
@@ -128,7 +130,9 @@ class PrescriptionStaffQualificationAdapter(StaffQualificationBoundary):
         )
         if staff is None:
             raise PrescriptionPharmacistNotFoundError()
-        return staff.qualifications
+        return PharmacistQualification(
+            has_pharmacist=staff.qualifications.has(PharmacistProfile)
+        )
 
 
 class CoverageSelectionPublicExpenseAdapter(PublicExpenseAvailabilityBoundary):

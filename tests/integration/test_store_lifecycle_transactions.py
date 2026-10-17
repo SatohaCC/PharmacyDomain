@@ -14,10 +14,10 @@ from app.application.store.management import (
 from app.domain.foundation.exceptions import DomainError
 from app.domain.store.lifecycle import StoreStatus
 from app.domain.store.manager_assignment import ManagerAbsenceConflictError
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from tests.factories.dispensing_factory import create_dispensing
 from tests.factories.prescription_factory import create_prescription
 from tests.integration.organization_helpers import appoint_manager, setup_organization
@@ -75,7 +75,9 @@ async def test_閉局と新規業務が競合しても閉局店舗に未完了�
     async with PostgresUnitOfWork(session_factory) as work:
         repos = PostgresRepositorySet.create(work)
         store = await repos.store.get(fixture.store.id)
-        from app.infrastructure.postgres.organization import PostgresStoreWorkBoundary
+        from app.infrastructure.store.postgres.work_boundary import (
+            PostgresStoreWorkBoundary,
+        )
 
         unfinished = await PostgresStoreWorkBoundary(work).has_unfinished(
             fixture.corporate.id, fixture.store.id

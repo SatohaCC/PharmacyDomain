@@ -13,18 +13,20 @@ from app.application.medication_history.support import (
     load_record_or_raise,
     parse_enum,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.medication_history.primitives import (
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.medication_history.identifiers import (
     MedicationHistoryRecordId,
+    TracingReportId,
+)
+from app.domain.medication_history.primitives import (
     PhysicianName,
     PrescriberActionType,
-    TracingReportId,
     TracingReportResponseContent,
     TracingReportTimestamp,
 )
 from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.value_objects import TracingReportResponse
-from app.domain.staff.primitives import StaffId
+from app.domain.staff.identifiers import StaffId
 
 
 class RecordTracingReportResponseUseCase:

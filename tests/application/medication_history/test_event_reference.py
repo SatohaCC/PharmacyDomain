@@ -1,6 +1,6 @@
 """薬歴から業務Eventを参照するRepository契約。"""
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from tests.factories.medication_history_factory import create_record
 from tests.fakes.in_memory_medication_history_repository import (
     InMemoryMedicationHistoryRepository,

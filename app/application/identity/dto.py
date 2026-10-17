@@ -7,22 +7,18 @@ from datetime import datetime
 
 from app.application.access_control.models import ResolvedActorContext
 from app.application.common.optional_conversion import optional_id
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.account_person import AccountPerson
+from app.domain.identity.identifiers import CorporateMembershipId
 from app.domain.identity.invitation import InvitationStatus, UserInvitation
 from app.domain.identity.membership import CorporateMembership
-from app.domain.identity.primitives import (
-    AccountPersonId,
-    AccountStatus,
-    CorporateMembershipId,
-    MembershipRole,
-    UserAccountId,
-)
+from app.domain.identity.primitives import AccountStatus, MembershipRole
 from app.domain.identity.staff_person_link import StaffPersonLink
 from app.domain.identity.user_account import UserAccount
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
-from app.domain.staff.primitives import StaffId
-from app.domain.store.primitives import StoreId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId
 
 
 @dataclass(frozen=True)

@@ -15,7 +15,7 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.exceptions import (
     AdverseReactionNotFoundError,
     AllergyNotFoundError,
@@ -24,6 +24,7 @@ from app.domain.medication_history.exceptions import (
     ProfilePatientMismatchError,
     UnfinalizedRecordProjectionError,
 )
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
@@ -33,11 +34,10 @@ from app.domain.medication_history.primitives import (
     FinalizedTimestamp,
     FollowUpRecordedTimestamp,
     GenericPreferenceType,
-    MedicationHistoryRecordId,
     MedicationHistoryStatus,
 )
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
 from tests.factories.medication_history_factory import (
     create_adverse_reaction_intent,
     create_allergy_intent,

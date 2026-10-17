@@ -11,6 +11,12 @@ from datetime import UTC, date, datetime
 import pytest
 
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.prescription.dosage import (
+    DosageCode,
+    DosageCodeType,
+    DosageInstruction,
+    DosageName,
+)
 from app.domain.prescription.exceptions import (
     ApplicationSiteCodeRequiredError,
     DepartmentCodeRequiredError,
@@ -45,12 +51,6 @@ from app.domain.prescription.value_objects import (
     DosageSupplement,
     PrescriptionPeriod,
     SplitInstruction,
-)
-from app.domain.shared.dosage import (
-    DosageCode,
-    DosageCodeType,
-    DosageInstruction,
-    DosageName,
 )
 
 
@@ -444,7 +444,7 @@ class Test照会日時:
         """どのタイムゾーンで記録されたか復元できず、監査に使えないため。"""
         # Arrange / Act / Assert
         with pytest.raises(DomainValidationError, match="タイムゾーン"):
-            InquiryTimestamp(datetime(2026, 8, 24, 1, 30))  # noqa: DTZ001
+            InquiryTimestamp(datetime(2026, 8, 24, 1, 30))
 
 
 class Test処方箋の状態:

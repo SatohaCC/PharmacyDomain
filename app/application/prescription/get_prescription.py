@@ -12,14 +12,17 @@ from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.common.optional_conversion import unwrap
 from app.application.prescription.support import load_prescription_or_raise
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.prescription.dosage import (
+    DosageInstruction,
+)
+from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.prescription.prescription import (
     Prescription,
     PrescriptionInquiry,
     PrescriptionMedicine,
     PrescriptionRp,
 )
-from app.domain.prescription.primitives import PrescriptionId
 from app.domain.prescription.repository import PrescriptionRepository
 from app.domain.prescription.value_objects import (
     DepartmentInfo,
@@ -32,9 +35,6 @@ from app.domain.prescription.value_objects import (
     PrescriptionManagementInfo,
     PrescriptionPeriod,
     UnitConversion,
-)
-from app.domain.shared.dosage import (
-    DosageInstruction,
 )
 from app.domain.shared.public_expense import PublicExpenseBurden
 

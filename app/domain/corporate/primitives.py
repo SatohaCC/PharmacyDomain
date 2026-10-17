@@ -6,17 +6,8 @@
 from enum import StrEnum
 
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.foundation.primitives.primitives import (
-    BaseNormalizedString,
-    EntityUUID,
-)
+from app.domain.foundation.primitives.primitives import BaseNormalizedString
 from app.domain.shared.person_name import PersonName
-
-
-class CorporateId(EntityUUID):
-    """法人の一意識別子（UUIDv7）"""
-
-    identifier_name = "法人ID"
 
 
 class CorporateStatus(StrEnum):

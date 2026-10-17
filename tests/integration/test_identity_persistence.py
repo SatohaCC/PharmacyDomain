@@ -9,16 +9,17 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.domain.foundation.exceptions import ConcurrentModificationError
 from app.domain.identity.account_person import AccountPerson
 from app.domain.identity.exceptions import IdentityConflictError
-from app.domain.identity.primitives import AccountPersonId, AccountStatus, UserAccountId
+from app.domain.identity.primitives import AccountStatus
 from app.domain.identity.user_account import UserAccount
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.account_person import (
+from app.infrastructure.identity.postgres.account_person import (
     PostgresAccountPersonRepository,
 )
-from app.infrastructure.postgres.repositories.user_account import (
+from app.infrastructure.identity.postgres.user_account import (
     PostgresUserAccountRepository,
 )
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 
 
 def _person() -> AccountPerson:

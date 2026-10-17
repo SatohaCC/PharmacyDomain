@@ -8,21 +8,23 @@ from datetime import date
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.staff.support import load_staff_or_raise, to_optional_text
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import (
-    BaseQualificationProfile,
-    DietitianProfile,
     DietitianRegistrationNumber,
-    InsurancePharmacistRegistration,
     InsurancePharmacistRegistrationNumber,
     PharmacistLicenseNumber,
-    PharmacistProfile,
-    RegisteredSellerProfile,
     SellerRegistrationNumber,
-    StaffId,
-    StaffQualifications,
 )
 from app.domain.staff.repository import StaffRepository
+from app.domain.staff.value_objects import (
+    BaseQualificationProfile,
+    DietitianProfile,
+    InsurancePharmacistRegistration,
+    PharmacistProfile,
+    RegisteredSellerProfile,
+    StaffQualifications,
+)
 
 
 @dataclass(frozen=True, kw_only=True)

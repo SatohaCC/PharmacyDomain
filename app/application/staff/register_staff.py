@@ -7,25 +7,20 @@ from datetime import date
 
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
+from app.application.staff.reference import StaffStoreReference
 from app.application.staff.support import load_store_or_raise, to_optional_text
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.shared.person_name import PersonNames
+from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import (
-    BaseQualificationProfile,
-    DietitianProfile,
     DietitianRegistrationNumber,
-    InsurancePharmacistRegistration,
     InsurancePharmacistRegistrationNumber,
     JobTitle,
     PharmacistLicenseNumber,
-    PharmacistProfile,
-    RegisteredSellerProfile,
     SellerRegistrationNumber,
     StaffCode,
     StaffEmailAddress,
-    StaffId,
     StaffPhoneNumber,
-    StaffQualifications,
 )
 from app.domain.staff.repository import StaffRepository
 from app.domain.staff.services import (
@@ -33,8 +28,15 @@ from app.domain.staff.services import (
     StaffStoreAssignmentService,
 )
 from app.domain.staff.staff import Staff
-from app.domain.store.primitives import StoreId
-from app.domain.store.repository import StoreRepository
+from app.domain.staff.value_objects import (
+    BaseQualificationProfile,
+    DietitianProfile,
+    InsurancePharmacistRegistration,
+    PharmacistProfile,
+    RegisteredSellerProfile,
+    StaffQualifications,
+)
+from app.domain.store.identifiers import StoreId
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -67,7 +69,7 @@ class RegisterStaffUseCase:
     def __init__(
         self,
         staff_repository: StaffRepository,
-        store_repository: StoreRepository,
+        store_repository: StaffStoreReference,
         uniqueness_service: StaffCodeUniquenessService,
         assignment_service: StaffStoreAssignmentService,
         corporate_access: CorporateAccessBoundary,

@@ -1,14 +1,10 @@
 ---
 trigger: always_on
-description: Consult the graphify knowledge graph at graphify-out/ for codebase and architecture questions.
+description: コードベースの質問ではgraphifyの知識グラフを参照する。
 ---
 
 ## graphify
 
-This project has a graphify knowledge graph at graphify-out/.
-
-Rules:
-- For codebase or architecture questions, when `graphify-out/graph.json` exists, first run `graphify query "<question>"` (CLI) or `query_graph` (MCP). Use `graphify path "<A>" "<B>"` / `shortest_path` for relationships and `graphify explain "<concept>"` / `get_node` for focused concepts. These return a scoped subgraph, usually much smaller than `GRAPH_REPORT.md` or raw grep output.
-- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context
-- After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost)
+- `graphify-out/graph.json` がある場合、コードや設計の質問では最初に `graphify query "<質問>"` を実行する。関係の追跡には `graphify path`、特定概念には `graphify explain` を使う。
+- wikiがある場合は `graphify-out/wiki/index.md` を入口にする。全体把握が必要な場合だけGRAPH_REPORT.mdを読む。
+- グラフが古い場合は現在のソースを確認する。コード変更後は `graphify update .` で更新する。

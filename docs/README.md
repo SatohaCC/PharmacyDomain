@@ -27,7 +27,7 @@
 本システムの中心（コアドメイン）は**「電子薬歴（服薬指導・薬学的管理指導）」および付随する調剤事実記録・患者医療プロファイル**です。
 レセコン（医事会計・レセプト請求システム）の排他的な責務である調剤報酬点数算定、窓口一部負担金計算、公費上限額管理票記帳、レセプト作成はドメイン外の関心事とし、レセコンから連携される客観的調剤事実を受容して記録を完結させます（ADR-49, ADR-58）。
 
-Domain層は外部技術に依存せず、Application層が認可、入力変換、境界参照、保存順序を調整します。
+Domain層は外部技術に依存せず、Application層が認可、入力変換、境界参照、保存順序を調整します。PresentationはApplicationの公開境界だけを直接参照し、具象生成はレイヤー外の起動点で配線します。Domainのコンテキスト間参照は公開IDに限定し、必要な情報は利用側が所有する不変値へ変換します。これらの方向はImport LinterとAST検査で継続的に確認します。
 
 ```mermaid
 flowchart LR
@@ -41,7 +41,7 @@ flowchart LR
 ```
 
 2026-09-20時点では、Identityを含む12コンテキストのDomainモデルと全コンテキストのPostgreSQL
-Repositoryを実装済みです。ClaimはDomain層のみです。HTTP境界は全コンテキストの
+Repositoryを実装済みです。HTTP境界は全コンテキストの
 ユースケースを公開済みで、外部IdPのJWTを検証する認証基盤も接続済みです。薬価基準・
 HOTコード等の実データ取り込みは未実装です。
 
@@ -84,7 +84,7 @@ Event参照へ移行し、推測できない発生日時と独立した確定監
     * 窓口受付および処方入力が完了した段階で、NSIPS（新調剤システム情報交換仕様）等を介して調剤・処方データを連携する。
     * 本システムは「1回の受付NSIPS単位」で調剤セッション（`DispensingProcess`）を開始し、薬歴（`MedicationHistoryRecord`）を記録・完結させる（ADR-49, ADR-57）。
     * NSIPSから受け付けた保険・公費情報は、受付ごとの受信原本として保存する。資格台帳への自動登録や請求用資格の自動選択は行わず、過去の資格との相違・期間重複で薬歴業務の受付を止めない。
-    * `Coverage` / `Reception` / `Claim` は、将来の請求資格スナップショットを扱う独立した境界として残す。資格台帳・選択の明示操作とNSIPSの受信記録を分離し、点数計算エンジンや自己負担金計算を自前で実装しない。
+    * `Coverage` は保険・公費の資格台帳、有効性、適用組み合わせ、適用時点の固定値、選択履歴を所有する。`Reception` はNSIPS等の受信原本・訂正履歴と受付時の業務判断を所有し、資格台帳への自動登録や選択を行わない。点数計算エンジンや自己負担金計算は自前で実装しない。
 
 ## コンテキスト
 
@@ -95,10 +95,9 @@ Event参照へ移行し、推測できない発生日時と独立した確定監
 | Staff | スタッフ、資格、店舗所属履歴 |
 | Identity | 本人、個人アカウント、法人アクセス権、招待 |
 | Patient | 患者、外部患者ID、ライフサイクル、名寄せ統合 |
-| Coverage | 患者資格の台帳と有効期間 |
-| Reception | 外部から届く受付原本・訂正履歴と明示的な資格選択履歴 |
+| Coverage | 保険・公費の患者資格台帳、有効期間、適用組み合わせ、固定値、選択履歴 |
+| Reception | 外部から届く受付原本・訂正履歴と受付時の業務判断 |
 | CareEvent | 患者単位の業務イベントと種別 |
-| Claim | 請求へ固定する資格スナップショット |
 | Prescription | 処方箋原本と疑義照会 |
 | Dispensing | 1回ごとの調剤、変更調剤、鑑査 |
 | MedicationHistory | Eventに結び付く汎用服薬記録と患者医療プロファイルの投影 |
@@ -114,7 +113,7 @@ Event参照へ移行し、推測できない発生日時と独立した確定監
 - 集約は不変オブジェクトとし、状態変更は新しいインスタンスを返す
 - 複数集約の整合性はDomain Service、存在・認可・外部参照はApplication Boundaryが担う
 - 日付・時刻は暗黙の「現在」を使わず、適用日または注入したClockを使う
-- Coverageの選択元IDと請求値は、同じ枠の中で分離不能に保持する
+- Coverageの選択元IDと適用時点の固定値は、同じ枠の中で分離不能に保持する
 - 医薬品マスタは非テナントの版付き参照データとし、過去判定は対象時点の版を引く
 - 用量は `float` ではなく `Decimal` を使う
 - 判定不能な医薬品規制区分は「非該当」にせず、fail-closedで拒否する
@@ -145,7 +144,6 @@ Event参照へ移行し、推測できない発生日時と独立した確定監
 ## 未解決事項
 
 - 全コンテキストの本番Repository、DB制約、楽観ロック、テナント境界は実装済み。実PostgreSQL結合テストで確認済み
-- Claimは到達可能なUseCaseが無いため、HTTPルートも持たない（Domain層のみ）
 - 外部IdPのJWTから `ActorContext` を作る認証基盤は実装済み。`OIDC_*` 未設定なら既定実装が常に401を返す。ログイン画面・リフレッシュ・失効（ログアウト）と、実IdP製品への接続確認は残る
 - 厚生労働省薬価基準収載医薬品コード（YJコード）CSVからのMedicineCatalog実データ取り込みは実装済み（HOTコード等の追加形式取り込みは将来拡張）
 - Prescriptionの公費枠とCoverage台帳を接続するComposition Adapterは実装済み
@@ -157,7 +155,7 @@ Event参照へ移行し、推測できない発生日時と独立した確定監
 
 ## 実装と検証
 
-- 現在の実装: `app/domain/`、`app/application/`、`app/infrastructure/postgres/`、`migrations/`
+- 現在の実装: `app/domain/`、`app/application/`、`app/infrastructure/`、`migrations/`
 - 実行可能な契約: `tests/domain/`、`tests/application/`、`tests/contracts/`
 - アーキテクチャ検査: `tools/check_imports.py`、`tools/check_lcom.py`、`tools/check_fake_conformance.py`
 - コマンドとCI: [AGENTS.md](../AGENTS.md)、`.github/workflows/quality-gate.yml`

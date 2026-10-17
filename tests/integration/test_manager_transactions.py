@@ -11,20 +11,20 @@ from app.application.staff.update_qualifications import UpdateStaffQualification
 from app.application.store.management import ManagerAction, ManageStoreManagerCommand
 from app.domain.foundation.exceptions import DomainError
 from app.domain.identity.staff_person_link import StaffPersonLink
+from app.domain.store.identifiers import StoreManagerAssignmentId
 from app.domain.store.manager_assignment import (
     ManagerAssignmentPeriod,
     ManagerPersonUnresolvedError,
     StoreManagerAssignment,
-    StoreManagerAssignmentId,
 )
 from app.domain.store.manager_repository import (
     ManagerAssignmentConflictError,
     ManagerExclusiveDutyConflictError,
 )
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store
 from tests.infrastructure.postgres.helpers import create_corporate

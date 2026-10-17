@@ -16,13 +16,13 @@ from app.application.medicine_catalog.import_yj_catalog import (
     YjCatalogCsvParser,
     YjCatalogParseError,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medicine_catalog.primitives import (
     GenericCategory,
+    MedicineCodeType,
     MedicineDosageForm,
     NarcoticCategory,
 )
-from app.domain.shared.medicine import MedicineCodeType
 from tests.fakes.in_memory_medicine_catalog_repository import (
     InMemoryMedicineCatalogRepository,
 )

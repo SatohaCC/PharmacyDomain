@@ -18,14 +18,17 @@ from collections.abc import Mapping
 from datetime import date
 from typing import Protocol
 
-from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientId
-from app.domain.prescription.value_objects import MedicineClassification
-from app.domain.reception.primitives import CoverageSelectionRecordId
-from app.domain.shared.medicine import MedicineIdentifier
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.coverage.identifiers import CoverageSelectionRecordId
+from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.reference_values import MedicineIdentifier
+from app.domain.prescription.value_objects import (
+    MedicineClassification,
+    PharmacistQualification,
+)
 from app.domain.shared.public_expense import PublicExpenseBurden
-from app.domain.staff.primitives import StaffId, StaffQualifications
-from app.domain.store.primitives import StoreId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId
 
 
 class StoreReferenceBoundary(Protocol):
@@ -77,14 +80,14 @@ class StaffQualificationBoundary(Protocol):
         *,
         corporate_id: CorporateId,
         staff_id: StaffId,
-    ) -> StaffQualifications:
+    ) -> PharmacistQualification:
         """指定法人に在籍するスタッフの保有資格を返す。
 
         Raises:
             PrescriptionPharmacistNotFoundError: 未存在または別法人のスタッフで
                 ある場合。他テナントの存在を隠すためAuthorizationErrorへ分けない。
                 資格を持たないだけのスタッフはここでは例外にせず、空の
-                ``StaffQualifications`` を返す（存在はしているため）。
+                ``PharmacistQualification`` を返す（存在はしているため）。
         """
         ...
 

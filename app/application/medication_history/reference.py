@@ -1,9 +1,7 @@
-"""MedicationHistory Applicationが依存する参照境界。
+"""薬歴に必要な外部事実を受け渡す参照境界。
 
-集約を跨ぐ検証は、本物の集約・値オブジェクトを受け取る Domain Service が担う。
-それらを**運ぶ**のがこの層の Protocol であり、実装は Composition Root の
-実アダプタに閉じる。
-"""
+他コンテキストの集約実装を返さず、公開IDと薬歴側の不変値を提供する。
+照合・充足の判定は薬歴のDomain Serviceが行う。"""
 
 from __future__ import annotations
 
@@ -12,24 +10,21 @@ from datetime import datetime
 from typing import Protocol
 
 from app.application.medication_history.inputs import BillingAdditionInput
-from app.domain.care_event.primitives import (
-    EventId,
-    EventOccurredTimestamp,
-    EventTypeId,
-    EventTypeName,
+from app.domain.care_event.identifiers import EventId, EventTypeId
+from app.domain.care_event.primitives import EventOccurredTimestamp, EventTypeName
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.identifiers import DispensingId
+from app.domain.medication_history.dispensing_source import DispensingSource
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
+from app.domain.medication_history.value_objects import (
+    PharmacistQualification,
+    StatutoryRecordSource,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing.dispensing_process import DispensingProcess
-from app.domain.dispensing.primitives import DispensingId
-from app.domain.medication_history.primitives import (
-    MedicationHistoryRecordId,
-)
-from app.domain.medication_history.value_objects import StatutoryRecordSource
-from app.domain.patient.primitives import PatientId
-from app.domain.prescription.primitives import PrescriptionId
-from app.domain.reception.primitives import ReceptionId
-from app.domain.staff.primitives import StaffId, StaffQualifications
-from app.domain.store.primitives import StoreId
+from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.reception.identifiers import ReceptionId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -88,20 +83,14 @@ class StoreReferenceBoundary(Protocol):
 
 
 class DispensingReferenceBoundary(Protocol):
-    """薬歴が紐付く調剤セッション集約を取り出す境界。
-
-    ``DispensingProcess`` そのものを返す。法人・患者の一致は
-    IDだけでは判定できず、Domain Service が本物の集約を必要とする。
-    ``MedicationHistoryRecord`` 集約が調剤を保持するわけではない
-    （集約モジュールからの import は ``[tool.import_rules.forbidden]`` が禁じている）。
-    """
+    """薬歴が紐付く調剤の同一性と記載事実を固定値として返す境界。"""
 
     async def get_or_raise(
         self,
         *,
         corporate_id: CorporateId,
         dispensing_id: DispensingId,
-    ) -> DispensingProcess:
+    ) -> DispensingSource:
         """指定法人の調剤セッションを取得する。
 
         Raises:
@@ -163,13 +152,13 @@ class StaffQualificationBoundary(Protocol):
         *,
         corporate_id: CorporateId,
         staff_id: StaffId,
-    ) -> StaffQualifications:
+    ) -> PharmacistQualification:
         """指定法人に在籍するスタッフの保有資格を返す。
 
         Raises:
             MedicationHistoryStaffNotFoundError: 未存在または別法人のスタッフで
                 ある場合。資格を持たないだけのスタッフはここでは例外にせず、
-                空の ``StaffQualifications`` を返す（存在はしているため）。
+                資格非保有の ``PharmacistQualification`` を返す（存在はしているため）。
         """
         ...
 

@@ -17,7 +17,7 @@ from app.domain.medication_history.fact_correction import (
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
-from app.domain.staff.primitives import StaffId
+from app.domain.staff.identifiers import StaffId
 
 
 def convert_fact_value(

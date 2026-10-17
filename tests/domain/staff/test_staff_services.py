@@ -6,7 +6,10 @@ from datetime import date
 
 import pytest
 
-from app.domain.corporate.primitives import CorporateId
+from app.application.composition.organization_snapshot_mapping import (
+    staff_store_source,
+)
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.staff.exceptions import (
     AffiliationDateConflictError,
     ConcurrentStoreConflictError,
@@ -55,7 +58,7 @@ def test_assign_home_store_raises_error_when_store_belongs_to_different_corporat
     with pytest.raises(InvalidCorporateAssignmentError):
         assignment_service.assign_home_store(
             staff=staff_a,
-            store=store_b,
+            store=staff_store_source(store_b),
             start_date=date(2026, 4, 1),
         )
 
@@ -73,7 +76,7 @@ def test_assign_home_store_succeeds_when_store_belongs_to_same_corporate() -> No
     # Act
     updated_staff = assignment_service.assign_home_store(
         staff=staff,
-        store=store,
+        store=staff_store_source(store),
         start_date=today,
     )
 
@@ -94,7 +97,7 @@ def test_remove_concurrent_store_raises_error_when_no_active_affiliation_found()
     with pytest.raises(ConcurrentStoreConflictError):
         assignment_service.remove_concurrent_store(
             staff=staff,
-            store=store,
+            store=staff_store_source(store),
             end_date=date(2026, 4, 1),
         )
 
@@ -112,14 +115,20 @@ def test_transfer_home_store_raises_error_when_future_primary_affiliation_exists
     staff = create_staff(corporate_id=corp_id)
 
     # 店舗A配属 (2026-04-01)
-    staff = assignment_service.assign_home_store(staff, store_a, date(2026, 4, 1))
+    staff = assignment_service.assign_home_store(
+        staff, staff_store_source(store_a), date(2026, 4, 1)
+    )
 
     # 未来の店舗B異動予約 (2026-06-01)
-    staff = assignment_service.transfer_home_store(staff, store_b, date(2026, 6, 1))
+    staff = assignment_service.transfer_home_store(
+        staff, staff_store_source(store_b), date(2026, 6, 1)
+    )
 
     # Act / Assert: 未来の予約（2026-06-01）より過去/中間（2026-05-01）への割り込み異動は AffiliationDateConflictError となること
     with pytest.raises(AffiliationDateConflictError):
-        assignment_service.transfer_home_store(staff, store_c, date(2026, 5, 1))
+        assignment_service.transfer_home_store(
+            staff, staff_store_source(store_c), date(2026, 5, 1)
+        )
 
 
 def test_兼務追加_過去に遡って既存兼務と重なる期間を指定すると_兼務衝突エラーになる() -> (
@@ -130,12 +139,18 @@ def test_兼務追加_過去に遡って既存兼務と重なる期間を指定�
     store = create_store(corporate_id=corp_id, name="店舗A")
     assignment_service = StaffStoreAssignmentService()
     staff = create_staff(corporate_id=corp_id)
-    staff = assignment_service.assign_concurrent_store(staff, store, date(2026, 3, 1))
-    staff = assignment_service.remove_concurrent_store(staff, store, date(2026, 6, 30))
+    staff = assignment_service.assign_concurrent_store(
+        staff, staff_store_source(store), date(2026, 3, 1)
+    )
+    staff = assignment_service.remove_concurrent_store(
+        staff, staff_store_source(store), date(2026, 6, 30)
+    )
 
     # Act / Assert: 開始日時点しか見ない事前判定では素通りしていた過去への遡り
     with pytest.raises(ConcurrentStoreConflictError):
-        assignment_service.assign_concurrent_store(staff, store, date(2026, 1, 1))
+        assignment_service.assign_concurrent_store(
+            staff, staff_store_source(store), date(2026, 1, 1)
+        )
 
 
 def test_主所属異動_異動先が兼務中の店舗だと_兼務衝突エラーになる() -> None:
@@ -145,12 +160,18 @@ def test_主所属異動_異動先が兼務中の店舗だと_兼務衝突エラ
     store_b = create_store(corporate_id=corp_id, name="店舗B")
     assignment_service = StaffStoreAssignmentService()
     staff = create_staff(corporate_id=corp_id)
-    staff = assignment_service.assign_home_store(staff, store_a, date(2026, 4, 1))
-    staff = assignment_service.assign_concurrent_store(staff, store_b, date(2026, 4, 1))
+    staff = assignment_service.assign_home_store(
+        staff, staff_store_source(store_a), date(2026, 4, 1)
+    )
+    staff = assignment_service.assign_concurrent_store(
+        staff, staff_store_source(store_b), date(2026, 4, 1)
+    )
 
     # Act / Assert: 主所属と兼務が同一店舗で同居する矛盾を作らせない
     with pytest.raises(ConcurrentStoreConflictError):
-        assignment_service.transfer_home_store(staff, store_b, date(2026, 7, 1))
+        assignment_service.transfer_home_store(
+            staff, staff_store_source(store_b), date(2026, 7, 1)
+        )
 
 
 def test_主所属異動_兼務を解除してから異動すると_主所属が切り替わる() -> None:
@@ -160,14 +181,20 @@ def test_主所属異動_兼務を解除してから異動すると_主所属が
     store_b = create_store(corporate_id=corp_id, name="店舗B")
     assignment_service = StaffStoreAssignmentService()
     staff = create_staff(corporate_id=corp_id)
-    staff = assignment_service.assign_home_store(staff, store_a, date(2026, 4, 1))
-    staff = assignment_service.assign_concurrent_store(staff, store_b, date(2026, 4, 1))
+    staff = assignment_service.assign_home_store(
+        staff, staff_store_source(store_a), date(2026, 4, 1)
+    )
+    staff = assignment_service.assign_concurrent_store(
+        staff, staff_store_source(store_b), date(2026, 4, 1)
+    )
 
     # Act
     staff = assignment_service.remove_concurrent_store(
-        staff, store_b, date(2026, 6, 30)
+        staff, staff_store_source(store_b), date(2026, 6, 30)
     )
-    staff = assignment_service.transfer_home_store(staff, store_b, date(2026, 7, 1))
+    staff = assignment_service.transfer_home_store(
+        staff, staff_store_source(store_b), date(2026, 7, 1)
+    )
 
     # Assert
     assert staff.current_home_store_id(date(2026, 7, 1)) == store_b.id

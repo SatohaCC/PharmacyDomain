@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Self
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.entity import AggregateRoot
 from app.domain.medication_history.exceptions import (
     DuplicateMajorCategoryError,
@@ -13,8 +13,8 @@ from app.domain.medication_history.exceptions import (
     MajorCategoryNotFoundError,
     RequiredCategoryMissingError,
 )
+from app.domain.medication_history.identifiers import CategoryCatalogId
 from app.domain.medication_history.primitives import (
-    CategoryCatalogId,
     MajorCategoryCode,
     MajorCategoryName,
     MediumCategoryCode,

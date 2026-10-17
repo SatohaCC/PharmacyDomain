@@ -13,9 +13,9 @@ from app.application.dispensing.support import (
     build_dispensed_rps,
     load_dispensing_or_raise,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
-from app.domain.dispensing.primitives import DispensingId
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.dispensing.repository import DispensingProcessRepository
 from app.domain.dispensing.services import DispensingConsistencyService
 
@@ -33,7 +33,7 @@ class RecordDispensedContentUseCase:
     """代替調剤・減数調剤・調製方法を含む調剤内容を差し替える。
 
     鑑査不合格による再調製もこのユースケースで行う。加算の算定可否は
-    Claimの責務なので判定しない。
+    請求算定側の責務なので判定しない。
     """
 
     def __init__(

@@ -15,6 +15,9 @@ from datetime import date
 
 from app.application.common.clock import Clock, business_date
 from app.application.common.organization_lock import OrganizationLock
+from app.application.composition.organization_snapshot_mapping import (
+    manager_staff_source,
+)
 from app.application.staff.access_revocation import StaffAccessRevocationBoundary
 from app.domain.identity.administrator_service import LastAdministratorService
 from app.domain.identity.membership import CorporateMembership
@@ -76,7 +79,9 @@ class StaffAssignmentWriteGuard:
             store = await self._stores.get(assignment.store_id)
             if store is None:
                 raise ManagerAssignmentConflictError("任命された店舗が見つかりません。")
-            service.ensure_assignable(assignment, store=store, staff=aggregate)
+            service.ensure_assignable(
+                assignment, store=store, staff=manager_staff_source(aggregate)
+            )
 
 
 def _is_in_force(assignment: StoreManagerAssignment, applied_on: date) -> bool:

@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import copy
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.staff.exceptions import StaffCodeAlreadyExistsError
-from app.domain.staff.primitives import (
-    StaffCode,
-    StaffId,
-)
+from app.domain.staff.identifiers import StaffId
+from app.domain.staff.primitives import StaffCode
 from app.domain.staff.repository import (
     StaffCatalogRepository,
     StaffRepository,

@@ -26,12 +26,12 @@ from app.application.medication_history.support import (
     load_record_or_raise,
     parse_enum,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.primitives import (
     BillingAdditionCode,
     BillingAdditionName,
     CounselingMethod,
-    MedicationHistoryRecordId,
 )
 from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.value_objects import BillingAddition

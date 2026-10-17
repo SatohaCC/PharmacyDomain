@@ -49,15 +49,15 @@ from app.application.patient.reactivate_patient import (
     ReactivatePatientCommand,
     ReactivatePatientUseCase,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
 from app.domain.patient.heading import (
     PatientHeadingContent,
     PatientHeadingRevision,
     PatientHeadingText,
 )
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.patient import Patient
-from app.domain.patient.primitives import PatientId
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.application.medication_history.helpers import (

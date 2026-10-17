@@ -18,12 +18,13 @@ from app.application.common.pagination import (
 )
 from app.application.common.unit_of_work import UnitOfWork
 from app.application.store.get_store import StoreDto
+from app.application.store.reference import ManagerStaffReference
 from app.application.store.support import load_store_or_raise
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.shared.actor import AccountPersonId
-from app.domain.staff.primitives import StaffId
-from app.domain.staff.repository import StaffRepository
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId, StoreManagerAssignmentId
 from app.domain.store.lifecycle import (
     StoreStateConflictError,
     StoreStatus,
@@ -34,11 +35,9 @@ from app.domain.store.manager_assignment import (
     ManagerAssignmentStatus,
     ManagerPersonUnresolvedError,
     StoreManagerAssignment,
-    StoreManagerAssignmentId,
 )
 from app.domain.store.manager_repository import StoreManagerAssignmentRepository
 from app.domain.store.manager_service import StoreManagerAssignmentService
-from app.domain.store.primitives import StoreId
 from app.domain.store.repository import StoreRepository
 
 
@@ -73,7 +72,7 @@ class ChangeStoreStatusCommand:
 
     corporate_id: str
     store_id: str
-    status: StoreStatus
+    status: str
     reason: str
 
 
@@ -120,7 +119,7 @@ class ChangeStoreStatusUseCase:
             return StoreDto.from_entity(store)
         now = self._clock.now()
         updated = store.change_status(
-            command.status,
+            StoreStatus(command.status),
             reason=StoreStatusReason(command.reason),
             person_id=actor.person_id,
             account_id=actor.account_id,
@@ -256,7 +255,7 @@ class ManageStoreManagerUseCase:
     def __init__(
         self,
         stores: StoreRepository,
-        staff: StaffRepository,
+        staff: ManagerStaffReference,
         managers: StoreManagerAssignmentRepository,
         people: StaffPersonBoundary,
         access: CorporateAccessBoundary,
@@ -319,7 +318,7 @@ class ManageStoreManagerUseCase:
             # ない。判定を「分からないなら通す」に倒すと、その1件だけが兼務の
             # 検査をすり抜ける。永続化側の複合外部キーも同じことを拒否するが、
             # ここで止めれば理由の分かるメッセージを返せる。
-            person_id = await self._people.person_of(corporate_id, staff.id)
+            person_id = await self._people.person_of(corporate_id, staff.staff_id)
             if person_id is None:
                 raise ManagerPersonUnresolvedError(
                     "管理薬剤師に任命するには、スタッフと本人の対応が必要です。"
@@ -328,7 +327,7 @@ class ManageStoreManagerUseCase:
                 id=StoreManagerAssignmentId.generate(),
                 corporate_id=corporate_id,
                 store_id=store_id,
-                staff_id=staff.id,
+                staff_id=staff.staff_id,
                 person_id=person_id,
                 period=ManagerAssignmentPeriod(
                     starts_on=command.starts_on, ends_on=command.ends_on

@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from app.application.access_control.models import Permission
 from app.application.access_control.policy import AuthorizationService
 from app.application.corporate.get_corporate import CorporateResponseDto
-from app.domain.corporate.primitives import CorporateId, CorporateName, CorporateStatus
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.corporate.primitives import CorporateName, CorporateStatus
 from app.domain.corporate.search import CorporateSearch, CorporateSearchRepository
 from app.domain.foundation.exceptions import DomainValidationError
 

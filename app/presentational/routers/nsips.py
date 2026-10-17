@@ -25,15 +25,16 @@ from app.application.integration.nsips.models import (
     NsipsRpInfo,
     NsipsSplitInfo,
 )
-from app.domain.medication_history.value_objects import ExternalCorrectionKind
 from app.presentational.dependencies import (
     IntegrationUseCasesDep,
     get_actor_context,
 )
 from app.presentational.errors import error_responses
+from app.presentational.routing import ApplicationRoute
 from app.presentational.schemas import RequestModel
 
 router = APIRouter(
+    route_class=ApplicationRoute,
     prefix="/corporates/{corporate_id}/stores/{store_id}/integrations/nsips",
     tags=["integration"],
     dependencies=[Depends(get_actor_context)],
@@ -252,9 +253,7 @@ def _build_bundle_from_request(raw: NsipsBundleRequest) -> NsipsBundle:
             for addition in raw.additions
         ),
         correction_kind=(
-            ExternalCorrectionKind(raw.correction_kind)
-            if raw.correction_kind is not None
-            else None
+            raw.correction_kind if raw.correction_kind is not None else None
         ),
     )
 

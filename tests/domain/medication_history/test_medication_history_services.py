@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.exceptions import (
     CounselorQualificationError,
     MedicationHistoryAlreadyExistsError,
@@ -23,11 +23,14 @@ from app.domain.medication_history.services import (
     MedicationHistoryUniquenessService,
     PatientMedicalProfileUniquenessService,
 )
-from app.domain.patient.primitives import PatientId
+from app.domain.medication_history.value_objects import PharmacistQualification
+from app.domain.patient.identifiers import PatientId
 from app.domain.staff.primitives import (
-    DietitianProfile,
     DietitianRegistrationNumber,
     PharmacistLicenseNumber,
+)
+from app.domain.staff.value_objects import (
+    DietitianProfile,
     PharmacistProfile,
     StaffQualifications,
 )
@@ -47,13 +50,19 @@ class Test服薬指導者の資格:
         )
 
         # Act / Assert: 例外を送出しないこと自体が表明
-        CounselorQualificationService().ensure_pharmacist(qualifications)
+        CounselorQualificationService().ensure_pharmacist(
+            PharmacistQualification(
+                has_pharmacist=(qualifications).has(PharmacistProfile)
+            )
+        )
 
     def test_資格なしのスタッフは_拒否される(self) -> None:
         # Arrange / Act / Assert
         with pytest.raises(CounselorQualificationError):
             CounselorQualificationService().ensure_pharmacist(
-                StaffQualifications.empty()
+                PharmacistQualification(
+                    has_pharmacist=(StaffQualifications.empty()).has(PharmacistProfile)
+                )
             )
 
     def test_管理栄養士だけでは_薬剤師と認めない(self) -> None:
@@ -65,7 +74,11 @@ class Test服薬指導者の資格:
 
         # Act / Assert
         with pytest.raises(CounselorQualificationError):
-            CounselorQualificationService().ensure_pharmacist(qualifications)
+            CounselorQualificationService().ensure_pharmacist(
+                PharmacistQualification(
+                    has_pharmacist=(qualifications).has(PharmacistProfile)
+                )
+            )
 
 
 class Test薬歴の一意性:

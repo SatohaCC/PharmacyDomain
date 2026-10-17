@@ -20,12 +20,10 @@ from app.application.medication_history.reference import (
     StatutoryRecordSourceBoundary,
 )
 from app.application.medication_history.support import load_record_or_raise
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.exceptions import MedicationHistoryDomainError
-from app.domain.medication_history.primitives import (
-    MedicationHistoryRecordId,
-    StatutoryRecordBlocker,
-)
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
+from app.domain.medication_history.primitives import StatutoryRecordBlocker
 from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.services import StatutoryDispensingRecordService
 from app.domain.medication_history.value_objects import (

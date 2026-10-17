@@ -8,17 +8,16 @@ import pytest
 
 from app.domain.care_event.event import Event
 from app.domain.care_event.event_definition import EventDefinition
+from app.domain.care_event.identifiers import EventId, EventTypeId
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
-    EventId,
     EventOccurredTimestamp,
-    EventTypeId,
     EventTypeName,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainError
-from app.domain.patient.primitives import PatientId
-from app.domain.store.primitives import StoreId
+from app.domain.patient.identifiers import PatientId
+from app.domain.store.identifiers import StoreId
 
 
 def _event(*, occurred_at: datetime) -> Event:
@@ -48,7 +47,7 @@ def test_tc45_10_Eventの登録時刻と発生時刻は分離して保持する(
 
 def test_tc45_11_タイムゾーンのない発生日時を拒否する() -> None:
     with pytest.raises(DomainError):
-        EventOccurredTimestamp(datetime(2026, 8, 1, 2, 0))  # noqa: DTZ001
+        EventOccurredTimestamp(datetime(2026, 8, 1, 2, 0))
 
 
 def test_tc45_16_Eventの自己参照を拒否する() -> None:

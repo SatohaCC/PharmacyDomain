@@ -20,21 +20,20 @@ from app.application.care_event.references import (
 from app.application.common.clock import Clock
 from app.domain.care_event.event import Event
 from app.domain.care_event.exceptions import EventAlreadyAssociatedError
+from app.domain.care_event.identifiers import EventId, EventTypeId
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
-    EventId,
     EventOccurredTimestamp,
-    EventTypeId,
     EventTypeStandardCode,
 )
 from app.domain.care_event.repository import EventDefinitionRepository, EventRepository
-from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing.primitives import DispensingId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.foundation.exceptions import DomainError
-from app.domain.patient.primitives import PatientId
-from app.domain.prescription.primitives import PrescriptionId
-from app.domain.reception.primitives import ReceptionId
-from app.domain.store.primitives import StoreId
+from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.reception.identifiers import ReceptionId
+from app.domain.store.identifiers import StoreId
 
 
 @dataclass(frozen=True, kw_only=True)

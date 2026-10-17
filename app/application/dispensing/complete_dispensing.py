@@ -12,11 +12,11 @@ from app.application.common.unit_of_work import UnitOfWork
 from app.application.dispensing.get_dispensing import DispensingProcessDto
 from app.application.dispensing.reference import PrescriptionCompletionBoundary
 from app.application.dispensing.support import load_dispensing_or_raise, parse_enum
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.dispensing.primitives import (
     DispensingCompletionTimestamp,
     DispensingCompletionType,
-    DispensingId,
     NextDispensingDate,
 )
 from app.domain.dispensing.repository import DispensingProcessRepository

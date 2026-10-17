@@ -47,7 +47,7 @@ services:
     # 呼び出し時にするため。本番イメージの CMD は app.main:app のまま変えない。
     command: >
       uv run --frozen uvicorn --factory
-      app.presentational.dev_main:create_dev_app
+      app.dev_main:create_dev_app
       --host 0.0.0.0 --port 8000 --reload
 
 volumes:

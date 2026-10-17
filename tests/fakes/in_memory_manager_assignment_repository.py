@@ -2,19 +2,18 @@
 
 from datetime import date
 
-from app.domain.corporate.primitives import CorporateId
-from app.domain.staff.primitives import StaffId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId, StoreManagerAssignmentId
 from app.domain.store.manager_assignment import (
     ManagerAssignmentStatus,
     StoreManagerAssignment,
-    StoreManagerAssignmentId,
 )
 from app.domain.store.manager_repository import (
     ManagerAssignmentConflictError,
     ManagerExclusiveDutyConflictError,
     StoreManagerAssignmentRepository,
 )
-from app.domain.store.primitives import StoreId
 
 
 class InMemoryStoreManagerAssignmentRepository(StoreManagerAssignmentRepository):

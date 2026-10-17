@@ -1,19 +1,7 @@
-"""失敗応答の契約（ステータス・本文・OpenAPIへの記載）を1箇所に持つ。
+"""Applicationの失敗分類をHTTPステータスと共通本文へ変換する。
 
-**ステータスの決定はここだけにある。** 各ルータで ``try/except`` を書くと、
-同じ例外がエンドポイントごとに違うステータスで返り、クライアントは分岐を
-書けなくなる。
-
-対応づけは基底クラスへ広く与え、基底と違う扱いにするものだけを個別に載せる。
-どの例外がどの基底を継承しているかは一定ではない（例えば ``StoreNotFoundError``
-は ``NotFoundError`` ではなく ``StoreApplicationError`` を継承する）ため、
-継承だけに任せると未検出が422で返ってしまう。取りこぼしは
-``tests/presentational/test_errors.py`` が全例外クラスを走査して落とす。
-
-**本文の形も1つに揃える。** ドメイン由来の失敗だけでなく、FastAPI の入力検証と
-経路解決の失敗も同じ ``ErrorResponse`` へ翻訳する。同じ422で本文の形が2種類
-あると、クライアントは422を見ても分岐を書けない。
-"""
+Domain例外の分類はApplicationの公開境界が所有し、HTTPステータスの選択は
+このモジュールへ集約する。入力検証と経路解決の失敗も同じ本文形式へ揃える。"""
 
 from __future__ import annotations
 
@@ -27,117 +15,12 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.application.common.exceptions import (
-    ApplicationError,
-    AuthorizationError,
-    NotFoundError,
-)
-from app.application.coverage.exceptions import (
-    CoveragePatientNotFoundError,
-    PatientCoverageNotFoundError,
-)
-from app.application.dispensing.exceptions import (
-    DispensingNotFoundError,
-    DispensingPrescriptionNotFoundError,
-    DispensingStaffNotFoundError,
-    DispensingStoreNotFoundError,
-)
-from app.application.identity.resolve_actor import UnavailableIdentityError
-from app.application.integration.nsips.exceptions import (
-    NsipsPatientIdentityConflictError,
-)
-from app.application.medication_history.exceptions import (
-    MedicationHistoryDispensingNotFoundError,
-    MedicationHistoryNotFoundError,
-    MedicationHistoryPatientNotFoundError,
-    MedicationHistoryPrescriptionNotFoundError,
-    MedicationHistoryStaffNotFoundError,
-    MedicationHistoryStoreNotFoundError,
-    PatientMedicalProfileNotFoundError,
-)
-from app.application.medicine_catalog.exceptions import MedicineNotFoundError
-from app.application.patient.exceptions import (
-    PatientExternalIdentifierNotFoundError,
-    PatientNotFoundError,
-    PatientStoreNotFoundError,
-)
-from app.application.prescription.exceptions import (
-    PrescriptionCoverageSelectionNotFoundError,
-    PrescriptionNotFoundError,
-    PrescriptionPatientNotFoundError,
-    PrescriptionPharmacistNotFoundError,
-    PrescriptionStoreNotFoundError,
-)
-from app.application.reception.exceptions import (
-    ReceptionPatientNotFoundError,
-    ReceptionStoreNotFoundError,
-)
-from app.application.staff.exceptions import (
-    StaffNotFoundError as StaffApplicationNotFoundError,
-)
-from app.application.store.exceptions import StoreNotFoundError
-from app.domain.care_event.exceptions import (
-    EventAlreadyAssociatedError,
-    EventDefinitionAlreadyExistsError,
-)
-from app.domain.corporate.exceptions import CorporateNameAlreadyExistsError
-from app.domain.coverage.exceptions import (
-    CoverageDeactivationAlreadyFixedError,
-    CoveragePeriodConflictError,
-)
-from app.domain.dispensing.exceptions import DispensingAlreadyExistsError
-from app.domain.foundation.exceptions import ConcurrentModificationError, DomainError
-from app.domain.identity.exceptions import IdentityConflictError
-from app.domain.medication_history.exceptions import (
-    AdverseReactionNotFoundError,
-    AllergyNotFoundError,
-    ConcurrentMedicationNotFoundError,
-    FollowUpNotFoundError,
-    MajorCategoryNotFoundError,
-    MedicalConditionNotFoundError,
-    MedicationHistoryAlreadyExistsError,
-    MedicationHistoryAlreadyFinalizedError,
-    PatientMedicalProfileAlreadyExistsError,
-    TracingReportAlreadyRespondedError,
-    TracingReportNotFoundError,
-)
-from app.domain.medicine_catalog.exceptions import MedicineEffectivePeriodConflictError
-from app.domain.patient.exceptions import (
-    PatientExternalIdentifierAlreadyExistsError,
-    PatientHeadingConflictError,
-    PatientStateConflictError,
-)
-from app.domain.prescription.exceptions import (
-    InquiryAlreadyResolvedError,
-    InquiryNotFoundError,
-    PrescriptionDocumentNumberAlreadyExistsError,
-)
-from app.domain.reception.exceptions import ReceptionEventAlreadyAssociatedError
-from app.domain.shared.preservation import PreservationPolicyNotFoundError
-from app.domain.staff.exceptions import (
-    AffiliationDateConflictError,
-    ConcurrentStoreConflictError,
-    StaffCodeAlreadyExistsError,
-)
-from app.domain.staff.exceptions import StaffNotFoundError as StaffDomainNotFoundError
-from app.domain.store.exceptions import (
-    InsurancePharmacyNumberAlreadyExistsError,
-    StoreCodeAlreadyExistsError,
-    StoreNameAlreadyExistsError,
-)
-from app.domain.store.lifecycle import StoreStateConflictError
-from app.domain.store.manager_assignment import (
-    ManagerAbsenceConflictError,
-    ManagerAssignmentStateConflictError,
-)
-from app.domain.store.manager_repository import (
-    ManagerAssignmentConflictError,
-    ManagerExclusiveDutyConflictError,
-)
+from app.application.common.exceptions import ApplicationError
+from app.application.failure_mapping import FailureKind, describe_failure, kind_for_type
 from app.presentational.exceptions import AuthenticationError, PresentationError
 
 #: 応答本文へ翻訳できる例外。これ以外は隠さず500として扱う。
-TranslatableError = DomainError | ApplicationError | PresentationError
+TranslatableError = Exception
 
 
 class FieldError(BaseModel):
@@ -178,110 +61,29 @@ _ERROR_DESCRIPTIONS: Final[Mapping[HTTPStatus, str]] = {
     HTTPStatus.UNPROCESSABLE_CONTENT: "入力値が形式またはドメイン規則を満たさない。",
 }
 
-_STATUS_BY_EXCEPTION: Final[Mapping[type[BaseException], HTTPStatus]] = {
-    # --- 基底: 個別に載っていないものはここへ落ちる ---
-    # 「形式は正しいが業務ルール上そのままでは処理できない」が既定の意味。
-    DomainError: HTTPStatus.UNPROCESSABLE_CONTENT,
-    ApplicationError: HTTPStatus.UNPROCESSABLE_CONTENT,
-    PresentationError: HTTPStatus.BAD_REQUEST,
-    # --- 401: 主体がまだ決まっていない ---
-    AuthenticationError: HTTPStatus.UNAUTHORIZED,
-    UnavailableIdentityError: HTTPStatus.UNAUTHORIZED,
-    IdentityConflictError: HTTPStatus.CONFLICT,
-    NsipsPatientIdentityConflictError: HTTPStatus.CONFLICT,
-    ManagerAbsenceConflictError: HTTPStatus.CONFLICT,
-    ManagerAssignmentConflictError: HTTPStatus.CONFLICT,
-    ManagerExclusiveDutyConflictError: HTTPStatus.CONFLICT,
-    ManagerAssignmentStateConflictError: HTTPStatus.CONFLICT,
-    StoreStateConflictError: HTTPStatus.CONFLICT,
-    PatientHeadingConflictError: HTTPStatus.CONFLICT,
-    PatientStateConflictError: HTTPStatus.CONFLICT,
-    # --- 403: 主体は判明したうえでの拒否 ---
-    # 別テナントのリソースは TenantBoundaryNotFoundError（404）として隠すので、
-    # ここへ来るのは自テナント内の権限不足だけである。
-    AuthorizationError: HTTPStatus.FORBIDDEN,
-    # --- 404: 未検出とテナント境界 ---
-    # コンテキストごとの *NotFoundError は基底がまちまちなので個別に載せる。
-    NotFoundError: HTTPStatus.NOT_FOUND,
-    CoveragePatientNotFoundError: HTTPStatus.NOT_FOUND,
-    PatientCoverageNotFoundError: HTTPStatus.NOT_FOUND,
-    DispensingNotFoundError: HTTPStatus.NOT_FOUND,
-    DispensingPrescriptionNotFoundError: HTTPStatus.NOT_FOUND,
-    DispensingStaffNotFoundError: HTTPStatus.NOT_FOUND,
-    DispensingStoreNotFoundError: HTTPStatus.NOT_FOUND,
-    MedicationHistoryDispensingNotFoundError: HTTPStatus.NOT_FOUND,
-    MedicationHistoryNotFoundError: HTTPStatus.NOT_FOUND,
-    MedicationHistoryPatientNotFoundError: HTTPStatus.NOT_FOUND,
-    MedicationHistoryPrescriptionNotFoundError: HTTPStatus.NOT_FOUND,
-    MedicationHistoryStaffNotFoundError: HTTPStatus.NOT_FOUND,
-    MedicationHistoryStoreNotFoundError: HTTPStatus.NOT_FOUND,
-    PatientMedicalProfileNotFoundError: HTTPStatus.NOT_FOUND,
-    MedicineNotFoundError: HTTPStatus.NOT_FOUND,
-    PatientExternalIdentifierNotFoundError: HTTPStatus.NOT_FOUND,
-    PatientNotFoundError: HTTPStatus.NOT_FOUND,
-    PatientStoreNotFoundError: HTTPStatus.NOT_FOUND,
-    PrescriptionCoverageSelectionNotFoundError: HTTPStatus.NOT_FOUND,
-    PrescriptionNotFoundError: HTTPStatus.NOT_FOUND,
-    PrescriptionPatientNotFoundError: HTTPStatus.NOT_FOUND,
-    PrescriptionPharmacistNotFoundError: HTTPStatus.NOT_FOUND,
-    PrescriptionStoreNotFoundError: HTTPStatus.NOT_FOUND,
-    ReceptionPatientNotFoundError: HTTPStatus.NOT_FOUND,
-    ReceptionStoreNotFoundError: HTTPStatus.NOT_FOUND,
-    StaffApplicationNotFoundError: HTTPStatus.NOT_FOUND,
-    StoreNotFoundError: HTTPStatus.NOT_FOUND,
-    ConcurrentMedicationNotFoundError: HTTPStatus.NOT_FOUND,
-    AllergyNotFoundError: HTTPStatus.NOT_FOUND,
-    AdverseReactionNotFoundError: HTTPStatus.NOT_FOUND,
-    MedicalConditionNotFoundError: HTTPStatus.NOT_FOUND,
-    InquiryNotFoundError: HTTPStatus.NOT_FOUND,
-    StaffDomainNotFoundError: HTTPStatus.NOT_FOUND,
-    MajorCategoryNotFoundError: HTTPStatus.NOT_FOUND,
-    FollowUpNotFoundError: HTTPStatus.NOT_FOUND,
-    TracingReportNotFoundError: HTTPStatus.NOT_FOUND,
-    PreservationPolicyNotFoundError: HTTPStatus.NOT_FOUND,
-    # --- 409: 既存のデータ・状態と衝突する ---
-    ConcurrentModificationError: HTTPStatus.CONFLICT,
-    CorporateNameAlreadyExistsError: HTTPStatus.CONFLICT,
-    CoverageDeactivationAlreadyFixedError: HTTPStatus.CONFLICT,
-    CoveragePeriodConflictError: HTTPStatus.CONFLICT,
-    DispensingAlreadyExistsError: HTTPStatus.CONFLICT,
-    EventAlreadyAssociatedError: HTTPStatus.CONFLICT,
-    EventDefinitionAlreadyExistsError: HTTPStatus.CONFLICT,
-    MedicationHistoryAlreadyExistsError: HTTPStatus.CONFLICT,
-    MedicationHistoryAlreadyFinalizedError: HTTPStatus.CONFLICT,
-    PatientMedicalProfileAlreadyExistsError: HTTPStatus.CONFLICT,
-    TracingReportAlreadyRespondedError: HTTPStatus.CONFLICT,
-    MedicineEffectivePeriodConflictError: HTTPStatus.CONFLICT,
-    PatientExternalIdentifierAlreadyExistsError: HTTPStatus.CONFLICT,
-    InquiryAlreadyResolvedError: HTTPStatus.CONFLICT,
-    PrescriptionDocumentNumberAlreadyExistsError: HTTPStatus.CONFLICT,
-    AffiliationDateConflictError: HTTPStatus.CONFLICT,
-    ReceptionEventAlreadyAssociatedError: HTTPStatus.CONFLICT,
-    ConcurrentStoreConflictError: HTTPStatus.CONFLICT,
-    StaffCodeAlreadyExistsError: HTTPStatus.CONFLICT,
-    InsurancePharmacyNumberAlreadyExistsError: HTTPStatus.CONFLICT,
-    StoreCodeAlreadyExistsError: HTTPStatus.CONFLICT,
-    StoreNameAlreadyExistsError: HTTPStatus.CONFLICT,
+_STATUS_BY_KIND: Final[Mapping[FailureKind, HTTPStatus]] = {
+    FailureKind.INVALID_STATE: HTTPStatus.UNPROCESSABLE_CONTENT,
+    FailureKind.UNAUTHENTICATED: HTTPStatus.UNAUTHORIZED,
+    FailureKind.FORBIDDEN: HTTPStatus.FORBIDDEN,
+    FailureKind.NOT_FOUND: HTTPStatus.NOT_FOUND,
+    FailureKind.CONFLICT: HTTPStatus.CONFLICT,
 }
 
 
-def status_for_type(error_type: type[TranslatableError]) -> HTTPStatus:
-    """例外クラスに対応するHTTPステータスを返す。
-
-    継承の近い順に表を引く。3つの基底が必ず載っているため、翻訳対象の例外で
-    あれば必ず解決する。インスタンスではなくクラスを受け取るのは、生成に引数を
-    要する例外まで含めて網羅性を検査できるようにするためである。
-    """
-    for klass in error_type.__mro__:
-        status = _STATUS_BY_EXCEPTION.get(klass)
-        if status is not None:
-            return status
-    raise LookupError(f"{error_type.__name__} に対応するHTTPステータスがありません。")
+def status_for_type(error_type: type[BaseException]) -> HTTPStatus:
+    """Applicationの失敗分類をHTTPステータスへ対応させる。"""
+    if issubclass(error_type, AuthenticationError):
+        return HTTPStatus.UNAUTHORIZED
+    if issubclass(error_type, PresentationError):
+        return HTTPStatus.BAD_REQUEST
+    return _STATUS_BY_KIND[kind_for_type(error_type)]
 
 
-def status_for(error: TranslatableError) -> HTTPStatus:
-    """例外に対応するHTTPステータスを返す。"""
-    return status_for_type(type(error))
+def status_for(error: Exception) -> HTTPStatus:
+    """公開境界の失敗をHTTPステータスへ対応させる。"""
+    if isinstance(error, PresentationError):
+        return status_for_type(type(error))
+    return _STATUS_BY_KIND[describe_failure(error).kind]
 
 
 def _json(
@@ -303,16 +105,19 @@ def to_response(error: TranslatableError) -> JSONResponse:
     例外の型名やスタックは本文へ載せない。内部構造が漏れるうえ、クライアントが
     実装の詳細に依存し始める。分岐に使えるのは安定した ``code`` だけとする。
     """
+    public_error = (
+        error if isinstance(error, PresentationError) else describe_failure(error)
+    )
     return _json(
         status_for(error),
-        ErrorResponse(code=error.code, message=error.message),
+        ErrorResponse(code=public_error.code, message=public_error.message),
     )
 
 
 async def _translate(request: Request, error: Exception) -> JSONResponse:
     """登録した基底例外を応答へ翻訳する。"""
     del request
-    if not isinstance(error, DomainError | ApplicationError | PresentationError):
+    if not isinstance(error, ApplicationError | PresentationError):
         raise error  # pragma: no cover - 登録した型以外は届かない
     return to_response(error)
 
@@ -369,12 +174,10 @@ async def _translate_http_exception(request: Request, error: Exception) -> JSONR
 
 
 def register_error_handlers(app: FastAPI) -> None:
-    """本文の形を1つに揃えるための翻訳を登録する。
+    """ApplicationとPresentationの基底例外、およびHTTP入力の失敗を登録する。
 
-    Domain / Application / Presentation は基底だけを登録する。個別の例外型ごとに
-    登録すると、新しい例外を足したときに登録し忘れた分だけが素の500になる。
-    """
-    for base in (DomainError, ApplicationError, PresentationError):
+    Domain例外はApplicationの公開境界で変換してからここへ渡す。"""
+    for base in (ApplicationError, PresentationError):
         app.add_exception_handler(base, _translate)
     app.add_exception_handler(RequestValidationError, _translate_request_validation)
     app.add_exception_handler(StarletteHTTPException, _translate_http_exception)

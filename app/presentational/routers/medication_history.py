@@ -84,9 +84,11 @@ from app.presentational.dependencies import (
     get_actor_context,
 )
 from app.presentational.errors import error_responses
+from app.presentational.routing import ApplicationRoute
 from app.presentational.schemas import RequestModel
 
 router = APIRouter(
+    route_class=ApplicationRoute,
     prefix="/corporates/{corporate_id}",
     tags=["medication_history"],
     dependencies=[Depends(get_actor_context)],

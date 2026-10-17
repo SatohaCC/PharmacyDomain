@@ -18,10 +18,10 @@ from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
-from app.infrastructure.postgres import schema
-from app.infrastructure.postgres.repositories.medication_history import (
+from app.infrastructure.medication_history.postgres.medication_history import (
     MEDICATION_HISTORY_RECORD_MAPPING,
 )
+from app.infrastructure.postgres import schema
 from tests.factories.medication_history_factory import (
     create_allergy_intent,
     create_independent_follow_up_record,

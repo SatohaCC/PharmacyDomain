@@ -14,16 +14,16 @@ from app.application.dispensing.support import (
     load_dispensing_or_raise,
     parse_enum,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.dispensing.primitives import (
-    DispensingId,
     VerificationNotes,
     VerificationResult,
     VerificationTimestamp,
 )
 from app.domain.dispensing.repository import DispensingProcessRepository
 from app.domain.dispensing.services import DispensingPharmacistService
-from app.domain.staff.primitives import StaffId
+from app.domain.staff.identifiers import StaffId
 
 
 @dataclass(frozen=True, kw_only=True)

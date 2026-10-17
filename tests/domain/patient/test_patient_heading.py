@@ -15,8 +15,8 @@ from app.domain.patient.heading import (
     PatientHeadingRevision,
     PatientHeadingText,
 )
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.lifecycle import PatientStatus
-from app.domain.patient.primitives import PatientId
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from tests.factories.persistence_factory import create_patient
 
@@ -167,7 +167,7 @@ def test_tc43_08_日時を協定世界時へ正規化する() -> None:
 
 def test_tc43_09_タイムゾーンのない日時を拒否する() -> None:
     with pytest.raises(DomainValidationError):
-        _revision(summary="概要", recorded_at=datetime(2026, 9, 1))  # noqa: DTZ001
+        _revision(summary="概要", recorded_at=datetime(2026, 9, 1))
 
 
 @pytest.mark.parametrize(

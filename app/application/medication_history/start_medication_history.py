@@ -41,9 +41,9 @@ from app.application.medication_history.support import (
     build_soap,
     parse_enum,
 )
-from app.domain.care_event.primitives import EventId
-from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing.primitives import DispensingId
+from app.domain.care_event.identifiers import EventId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.medication_history.exceptions import (
     MedicationHistoryAlreadyExistsError,
     MedicationHistoryDomainError,
@@ -63,8 +63,8 @@ from app.domain.medication_history.primitives import (
 from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.services import CounselorQualificationService
 from app.domain.medication_history.value_objects import BillingAddition
-from app.domain.staff.primitives import StaffId
-from app.domain.store.primitives import StoreId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -7,11 +7,9 @@ from dataclasses import dataclass
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.store.support import load_store_or_raise, to_optional_text
-from app.domain.corporate.primitives import CorporateId
-from app.domain.store.primitives import (
-    InsurancePharmacyNumber,
-    StoreId,
-)
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.store.identifiers import StoreId
+from app.domain.store.primitives import InsurancePharmacyNumber
 from app.domain.store.repository import StoreRepository
 from app.domain.store.services import InsurancePharmacyNumberUniquenessService
 

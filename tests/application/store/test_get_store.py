@@ -10,9 +10,9 @@ from app.application.store.get_store import (
     GetStoreUseCase,
     StoreDto,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.application.store.helpers import save_store
 from tests.factories.store_factory import VALID_INSURANCE_NUMBER

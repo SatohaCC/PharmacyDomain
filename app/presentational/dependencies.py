@@ -2,7 +2,7 @@
 
 **トランザクション境界を開くのはここ1箇所だけである。** ルータは開いた文脈から
 ユースケース束を受け取るだけで、``commit`` も ``rollback`` も呼ばない。
-確定と破棄は ``PostgresRequestScope`` が担う。
+確定と破棄は ``RequestScope`` が担う。
 """
 
 from __future__ import annotations
@@ -16,30 +16,27 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.application.access_control.models import ActorContext
 from app.application.access_control.policy import AuthorizationService
-from app.application.identity.resolve_actor import VerifiedSubject
-from app.infrastructure.di.bundles.care_event import CareEventUseCases
-from app.infrastructure.di.bundles.clinical import (
-    DispensingUseCases,
-    MedicationHistoryUseCases,
-    PrescriptionUseCases,
+from app.application.composition.runtime import (
+    CompositionRoot,
+    RequestScope,
 )
-from app.infrastructure.di.bundles.identity import IdentityUseCases
-from app.infrastructure.di.bundles.integration import IntegrationUseCases
-from app.infrastructure.di.bundles.medicine_catalog import MedicineCatalogUseCases
-from app.infrastructure.di.bundles.organization import (
+from app.application.composition.use_case_bundles import (
+    CareEventUseCases,
     CorporateUseCases,
+    CoverageUseCases,
+    DispensingUseCases,
+    IdentityUseCases,
+    IntegrationUseCases,
+    MedicationHistoryUseCases,
+    MedicineCatalogUseCases,
+    PatientUseCases,
+    PrescriptionUseCases,
+    ReceptionUseCases,
     StaffUseCases,
     StoreUseCases,
 )
-from app.infrastructure.di.bundles.patient_care import (
-    CoverageUseCases,
-    PatientUseCases,
-    ReceptionUseCases,
-)
-from app.infrastructure.di.root import (
-    PostgresCompositionRoot,
-    PostgresRequestScope,
-)
+from app.application.failure_mapping import execution_scope
+from app.application.identity.resolve_actor import VerifiedSubject
 from app.presentational.authentication import (
     ActorContextProvider,
     UnconfiguredVerifiedSubjectProvider,
@@ -70,7 +67,7 @@ class PresentationState:
     """
 
     actor_provider: ActorContextProvider
-    composition_root: PostgresCompositionRoot | None = None
+    composition_root: CompositionRoot | None = None
     identity_provider: VerifiedSubjectProvider | None = None
 
 
@@ -87,7 +84,7 @@ def get_state(request: Request) -> PresentationState:
 
 def get_composition_root(
     state: Annotated[PresentationState, Depends(get_state)],
-) -> PostgresCompositionRoot:
+) -> CompositionRoot:
     """起動時に組み立てた Composition Root を取り出す。"""
     if state.composition_root is None:
         raise RuntimeError(
@@ -124,20 +121,22 @@ async def get_actor_context(
 
 
 async def get_request_scope(
-    root: Annotated[PostgresCompositionRoot, Depends(get_composition_root)],
+    root: Annotated[CompositionRoot, Depends(get_composition_root)],
     actor: Annotated[ActorContext, Depends(get_actor_context)],
-) -> AsyncIterator[PostgresRequestScope]:
+) -> AsyncIterator[RequestScope]:
     """リクエスト1件分のトランザクションを開き、終了時に確定または破棄する。
 
-    ルータで例外が起きた場合はこの ``async with`` へ伝播し、``PostgresRequestScope``
+    ルータで例外が起きた場合はこの ``async with`` へ伝播し、``RequestScope``
     が破棄する。正常終了時だけ確定する。
     """
-    async with root.request_scope(authorization=AuthorizationService(actor)) as scope:
+    async with execution_scope(
+        root.request_scope(authorization=AuthorizationService(actor))
+    ) as scope:
         yield scope
 
 
 #: 開いたスコープ。コンテキストごとの束はここから取り出す。
-_Scope = Annotated[PostgresRequestScope, Depends(get_request_scope)]
+_Scope = Annotated[RequestScope, Depends(get_request_scope)]
 
 
 def get_identity_use_cases(scope: _Scope) -> IdentityUseCases:

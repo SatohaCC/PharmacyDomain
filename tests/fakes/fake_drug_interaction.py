@@ -8,7 +8,7 @@ from app.domain.prescription.interaction_audit import (
     DrugInteractionDataSource,
     DrugInteractionPair,
 )
-from app.domain.shared.medicine import YjCode
+from app.domain.prescription.reference_primitives import YjCode
 
 
 class FakeDrugInteractionDataSource(DrugInteractionDataSource):

@@ -10,11 +10,12 @@ from __future__ import annotations
 from http import HTTPStatus
 from typing import Any
 
-from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientId
-from app.domain.reception.primitives import ReceptionFingerprint, ReceptionId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.identifiers import PatientId
+from app.domain.reception.identifiers import ReceptionId
+from app.domain.reception.primitives import ReceptionFingerprint
 from app.domain.reception.reception import Reception
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 from tests.factories.medication_history_factory import create_record
 from tests.fakes.fake_clock import DEFAULT_NOW
 from tests.presentational.conftest import AUTHORIZED_HEADERS, Api

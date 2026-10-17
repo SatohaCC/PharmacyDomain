@@ -5,6 +5,7 @@ from datetime import date
 
 import pytest
 
+from app.application.composition.organization_snapshot_mapping import staff_store_source
 from app.domain.foundation.exceptions import DomainError
 from app.domain.staff.services import StaffStoreAssignmentService
 from app.domain.store.lifecycle import StoreStatus
@@ -20,7 +21,7 @@ def test_閉局だけを新規配属の対象から外す(status: StoreStatus, m
     operation = getattr(StaffStoreAssignmentService(), method)
     if status == StoreStatus.CLOSED:
         with pytest.raises(DomainError):
-            operation(staff, store, date(2026, 9, 17))
+            operation(staff, staff_store_source(store), date(2026, 9, 17))
     else:
-        assigned = operation(staff, store, date(2026, 9, 17))
+        assigned = operation(staff, staff_store_source(store), date(2026, 9, 17))
         assert assigned.affiliations[-1].store_id == store.id

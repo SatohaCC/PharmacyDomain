@@ -19,17 +19,18 @@ from app.domain.patient.heading import (
     PatientHeadingRevision,
     PatientHeadingText,
 )
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.patient import Patient
-from app.domain.patient.primitives import PatientAddress, PatientId
+from app.domain.patient.primitives import PatientAddress
 from app.domain.patient.profile_history import (
     PatientProfileChange,
     PatientProfileChangeSource,
 )
 from app.domain.shared.actor import AccountPersonId, UserAccountId
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.presentational.dependencies import STATE_ATTRIBUTE
 from tests.factories.persistence_factory import create_patient
 from tests.factories.store_factory import create_store

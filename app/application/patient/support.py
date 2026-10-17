@@ -1,9 +1,9 @@
 """患者ユースケース間で共有するアプリケーション層の処理。"""
 
 from app.application.patient.exceptions import PatientNotFoundError
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.patient import Patient
-from app.domain.patient.primitives import PatientId
 from app.domain.patient.repository import PatientRepository
 
 

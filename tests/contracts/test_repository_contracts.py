@@ -18,29 +18,29 @@ from datetime import UTC, date, datetime
 import pytest
 
 import tests.fakes
-from app.domain.care_event.primitives import EventId
-from app.domain.corporate.primitives import CorporateId
+from app.domain.care_event.identifiers import EventId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.exceptions import CoveragePeriodConflictError
 from app.domain.coverage.patient_coverage import PatientCoverage
 from app.domain.coverage.primitives import (
     CoverageActivatedOn,
-    CoverageActivation,
     CoverageDeactivatedOn,
-    CoveragePeriod,
     CoveragePriority,
     CoverageType,
     CoverageValidFrom,
     CoverageValidTo,
-    PublicExpenseCoverageDetails,
     PublicPayerNumber,
     PublicRecipientNumber,
 )
 from app.domain.coverage.repository import PatientCoverageRepository
-from app.domain.dispensing.exceptions import DispensingAlreadyExistsError
-from app.domain.dispensing.primitives import (
-    DispensingCancellationReason,
-    DispensingId,
+from app.domain.coverage.value_objects import (
+    CoverageActivation,
+    CoveragePeriod,
+    PublicExpenseCoverageDetails,
 )
+from app.domain.dispensing.exceptions import DispensingAlreadyExistsError
+from app.domain.dispensing.identifiers import DispensingId
+from app.domain.dispensing.primitives import DispensingCancellationReason
 from app.domain.dispensing.repository import DispensingProcessRepository
 from app.domain.medication_history.exceptions import (
     MedicationHistoryAlreadyExistsError,
@@ -60,18 +60,15 @@ from app.domain.medicine_catalog.exceptions import (
 from app.domain.medicine_catalog.repository import MedicineCatalogRepository
 from app.domain.patient.exceptions import PatientExternalIdentifierAlreadyExistsError
 from app.domain.patient.external_identifier import PatientExternalIdentifier
-from app.domain.patient.primitives import (
-    ExternalPatientId,
-    ExternalSystemName,
-    PatientId,
-)
+from app.domain.patient.identifiers import PatientId
+from app.domain.patient.primitives import ExternalPatientId, ExternalSystemName
 from app.domain.patient.repository import PatientExternalIdentifierRepository
 from app.domain.prescription.exceptions import (
     PrescriptionDocumentNumberAlreadyExistsError,
 )
+from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.prescription.primitives import (
     PrescriptionDocumentNumber,
-    PrescriptionId,
     PrescriptionSourceType,
 )
 from app.domain.prescription.repository import PrescriptionRepository

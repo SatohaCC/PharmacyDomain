@@ -24,14 +24,14 @@ from app.domain.dispensing.primitives import (
     VerificationResult,
     VerificationTimestamp,
 )
-from app.domain.foundation.value_object import ValueObject
-from app.domain.prescription.primitives import InquiryNumber
-from app.domain.shared.medicine import (
+from app.domain.dispensing.reference_primitives import (
     DispensingQuantity,
-    MedicineIdentifier,
+    InquiryNumber,
     MedicineName,
 )
-from app.domain.staff.primitives import StaffId
+from app.domain.dispensing.reference_values import MedicineIdentifier
+from app.domain.foundation.value_object import ValueObject
+from app.domain.staff.identifiers import StaffId
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -164,3 +164,10 @@ class DispensingVerification(ValueObject):
     def is_passed(self) -> bool:
         """鑑査に合格したか。"""
         return self.result.is_passed
+
+
+@dataclass(frozen=True, kw_only=True)
+class PharmacistQualification(ValueObject):
+    """スタッフ境界で確認された薬剤師資格の保有事実。"""
+
+    has_pharmacist: bool

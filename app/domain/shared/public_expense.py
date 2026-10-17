@@ -17,7 +17,7 @@ class PublicExpenseBurden(ValueObject):
 
     処方箋の公費枠は第一/第二/第三/**特殊**であり、電子レセプトの第一〜第四とは
     別軸である。特殊公費の負担者番号は ``N20``（漢字半角混在可・数字以外可）で
-    ``ClaimPublicPayerNumber``（8桁）の不変条件を満たせないため、Claim へは
+    ``PublicPayerNumber``（8桁）の不変条件を満たせないため、資格台帳の固定値へは
     写さない。
     """
 

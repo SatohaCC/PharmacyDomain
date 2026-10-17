@@ -167,7 +167,7 @@ class Test監査時刻:
     ) -> None:
         # Arrange / Act / Assert
         with pytest.raises(DomainValidationError, match="タイムゾーン"):
-            timestamp_type(datetime(2026, 8, 24, 1, 30))  # noqa: DTZ001
+            timestamp_type(datetime(2026, 8, 24, 1, 30))
 
     def test_タイムゾーン付きの日時は_UTCへ正規化される(self) -> None:
         # Arrange

@@ -8,20 +8,19 @@ import pytest
 from app.application.identity.invite_user import InviteUserCommand
 from app.application.identity.resolve_actor import VerifiedSubject
 from app.application.identity.support import IdentityRepositories
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainError
 from app.domain.identity.account_person import AccountPerson
 from app.domain.identity.exceptions import IdentityConflictError
+from app.domain.identity.identifiers import UserInvitationId
 from app.domain.identity.invitation import InvitationStatus
 from app.domain.identity.primitives import (
-    AccountPersonId,
     AccountStatus,
     ExternalSubjectKey,
     MembershipRole,
-    UserAccountId,
-    UserInvitationId,
 )
 from app.domain.identity.user_account import UserAccount
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
 from tests.application.identity.helpers import (
     IdentityUseCaseSet,

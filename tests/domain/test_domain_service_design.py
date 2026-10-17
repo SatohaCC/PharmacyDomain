@@ -16,7 +16,11 @@ from typing import Any
 import pytest
 
 import app.domain
-from app.domain.corporate.primitives import CorporateId
+from app.application.composition.organization_snapshot_mapping import (
+    manager_staff_source,
+    staff_store_source,
+)
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.exceptions import PatientStateConflictError
 from app.domain.patient.lifecycle import PatientStatusReason
 from app.domain.patient.merge_service import PatientMergeService
@@ -25,27 +29,25 @@ from app.domain.patient.primitives import PatientNumber
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
 from app.domain.staff.exceptions import InvalidCorporateAssignmentError
-from app.domain.staff.primitives import StaffQualifications
 from app.domain.staff.services import StaffStoreAssignmentService
 from app.domain.staff.staff import Staff
+from app.domain.staff.value_objects import StaffQualifications
+from app.domain.store.identifiers import StoreManagerAssignmentId
 from app.domain.store.manager_assignment import (
     ManagerAssignmentPeriod,
     StoreManagerAssignment,
-    StoreManagerAssignmentId,
 )
 from app.domain.store.manager_repository import ManagerAssignmentConflictError
 from app.domain.store.manager_service import StoreManagerAssignmentService
 from app.domain.store.primitives import (
-    ContactInfo,
-    StoreAddress,
     StoreAddressLine,
     StoreName,
     StoreNameKana,
-    StoreNames,
     StorePhoneNumber,
     StorePostalCode,
 )
 from app.domain.store.store import Store
+from app.domain.store.value_objects import ContactInfo, StoreAddress, StoreNames
 
 #: 承認された全ドメインサービスの一覧（25件）。
 EXPECTED_DOMAIN_SERVICES: frozenset[str] = frozenset(
@@ -271,7 +273,7 @@ def test_複数集約ドメインサービスが法人境界を保護する() ->
     today = datetime.date(2026, 9, 22)
     with pytest.raises(InvalidCorporateAssignmentError):
         assignment_service.assign_home_store(
-            staff=staff_a, store=store_b, start_date=today
+            staff=staff_a, store=staff_store_source(store_b), start_date=today
         )
 
     # 2. StoreManagerAssignmentService による別法人スタッフ任命の拒否
@@ -307,7 +309,7 @@ def test_複数集約ドメインサービスが法人境界を保護する() ->
     manager_service = StoreManagerAssignmentService()
     with pytest.raises(ManagerAssignmentConflictError):
         manager_service.ensure_assignable(
-            assignment=assignment, store=store_a, staff=staff_b
+            assignment=assignment, store=store_a, staff=manager_staff_source(staff_b)
         )
 
     # 3. PatientMergeService による別法人患者統合の拒否

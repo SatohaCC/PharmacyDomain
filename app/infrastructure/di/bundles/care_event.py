@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from app.application.care_event.create_event import CreateEventUseCase
 from app.application.care_event.event_definition import (
     CreateEventDefinitionUseCase,
@@ -21,22 +19,11 @@ from app.application.composition.care_event_references import (
     EventReceptionReferenceAdapter,
 )
 from app.application.composition.store_operation_adapter import StoreOperationAdapter
+from app.application.composition.use_case_bundles import CareEventUseCases
 from app.application.corporate.corporate_access import CorporateAccessService
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
-
-
-@dataclass(frozen=True, slots=True)
-class CareEventUseCases:
-    """業務Eventコンテキストの操作一式。"""
-
-    create: CreateEventUseCase
-    get: GetEventUseCase
-    create_definition: CreateEventDefinitionUseCase
-    list_definitions: ListEventDefinitionsUseCase
-    update_definition: UpdateEventDefinitionUseCase
-    list_related_candidates: ListRelatedEventCandidatesUseCase
 
 
 def build_care_event_use_cases(

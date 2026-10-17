@@ -18,11 +18,12 @@ from app.domain.medication_history.exceptions import (
     TracingReportAlreadyRespondedError,
     TracingReportNotFoundError,
 )
-from app.domain.medication_history.primitives import (
+from app.domain.medication_history.identifiers import (
     MedicationHistoryRecordId,
     TracingReportId,
 )
-from app.domain.staff.primitives import StaffId, StaffQualifications
+from app.domain.staff.identifiers import StaffId
+from app.domain.staff.value_objects import StaffQualifications
 from tests.application.medication_history.helpers import (
     MedicationHistoryFixture,
     create_fixture,

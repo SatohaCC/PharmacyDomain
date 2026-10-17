@@ -6,6 +6,9 @@ from datetime import date
 
 import pytest
 
+from app.application.composition.organization_snapshot_mapping import (
+    StaffStoreAdapter,
+)
 from app.application.staff.activate_staff import (
     ActivateStaffCommand,
     ActivateStaffUseCase,
@@ -18,7 +21,7 @@ from app.application.staff.transfer_home_store import (
     TransferStaffHomeStoreCommand,
     TransferStaffHomeStoreUseCase,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.staff.services import StaffStoreAssignmentService
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.application.staff.access_revocation_helpers import (
@@ -91,7 +94,7 @@ async def test_無効化した退職者は_退職日の翌日以降の主所属�
     corporate_access = create_vendor_corporate_access()
     transfer_use_case = TransferStaffHomeStoreUseCase(
         staff_repository=staff_repo,
-        store_repository=store_repo,
+        store_repository=StaffStoreAdapter(store_repo),
         assignment_service=StaffStoreAssignmentService(),
         corporate_access=corporate_access,
     )

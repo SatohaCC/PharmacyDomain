@@ -18,6 +18,7 @@ import pytest
 
 from app.application.composition.coverage_references import (
     CoveragePatientReferenceAdapter,
+    CoverageStoreReferenceAdapter,
 )
 from app.application.composition.dispensing_references import (
     DispensingStaffQualificationAdapter,
@@ -35,11 +36,10 @@ from app.application.composition.prescription_references import (
     PrescriptionStaffQualificationAdapter,
     PrescriptionStoreReferenceAdapter,
 )
-from app.application.composition.reception_references import (
-    ReceptionPatientReferenceAdapter,
-    ReceptionStoreReferenceAdapter,
+from app.application.coverage.exceptions import (
+    CoveragePatientNotFoundError,
+    CoverageStoreNotFoundError,
 )
-from app.application.coverage.exceptions import CoveragePatientNotFoundError
 from app.application.dispensing.exceptions import (
     DispensingPrescriptionNotFoundError,
     DispensingStaffNotFoundError,
@@ -56,34 +56,29 @@ from app.application.prescription.exceptions import (
     PrescriptionPharmacistNotFoundError,
     PrescriptionStoreNotFoundError,
 )
-from app.application.reception.exceptions import (
-    ReceptionPatientNotFoundError,
-    ReceptionStoreNotFoundError,
-)
-from app.domain.claim.coverage_snapshot import PublicExpenseCoverageSnapshot
-from app.domain.claim.primitives import (
-    ClaimCoveragePriority,
-    ClaimPublicPayerNumber,
-    ClaimPublicRecipientNumber,
-)
-from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing.primitives import DispensingId
-from app.domain.patient.primitives import PatientId
-from app.domain.prescription.primitives import PrescriptionId, PrescriptionStatus
-from app.domain.reception.coverage_selection import (
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.coverage.coverage_selection import (
     CoverageSelection,
     SelectedPublicExpenseSource,
 )
-from app.domain.reception.coverage_selection_record import CoverageSelectionRecord
-from app.domain.reception.primitives import (
+from app.domain.coverage.coverage_selection_record import CoverageSelectionRecord
+from app.domain.coverage.coverage_snapshot import PublicExpenseCoverageSnapshot
+from app.domain.coverage.identifiers import CoverageSelectionRecordId, PatientCoverageId
+from app.domain.coverage.primitives import (
     CoverageAppliedOn,
+    CoveragePriority,
     CoverageRecordedAt,
-    CoverageSelectionRecordId,
     OperatorPrincipalId,
-    SourceCoverageId,
+    PublicPayerNumber,
+    PublicRecipientNumber,
 )
-from app.domain.staff.primitives import StaffId
-from app.domain.store.primitives import StoreId
+from app.domain.dispensing.identifiers import DispensingId
+from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.prescription.primitives import PrescriptionStatus
+from app.domain.staff.identifiers import StaffId
+from app.domain.staff.value_objects import PharmacistProfile
+from app.domain.store.identifiers import StoreId
 from tests.factories.dispensing_factory import create_dispensing
 from tests.factories.persistence_factory import create_patient
 from tests.factories.prescription_factory import create_prescription
@@ -113,7 +108,7 @@ _STORE_ADAPTERS = [
         id="薬歴",
     ),
     pytest.param(
-        ReceptionStoreReferenceAdapter, ReceptionStoreNotFoundError, id="受付"
+        CoverageStoreReferenceAdapter, CoverageStoreNotFoundError, id="資格台帳"
     ),
 ]
 
@@ -122,9 +117,6 @@ _PATIENT_ADAPTERS = [
         PrescriptionPatientReferenceAdapter,
         PrescriptionPatientNotFoundError,
         id="処方箋",
-    ),
-    pytest.param(
-        ReceptionPatientReferenceAdapter, ReceptionPatientNotFoundError, id="受付"
     ),
     pytest.param(
         CoveragePatientReferenceAdapter, CoveragePatientNotFoundError, id="資格台帳"
@@ -252,7 +244,7 @@ async def test_スタッフ資格_在籍していれば_保有資格をそのま
     )
 
     # Assert
-    assert qualifications == staff.qualifications
+    assert qualifications.has_pharmacist == staff.qualifications.has(PharmacistProfile)
     del error_type
 
 
@@ -288,8 +280,8 @@ async def test_スタッフ資格_未登録のスタッフは_同じ例外にな
         )
 
 
-async def test_処方箋参照_自法人の処方箋なら_集約をそのまま返す() -> None:
-    """調剤の整合性検証は処方箋の中身を要求するので、集約ごと運ぶ。"""
+async def test_処方箋参照_自法人の処方箋なら_判断材料を固定値へ写す() -> None:
+    """同じ対象と期間・薬品対応を、利用側の独立した型で受け取る。"""
     # Arrange
     corporate_id = CorporateId.generate()
     prescription = create_prescription(corporate_id=corporate_id)
@@ -302,7 +294,16 @@ async def test_処方箋参照_自法人の処方箋なら_集約をそのまま
     )
 
     # Assert
-    assert loaded.id == prescription.id
+    assert loaded.prescription_id == prescription.id
+    assert loaded.patient_id == prescription.patient_id
+    assert loaded.corporate_id == prescription.corporate_id
+    assert loaded.issued_on == prescription.period.issued_date.value
+    assert loaded.valid_to == prescription.period.valid_to.value
+    assert loaded.rps[0].rp_number.value == prescription.rps[0].rp_number.value
+    assert (
+        loaded.rps[0].medicines[0].identifier.code_type.value
+        == prescription.rps[0].medicines[0].identifier.code_type.value
+    )
 
 
 async def test_処方箋参照_別法人の処方箋は_存在しないものとして扱う() -> None:
@@ -378,8 +379,8 @@ async def test_処方箋完了_未存在の処方箋は_404相当になる() -> 
         )
 
 
-async def test_調剤参照_自法人の調剤セッションなら_集約をそのまま返す() -> None:
-    """薬歴と調剤の一致判定は本物の集約を要求する。"""
+async def test_調剤参照_自法人の調剤セッションなら_判断材料を固定値へ写す() -> None:
+    """薬歴と調剤の一致判定に必要な値だけを独立して保持する。"""
     # Arrange
     corporate_id = CorporateId.generate()
     process = create_dispensing(corporate_id=corporate_id)
@@ -392,7 +393,12 @@ async def test_調剤参照_自法人の調剤セッションなら_集約をそ
     )
 
     # Assert
-    assert loaded.id == process.id
+    assert loaded.dispensing_id == process.id
+    assert loaded.patient_id == process.patient_id
+    assert loaded.store_id == process.store_id
+    assert loaded.prescription_id == process.prescription_id
+    assert loaded.dispensed_date == process.dispensed_date.value
+    assert len(loaded.dispensed_rps) == len(process.dispensed_rps)
 
 
 async def test_調剤参照_別法人の調剤セッションは_存在しないものとして扱う() -> None:
@@ -432,11 +438,11 @@ def _record_with_priorities(
         insurance=None,
         public_expenses=tuple(
             SelectedPublicExpenseSource(
-                source_coverage_id=SourceCoverageId.generate(),
+                source_coverage_id=PatientCoverageId.generate(),
                 values=PublicExpenseCoverageSnapshot(
-                    priority=ClaimCoveragePriority(priority),
-                    payer_number=ClaimPublicPayerNumber(f"1234567{priority}"),
-                    recipient_number=ClaimPublicRecipientNumber(f"123456{priority}"),
+                    priority=CoveragePriority(priority),
+                    payer_number=PublicPayerNumber(f"1234567{priority}"),
+                    recipient_number=PublicRecipientNumber(f"123456{priority}"),
                 ),
             )
             for priority in priorities

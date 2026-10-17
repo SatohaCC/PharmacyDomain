@@ -27,6 +27,7 @@ from app.domain.prescription.exceptions import (
 )
 from app.domain.prescription.prescription import Prescription
 from app.domain.prescription.primitives import (
+    DosageAmount,
     DosageSupplementText,
     DosageSupplementType,
     GenericSubstitutionRestrictionType,
@@ -38,15 +39,12 @@ from app.domain.prescription.primitives import (
     PrescriptionStatus,
     verify_supplement_code_partition,
 )
+from app.domain.prescription.reference_primitives import MedicineCodeType
 from app.domain.prescription.value_objects import (
     DosageSupplement,
     GenericSubstitutionRestriction,
     MedicineSupplement,
     UnequalDosageInstruction,
-)
-from app.domain.shared.medicine import (
-    DosageAmount,
-    MedicineCodeType,
 )
 from app.domain.shared.public_expense import PublicExpenseBurden
 from tests.factories.prescription_factory import (

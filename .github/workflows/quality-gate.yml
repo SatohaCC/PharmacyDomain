@@ -55,6 +55,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: uv run ruff format --check .
 
+      - name: レイヤーとコンテキストの依存契約を検査する
+        if: ${{ !cancelled() }}
+        run: uv run lint-imports
+
   # 実PostgreSQLを要するテストは別ジョブにする。DBが無い環境では自動でスキップ
   # されるため、上のジョブでは「実行されたが何も確かめていない」状態になりうる。
   # ここだけがサーバの実挙動（ON CONFLICT、制約名、部分一意インデックス）を見る。

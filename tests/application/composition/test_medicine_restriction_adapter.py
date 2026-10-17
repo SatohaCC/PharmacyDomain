@@ -11,6 +11,7 @@ from datetime import date
 
 from app.application.composition.medicine_restriction_adapter import (
     MedicineCatalogRestrictionAdapter,
+    prescription_identifier,
 )
 from app.domain.medicine_catalog.medicine import Medicine
 from app.domain.medicine_catalog.primitives import NarcoticCategory
@@ -41,7 +42,7 @@ class Test事実から規則の答えへの変換:
     async def test_通常の薬品は_どの区分にも該当しない(self) -> None:
         # Arrange
         adapter = await _adapter_with(create_medicine())
-        identifier = create_identifier()
+        identifier = prescription_identifier(create_identifier())
 
         # Act
         actual = await adapter.classify(identifiers=(identifier,), as_of=_AS_OF)
@@ -57,7 +58,7 @@ class Test事実から規則の答えへの変換:
         adapter = await _adapter_with(
             create_medicine(narcotic_category=NarcoticCategory.NARCOTIC)
         )
-        identifier = create_identifier()
+        identifier = prescription_identifier(create_identifier())
 
         # Act
         actual = await adapter.classify(identifiers=(identifier,), as_of=_AS_OF)
@@ -70,7 +71,7 @@ class Test事実から規則の答えへの変換:
         # Arrange
         patch = create_refill_restricted_patch()
         adapter = await _adapter_with(patch)
-        identifier = patch.identifier
+        identifier = prescription_identifier(patch.identifier)
 
         # Act
         actual = await adapter.classify(identifiers=(identifier,), as_of=_AS_OF)
@@ -89,10 +90,12 @@ class Test事実から規則の答えへの変換:
         adapter = await _adapter_with(patch)
 
         # Act
-        actual = await adapter.classify(identifiers=(patch.identifier,), as_of=_AS_OF)
+        actual = await adapter.classify(
+            identifiers=(prescription_identifier(patch.identifier),), as_of=_AS_OF
+        )
 
         # Assert
-        classification = actual[patch.identifier]
+        classification = actual[prescription_identifier(patch.identifier)]
         assert classification.is_refill_restricted_patch is MedicineRestrictionFlag.NO
         assert classification.is_narcotic is MedicineRestrictionFlag.YES
 
@@ -111,7 +114,7 @@ class Test適用日:
             ),
             create_medicine(listed_on=date(2026, 4, 1), has_dosage_limit=True),
         )
-        identifier = create_identifier()
+        identifier = prescription_identifier(create_identifier())
 
         # Act
         before = await adapter.classify(
@@ -136,7 +139,7 @@ class Test未収載の扱い:
 
         # Act
         actual = await adapter.classify(
-            identifiers=(create_identifier(),), as_of=_AS_OF
+            identifiers=(prescription_identifier(create_identifier()),), as_of=_AS_OF
         )
 
         # Assert
@@ -151,7 +154,8 @@ class Test未収載の扱い:
 
         # Act
         actual = await adapter.classify(
-            identifiers=(create_identifier(),), as_of=date(2026, 4, 1)
+            identifiers=(prescription_identifier(create_identifier()),),
+            as_of=date(2026, 4, 1),
         )
 
         # Assert
@@ -162,12 +166,13 @@ class Test未収載の扱い:
         # Arrange
         known = create_medicine()
         adapter = await _adapter_with(known)
-        unknown = create_identifier("1124017F1030")
+        unknown = prescription_identifier(create_identifier("1124017F1030"))
 
         # Act
         actual = await adapter.classify(
-            identifiers=(known.identifier, unknown), as_of=_AS_OF
+            identifiers=(prescription_identifier(known.identifier), unknown),
+            as_of=_AS_OF,
         )
 
         # Assert
-        assert set(actual) == {known.identifier}
+        assert set(actual) == {prescription_identifier(known.identifier)}

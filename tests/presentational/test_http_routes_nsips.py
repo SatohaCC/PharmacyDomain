@@ -12,8 +12,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.infrastructure.di.bundles.integration import IntegrationUseCases
-from app.presentational.app_factory import create_app
+from app.application.composition.use_case_bundles import IntegrationUseCases
+from app.bootstrap import create_app
 from app.presentational.dependencies import get_integration_use_cases
 from app.presentational.errors import ErrorResponse
 from tests.application.integration.nsips.helpers import NsipsFixture, create_fixture

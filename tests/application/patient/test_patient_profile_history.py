@@ -25,8 +25,7 @@ from app.application.patient.change_patient_names import (
     ChangePatientNamesUseCase,
 )
 from app.application.patient.get_patient import GetPatientQuery, GetPatientUseCase
-from app.domain.corporate.primitives import CorporateId
-from app.domain.identity.primitives import AccountPersonId, UserAccountId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.primitives import (
     ExternalPatientId,
     PatientAddress,
@@ -40,8 +39,9 @@ from app.domain.patient.profile_history import (
     PatientProfileChangeSource,
     PatientProfileSnapshot,
 )
-from app.domain.reception.primitives import ReceptionId
-from app.domain.store.primitives import StoreId
+from app.domain.reception.identifiers import ReceptionId
+from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.domain.store.identifiers import StoreId
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.factories.persistence_factory import create_patient
 from tests.fakes.fake_clock import FakeClock

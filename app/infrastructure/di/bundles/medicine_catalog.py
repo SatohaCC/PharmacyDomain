@@ -2,25 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from app.application.access_control.policy import AuthorizationService
+from app.application.composition.use_case_bundles import MedicineCatalogUseCases
 from app.application.medicine_catalog.get_medicine import GetEffectiveMedicineUseCase
 from app.application.medicine_catalog.import_yj_catalog import ImportYjCatalogUseCase
 from app.application.medicine_catalog.register_medicine import RegisterMedicineUseCase
 from app.domain.medicine_catalog.services import MedicineEffectivePeriodConflictService
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
-
-
-@dataclass(frozen=True, slots=True)
-class MedicineCatalogUseCases:
-    """医薬品マスタコンテキストのユースケース。"""
-
-    register: RegisterMedicineUseCase
-    get_effective: GetEffectiveMedicineUseCase
-    import_yj: ImportYjCatalogUseCase
 
 
 def build_medicine_catalog_use_cases(

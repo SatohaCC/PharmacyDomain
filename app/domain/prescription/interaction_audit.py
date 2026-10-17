@@ -10,7 +10,7 @@ from enum import StrEnum
 from typing import Protocol
 
 from app.domain.foundation.value_object import ValueObject
-from app.domain.shared.medicine import YjCode
+from app.domain.prescription.reference_primitives import YjCode
 
 
 class InteractionSeverity(StrEnum):

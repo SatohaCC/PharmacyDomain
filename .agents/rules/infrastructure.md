@@ -9,10 +9,10 @@ Infrastructure層はPostgreSQLへの永続化アダプタとユースケース�
 
 ## ディレクトリ構成 & 責務
 
-- **層の位置**: 永続化アダプタは `app/infrastructure/postgres/`、ユースケースの配線（Composition Root）は `app/infrastructure/di/` に置き、Domain / Application からは import しない。接続は `di/` が Protocol へ行う。
-- **Infrastructureのファイル構成**: `postgres/` は **SQLAlchemy に触る場所**に限る（`schema`, `connection`, `codec`, `repository_base`, `repositories/`）。配線は `di/` へ分け、`root`、`registry`、`bundles/` を置く。
+- **層の位置**: 永続化アダプタは `app/infrastructure/<context>/postgres/` と共通の `app/infrastructure/postgres/`、ユースケースの配線（Composition Root）は `app/infrastructure/di/` に置き、Domain / Application からは import しない。接続は `di/` が Protocol へ行う。
+- **Infrastructureのファイル構成**: 共通の接続・スキーマ・codec・Repository基底は `postgres/`、各集約の永続化は `<context>/postgres/` に置く。外部取得は対応コンテキストの技術アダプタへ分ける。共通codecは具象アダプタを参照せず、技術アダプタはDI・起動点・Presentationへ依存しない。
 - **Repositoryは1集約1ファイル**: ファイル名は Repository 名から `Postgres` と `Repository` を除いたものに揃える。
-- **ユースケース配線は束のまま**: `di/bundles/` を `organization` / `patient_care` / `clinical` / `medicine_catalog` の4つにまとめる。`medicine_catalog` だけを単独の束に残すのは、法人IDを取らない唯一のコンテキストだから。
+- **ユースケース配線は束のまま**: 生成関数は `di/bundles/` に責務ごとにまとめる。束の型は `app/application/composition/use_case_bundles.py`、実行時Protocolは `runtime.py` に定義し、HTTP境界から具象DIを参照させない。
 - **ユースケース束はアクセス時に組み立てる**: `PostgresUseCaseRegistry` はプロパティで初めて該当コンテキストの束を作り、同一スコープ内でキャッシュする。
 
 ## データマッピング & スキーマ整合性

@@ -199,7 +199,7 @@ def test_十進数_floatから作ったDecimalは_桁数上限が弾く() -> Non
     """
     # Arrange / Act / Assert
     with pytest.raises(DomainValidationError, match="小数部"):
-        _TestAmount(Decimal(0.1))  # noqa: RUF032
+        _TestAmount(Decimal(0.1))
 
 
 def test_十進数_二進で厳密な値なら_floatから作っても通る() -> None:
@@ -209,7 +209,7 @@ def test_十進数_二進で厳密な値なら_floatから作っても通る() -
     弾いている」ことを示す対の記録。RUF032 の noqa は上と同じ理由。
     """
     # Arrange / Act
-    actual = _TestAmount(Decimal(0.5))  # noqa: RUF032
+    actual = _TestAmount(Decimal(0.5))
 
     # Assert
     assert actual.value == Decimal("0.5")

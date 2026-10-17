@@ -8,19 +8,16 @@ from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.patient.reference import PatientStoreReferenceBoundary
 from app.application.patient.support import load_patient_or_raise
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.exceptions import PatientExternalIdentifierAlreadyExistsError
 from app.domain.patient.external_identifier import PatientExternalIdentifier
-from app.domain.patient.primitives import (
-    ExternalPatientId,
-    ExternalSystemName,
-    PatientId,
-)
+from app.domain.patient.identifiers import PatientId
+from app.domain.patient.primitives import ExternalPatientId, ExternalSystemName
 from app.domain.patient.repository import (
     PatientExternalIdentifierRepository,
     PatientRepository,
 )
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 
 
 @dataclass(frozen=True, kw_only=True)

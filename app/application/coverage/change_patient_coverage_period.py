@@ -12,8 +12,8 @@ from app.application.coverage.support import (
     build_coverage_period,
     load_coverage_or_raise,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.coverage.primitives import PatientCoverageId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.coverage.identifiers import PatientCoverageId
 from app.domain.coverage.repository import PatientCoverageRepository
 from app.domain.coverage.services import PatientCoverageConflictService
 

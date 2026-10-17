@@ -24,9 +24,9 @@ from app.application.integration.nsips.exceptions import (
     NsipsPatientIdentityConflictError,
 )
 from app.application.store.exceptions import StoreNotFoundError
+from app.bootstrap import create_app
 from app.domain.foundation.exceptions import DomainError, DomainValidationError
 from app.domain.store.exceptions import StoreNameAlreadyExistsError
-from app.presentational.app_factory import create_app
 from app.presentational.errors import (
     ErrorResponse,
     TranslatableError,

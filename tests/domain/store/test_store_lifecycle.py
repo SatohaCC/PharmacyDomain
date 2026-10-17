@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 import pytest
 
 from app.domain.foundation.exceptions import DomainError, DomainValidationError
-from app.domain.identity.primitives import AccountPersonId, UserAccountId
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.store.lifecycle import StoreStatus, StoreStatusReason
 from app.domain.store.store import Store
 from tests.factories.store_factory import create_store
@@ -80,7 +80,7 @@ def test_同じ状態への再送で履歴を増やさない(target: StoreStatus
 
 
 def test_タイムゾーンの無い記録日時は拒否される() -> None:
-    naive_now = datetime(2026, 9, 17, 2)  # noqa: DTZ001
+    naive_now = datetime(2026, 9, 17, 2)
     store = create_store()
     with pytest.raises(
         DomainValidationError, match="記録日時にはタイムゾーンが必要です"

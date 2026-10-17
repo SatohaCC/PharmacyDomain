@@ -25,26 +25,26 @@ from app.application.dispensing.complete_dispensing import CompleteDispensingCom
 from app.application.dispensing.exceptions import (
     DispensingPrescriptionNotFoundError,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.dispensing.primitives import (
     DispensingCompletionType,
     DispensingProcessStatus,
 )
-from app.domain.identity.primitives import UserAccountId
 from app.domain.identity.user_account import UserAccount
 from app.domain.prescription.prescription import Prescription
 from app.domain.prescription.primitives import PrescriptionStatus
+from app.domain.shared.actor import UserAccountId
+from app.infrastructure.di.repositories import (
+    PostgresRepositorySet,
+)
 from app.infrastructure.di.root import PostgresCompositionRoot
-from app.infrastructure.postgres.connection import PostgresSettings, PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.dispensing_process import (
+from app.infrastructure.dispensing.postgres.dispensing_process import (
     PostgresDispensingProcessRepository,
 )
-from app.infrastructure.postgres.repositories.prescription import (
+from app.infrastructure.postgres.connection import PostgresSettings, PostgresUnitOfWork
+from app.infrastructure.prescription.postgres.prescription import (
     PostgresPrescriptionRepository,
-)
-from app.infrastructure.postgres.repositories.repository_set import (
-    PostgresRepositorySet,
 )
 from tests.factories.dispensing_factory import create_dispensing, verify_passed
 from tests.factories.prescription_factory import create_prescription
@@ -95,7 +95,7 @@ async def _save_corporate_and_dispensing(
     process = replace(process, store_id=store.id)
     unit_of_work = PostgresUnitOfWork(session_factory)
     async with unit_of_work:
-        from app.infrastructure.postgres.repositories.corporate import (
+        from app.infrastructure.corporate.postgres.corporate import (
             PostgresCorporateRepository,
         )
 

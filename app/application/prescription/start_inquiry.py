@@ -14,16 +14,16 @@ from app.application.prescription.support import (
     parse_enum,
     required_text,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.prescription.primitives import (
     InquiryCategory,
     InquiryContent,
     InquiryTimestamp,
-    PrescriptionId,
 )
 from app.domain.prescription.repository import PrescriptionRepository
 from app.domain.prescription.services import InquiryPharmacistService
-from app.domain.staff.primitives import StaffId
+from app.domain.staff.identifiers import StaffId
 
 
 @dataclass(frozen=True, kw_only=True)

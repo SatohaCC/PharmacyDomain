@@ -18,7 +18,7 @@ from app.domain.shared.preservation import (
     PreservationPolicyCatalog,
     PreservationRecordKind,
 )
-from app.domain.staff.primitives import StaffId
+from app.domain.staff.identifiers import StaffId
 from tests.factories.medication_history_factory import (
     COUNSELED_AT,
     create_record,

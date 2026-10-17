@@ -11,13 +11,14 @@ from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.common.optional_conversion import unwrap
 from app.application.dispensing.support import load_dispensing_or_raise
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.dispensing_process import (
     DispensedMedicine,
     DispensedRp,
     DispensingProcess,
 )
-from app.domain.dispensing.primitives import DispensingId
+from app.domain.dispensing.identifiers import DispensingId
+from app.domain.dispensing.reference_values import DosageInstruction
 from app.domain.dispensing.repository import DispensingProcessRepository
 from app.domain.dispensing.value_objects import (
     DispensingPrescriptionAudit,
@@ -25,7 +26,6 @@ from app.domain.dispensing.value_objects import (
     QuantityAdjustment,
     SubstitutionDetail,
 )
-from app.domain.shared.dosage import DosageInstruction
 
 
 @dataclass(frozen=True, kw_only=True)

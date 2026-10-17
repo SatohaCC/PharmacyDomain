@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Self
 
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.corporate.primitives import (
-    CorporateId,
     CorporateName,
     CorporateRepresentativeName,
     CorporateStatus,

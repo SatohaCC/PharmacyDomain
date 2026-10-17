@@ -44,22 +44,22 @@ from app.domain.dispensing.primitives import (
     VerificationResult,
     VerificationTimestamp,
 )
+from app.domain.dispensing.reference_primitives import (
+    DispensingQuantity,
+    InquiryNumber,
+    MedicineCode,
+    MedicineCodeType,
+    MedicineName,
+    RpNumber,
+)
+from app.domain.dispensing.reference_values import MedicineIdentifier
 from app.domain.dispensing.value_objects import (
     DispensingVerification,
     QuantityAdjustment,
     SubstitutionDetail,
 )
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.prescription.primitives import InquiryNumber
-from app.domain.shared.medicine import (
-    DispensingQuantity,
-    MedicineCode,
-    MedicineCodeType,
-    MedicineIdentifier,
-    MedicineName,
-    RpNumber,
-)
-from app.domain.staff.primitives import StaffId
+from app.domain.staff.identifiers import StaffId
 from tests.factories.dispensing_factory import (
     DISPENSED_ON,
     GENERIC_CODE,
@@ -355,7 +355,7 @@ class Test変更調剤:
             )
 
     def test_一包化と自家製剤は_同時に記録できる(self) -> None:
-        """加算の排他は Claim の責務。ここで排他にすると実施した事実を残せない。"""
+        """加算の排他は請求算定側の責務。ここで排他にすると実施した事実を残せない。"""
         # Arrange / Act
         actual = create_dispensed_medicine(
             preparations=(

@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import copy
 
-from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientId
-from app.domain.reception.coverage_selection_record import CoverageSelectionRecord
-from app.domain.reception.primitives import CoverageSelectionRecordId
-from app.domain.reception.repository import CoverageSelectionRecordRepository
-from app.domain.store.primitives import StoreId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.coverage.coverage_selection_record import CoverageSelectionRecord
+from app.domain.coverage.identifiers import CoverageSelectionRecordId
+from app.domain.coverage.repository import CoverageSelectionRecordRepository
+from app.domain.patient.identifiers import PatientId
+from app.domain.store.identifiers import StoreId
 
 
 class InMemoryCoverageSelectionRecordRepository(CoverageSelectionRecordRepository):

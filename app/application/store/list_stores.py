@@ -5,8 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.application.access_control.boundary import CorporateAccessBoundary
-from app.application.access_control.models import Permission
-from app.domain.corporate.primitives import CorporateId
+from app.application.access_control.models import (
+    ActorRole,
+    Permission,
+    ResolvedActorContext,
+)
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.store.repository import StoreCatalogRepository
 from app.domain.store.store import Store
 
@@ -57,4 +61,10 @@ class ListStoresUseCase:
             permission=Permission.VIEW_STORE,
         )
         stores = await self._repository.list_by_corporate_id(corporate_id)
+        actor = self._corporate_access.actor
+        if isinstance(actor, ResolvedActorContext) and not actor.roles & {
+            ActorRole.VENDOR_SYSTEM_ADMIN,
+            ActorRole.CORPORATE_ADMIN,
+        }:
+            stores = [store for store in stores if store.id in actor.store_ids]
         return [StoreSummaryDto.from_entity(store) for store in stores]

@@ -7,11 +7,9 @@ from dataclasses import dataclass
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.staff.support import load_staff_or_raise, to_optional_text
-from app.domain.corporate.primitives import CorporateId
-from app.domain.staff.primitives import (
-    JobTitle,
-    StaffId,
-)
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.staff.identifiers import StaffId
+from app.domain.staff.primitives import JobTitle
 from app.domain.staff.repository import StaffRepository
 
 

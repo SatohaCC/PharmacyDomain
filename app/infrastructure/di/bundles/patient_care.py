@@ -5,14 +5,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from app.application.common.clock import Clock
 from app.application.composition.coverage_references import (
     CoveragePatientReferenceAdapter,
-)
-from app.application.composition.coverage_selection_adapter import (
-    CoverageSelectionAdapter,
+    CoverageStoreReferenceAdapter,
 )
 from app.application.composition.patient_references import (
     PatientStoreReferenceAdapter,
@@ -20,9 +16,10 @@ from app.application.composition.patient_references import (
 from app.application.composition.reception_medication_history import (
     ReceptionMedicationHistoryAssociationAdapter,
 )
-from app.application.composition.reception_references import (
-    ReceptionPatientReferenceAdapter,
-    ReceptionStoreReferenceAdapter,
+from app.application.composition.use_case_bundles import (
+    CoverageUseCases,
+    PatientUseCases,
+    ReceptionUseCases,
 )
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.application.coverage.change_patient_coverage_period import (
@@ -31,11 +28,18 @@ from app.application.coverage.change_patient_coverage_period import (
 from app.application.coverage.deactivate_patient_coverage import (
     DeactivatePatientCoverageUseCase,
 )
+from app.application.coverage.get_last_coverage_selection import (
+    GetLastCoverageSelectionUseCase,
+)
 from app.application.coverage.get_patient_coverage import GetPatientCoverageUseCase
 from app.application.coverage.list_patient_coverages import ListPatientCoveragesUseCase
+from app.application.coverage.record_coverage_selection import (
+    RecordCoverageSelectionUseCase,
+)
 from app.application.coverage.register_patient_coverage import (
     RegisterPatientCoverageUseCase,
 )
+from app.application.coverage.selection import CoverageSelectionBuilder
 from app.application.patient.change_patient_birth_date import (
     ChangePatientBirthDateUseCase,
 )
@@ -65,42 +69,18 @@ from app.application.patient.register_patient_external_identifier import (
 from app.application.reception.associate_reception_medication_history import (
     AssociateReceptionMedicationHistoryUseCase,
 )
-from app.application.reception.get_last_coverage_selection import (
-    GetLastCoverageSelectionUseCase,
+from app.domain.coverage.services import (
+    CoverageSelectionService,
+    PatientCoverageConflictService,
 )
-from app.application.reception.record_coverage_selection import (
-    RecordCoverageSelectionUseCase,
-)
-from app.domain.coverage.combination import CoverageSelectionService
-from app.domain.coverage.services import PatientCoverageConflictService
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 
 # --------------------------------------------------------------------------
 # 患者
 # --------------------------------------------------------------------------
-
-
-@dataclass(frozen=True, slots=True)
-class PatientUseCases:
-    """患者コンテキストのユースケース。"""
-
-    register: RegisterPatientUseCase
-    get: GetPatientUseCase
-    change_names: ChangePatientNamesUseCase
-    change_birth_date: ChangePatientBirthDateUseCase
-    deactivate: DeactivatePatientUseCase
-    reactivate: ReactivatePatientUseCase
-    merge: MergePatientsUseCase
-    register_external_identifier: RegisterPatientExternalIdentifierUseCase
-    get_external_identifier: GetPatientExternalIdentifierUseCase
-    list_external_identifiers: ListPatientExternalIdentifiersUseCase
-    deactivate_external_identifier: DeactivatePatientExternalIdentifierUseCase
-    change_profile: ChangePatientProfileUseCase
-    get_heading: GetPatientHeadingUseCase
-    change_heading: ChangePatientHeadingUseCase
 
 
 def build_patient_use_cases(
@@ -163,24 +143,20 @@ def build_patient_use_cases(
 # --------------------------------------------------------------------------
 
 
-@dataclass(frozen=True, slots=True)
-class CoverageUseCases:
-    """資格台帳コンテキストのユースケース。"""
-
-    register: RegisterPatientCoverageUseCase
-    get: GetPatientCoverageUseCase
-    list_by_patient: ListPatientCoveragesUseCase
-    change_period: ChangePatientCoveragePeriodUseCase
-    deactivate: DeactivatePatientCoverageUseCase
-
-
 def build_coverage_use_cases(
     repositories: PostgresRepositorySet,
     corporate_access: CorporateAccessService,
+    clock: Clock,
 ) -> CoverageUseCases:
-    """資格台帳ユースケースを組み立てる。"""
+    """資格台帳と適用選択ユースケースを組み立てる。"""
     repository = repositories.patient_coverage
     patient_reference = CoveragePatientReferenceAdapter(repositories.patient)
+    store_reference = CoverageStoreReferenceAdapter(repositories.store)
+    selection_repository = repositories.coverage_selection_record
+    selection_builder = CoverageSelectionBuilder(
+        repository,
+        CoverageSelectionService(),
+    )
     conflict = PatientCoverageConflictService()
     return CoverageUseCases(
         register=RegisterPatientCoverageUseCase(
@@ -194,6 +170,21 @@ def build_coverage_use_cases(
             repository, conflict, corporate_access
         ),
         deactivate=DeactivatePatientCoverageUseCase(repository, corporate_access),
+        record_coverage_selection=RecordCoverageSelectionUseCase(
+            selection_repository,
+            corporate_access,
+            store_reference,
+            patient_reference,
+            selection_builder,
+            clock,
+        ),
+        get_last_coverage_selection=GetLastCoverageSelectionUseCase(
+            selection_repository,
+            corporate_access,
+            store_reference,
+            patient_reference,
+            selection_builder,
+        ),
     )
 
 
@@ -202,49 +193,14 @@ def build_coverage_use_cases(
 # --------------------------------------------------------------------------
 
 
-@dataclass(frozen=True, slots=True)
-class ReceptionUseCases:
-    """受付コンテキストのユースケース。"""
-
-    record_coverage_selection: RecordCoverageSelectionUseCase
-    get_last_coverage_selection: GetLastCoverageSelectionUseCase
-    associate_medication_history: AssociateReceptionMedicationHistoryUseCase
-
-
 def build_reception_use_cases(
     repositories: PostgresRepositorySet,
     corporate_access: CorporateAccessService,
     clock: Clock,
     unit_of_work: PostgresUnitOfWork,
 ) -> ReceptionUseCases:
-    """受付ユースケースを組み立てる。
-
-    資格の構築（登録時）と再検証（参照時）は同一のアダプタが担う。**同じ規則で
-    組み立て直せること**が履歴の真正性の定義なので、別実装に分けると、記録した
-    ときの規則と検証するときの規則が食い違いうる。
-    """
-    repository = repositories.coverage_selection_record
-    store_reference = ReceptionStoreReferenceAdapter(repositories.store)
-    patient_reference = ReceptionPatientReferenceAdapter(repositories.patient)
-    coverage_selection = CoverageSelectionAdapter(
-        repositories.patient_coverage, CoverageSelectionService()
-    )
+    """受付固有の関連付けユースケースを組み立てる。"""
     return ReceptionUseCases(
-        record_coverage_selection=RecordCoverageSelectionUseCase(
-            repository,
-            corporate_access,
-            store_reference,
-            patient_reference,
-            coverage_selection,
-            clock,
-        ),
-        get_last_coverage_selection=GetLastCoverageSelectionUseCase(
-            repository,
-            corporate_access,
-            store_reference,
-            patient_reference,
-            coverage_selection,
-        ),
         associate_medication_history=AssociateReceptionMedicationHistoryUseCase(
             reception_repository=repositories.reception,
             medication_history_reference=ReceptionMedicationHistoryAssociationAdapter(

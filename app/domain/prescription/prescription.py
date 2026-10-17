@@ -14,10 +14,12 @@ from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import Self
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.coverage.identifiers import CoverageSelectionRecordId
 from app.domain.foundation.entity import AggregateRoot, Entity
 from app.domain.foundation.value_object import ValueObject
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.dosage import DosageInstruction
 from app.domain.prescription.exceptions import (
     BlockingInquiryExistsError,
     DuplicatedDosageSupplementError,
@@ -35,17 +37,29 @@ from app.domain.prescription.exceptions import (
     RpNumberSequenceError,
     UnequalDosageTotalMismatchError,
 )
+from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.prescription.primitives import (
+    DispensingQuantity,
+    DosageAmount,
+    DosageFormCategory,
     DosageFormName,
     InquiryCategory,
     InquiryContent,
     InquiryNumber,
     InquiryTimestamp,
+    MedicineLineNumber,
     PrescriptionDocumentNumber,
-    PrescriptionId,
     PrescriptionSourceType,
     PrescriptionStatus,
+    RpNumber,
+    SingleDoseAmount,
 )
+from app.domain.prescription.reference_primitives import (
+    MedicineCodeType,
+    MedicineName,
+    MedicineUnit,
+)
+from app.domain.prescription.reference_values import MedicineIdentifier
 from app.domain.prescription.value_objects import (
     DepartmentInfo,
     DosageSupplement,
@@ -59,27 +73,14 @@ from app.domain.prescription.value_objects import (
     UnequalDosageInstruction,
     UnitConversion,
 )
-from app.domain.reception.primitives import CoverageSelectionRecordId
-from app.domain.shared.dosage import DosageInstruction
-from app.domain.shared.medicine import (
-    DispensingQuantity,
-    DosageAmount,
-    DosageFormCategory,
-    MedicineIdentifier,
-    MedicineLineNumber,
-    MedicineName,
-    MedicineUnit,
-    RpNumber,
-    SingleDoseAmount,
-)
 from app.domain.shared.preservation import (
     PreservationObligation,
     PreservationRecordKind,
     resolve_latest_retention_expiry_date,
 )
 from app.domain.shared.public_expense import PublicExpenseBurden
-from app.domain.staff.primitives import StaffId
-from app.domain.store.primitives import StoreId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId
 
 #: ``status`` から遷移できる先。ここに無い組み合わせは拒否する。
 _ALLOWED_TRANSITIONS: dict[PrescriptionStatus, frozenset[PrescriptionStatus]] = {
@@ -99,6 +100,14 @@ _ALLOWED_TRANSITIONS: dict[PrescriptionStatus, frozenset[PrescriptionStatus]] = 
 
 if set(_ALLOWED_TRANSITIONS) != set(PrescriptionStatus):
     raise RuntimeError("PrescriptionStatus の遷移表に定義漏れがあります。")
+
+_ELECTRONIC_PRESCRIPTION_CODE_TYPES = frozenset(
+    {
+        MedicineCodeType.RECEIPT,
+        MedicineCodeType.YJ,
+        MedicineCodeType.GENERIC,
+    }
+)
 
 
 def _ensure_consecutive_from_one(numbers: tuple[int, ...]) -> bool:
@@ -302,7 +311,7 @@ class Prescription(AggregateRoot[PrescriptionId]):
         for rp in self.rps:
             for medicine in rp.medicines:
                 code_type = medicine.identifier.code_type
-                if not code_type.allowed_in_electronic_prescription:
+                if code_type not in _ELECTRONIC_PRESCRIPTION_CODE_TYPES:
                     raise MedicineCodeTypeNotAllowedError(
                         code_type_label=code_type.label
                     )

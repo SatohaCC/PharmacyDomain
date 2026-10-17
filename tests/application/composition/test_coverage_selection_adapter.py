@@ -10,34 +10,34 @@ from datetime import date
 
 import pytest
 
-from app.application.composition.coverage_selection_adapter import (
-    CoverageSelectionAdapter,
-)
-from app.application.reception.exceptions import ReceptionCoverageSelectionError
-from app.domain.corporate.primitives import CorporateId
-from app.domain.coverage.combination import CoverageSelectionService
+from app.application.coverage.exceptions import CoverageSelectionError
+from app.application.coverage.selection import CoverageSelectionBuilder
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.patient_coverage import PatientCoverage
 from app.domain.coverage.primitives import (
     CoverageActivatedOn,
-    CoverageActivation,
+    CoverageAppliedOn,
     CoverageBenefitRatio,
     CoverageCode,
     CoverageDeactivatedOn,
     CoverageInsuredType,
-    CoveragePeriod,
     CoveragePriority,
     CoverageSymbol,
     CoverageType,
     CoverageValidFrom,
     CoverageValidTo,
-    InsuranceCoverageDetails,
     InsurerNumber,
-    PublicExpenseCoverageDetails,
     PublicPayerNumber,
     PublicRecipientNumber,
 )
-from app.domain.patient.primitives import PatientId
-from app.domain.reception.primitives import CoverageAppliedOn
+from app.domain.coverage.services import CoverageSelectionService
+from app.domain.coverage.value_objects import (
+    CoverageActivation,
+    CoveragePeriod,
+    InsuranceCoverageDetails,
+    PublicExpenseCoverageDetails,
+)
+from app.domain.patient.identifiers import PatientId
 from tests.fakes.in_memory_patient_coverage_repository import (
     InMemoryPatientCoverageRepository,
 )
@@ -114,9 +114,9 @@ def _create_public(
 
 def _create_adapter(
     repository: InMemoryPatientCoverageRepository,
-) -> CoverageSelectionAdapter:
+) -> CoverageSelectionBuilder:
     """本物の Domain Service を使うアダプタを組み立てる。"""
-    return CoverageSelectionAdapter(repository, CoverageSelectionService())
+    return CoverageSelectionBuilder(repository, CoverageSelectionService())
 
 
 async def test_資格選択アダプタ_医療保険と公費を渡すと_枠ごとに元IDが束ねられる() -> (
@@ -247,7 +247,7 @@ async def test_資格選択アダプタ_別法人の資格を指定すると_選
     await repository.save(insurance)
 
     # Act / Assert: 他テナントの資格の存在を漏らさない
-    with pytest.raises(ReceptionCoverageSelectionError):
+    with pytest.raises(CoverageSelectionError):
         await _create_adapter(repository).build_selection(
             corporate_id=CorporateId.generate(),
             patient_id=patient_id,
@@ -266,7 +266,7 @@ async def test_資格選択アダプタ_公費順位が飛んでいると_選択
     await repository.save(second_only)
 
     # Act / Assert: 第一公費が空の組み合わせは凍結前に弾く
-    with pytest.raises(ReceptionCoverageSelectionError):
+    with pytest.raises(CoverageSelectionError):
         await _create_adapter(repository).build_selection(
             corporate_id=corporate_id,
             patient_id=patient_id,

@@ -13,10 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.domain.corporate.corporate import Corporate
 from app.domain.corporate.exceptions import CorporateNameAlreadyExistsError
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.exceptions import DispensingAlreadyExistsError
 from app.domain.foundation.exceptions import ConcurrentModificationError
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
 from app.domain.prescription.exceptions import (
     PrescriptionDocumentNumberAlreadyExistsError,
 )
@@ -24,14 +24,14 @@ from app.domain.prescription.primitives import (
     PrescriptionDocumentNumber,
     PrescriptionSourceType,
 )
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.corporate import (
+from app.infrastructure.corporate.postgres.corporate import (
     PostgresCorporateRepository,
 )
-from app.infrastructure.postgres.repositories.dispensing_process import (
+from app.infrastructure.dispensing.postgres.dispensing_process import (
     PostgresDispensingProcessRepository,
 )
-from app.infrastructure.postgres.repositories.prescription import (
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
+from app.infrastructure.prescription.postgres.prescription import (
     PostgresPrescriptionRepository,
 )
 from tests.factories.dispensing_factory import create_dispensing

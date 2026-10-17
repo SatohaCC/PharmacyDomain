@@ -20,12 +20,13 @@ from app.domain.medicine_catalog.exceptions import (
 )
 from app.domain.medicine_catalog.medicine import Medicine, MedicineEffectivePeriod
 from app.domain.medicine_catalog.primitives import (
+    MedicineCodeType,
     MedicineDosageForm,
     MedicineListedOn,
     MedicineWithdrawnOn,
     NarcoticCategory,
 )
-from app.domain.shared.medicine import MedicineCodeType, MedicineIdentifier
+from app.domain.medicine_catalog.value_objects import MedicineIdentifier
 from tests.factories.medicine_catalog_factory import (
     LISTED_ON,
     create_medicine,

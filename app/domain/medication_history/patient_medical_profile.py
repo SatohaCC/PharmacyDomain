@@ -14,7 +14,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime
 from typing import Self
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.entity import AggregateRoot
 from app.domain.medication_history.exceptions import (
     AdverseReactionNotFoundError,
@@ -25,6 +25,7 @@ from app.domain.medication_history.exceptions import (
     ProfilePatientMismatchError,
     UnfinalizedRecordProjectionError,
 )
+from app.domain.medication_history.identifiers import PatientMedicalProfileId
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
@@ -32,8 +33,8 @@ from app.domain.medication_history.primitives import (
     AllergenName,
     ConditionName,
     ConditionStatus,
-    PatientMedicalProfileId,
 )
+from app.domain.medication_history.reference_primitives import MedicineName
 from app.domain.medication_history.value_objects import (
     AdverseReactionRecord,
     AllergyRecord,
@@ -45,8 +46,7 @@ from app.domain.medication_history.value_objects import (
     ProfileProvenance,
     ProfileUpdateIntents,
 )
-from app.domain.patient.primitives import PatientId
-from app.domain.shared.medicine import MedicineName
+from app.domain.patient.identifiers import PatientId
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)

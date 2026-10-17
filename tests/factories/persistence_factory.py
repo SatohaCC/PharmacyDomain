@@ -8,57 +8,52 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
-from app.domain.claim.coverage_snapshot import (
-    InsuranceCoverageSnapshot,
-    PublicExpenseCoverageSnapshot,
-)
-from app.domain.claim.primitives import (
-    ClaimCoverageBenefitRatio,
-    ClaimCoverageCode,
-    ClaimCoverageInsuredType,
-    ClaimCoveragePriority,
-    ClaimCoverageSymbol,
-    ClaimInsurerNumber,
-    ClaimPublicPayerNumber,
-    ClaimPublicRecipientNumber,
-)
-from app.domain.corporate.primitives import CorporateId
-from app.domain.coverage.patient_coverage import PatientCoverage
-from app.domain.coverage.primitives import (
-    CoverageActivatedOn,
-    CoverageActivation,
-    CoverageDeactivatedOn,
-    CoveragePeriod,
-    CoveragePriority,
-    CoverageType,
-    CoverageValidFrom,
-    CoverageValidTo,
-    PublicExpenseCoverageDetails,
-    PublicPayerNumber,
-    PublicRecipientNumber,
-)
-from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
-from app.domain.patient.external_identifier import PatientExternalIdentifier
-from app.domain.patient.patient import Patient
-from app.domain.patient.primitives import (
-    ExternalPatientId,
-    ExternalSystemName,
-    PatientId,
-    PatientNumber,
-)
-from app.domain.reception.coverage_selection import (
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.coverage.coverage_selection import (
     CoverageSelection,
     SelectedInsuranceSource,
     SelectedPublicExpenseSource,
 )
-from app.domain.reception.coverage_selection_record import CoverageSelectionRecord
-from app.domain.reception.primitives import (
-    CoverageAppliedOn,
-    CoverageRecordedAt,
-    OperatorPrincipalId,
-    SourceCoverageId,
+from app.domain.coverage.coverage_selection_record import CoverageSelectionRecord
+from app.domain.coverage.coverage_snapshot import (
+    InsuranceCoverageSnapshot,
+    PublicExpenseCoverageSnapshot,
 )
-from app.domain.store.primitives import StoreId
+from app.domain.coverage.identifiers import PatientCoverageId
+from app.domain.coverage.patient_coverage import PatientCoverage
+from app.domain.coverage.primitives import (
+    CoverageActivatedOn,
+    CoverageAppliedOn,
+    CoverageBenefitRatio,
+    CoverageCode,
+    CoverageDeactivatedOn,
+    CoverageInsuredType,
+    CoveragePriority,
+    CoverageRecordedAt,
+    CoverageSymbol,
+    CoverageType,
+    CoverageValidFrom,
+    CoverageValidTo,
+    InsurerNumber,
+    OperatorPrincipalId,
+    PublicPayerNumber,
+    PublicRecipientNumber,
+)
+from app.domain.coverage.value_objects import (
+    CoverageActivation,
+    CoveragePeriod,
+    PublicExpenseCoverageDetails,
+)
+from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
+from app.domain.patient.external_identifier import PatientExternalIdentifier
+from app.domain.patient.identifiers import PatientId
+from app.domain.patient.patient import Patient
+from app.domain.patient.primitives import (
+    ExternalPatientId,
+    ExternalSystemName,
+    PatientNumber,
+)
+from app.domain.store.identifiers import StoreId
 from tests.factories.staff_factory import create_person_names
 
 APPLIED_ON = date(2026, 8, 23)
@@ -147,22 +142,22 @@ def create_selection() -> CoverageSelection:
     """医療保険1件と第一公費1件からなる資格選択を作る。"""
     return CoverageSelection(
         insurance=SelectedInsuranceSource(
-            source_coverage_id=SourceCoverageId.generate(),
+            source_coverage_id=PatientCoverageId.generate(),
             values=InsuranceCoverageSnapshot(
-                insurer_number=ClaimInsurerNumber("01130012"),
-                insured_symbol=ClaimCoverageSymbol("A"),
-                insured_number=ClaimCoverageCode("456"),
-                insured_type=ClaimCoverageInsuredType.SELF,
-                benefit_ratio=ClaimCoverageBenefitRatio(70),
+                insurer_number=InsurerNumber("01130012"),
+                insured_symbol=CoverageSymbol("A"),
+                insured_number=CoverageCode("456"),
+                insured_type=CoverageInsuredType.SELF,
+                benefit_ratio=CoverageBenefitRatio(70),
             ),
         ),
         public_expenses=(
             SelectedPublicExpenseSource(
-                source_coverage_id=SourceCoverageId.generate(),
+                source_coverage_id=PatientCoverageId.generate(),
                 values=PublicExpenseCoverageSnapshot(
-                    priority=ClaimCoveragePriority(1),
-                    payer_number=ClaimPublicPayerNumber("12345671"),
-                    recipient_number=ClaimPublicRecipientNumber("1234561"),
+                    priority=CoveragePriority(1),
+                    payer_number=PublicPayerNumber("12345671"),
+                    recipient_number=PublicRecipientNumber("1234561"),
                 ),
             ),
         ),

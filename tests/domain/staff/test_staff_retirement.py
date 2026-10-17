@@ -14,18 +14,18 @@ from datetime import date
 
 import pytest
 
-from app.domain.corporate.primitives import CorporateId
+from app.application.composition.organization_snapshot_mapping import (
+    staff_store_source,
+)
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.staff.exceptions import (
     AffiliationDateConflictError,
     InactiveStaffAssignmentError,
 )
-from app.domain.staff.primitives import (
-    AffiliationPeriod,
-    StoreAffiliation,
-)
 from app.domain.staff.services import StaffStoreAssignmentService
 from app.domain.staff.staff import Staff
-from app.domain.store.primitives import StoreId
+from app.domain.staff.value_objects import AffiliationPeriod, StoreAffiliation
+from app.domain.store.identifiers import StoreId
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store
 
@@ -166,7 +166,7 @@ def test_スタッフ_無効化済みのスタッフには_主所属を配属で
 
     # Act / Assert
     with pytest.raises(InactiveStaffAssignmentError):
-        service.assign_home_store(staff, store, date(2026, 4, 1))
+        service.assign_home_store(staff, staff_store_source(store), date(2026, 4, 1))
 
 
 def test_スタッフ_無効化済みのスタッフには_兼務を追加できない() -> None:
@@ -178,7 +178,9 @@ def test_スタッフ_無効化済みのスタッフには_兼務を追加でき
 
     # Act / Assert
     with pytest.raises(InactiveStaffAssignmentError):
-        service.assign_concurrent_store(staff, store, date(2026, 4, 1))
+        service.assign_concurrent_store(
+            staff, staff_store_source(store), date(2026, 4, 1)
+        )
 
 
 def test_スタッフ_無効化済みのスタッフでも_兼務解除はできる() -> None:
@@ -197,7 +199,9 @@ def test_スタッフ_無効化済みのスタッフでも_兼務解除はでき
     ).deactivate(RETIRED_ON)
 
     # Act
-    actual = service.remove_concurrent_store(staff, store, date(2026, 2, 28))
+    actual = service.remove_concurrent_store(
+        staff, staff_store_source(store), date(2026, 2, 28)
+    )
 
     # Assert
     assert actual.affiliations[0].period.end_date == date(2026, 2, 28)

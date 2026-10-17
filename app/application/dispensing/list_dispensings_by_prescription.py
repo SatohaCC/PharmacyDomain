@@ -7,9 +7,9 @@ from dataclasses import dataclass
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.dispensing.get_dispensing import DispensingProcessDto
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.repository import DispensingProcessRepository
-from app.domain.prescription.primitives import PrescriptionId
+from app.domain.prescription.identifiers import PrescriptionId
 
 
 @dataclass(frozen=True, kw_only=True)

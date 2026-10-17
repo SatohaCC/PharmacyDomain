@@ -32,7 +32,7 @@ from app.application.patient.get_patient_heading import (
     GetPatientHeadingQuery,
     GetPatientHeadingUseCase,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.patient.exceptions import (
     PatientHeadingConflictError,
@@ -43,8 +43,8 @@ from app.domain.patient.heading import (
     PatientHeadingRevision,
     PatientHeadingText,
 )
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.lifecycle import PatientStatus
-from app.domain.patient.primitives import PatientId
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.factories.persistence_factory import create_patient

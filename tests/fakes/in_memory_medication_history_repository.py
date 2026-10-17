@@ -7,22 +7,20 @@ from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, date, datetime
 
-from app.domain.care_event.primitives import EventId
-from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing.primitives import DispensingId
+from app.domain.care_event.identifiers import EventId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.medication_history.category_catalog import (
     MedicationHistoryCategoryCatalog,
 )
 from app.domain.medication_history.exceptions import (
     MedicationHistoryAlreadyExistsError,
 )
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
-from app.domain.medication_history.primitives import (
-    MedicationHistoryRecordId,
-    MedicationHistoryStatus,
-)
+from app.domain.medication_history.primitives import MedicationHistoryStatus
 from app.domain.medication_history.repository import (
     FinalizedMedicationHistorySource,
     MedicationHistoryCategoryCatalogRepository,
@@ -31,8 +29,8 @@ from app.domain.medication_history.repository import (
 )
 from app.domain.medication_history.services import MedicationHistoryUniquenessService
 from app.domain.medication_history.value_objects import ExternalCorrectionStatus
-from app.domain.patient.primitives import PatientId
-from app.domain.store.primitives import StoreId
+from app.domain.patient.identifiers import PatientId
+from app.domain.store.identifiers import StoreId
 
 
 class InMemoryMedicationHistoryRepository(MedicationHistoryRepository):

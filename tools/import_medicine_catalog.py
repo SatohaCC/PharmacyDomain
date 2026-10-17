@@ -20,14 +20,14 @@ from app.application.medicine_catalog.import_yj_catalog import (
     ImportYjCatalogCommand,
     ImportYjCatalogUseCase,
 )
+from app.infrastructure.di.repositories import (
+    PostgresRepositorySet,
+)
 from app.infrastructure.postgres.connection import (
     PostgresSettings,
     PostgresUnitOfWork,
     create_async_engine_from_settings,
     create_session_factory,
-)
-from app.infrastructure.postgres.repositories.repository_set import (
-    PostgresRepositorySet,
 )
 
 DEFAULT_CSV_PATH = (

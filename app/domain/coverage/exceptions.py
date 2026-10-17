@@ -43,3 +43,17 @@ class CoverageCombinationError(CoverageDomainError):
 
     default_message = "適用資格の組み合わせが不正です。"
     default_code = "COVERAGE_COMBINATION_INVALID"
+
+
+class CoverageCombinationInvalidError(CoverageDomainError):
+    """適用資格の固定値の組み合わせが不正な場合の例外。"""
+
+    default_message = "保険・公費の適用組み合わせが不正です。"
+    default_code = "COVERAGE_COMBINATION_INVALID"
+
+
+class CoverageSelectionInvalidError(CoverageDomainError):
+    """選択元資格の対応が不正な場合の例外。"""
+
+    default_message = "適用資格の選択が不正です。"
+    default_code = "COVERAGE_SELECTION_INVALID"

@@ -10,12 +10,12 @@ from app.application.access_control.policy import AuthorizationService
 from app.application.store.exceptions import StoreNotFoundError
 from app.application.store.get_store import GetStoreQuery
 from app.application.store.list_stores import ListStoresQuery
-from app.domain.identity.primitives import AccountPersonId, UserAccountId
-from app.infrastructure.di.root import PostgresCompositionRoot
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.di.root import PostgresCompositionRoot
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from tests.factories.store_factory import create_store
 from tests.fakes.fake_clock import FakeClock
 from tests.infrastructure.postgres.helpers import create_corporate

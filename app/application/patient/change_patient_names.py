@@ -10,8 +10,8 @@ from app.application.common.clock import Clock
 from app.application.common.exceptions import AuthorizationError
 from app.application.patient.profile_history import record_manual_profile_change
 from app.application.patient.support import load_patient_or_raise
-from app.domain.corporate.primitives import CorporateId
-from app.domain.patient.primitives import PatientId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.repository import PatientRepository
 from app.domain.shared.person_name import PersonNames
 

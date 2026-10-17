@@ -14,16 +14,12 @@ from app.application.identity.support import (
 )
 from app.domain.corporate.repository import CorporateRepository
 from app.domain.identity.exceptions import IdentityConflictError
+from app.domain.identity.identifiers import CorporateMembershipId
 from app.domain.identity.invitation import InvitationDigest, UserInvitation
 from app.domain.identity.membership import CorporateMembership
-from app.domain.identity.primitives import (
-    AccountPersonId,
-    AccountStatus,
-    CorporateMembershipId,
-    ExternalSubjectKey,
-    UserAccountId,
-)
+from app.domain.identity.primitives import AccountStatus, ExternalSubjectKey
 from app.domain.identity.user_account import UserAccount
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.repository import StaffRepository
 from app.domain.store.repository import StoreRepository
 

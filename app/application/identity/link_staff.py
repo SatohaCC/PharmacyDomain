@@ -6,15 +6,15 @@ from app.application.common.exceptions import NotFoundError
 from app.application.common.organization_lock import OrganizationLock
 from app.application.common.unit_of_work import UnitOfWork
 from app.application.identity.dto import StaffPersonDto
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.exceptions import IdentityConflictError
-from app.domain.identity.primitives import AccountPersonId
 from app.domain.identity.repository import (
     AccountPersonRepository,
     StaffPersonLinkRepository,
 )
 from app.domain.identity.staff_person_link import StaffPersonLink
-from app.domain.staff.primitives import StaffId
+from app.domain.shared.actor import AccountPersonId
+from app.domain.staff.identifiers import StaffId
 from app.domain.staff.repository import StaffRepository
 
 

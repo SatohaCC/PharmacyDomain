@@ -15,7 +15,10 @@ from dataclasses import MISSING, fields, replace
 
 import pytest
 
-from app.domain.corporate.primitives import CorporateId
+from app.application.composition.medication_history_snapshot_mapping import (
+    dispensing_source,
+)
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
 from app.domain.foundation.exceptions import DomainError
 from app.domain.medication_history.exceptions import StatutoryRecordSourceMismatchError
@@ -37,9 +40,9 @@ from app.domain.medication_history.value_objects import (
     StatutoryRecordSource,
     StatutoryRecordSufficiency,
 )
-from app.domain.patient.primitives import PatientId
-from app.domain.prescription.primitives import PrescriptionId
-from app.domain.staff.primitives import StaffId
+from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.staff.identifiers import StaffId
 from tests.factories.dispensing_factory import (
     GENERIC_CODE,
     GENERIC_NAME,
@@ -110,7 +113,9 @@ def _verify(
     source: StatutoryRecordSource,
 ) -> StatutoryRecordSufficiency:
     """判定を実行する。"""
-    return StatutoryDispensingRecordService().verify(record, dispensing, source)
+    return StatutoryDispensingRecordService().verify(
+        record, dispensing_source(dispensing), source
+    )
 
 
 def _diverged(dispensing: DispensingProcess, **overrides: object) -> DispensingProcess:

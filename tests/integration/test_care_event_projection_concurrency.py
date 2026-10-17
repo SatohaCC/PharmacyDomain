@@ -15,15 +15,15 @@ from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
     EventOccurredTimestamp,
 )
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.patient_medical_profile import (
     PatientMedicalProfile,
 )
-from app.domain.medication_history.primitives import MedicationHistoryRecordId
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from tests.factories.medication_history_factory import (
     create_adverse_reaction_intent,
 )

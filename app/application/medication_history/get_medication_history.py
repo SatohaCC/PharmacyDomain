@@ -17,15 +17,14 @@ from app.application.medication_history.reference import (
     MedicationHistoryEventReference,
 )
 from app.application.medication_history.support import load_record_or_raise
-from app.domain.care_event.primitives import EventId
-from app.domain.corporate.primitives import CorporateId
+from app.domain.care_event.identifiers import EventId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.primitives.base import DomainPrimitive
+from app.domain.medication_history.entities import TracingReport
 from app.domain.medication_history.fact_correction import FACT_ARRAY_TYPES, FactElement
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
-)
-from app.domain.medication_history.primitives import (
-    MedicationHistoryRecordId,
 )
 from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.value_objects import (
@@ -39,10 +38,9 @@ from app.domain.medication_history.value_objects import (
     ProfileUpdateIntents,
     ResidualDrugRecord,
     SoapRecord,
-    TracingReport,
     TracingReportResponse,
 )
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
 
 
 def _fact_json(value: object) -> object:

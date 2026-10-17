@@ -13,14 +13,14 @@ from app.application.prescription.support import (
     parse_enum,
     required_text,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.prescription.primitives import (
     InquiryNumber,
     InquiryResponseContent,
     InquiryResultType,
     InquiryTimestamp,
     PrescriberName,
-    PrescriptionId,
 )
 from app.domain.prescription.repository import PrescriptionRepository
 from app.domain.prescription.value_objects import PrescriberResponse

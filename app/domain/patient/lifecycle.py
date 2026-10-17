@@ -9,7 +9,7 @@ from enum import StrEnum
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.primitives.primitives import BaseNormalizedString
 from app.domain.foundation.value_object import ValueObject
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 
 

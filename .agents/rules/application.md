@@ -12,7 +12,9 @@ Application層はユースケースの実行、認可、トランザクション
 - **Applicationコンテキストの依存**: Store / Staff / Patient / Coverage / Reception / CareEvent は法人コンテキストや他コンテキストのApplication実装を import しない。対象法人の認可・有効状態は `access_control` の `CorporateAccessBoundary`（Protocol）にだけ依存させる。CoverageはPatientのAggregateやApplication実装を参照せず、ID参照Protocolまたは永続化制約で行う。Receptionは参照Boundaryに依存し、資格台帳や他Aggregateを保持しない。CareEventもID参照とBoundaryで扱う。実装 `CorporateAccessService` やComposition実装を import するのは Composition Root とテストのみ。
 - **法人ライフサイクル**: `CorporateStatus.INACTIVE` の法人に対するStore / Staff / Patient / Coverage / Receptionの通常操作は `CorporateAccessService` で拒否し、状態変更はベンダーシステム管理者専用とする。Corporate自体には管理者ユーザーやロールを保持させない。
 - **店舗ロールの二重防御**: `STORE_OPERATOR` / `STORE_VIEWER` は権限表（`AuthorizationService`）とSQLの取得条件（`RepositoryReadScope`）の両方で絞る。取得後に絞ると件数や存在の有無から情報が漏れる。読取範囲はテーブルごとに `READ_SCOPE_KINDS` で宣言し、**宣言の無いテーブルは読めない**。
-- **Reception権限**: 資格台帳の編集・参照は `MANAGE_COVERAGE` / `VIEW_COVERAGE`、受付時の資格選択履歴の登録・参照は `MANAGE_RECEPTION` / `VIEW_RECEPTION` として分離する。到達可能なClaim UseCaseがない間はClaim権限を定義しない。
+- **保険資格と受付権限**: 資格台帳と資格選択履歴はCoverageが所有する。Receptionは外部受付原本・訂正履歴・監査上の受付判断を所有し、資格選択履歴のRepositoryを持たない。権限は各UseCaseの対象責務に対応させる。到達可能なClaim UseCaseがない間はClaim権限を定義しない。
+
+- **境界接続**: 業務コンテキスト間は原則独立とし、現行契約で許可するStaff→Storeだけを例外とする。横断接続・参照値への明示変換は `application/composition/` が担当する。入力・出力・参照契約から具象UseCaseへ逆依存しない。
 
 ## 保存前ガード & 排他制御
 

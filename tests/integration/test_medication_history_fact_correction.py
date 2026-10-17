@@ -21,10 +21,10 @@ from app.domain.medication_history.primitives import (
 )
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
 from app.domain.store.lifecycle import StoreStatus, StoreStatusReason
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from tests.domain.medication_history.test_fact_correction import _correct, _element_id
 from tests.factories.medication_history_factory import (
     create_allergy_intent,

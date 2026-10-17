@@ -9,12 +9,12 @@ from app.application.access_control.models import Permission
 from app.application.common.exceptions import NotFoundError
 from app.application.common.unit_of_work import UnitOfWork
 from app.application.reception.reference import MedicationHistoryAssociationBoundary
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.medication_history.primitives import MedicationHistoryRecordId
-from app.domain.reception.primitives import ReceptionId
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
+from app.domain.reception.identifiers import ReceptionId
 from app.domain.reception.repository import ReceptionRepository
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 
 
 @dataclass(frozen=True, kw_only=True)

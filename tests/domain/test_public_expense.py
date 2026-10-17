@@ -21,7 +21,7 @@ class Test公費負担区分:
         assert actual.bears_any
 
     def test_特殊公費だけでも_bears_anyが真になる(self) -> None:
-        """特殊公費は Claim へ写さないが、処方箋上は独立した枠として存在する。"""
+        """特殊公費は資格台帳の固定値へ写さず、処方箋上は独立した枠として存在する。"""
         # Arrange / Act
         actual = PublicExpenseBurden(special=True)
 

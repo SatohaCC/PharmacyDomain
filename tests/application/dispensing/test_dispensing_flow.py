@@ -45,7 +45,7 @@ from app.application.dispensing.verify_dispensing import VerifyDispensingCommand
 from app.application.prescription.ready_for_dispensing import ReadyForDispensingCommand
 from app.application.prescription.resolve_inquiry import ResolveInquiryCommand
 from app.application.prescription.start_inquiry import StartInquiryCommand
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.exceptions import (
     DispensedRpNotInPrescriptionError,
     DispensingAlreadyExistsError,
@@ -60,11 +60,17 @@ from app.domain.dispensing.exceptions import (
     SubstitutionRequiredError,
     VerificationNotPassedError,
 )
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.dispensing.primitives import (
     DispensingCompletionTimestamp,
-    DispensingId,
     DispensingProcessStatus,
     DispensingSplitReason,
+)
+from app.domain.dispensing.reference_primitives import (
+    GenericSubstitutionRestrictionType,
+    InquiryNumber,
+    InquiryResultType,
+    MedicineCodeType,
 )
 from app.domain.dispensing.services import (
     DispensingConsistencyService,
@@ -72,23 +78,18 @@ from app.domain.dispensing.services import (
     DispensingPharmacistService,
 )
 from app.domain.prescription.exceptions import PrescriptionDomainError
-from app.domain.prescription.primitives import (
-    GenericSubstitutionRestrictionType,
-    InquiryNumber,
-    InquiryResultType,
-    PrescriptionStatus,
-    RefillCount,
-)
+from app.domain.prescription.primitives import InquiryNumber as RxInquiryNumber
+from app.domain.prescription.primitives import RefillCount
 from app.domain.prescription.value_objects import (
     PrescriptionManagementInfo,
     RefillInstruction,
 )
-from app.domain.shared.medicine import MedicineCodeType
 from app.domain.shared.preservation import (
     PreservationPolicyCatalog,
     PreservationRecordKind,
 )
-from app.domain.staff.primitives import StaffId, StaffQualifications
+from app.domain.staff.identifiers import StaffId
+from app.domain.staff.value_objects import StaffQualifications
 from tests.application.access_helpers import create_vendor_corporate_access_for
 from tests.application.dispensing.helpers import (
     DispensingFixture,
@@ -351,7 +352,7 @@ class Test調剤の開始:
         # Arrange
         fixture = create_fixture()
         deleted = start_inquiry(fixture.prescription).resolve_inquiry(
-            inquiry_number=InquiryNumber(1),
+            inquiry_number=RxInquiryNumber((InquiryNumber(1)).value),
             response=create_response(result_type=InquiryResultType.DELETED),
         )
         fixture.prescription_source.register(deleted)
@@ -1012,7 +1013,7 @@ class Test変更調剤の記録:
         assert substitution.category == "generic_substitution"
 
     async def test_一包化と自家製剤を_同時に記録できる(self) -> None:
-        """加算の排他は Claim の責務。ここで排他にすると事実を残せない。"""
+        """加算の排他は請求算定側の責務。ここで排他にすると事実を残せない。"""
         # Arrange
         fixture = create_fixture()
         dispensing_id = await _start(fixture)
@@ -1140,11 +1141,10 @@ class Test処方箋の調剤済への遷移:
 
         # Assert
         assert actual.status == DispensingProcessStatus.COMPLETED.value
-        prescription = await fixture.prescription_source.get_or_raise(
-            corporate_id=fixture.corporate_id,
-            prescription_id=fixture.prescription.id,
-        )
-        assert prescription.status is PrescriptionStatus.DISPENSED
+        prescription = fixture.prescription_source.prescriptions[
+            (fixture.corporate_id, fixture.prescription.id)
+        ]
+        assert prescription.status.value == "dispensed"
 
     async def test_調剤継続なら_処方箋は調剤済にならない(self) -> None:
         """次回以降の調剤が残っているので、処方箋はまだ終わっていない。"""
@@ -1167,11 +1167,10 @@ class Test処方箋の調剤済への遷移:
 
         # Assert
         assert actual.next_dispensing_date == _NEXT_DATE.isoformat()
-        prescription = await fixture.prescription_source.get_or_raise(
-            corporate_id=fixture.corporate_id,
-            prescription_id=fixture.prescription.id,
-        )
-        assert prescription.status is PrescriptionStatus.READY_FOR_DISPENSING
+        prescription = fixture.prescription_source.prescriptions[
+            (fixture.corporate_id, fixture.prescription.id)
+        ]
+        assert prescription.status.value == "ready_for_dispensing"
         assert prescription.dispensed_on is None
 
     async def test_総使用回数に達していなくても_終了にできる(self) -> None:
@@ -1193,11 +1192,10 @@ class Test処方箋の調剤済への遷移:
         )
 
         # Assert
-        prescription = await fixture.prescription_source.get_or_raise(
-            corporate_id=fixture.corporate_id,
-            prescription_id=fixture.prescription.id,
-        )
-        assert prescription.status is PrescriptionStatus.DISPENSED
+        prescription = fixture.prescription_source.prescriptions[
+            (fixture.corporate_id, fixture.prescription.id)
+        ]
+        assert prescription.status.value == "dispensed"
 
     async def test_tc40_04_処方箋の保存起算日は最終調剤日になる(self) -> None:
         fixture = create_fixture(
@@ -1217,12 +1215,9 @@ class Test処方箋の調剤済への遷移:
             )
         )
 
-        prescription_after_continuation = (
-            await fixture.prescription_source.get_or_raise(
-                corporate_id=fixture.corporate_id,
-                prescription_id=fixture.prescription.id,
-            )
-        )
+        prescription_after_continuation = fixture.prescription_source.prescriptions[
+            (fixture.corporate_id, fixture.prescription.id)
+        ]
         assert prescription_after_continuation.dispensed_on is None
         catalog = PreservationPolicyCatalog.create_standard_statutory_catalog(
             PreservationRecordKind.PRESCRIPTION
@@ -1247,10 +1242,9 @@ class Test処方箋の調剤済への遷移:
             )
         )
 
-        prescription = await fixture.prescription_source.get_or_raise(
-            corporate_id=fixture.corporate_id,
-            prescription_id=fixture.prescription.id,
-        )
+        prescription = fixture.prescription_source.prescriptions[
+            (fixture.corporate_id, fixture.prescription.id)
+        ]
         assert prescription.dispensed_on is not None
         assert prescription.dispensed_on == final_dispensing_date
         assert prescription.calculate_retention_expiry_date(catalog) == date(
@@ -1494,7 +1488,7 @@ class Test疑義照会処方変更とトレーサビリティ:
                 create_prescription(rps=(create_rp(medicines=(create_medicine(),)),))
             )
             .resolve_inquiry(
-                inquiry_number=InquiryNumber(1),
+                inquiry_number=RxInquiryNumber((InquiryNumber(1)).value),
                 response=create_response(result_type=InquiryResultType.MODIFIED),
             )
             .ready_for_dispensing()
@@ -1528,7 +1522,7 @@ class Test疑義照会処方変更とトレーサビリティ:
                 create_prescription(rps=(create_rp(medicines=(create_medicine(),)),))
             )
             .resolve_inquiry(
-                inquiry_number=InquiryNumber(1),
+                inquiry_number=RxInquiryNumber((InquiryNumber(1)).value),
                 response=create_response(result_type=InquiryResultType.MODIFIED),
             )
             .ready_for_dispensing()
@@ -1586,7 +1580,7 @@ class Test疑義照会処方変更とトレーサビリティ:
                 create_prescription(rps=(create_rp(medicines=(create_medicine(),)),))
             )
             .resolve_inquiry(
-                inquiry_number=InquiryNumber(1),
+                inquiry_number=RxInquiryNumber((InquiryNumber(1)).value),
                 response=create_response(result_type=InquiryResultType.UNCHANGED),
             )
             .ready_for_dispensing()
@@ -1617,7 +1611,7 @@ class Test疑義照会処方変更とトレーサビリティ:
                 create_prescription(rps=(create_rp(medicines=(create_medicine(),)),))
             )
             .resolve_inquiry(
-                inquiry_number=InquiryNumber(1),
+                inquiry_number=RxInquiryNumber((InquiryNumber(1)).value),
                 response=create_response(result_type=InquiryResultType.UNCHANGED),
             )
             .ready_for_dispensing()

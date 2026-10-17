@@ -35,6 +35,12 @@ from app.application.composition.care_event_references import (
     EventMedicationHistoryReferenceAdapter,
     EventReceptionReferenceAdapter,
 )
+from app.application.composition.use_case_bundles import (
+    CareEventUseCases,
+    DispensingUseCases,
+    MedicationHistoryUseCases,
+    PrescriptionUseCases,
+)
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.application.dispensing.get_dispensing import GetDispensingUseCase
 from app.application.dispensing.inputs import SubstitutionInput
@@ -62,31 +68,26 @@ from app.application.medication_history.list_pending_external_corrections import
 from app.application.medication_history.review_external_prescription_correction import (
     ReviewExternalPrescriptionCorrectionUseCase,
 )
+from app.bootstrap import create_app
 from app.domain.care_event.event_definition import EventDefinition
 from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.primitives import StatutoryDispensingRecordItem
 from app.domain.medication_history.services import CounselorQualificationService
 from app.domain.medication_history.value_objects import SoapRecord
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
 from app.domain.prescription.primitives import (
     InquiryNumber,
     InquiryResultType,
 )
-from app.domain.reception.primitives import ReceptionFingerprint, ReceptionId
+from app.domain.reception.identifiers import ReceptionId
+from app.domain.reception.primitives import ReceptionFingerprint
 from app.domain.reception.reception import (
     Reception,
     ReceptionBillingAddition,
     ReceptionSourceData,
 )
-from app.domain.staff.primitives import StaffId
-from app.infrastructure.di.bundles.care_event import CareEventUseCases
-from app.infrastructure.di.bundles.clinical import (
-    DispensingUseCases,
-    MedicationHistoryUseCases,
-    PrescriptionUseCases,
-)
-from app.presentational.app_factory import create_app
+from app.domain.staff.identifiers import StaffId
 from app.presentational.dependencies import (
     get_care_event_use_cases,
     get_dispensing_use_cases,

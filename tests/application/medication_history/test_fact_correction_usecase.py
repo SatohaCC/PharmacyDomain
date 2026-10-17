@@ -18,8 +18,8 @@ from app.application.corporate.exceptions import CorporateInactiveError
 from app.application.medication_history.exceptions import (
     MedicationHistoryStaffNotFoundError,
 )
-from app.domain.care_event.primitives import EventId
-from app.domain.corporate.primitives import CorporateId
+from app.domain.care_event.identifiers import EventId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.category_catalog import (
     MedicationHistoryCategoryCatalog,
 )
@@ -27,12 +27,12 @@ from app.domain.medication_history.exceptions import (
     CounselorQualificationError,
     RequiredCategoryMissingError,
 )
+from app.domain.medication_history.identifiers import CategoryCatalogId
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
 from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
 from app.domain.medication_history.primitives import (
-    CategoryCatalogId,
     CounselingNote,
     MajorCategoryCode,
     MajorCategoryName,
@@ -48,8 +48,9 @@ from app.domain.medication_history.value_objects import (
     MediumCategoryDefinition,
     ProfileUpdateIntents,
 )
-from app.domain.staff.primitives import StaffId, StaffQualifications
-from app.domain.store.primitives import StoreId
+from app.domain.staff.identifiers import StaffId
+from app.domain.staff.value_objects import StaffQualifications
+from app.domain.store.identifiers import StoreId
 from tests.application.medication_history.helpers import (
     MedicationHistoryFixture,
     create_fixture,

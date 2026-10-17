@@ -24,32 +24,31 @@ from app.application.access_control.models import (
 )
 from app.application.access_control.policy import AuthorizationService
 from app.application.composition.clinical_store_guard import ClinicalStoreWriteGuard
+from app.application.composition.corporate_activity_guard import (
+    CorporateActivityWriteGuard,
+)
 from app.application.composition.resolved_actor_guard import (
     CompositeWriteGuard,
     ResolvedActorWriteGuard,
 )
 from app.application.composition.staff_integrity import StaffAssignmentWriteGuard
-from app.application.identity.resolve_actor import UnavailableIdentityError
-from app.domain.identity.primitives import AccountPersonId, UserAccountId
-from app.infrastructure.di.bundles.care_event import CareEventUseCases
-from app.infrastructure.di.bundles.clinical import (
-    DispensingUseCases,
-    MedicationHistoryUseCases,
-    PrescriptionUseCases,
-)
-from app.infrastructure.di.bundles.identity import IdentityUseCases
-from app.infrastructure.di.bundles.integration import IntegrationUseCases
-from app.infrastructure.di.bundles.medicine_catalog import MedicineCatalogUseCases
-from app.infrastructure.di.bundles.organization import (
+from app.application.composition.use_case_bundles import (
+    CareEventUseCases,
     CorporateUseCases,
+    CoverageUseCases,
+    DispensingUseCases,
+    IdentityUseCases,
+    IntegrationUseCases,
+    MedicationHistoryUseCases,
+    MedicineCatalogUseCases,
+    PatientUseCases,
+    PrescriptionUseCases,
+    ReceptionUseCases,
     StaffUseCases,
     StoreUseCases,
 )
-from app.infrastructure.di.bundles.patient_care import (
-    CoverageUseCases,
-    PatientUseCases,
-    ReceptionUseCases,
-)
+from app.application.identity.resolve_actor import UnavailableIdentityError
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.infrastructure.di.registry import PostgresUseCaseRegistry
 from app.infrastructure.di.root import PostgresRequestScope
 from tests.fakes.fake_clock import FakeClock
@@ -308,7 +307,7 @@ async def test_本人特定済みの保存は_そのまま行へ到達する() -
 def test_保存前の境界が_宣言した順で全て掛かる() -> None:
     """境界を配線から落としても、DBなしのテストでは気づけない。
 
-    本人特定・臨床集約の店舗状態・スタッフと任命の整合は、どれも「保存の手前で
+    本人特定・法人の有効状態・臨床集約の店舗状態・スタッフと任命の整合は、どれも「保存の手前で
     止める」ことで全経路に掛かる。1つ外すと、その検査だけが静かに無くなる。
     """
     # Arrange
@@ -332,6 +331,7 @@ def test_保存前の境界が_宣言した順で全て掛かる() -> None:
         ResolvedActorWriteGuard,
         ClinicalStoreWriteGuard,
         StaffAssignmentWriteGuard,
+        CorporateActivityWriteGuard,
     ]
 
 

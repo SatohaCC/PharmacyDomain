@@ -14,24 +14,21 @@ from app.application.composition.care_event_references import (
     MedicationHistoryEventReferenceAdapter,
 )
 from app.domain.care_event.event import Event
+from app.domain.care_event.identifiers import EventId, EventTypeId
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
-    EventId,
     EventOccurredTimestamp,
-    EventTypeId,
     EventTypeName,
 )
-from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing.primitives import DispensingId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.foundation.exceptions import DomainError
-from app.domain.patient.primitives import PatientId
-from app.domain.prescription.primitives import PrescriptionId
-from app.domain.reception.primitives import (
-    ReceptionFingerprint,
-    ReceptionId,
-)
+from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.reception.identifiers import ReceptionId
+from app.domain.reception.primitives import ReceptionFingerprint
 from app.domain.reception.reception import Reception
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 from tests.factories.medication_history_factory import create_record
 from tests.factories.persistence_factory import create_patient
 from tests.fakes.in_memory_event_repository import InMemoryEventRepository

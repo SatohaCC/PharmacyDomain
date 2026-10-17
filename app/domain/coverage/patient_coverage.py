@@ -6,26 +6,28 @@ from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from typing import Self
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.exceptions import (
     CoverageDeactivationAlreadyFixedError,
     CoverageDetailsMismatchError,
     InsuranceCoveragePriorityError,
 )
+from app.domain.coverage.identifiers import PatientCoverageId
 from app.domain.coverage.primitives import (
-    CoverageActivation,
     CoverageDeactivatedOn,
-    CoveragePeriod,
     CoveragePriority,
     CoverageType,
     CoverageValidFrom,
     CoverageValidTo,
+)
+from app.domain.coverage.value_objects import (
+    CoverageActivation,
+    CoveragePeriod,
     InsuranceCoverageDetails,
-    PatientCoverageId,
     PublicExpenseCoverageDetails,
 )
 from app.domain.foundation.entity import AggregateRoot
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
 
 _NONE_TYPE = type(None)
 _DETAIL_TYPES: dict[CoverageType, tuple[type[object], type[object]]] = {

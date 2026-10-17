@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import StrEnum
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.entity import AggregateRoot
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.primitives.primitives import (
@@ -12,13 +12,11 @@ from app.domain.foundation.primitives.primitives import (
     BaseNormalizedString,
 )
 from app.domain.identity.exceptions import IdentityConflictError
-from app.domain.identity.primitives import (
-    AccountPersonId,
-    MembershipRole,
-    UserInvitationId,
-)
-from app.domain.staff.primitives import StaffId
-from app.domain.store.primitives import StoreId
+from app.domain.identity.identifiers import UserInvitationId
+from app.domain.identity.primitives import MembershipRole
+from app.domain.shared.actor import AccountPersonId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId
 
 
 class InvitationStatus(StrEnum):

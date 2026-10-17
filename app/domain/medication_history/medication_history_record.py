@@ -17,10 +17,11 @@ from datetime import date, datetime
 from typing import Any, Self, cast
 from uuid import uuid5, uuid7
 
-from app.domain.care_event.primitives import EventId
-from app.domain.corporate.primitives import CorporateId
-from app.domain.dispensing.primitives import DispensingId
+from app.domain.care_event.identifiers import EventId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.foundation.entity import AggregateRoot
+from app.domain.medication_history.entities import TracingReport
 from app.domain.medication_history.exceptions import (
     DuplicatedTracingReportIdError,
     FinalizationDateBeforeCounselingError,
@@ -44,6 +45,10 @@ from app.domain.medication_history.fact_correction import (
     FactElement,
     MedicationHistoryFactCorrection,
 )
+from app.domain.medication_history.identifiers import (
+    MedicationHistoryRecordId,
+    TracingReportId,
+)
 from app.domain.medication_history.primitives import (
     AmendmentReason,
     AmendmentTimestamp,
@@ -55,11 +60,9 @@ from app.domain.medication_history.primitives import (
     FinalizedTimestamp,
     MedicationHistoryImportTimestamp,
     MedicationHistoryRecordedTimestamp,
-    MedicationHistoryRecordId,
     MedicationHistoryReviewResult,
     MedicationHistorySourceSystem,
     MedicationHistoryStatus,
-    TracingReportId,
 )
 from app.domain.medication_history.value_objects import (
     BillingAddition,
@@ -73,19 +76,18 @@ from app.domain.medication_history.value_objects import (
     ProfileUpdateIntents,
     ResidualDrugRecord,
     SoapRecord,
-    TracingReport,
     TracingReportResponse,
 )
-from app.domain.patient.primitives import PatientId
-from app.domain.prescription.primitives import PrescriptionId
+from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.shared.preservation import (
     PreservationObligation,
     PreservationRecordKind,
     latest_retention_expiry_date,
     resolve_latest_retention_expiry_date,
 )
-from app.domain.staff.primitives import StaffId
-from app.domain.store.primitives import StoreId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId
 
 _FACT_VALUE_ABSENT = object()
 

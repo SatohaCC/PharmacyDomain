@@ -12,10 +12,10 @@ from app.application.medication_history.get_medication_history import (
     MedicationHistoryDto,
 )
 from app.application.medication_history.support import load_record_or_raise
-from app.domain.corporate.primitives import CorporateId
-from app.domain.medication_history.primitives import MedicationHistoryRecordId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.repository import MedicationHistoryRepository
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
 
 
 @dataclass(frozen=True, kw_only=True)

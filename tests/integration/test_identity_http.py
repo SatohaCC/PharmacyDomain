@@ -6,8 +6,8 @@ from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.application.identity.resolve_actor import VerifiedSubject
+from app.bootstrap import create_app
 from app.domain.identity.primitives import AccountStatus, MembershipRole
-from app.presentational.app_factory import create_app
 from app.presentational.authentication import UnconfiguredActorContextProvider
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
 from tests.fakes.verified_subject_provider import StubVerifiedSubjectProvider

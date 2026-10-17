@@ -27,7 +27,6 @@ from app.domain.dispensing.primitives import (
 )
 from app.domain.foundation.exceptions import DomainError
 from app.domain.foundation.primitives.base import DomainPrimitive
-from app.domain.identity.primitives import AccountPersonId, UserAccountId
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
@@ -70,28 +69,28 @@ from app.domain.prescription.primitives import (
     InquiryResultType,
     PrescriptionStatus,
 )
-from app.domain.reception.primitives import (
-    ReceptionFieldPath,
-    ReceptionFingerprint,
-    ReceptionId,
-)
+from app.domain.reception.identifiers import ReceptionId
+from app.domain.reception.primitives import ReceptionFieldPath, ReceptionFingerprint
 from app.domain.reception.reception import (
     Reception,
     ReceptionCorrection,
     ReceptionSourceData,
 )
+from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import (
-    BaseQualificationProfile,
-    DietitianProfile,
     DietitianRegistrationNumber,
     PharmacistLicenseNumber,
-    PharmacistProfile,
-    RegisteredSellerProfile,
     SellerRegistrationNumber,
-    StaffId,
-    StaffQualifications,
 )
 from app.domain.staff.staff import Staff
+from app.domain.staff.value_objects import (
+    BaseQualificationProfile,
+    DietitianProfile,
+    PharmacistProfile,
+    RegisteredSellerProfile,
+    StaffQualifications,
+)
 from app.domain.store.business_hours import (
     BusinessDayException,
     BusinessHours,
@@ -101,7 +100,7 @@ from app.domain.store.business_hours import (
     StoreOpeningState,
     WeekdayBusinessHours,
 )
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 from app.domain.store.store import Store
 from app.infrastructure.postgres.codec import (
     QUALIFICATION_PROFILE_TAGS,

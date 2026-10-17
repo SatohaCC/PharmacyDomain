@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.lifecycle import PatientStatus
 from app.domain.patient.patient import Patient
 from app.domain.patient.primitives import (
@@ -16,9 +16,9 @@ from app.domain.patient.profile_history import (
     PatientProfileChange,
     PatientProfileSnapshot,
 )
-from app.domain.reception.primitives import ReceptionId
+from app.domain.reception.identifiers import ReceptionId
 from app.domain.shared.person_name import PersonNames
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 
 
 def _create_patient() -> Patient:

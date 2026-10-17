@@ -20,7 +20,7 @@ from app.domain.care_event.primitives import (
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
 from tests.factories.dispensing_factory import create_dispensing

@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.dispensing_process import (
     DispensedMedicine,
     DispensedRp,
@@ -31,27 +31,29 @@ from app.domain.dispensing.primitives import (
     VerificationResult,
     VerificationTimestamp,
 )
-from app.domain.dispensing.value_objects import (
-    QuantityAdjustment,
-    SubstitutionDetail,
-)
-from app.domain.patient.primitives import PatientId
-from app.domain.prescription.primitives import InquiryNumber, PrescriptionId
-from app.domain.shared.dosage import DosageCodeType, DosageInstruction, DosageName
-from app.domain.shared.medicine import (
+from app.domain.dispensing.reference_primitives import (
     DispensingQuantity,
     DosageAmount,
+    DosageCodeType,
     DosageFormCategory,
+    DosageName,
+    InquiryNumber,
     MedicineCode,
     MedicineCodeType,
-    MedicineIdentifier,
     MedicineLineNumber,
     MedicineName,
     MedicineUnit,
     RpNumber,
 )
-from app.domain.staff.primitives import StaffId
-from app.domain.store.primitives import StoreId
+from app.domain.dispensing.reference_values import DosageInstruction, MedicineIdentifier
+from app.domain.dispensing.value_objects import (
+    QuantityAdjustment,
+    SubstitutionDetail,
+)
+from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId
 
 DISPENSED_ON = date(2026, 8, 24)
 STARTED_AT = datetime(2026, 8, 24, 1, 30, tzinfo=UTC)

@@ -14,7 +14,13 @@ from alembic.operations import Operations
 from sqlalchemy import Connection, insert, text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from app.domain.care_event.primitives import EventId
+from app.domain.care_event.identifiers import EventId
+from app.domain.medication_history.entities import FollowUpRecord
+from app.domain.medication_history.identifiers import (
+    FollowUpId,
+    MedicationHistoryRecordId,
+    TracingReportId,
+)
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
@@ -24,34 +30,28 @@ from app.domain.medication_history.patient_medical_profile import (
 from app.domain.medication_history.primitives import (
     FinalizationDelayReason,
     FinalizedTimestamp,
-    FollowUpId,
     FollowUpRecordedTimestamp,
     MedicationHistoryRecordedTimestamp,
-    MedicationHistoryRecordId,
     MedicationHistoryStatus,
-    TracingReportId,
 )
-from app.domain.medication_history.value_objects import (
-    FollowUpRecord,
-    ProfileUpdateIntents,
-)
-from app.domain.reception.primitives import ReceptionId
-from app.domain.staff.primitives import StaffId
-from app.infrastructure.postgres import schema
-from app.infrastructure.postgres.codec import decode_aggregate, encode_aggregate
-from app.infrastructure.postgres.repositories.corporate import CORPORATE_MAPPING
-from app.infrastructure.postgres.repositories.dispensing_process import (
+from app.domain.medication_history.value_objects import ProfileUpdateIntents
+from app.domain.reception.identifiers import ReceptionId
+from app.domain.staff.identifiers import StaffId
+from app.infrastructure.corporate.postgres.corporate import CORPORATE_MAPPING
+from app.infrastructure.dispensing.postgres.dispensing_process import (
     DISPENSING_PROCESS_MAPPING,
 )
-from app.infrastructure.postgres.repositories.medication_history import (
+from app.infrastructure.medication_history.postgres.medication_history import (
     MEDICATION_HISTORY_RECORD_MAPPING,
 )
-from app.infrastructure.postgres.repositories.patient import PATIENT_MAPPING
-from app.infrastructure.postgres.repositories.prescription import (
+from app.infrastructure.patient.postgres.patient import PATIENT_MAPPING
+from app.infrastructure.postgres import schema
+from app.infrastructure.postgres.codec import decode_aggregate, encode_aggregate
+from app.infrastructure.postgres.repository_base import AggregateMapping
+from app.infrastructure.prescription.postgres.prescription import (
     PRESCRIPTION_MAPPING,
 )
-from app.infrastructure.postgres.repositories.store import STORE_MAPPING
-from app.infrastructure.postgres.repository_base import AggregateMapping
+from app.infrastructure.store.postgres.store import STORE_MAPPING
 from tests.factories.dispensing_factory import create_dispensing
 from tests.factories.medication_history_factory import (
     create_allergy_intent,

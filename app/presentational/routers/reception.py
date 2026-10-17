@@ -13,22 +13,28 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
-from app.application.reception.associate_reception_medication_history import (
-    AssociateReceptionMedicationHistoryCommand,
-)
-from app.application.reception.get_coverage_selection import CoverageSelectionRecordDto
-from app.application.reception.get_last_coverage_selection import (
+from app.application.coverage.get_coverage_selection import CoverageSelectionRecordDto
+from app.application.coverage.get_last_coverage_selection import (
     GetLastCoverageSelectionQuery,
     LastCoverageSelectionCandidateDto,
 )
-from app.application.reception.record_coverage_selection import (
+from app.application.coverage.record_coverage_selection import (
     RecordCoverageSelectionCommand,
 )
-from app.presentational.dependencies import ReceptionUseCasesDep, get_actor_context
+from app.application.reception.associate_reception_medication_history import (
+    AssociateReceptionMedicationHistoryCommand,
+)
+from app.presentational.dependencies import (
+    CoverageUseCasesDep,
+    ReceptionUseCasesDep,
+    get_actor_context,
+)
 from app.presentational.errors import error_responses
+from app.presentational.routing import ApplicationRoute
 from app.presentational.schemas import RequestModel
 
 router = APIRouter(
+    route_class=ApplicationRoute,
     prefix="/corporates/{corporate_id}",
     tags=["reception"],
     dependencies=[Depends(get_actor_context)],
@@ -74,7 +80,7 @@ class AssociateReceptionMedicationHistoryResponse(RequestModel):
 async def record_coverage_selection(
     corporate_id: str,
     body: RecordCoverageSelectionRequest,
-    use_cases: ReceptionUseCasesDep,
+    use_cases: CoverageUseCasesDep,
 ) -> CoverageSelectionRecordDto:
     """受付で選んだ資格の組み合わせを履歴として残す。"""
     return await use_cases.record_coverage_selection.execute(
@@ -94,7 +100,7 @@ async def record_coverage_selection(
 )
 async def get_last_coverage_selection(
     corporate_id: str,
-    use_cases: ReceptionUseCasesDep,
+    use_cases: CoverageUseCasesDep,
     store_id: Annotated[str, Query(description="受付を行う店舗のID。")],
     patient_id: Annotated[str, Query(description="対象患者のID。")],
     applied_on: Annotated[date, Query(description="資格の有効性を判定する業務日。")],

@@ -11,8 +11,11 @@
 :class:`SubstitutionCategory` などは調剤録・レセプト・薬歴が必要とする
 **ドメイン固有の概念**であり、規格の写像ではない。
 
-薬品そのものの語彙（``MedicineName`` / ``DosageAmount`` 等）は所有者がいないため
-Shared Kernel の ``app/domain/shared/medicine.py`` にある。
+薬品コード・名称・単位は薬品側の語彙なので
+``app/domain/medicine_catalog/primitives.py`` が所有する。処方箋・調剤・薬歴に
+スナップショットとして現れる名称・単位も、マスタ行の存在を意味しない。剤形・
+用量・数量・連番は処方箋記載の語彙なので ``app/domain/prescription/primitives.py``
+を参照する。
 """
 
 from __future__ import annotations
@@ -26,18 +29,11 @@ from app.domain.foundation.primitives.primitives import (
     BaseDate,
     BaseFreeText,
     BasePositiveInt,
-    EntityUUID,
 )
 
 # --------------------------------------------------------------------------
 # 識別子
 # --------------------------------------------------------------------------
-
-
-class DispensingId(EntityUUID):
-    """調剤セッション集約の一意識別子（UUIDv7）。"""
-
-    identifier_name = "調剤セッションID"
 
 
 # --------------------------------------------------------------------------
@@ -205,7 +201,7 @@ class PreparationMethod(StrEnum):
     """軸3: 調製方法。薬品自体は処方どおりで、調製の仕方が加わるもの。
 
     複数同時に成立する（一包化しつつ粉砕する等）。**加算の排他ルールは
-    ここに持たない。** 算定可否は Claim コンテキストの責務であり、ここで
+    ここに持たない。** 算定可否は請求算定側の責務であり、ここで
     排他にすると実施した事実を記録できなくなる。
     """
 

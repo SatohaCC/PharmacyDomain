@@ -16,11 +16,11 @@ from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
     EventOccurredTimestamp,
 )
-from app.infrastructure.postgres import schema
-from app.infrastructure.postgres.connection import PostgresSettings, PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.postgres import schema
+from app.infrastructure.postgres.connection import PostgresSettings, PostgresUnitOfWork
 from tests.factories.persistence_factory import create_patient
 from tests.factories.store_factory import create_store
 from tests.infrastructure.postgres.helpers import create_corporate

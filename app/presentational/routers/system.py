@@ -9,7 +9,9 @@ from __future__ import annotations
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-router = APIRouter(tags=["system"])
+from app.presentational.routing import ApplicationRoute
+
+router = APIRouter(route_class=ApplicationRoute, tags=["system"])
 
 
 class ServiceStatusResponse(BaseModel):

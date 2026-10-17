@@ -10,8 +10,8 @@ from app.application.access_control.models import (
     ResolvedActorContext,
 )
 from app.application.common.exceptions import AuthorizationError
-from app.domain.corporate.primitives import CorporateId
-from app.domain.store.primitives import StoreId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.store.identifiers import StoreId
 
 _CORPORATE_ADMIN_PERMISSIONS = frozenset(
     {

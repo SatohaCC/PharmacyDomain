@@ -1,23 +1,19 @@
-"""Dispensing Applicationが依存する参照境界。
+"""調剤に必要な外部事実と完了操作の参照境界。
 
-集約を跨ぐ検証は、本物の集約・値オブジェクトを受け取る Domain Service が担う。
-それらを**運ぶ**のが
-この層の Protocol であり、実装は Composition Root の実アダプタに閉じる。
-
-Prescription コンテキストの Application 実装（``app.application.prescription``）は
-import しない。逆向きの依存も含めて ``[tool.import_rules.forbidden]`` が検出する。
-"""
+原本の実装型を返さず、調剤側が所有する固定値を受け渡す。業務上の判定は
+Domain Serviceが行い、実アダプタはComposition Rootから注入する。"""
 
 from __future__ import annotations
 
 from datetime import date
 from typing import Protocol
 
-from app.domain.corporate.primitives import CorporateId
-from app.domain.prescription.prescription import Prescription
-from app.domain.prescription.primitives import PrescriptionId
-from app.domain.staff.primitives import StaffId, StaffQualifications
-from app.domain.store.primitives import StoreId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.prescription_source import PrescriptionSource
+from app.domain.dispensing.value_objects import PharmacistQualification
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId
 
 
 class StoreReferenceBoundary(Protocol):
@@ -39,22 +35,14 @@ class StoreReferenceBoundary(Protocol):
 
 
 class PrescriptionReferenceBoundary(Protocol):
-    """調剤の対象となる処方箋集約を取り出す境界。
-
-    **ここだけは他コンテキストの集約そのものを返す。** 調剤の整合性検証
-    （回数・使用期間・変更制限・剤の対応）は処方箋の中身を見ないと判定できず、
-    ID や部分的なSnapshotでは足りない。AGENTS.md の「複数集約に跨る検証は
-    本物の集約を受け取る Domain Service が担当する」に対応する運び役であり、
-    ``DispensingProcess`` 集約が処方箋を保持するわけではない
-    （集約モジュールからの import は ``[tool.import_rules.forbidden]`` が禁じている）。
-    """
+    """調剤の判定に必要な処方原本の固定値を取り出す境界。"""
 
     async def get_or_raise(
         self,
         *,
         corporate_id: CorporateId,
         prescription_id: PrescriptionId,
-    ) -> Prescription:
+    ) -> PrescriptionSource:
         """指定法人の処方箋集約を取得する。
 
         Raises:
@@ -104,12 +92,12 @@ class StaffQualificationBoundary(Protocol):
         *,
         corporate_id: CorporateId,
         staff_id: StaffId,
-    ) -> StaffQualifications:
+    ) -> PharmacistQualification:
         """指定法人に在籍するスタッフの保有資格を返す。
 
         Raises:
             DispensingStaffNotFoundError: 未存在または別法人のスタッフである場合。
                 資格を持たないだけのスタッフはここでは例外にせず、空の
-                ``StaffQualifications`` を返す（存在はしているため）。
+                ``PharmacistQualification`` を返す（存在はしているため）。
         """
         ...

@@ -5,20 +5,23 @@ from datetime import date
 
 import pytest
 
+from app.application.composition.organization_snapshot_mapping import (
+    manager_staff_source,
+)
 from app.domain.foundation.exceptions import DomainError
 from app.domain.shared.actor import AccountPersonId
-from app.domain.staff.primitives import (
+from app.domain.staff.primitives import PharmacistLicenseNumber
+from app.domain.staff.value_objects import (
     AffiliationPeriod,
-    PharmacistLicenseNumber,
     PharmacistProfile,
     StaffQualifications,
     StoreAffiliation,
 )
+from app.domain.store.identifiers import StoreManagerAssignmentId
 from app.domain.store.lifecycle import StoreStatus
 from app.domain.store.manager_assignment import (
     ManagerAssignmentPeriod,
     StoreManagerAssignment,
-    StoreManagerAssignmentId,
 )
 from app.domain.store.manager_service import StoreManagerAssignmentService
 from tests.factories.staff_factory import create_staff
@@ -58,7 +61,7 @@ def test_任命期間を含む所属の薬剤師を任命できる(
     )
 
     StoreManagerAssignmentService().ensure_assignable(
-        assignment, store=store, staff=staff
+        assignment, store=store, staff=manager_staff_source(staff)
     )
 
 
@@ -120,5 +123,5 @@ def test_資格や所属期間を満たさない任命を拒否する(violation:
 
     with pytest.raises(DomainError):
         StoreManagerAssignmentService().ensure_assignable(
-            assignment, store=store, staff=staff
+            assignment, store=store, staff=manager_staff_source(staff)
         )

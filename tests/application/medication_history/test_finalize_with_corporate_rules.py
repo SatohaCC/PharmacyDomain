@@ -14,21 +14,19 @@ from app.application.medication_history.inputs import (
     LabeledNoteInput,
     SoapInput,
 )
-from app.domain.care_event.primitives import (
-    EventId,
-    EventTypeId,
-    EventTypeName,
-    EventTypeStandardCode,
-)
+from app.domain.care_event.identifiers import EventId, EventTypeId
+from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
 from app.domain.medication_history.category_catalog import (
     MedicationHistoryCategoryCatalog,
 )
 from app.domain.medication_history.exceptions import RequiredCategoryMissingError
-from app.domain.medication_history.primitives import (
+from app.domain.medication_history.identifiers import (
     CategoryCatalogId,
+    MedicationHistoryRecordId,
+)
+from app.domain.medication_history.primitives import (
     MajorCategoryCode,
     MajorCategoryName,
-    MedicationHistoryRecordId,
     MediumCategoryCode,
     MediumCategoryName,
 )

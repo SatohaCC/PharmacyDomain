@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.domain.care_event.primitives import EventId, EventTypeId
+from app.domain.care_event.identifiers import EventId, EventTypeId
 
 
 def test_tc45_10_Eventと種別IDは_UUIDv7で生成される() -> None:

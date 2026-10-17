@@ -17,8 +17,8 @@ from app.domain.medication_history.value_objects import (
     ExternalCorrectionStatus,
     ExternalPrescriptionCorrection,
 )
-from app.domain.prescription.primitives import PrescriptionId
-from app.domain.staff.primitives import StaffId
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.staff.identifiers import StaffId
 from app.infrastructure.postgres.codec import decode_aggregate, encode_aggregate
 from tests.factories.medication_history_factory import (
     COUNSELED_AT,

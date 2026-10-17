@@ -15,7 +15,7 @@ from app.application.access_control.models import (
 )
 from app.application.access_control.policy import AuthorizationService
 from app.application.common.exceptions import AuthorizationError
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 

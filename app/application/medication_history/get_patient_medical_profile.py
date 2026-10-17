@@ -16,7 +16,7 @@ from app.application.medication_history.exceptions import (
 from app.application.medication_history.profile_projection_service import (
     PatientMedicalProfileProjectionService,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
 from app.domain.medication_history.repository import (
     MedicationHistoryRepository,
@@ -32,7 +32,7 @@ from app.domain.medication_history.value_objects import (
     MedicalConditionRecord,
     ProfileProvenance,
 )
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -219,7 +219,7 @@ class PatientMedicalProfileDto:
         """頭書き集約からDTOを生成する。
 
         併用中かどうかは適用日で決まるため、判定日を引数で受け取る。
-        ``date.today()`` を暗黙に使わない（ruff ``DTZ011``）。
+        ``date.today()`` を暗黙に使わない（環境日時取得のAST検査）。
         """
         return cls(
             id=str(profile.id.value),

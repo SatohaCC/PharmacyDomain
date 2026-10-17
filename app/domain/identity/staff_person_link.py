@@ -2,10 +2,10 @@
 
 from dataclasses import dataclass
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.entity import AggregateRoot
-from app.domain.identity.primitives import AccountPersonId
-from app.domain.staff.primitives import StaffId
+from app.domain.shared.actor import AccountPersonId
+from app.domain.staff.identifiers import StaffId
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)

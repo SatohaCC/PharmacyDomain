@@ -6,7 +6,7 @@ from datetime import date, datetime
 
 import pytest
 
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.exceptions import (
     CoveragePeriodConflictError,
     InsuranceCoveragePriorityError,
@@ -14,27 +14,29 @@ from app.domain.coverage.exceptions import (
 from app.domain.coverage.patient_coverage import PatientCoverage
 from app.domain.coverage.primitives import (
     CoverageActivatedOn,
-    CoverageActivation,
     CoverageBenefitRatio,
     CoverageBranchNumber,
     CoverageCode,
     CoverageDeactivatedOn,
     CoverageInsuredType,
-    CoveragePeriod,
     CoveragePriority,
     CoverageSymbol,
     CoverageType,
     CoverageValidFrom,
     CoverageValidTo,
-    InsuranceCoverageDetails,
     InsurerNumber,
-    PublicExpenseCoverageDetails,
     PublicPayerNumber,
     PublicRecipientNumber,
 )
 from app.domain.coverage.services import PatientCoverageConflictService
+from app.domain.coverage.value_objects import (
+    CoverageActivation,
+    CoveragePeriod,
+    InsuranceCoverageDetails,
+    PublicExpenseCoverageDetails,
+)
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.patient.primitives import PatientId
+from app.domain.patient.identifiers import PatientId
 from tests.fakes.in_memory_patient_coverage_repository import (
     InMemoryPatientCoverageRepository,
 )
@@ -200,14 +202,14 @@ def test_適用開始日_日時型を指定すると_ドメイン検証エラー
     # Arrange / Act / Assert
     with pytest.raises(DomainValidationError):
         # naive日時が拒否されることを確認するテストなので、意図的にtzを付けない。
-        CoverageValidFrom(datetime(2026, 8, 1, 12, 0))  # noqa: DTZ001
+        CoverageValidFrom(datetime(2026, 8, 1, 12, 0))
 
 
 def test_適用終了日_日時型を指定すると_ドメイン検証エラーになる() -> None:
     # Arrange / Act / Assert
     with pytest.raises(DomainValidationError):
         # naive日時が拒否されることを確認するテストなので、意図的にtzを付けない。
-        CoverageValidTo(datetime(2026, 8, 31, 12, 0))  # noqa: DTZ001
+        CoverageValidTo(datetime(2026, 8, 31, 12, 0))
 
 
 def test_適用期間_隣接する期間は_重ならない() -> None:

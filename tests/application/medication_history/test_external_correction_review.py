@@ -24,7 +24,7 @@ from app.application.medication_history.review_external_prescription_correction 
     ReviewExternalPrescriptionCorrectionCommand,
     ReviewExternalPrescriptionCorrectionUseCase,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.exceptions import (
     CounselorQualificationError,
     MedicationHistoryNotFinalizedError,
@@ -41,8 +41,8 @@ from app.domain.medication_history.value_objects import (
     ExternalCorrectionKind,
     ExternalPrescriptionCorrection,
 )
-from app.domain.staff.primitives import StaffQualifications
-from app.domain.store.primitives import StoreId
+from app.domain.staff.value_objects import StaffQualifications
+from app.domain.store.identifiers import StoreId
 from tests.application.medication_history.helpers import (
     MedicationHistoryFixture,
     create_fixture,

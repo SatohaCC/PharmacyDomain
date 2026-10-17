@@ -80,3 +80,9 @@ class InactiveStaffAssignmentError(StaffAffiliationError):
         "先にスタッフを有効化してください。"
     )
     default_code = "INACTIVE_STAFF_ASSIGNMENT"
+
+
+class ClosedStoreAssignmentError(StaffDomainError):
+    """閉局済みの店舗へ新たな配属を登録できない。"""
+
+    default_code = "STORE_STATE_CONFLICT"

@@ -22,15 +22,15 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.application.access_control.models import ActorRole
 from app.application.identity.resolve_actor import VerifiedSubject
+from app.bootstrap import create_app
+from app.dev_main import build_actor_provider
 from app.domain.store.lifecycle import StoreStatus, StoreStatusReason
-from app.infrastructure.di.root import PostgresCompositionRoot
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
-from app.presentational.app_factory import create_app
+from app.infrastructure.di.root import PostgresCompositionRoot
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
-from app.presentational.dev_main import build_actor_provider
 from tests.fakes.fake_clock import FakeClock
 from tests.tools.test_seed_dev_data import _environment
 from tools.seed_dev_data import SeedData, apply_seed, build_seed_data

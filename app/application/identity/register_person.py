@@ -5,10 +5,11 @@ from app.application.access_control.models import Permission
 from app.application.access_control.policy import AuthorizationService
 from app.application.common.unit_of_work import UnitOfWork
 from app.application.identity.dto import PersonDto
-from app.domain.corporate.primitives import CorporateId
+from app.application.identity.input_models import PersonNamesInput
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.account_person import AccountPerson
-from app.domain.identity.primitives import AccountPersonId
 from app.domain.identity.repository import AccountPersonRepository
+from app.domain.shared.actor import AccountPersonId
 from app.domain.shared.person_name import PersonNames
 
 
@@ -29,7 +30,9 @@ class RegisterPersonUseCase:
         self._access = access
         self._unit_of_work = unit_of_work
 
-    async def execute(self, corporate_id: str | None, names: PersonNames) -> PersonDto:
+    async def execute(
+        self, corporate_id: str | None, names: PersonNamesInput
+    ) -> PersonDto:
         """法人を指定しない登録はベンダー専用とする。"""
         self._unit_of_work.ensure_active()
         if corporate_id is None:
@@ -41,7 +44,15 @@ class RegisterPersonUseCase:
                 corporate_id=CorporateId.parse(corporate_id),
                 permission=Permission.MANAGE_STAFF,
             )
-        person = AccountPerson(id=AccountPersonId.generate(), names=names)
+        person = AccountPerson(
+            id=AccountPersonId.generate(),
+            names=PersonNames.create(
+                last_name=names.last_name,
+                first_name=names.first_name,
+                last_name_kana=names.last_name_kana,
+                first_name_kana=names.first_name_kana,
+            ),
+        )
         await self._people.save(person)
         return PersonDto.from_entity(person)
 

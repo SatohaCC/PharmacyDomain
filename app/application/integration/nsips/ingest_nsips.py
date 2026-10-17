@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import asdict, dataclass, fields, is_dataclass, replace
+from dataclasses import dataclass, fields, is_dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -13,6 +13,7 @@ from app.application.access_control.models import Permission
 from app.application.common.clock import Clock
 from app.application.common.optional_conversion import build_optional, unwrap
 from app.application.common.unit_of_work import UnitOfWork
+from app.application.composition.dispensing_snapshot_mapping import dispensing_dosage
 from app.application.dispensing.exceptions import DispensingDateRequiredError
 from app.application.dispensing.start_dispensing import StartDispensingUseCase
 from app.application.dispensing.support import build_dispensed_rps
@@ -23,6 +24,7 @@ from app.application.integration.nsips.exceptions import (
 from app.application.integration.nsips.mapper import NsipsDataMapper
 from app.application.integration.nsips.models import NsipsBundle
 from app.application.integration.nsips.parser import NsipsParser
+from app.application.integration.nsips.source_mapping import map_bundle
 from app.application.patient.register_patient import RegisterPatientUseCase
 from app.application.patient.register_patient_external_identifier import (
     RegisterPatientExternalIdentifierCommand,
@@ -42,35 +44,36 @@ from app.application.prescription.support import (
     build_prescriber,
     build_rps,
 )
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.identifiers import DispensingId
 from app.domain.dispensing.primitives import (
     DispensingCancellationReason,
-    DispensingId,
     DispensingProcessStatus,
+)
+from app.domain.dispensing.reference_primitives import (
+    DispensingQuantity as DispensedQuantity,
 )
 from app.domain.dispensing.repository import DispensingProcessRepository
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
-from app.domain.medication_history.primitives import (
-    ExternalCorrectionTimestamp,
-    MedicationHistoryRecordId,
-)
+from app.domain.medication_history.primitives import ExternalCorrectionTimestamp
 from app.domain.medication_history.repository import MedicationHistoryRepository
 from app.domain.medication_history.value_objects import (
     ExternalCorrectionKind,
     ExternalCorrectionStatus,
     ExternalPrescriptionCorrection,
 )
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.primitives import (
     ExternalPatientId,
     ExternalSystemName,
     PatientAddress,
     PatientBirthDate,
     PatientGenderCode,
-    PatientId,
     PatientPhoneNumber,
     PatientPostalCode,
 )
@@ -82,17 +85,15 @@ from app.domain.patient.repository import (
     PatientExternalIdentifierRepository,
     PatientRepository,
 )
+from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.prescription.prescription import (
     Prescription,
     PrescriptionRp,
 )
-from app.domain.prescription.primitives import PrescriptionId, PrescriptionStatus
+from app.domain.prescription.primitives import PrescriptionStatus
 from app.domain.prescription.repository import PrescriptionRepository
-from app.domain.reception.primitives import (
-    ReceptionFieldPath,
-    ReceptionFingerprint,
-    ReceptionId,
-)
+from app.domain.reception.identifiers import ReceptionId
+from app.domain.reception.primitives import ReceptionFieldPath, ReceptionFingerprint
 from app.domain.reception.reception import (
     Reception,
     ReceptionBillingAddition,
@@ -101,7 +102,7 @@ from app.domain.reception.reception import (
 )
 from app.domain.reception.repository import ReceptionRepository
 from app.domain.shared.person_name import PersonNames
-from app.domain.store.primitives import StoreId
+from app.domain.store.identifiers import StoreId
 
 _SUPPORTED_RAW_NSIPS_VERSIONS: frozenset[str] = frozenset()
 
@@ -405,7 +406,7 @@ class IngestNsipsUseCase:
 
         return ReceptionSourceData(
             bundle_json=json.dumps(
-                asdict(bundle),
+                map_bundle(bundle),
                 ensure_ascii=False,
                 sort_keys=True,
                 separators=(",", ":"),
@@ -696,7 +697,7 @@ class IngestNsipsUseCase:
                     or patient_link.patient_id != existing_reception.patient_id
                 ):
                     raise NsipsPatientIdentityConflictError()
-        if bundle.correction_kind is ExternalCorrectionKind.DELETE:
+        if bundle.correction_kind == ExternalCorrectionKind.DELETE:
             if existing_reception is None:
                 raise NsipsParseError("削除通知は、既存の受付IDへ紐づけてください。")
             return await self._process_external_deletion_notice(
@@ -943,8 +944,9 @@ class IngestNsipsUseCase:
                             source_document_number=doc_num,
                             reason=f"レセコン訂正データ受信: {diff_summary}",
                             details=diff_summary,
-                            kind=bundle.correction_kind
-                            or ExternalCorrectionKind.UPDATE,
+                            kind=ExternalCorrectionKind(bundle.correction_kind)
+                            if bundle.correction_kind is not None
+                            else ExternalCorrectionKind.UPDATE,
                         )
                         updated_history = matching_record.record_external_correction(
                             external_correction
@@ -1356,10 +1358,11 @@ class IngestNsipsUseCase:
             dispensing.dispensed_rps, prescription.rps, strict=True
         ):
             if (
-                dispensed.rp_number != prescribed.rp_number
-                or dispensed.category != prescribed.category
-                or dispensed.quantity != prescribed.quantity
-                or dispensed.dosage_instruction != prescribed.dosage_instruction
+                dispensed.rp_number.value != prescribed.rp_number.value
+                or dispensed.category.value != prescribed.category.value
+                or dispensed.quantity.value != prescribed.quantity.value
+                or dispensed.dosage_instruction
+                != dispensing_dosage(prescribed.dosage_instruction)
                 or dispensed.quantity_adjustment is not None
                 or len(dispensed.medicines) != len(prescribed.medicines)
             ):
@@ -1368,11 +1371,19 @@ class IngestNsipsUseCase:
                 dispensed.medicines, prescribed.medicines, strict=True
             ):
                 if (
-                    actual_medicine.line_number != prescribed_medicine.line_number
-                    or actual_medicine.identifier != prescribed_medicine.identifier
-                    or actual_medicine.name != prescribed_medicine.name
-                    or actual_medicine.amount != prescribed_medicine.amount
-                    or actual_medicine.unit != prescribed_medicine.unit
+                    actual_medicine.line_number.value
+                    != prescribed_medicine.line_number.value
+                    or (
+                        actual_medicine.identifier.code_type.value,
+                        unwrap(actual_medicine.identifier.code),
+                    )
+                    != (
+                        prescribed_medicine.identifier.code_type.value,
+                        unwrap(prescribed_medicine.identifier.code),
+                    )
+                    or actual_medicine.name.value != prescribed_medicine.name.value
+                    or actual_medicine.amount.value != prescribed_medicine.amount.value
+                    or actual_medicine.unit.value != prescribed_medicine.unit.value
                     or actual_medicine.public_expense_burden
                     != prescribed_medicine.public_expense_burden
                     or actual_medicine.substitution is not None
@@ -1426,10 +1437,10 @@ class IngestNsipsUseCase:
             return False
 
         updated_prescription = existing.replace_rps(incoming_rps)
-        quantities = {rp.rp_number: rp.quantity for rp in incoming_rps}
+        quantities = {rp.rp_number.value: rp.quantity.value for rp in incoming_rps}
         updated_dispensing = dispensing.update_dispensed_rps(
             tuple(
-                replace(rp, quantity=quantities[rp.rp_number])
+                replace(rp, quantity=DispensedQuantity(quantities[rp.rp_number.value]))
                 for rp in dispensing.dispensed_rps
             )
         )

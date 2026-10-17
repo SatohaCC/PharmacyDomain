@@ -15,17 +15,14 @@ from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.application.identity.invite_user import InviteUserCommand
-from app.domain.identity.primitives import (
-    ExternalSubjectKey,
-    MembershipRole,
-    UserAccountId,
-)
+from app.bootstrap import create_app
+from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole
 from app.domain.identity.user_account import UserAccount
-from app.infrastructure.postgres.connection import PostgresUnitOfWork
-from app.infrastructure.postgres.repositories.repository_set import (
+from app.domain.shared.actor import UserAccountId
+from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
-from app.presentational.app_factory import create_app
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.presentational.authentication import UnconfiguredActorContextProvider
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
 from app.presentational.oidc import OidcSettings, OidcVerifiedSubjectProvider

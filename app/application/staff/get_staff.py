@@ -10,8 +10,8 @@ from app.application.access_control.models import ActorRole, Permission
 from app.application.common.clock import Clock
 from app.application.staff.list_staffs import StaffSummaryDto
 from app.application.staff.support import load_staff_or_raise
-from app.domain.corporate.primitives import CorporateId
-from app.domain.staff.primitives import StaffId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.staff.identifiers import StaffId
 from app.domain.staff.repository import StaffRepository
 from app.domain.staff.staff import Staff
 

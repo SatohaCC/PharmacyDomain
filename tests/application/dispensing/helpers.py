@@ -27,22 +27,20 @@ from app.application.dispensing.start_dispensing import (
     StartDispensingUseCase,
 )
 from app.application.dispensing.verify_dispensing import VerifyDispensingUseCase
-from app.domain.corporate.primitives import CorporateId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.reference_primitives import (
+    MedicineCodeType,
+)
 from app.domain.dispensing.services import (
     DispensingConsistencyService,
     DispensingIterationUniquenessService,
     DispensingPharmacistService,
 )
 from app.domain.prescription.prescription import Prescription
-from app.domain.prescription.primitives import PrescriptionStatus
-from app.domain.shared.medicine import MedicineCodeType
-from app.domain.staff.primitives import (
-    PharmacistLicenseNumber,
-    PharmacistProfile,
-    StaffId,
-    StaffQualifications,
-)
-from app.domain.store.primitives import StoreId
+from app.domain.staff.identifiers import StaffId
+from app.domain.staff.primitives import PharmacistLicenseNumber
+from app.domain.staff.value_objects import PharmacistProfile, StaffQualifications
+from app.domain.store.identifiers import StoreId
 from tests.application.access_helpers import (
     AutoProvisioningCorporateRepository,
     create_vendor_corporate_access_for,
@@ -200,7 +198,7 @@ def create_fixture(*, prescription: Prescription | None = None) -> DispensingFix
     # Fixture の法人に属さず、境界の参照が理由なく404になる。
     corporate_id = prescription.corporate_id
     store_id = prescription.store_id
-    if prescription.status is not PrescriptionStatus.READY_FOR_DISPENSING:
+    if prescription.status.value != "ready_for_dispensing":
         prescription = prescription.ready_for_dispensing()
 
     repository = InMemoryDispensingProcessRepository()

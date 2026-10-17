@@ -12,7 +12,7 @@ from app.domain.prescription.interaction_audit import (
     DrugInteractionAuditService,
     DrugInteractionDataSource,
 )
-from app.domain.shared.medicine import YjCode
+from app.domain.prescription.reference_primitives import YjCode
 
 
 @dataclass(frozen=True, kw_only=True)
