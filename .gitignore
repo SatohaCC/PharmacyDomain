@@ -16,3 +16,10 @@ graphify-out
 for-llm
 .vscode
 docs/references/*.pdf
+
+node_modules/
+dist/
+test-results/
+playwright-report/
+frontend/.env*
+!frontend/.env.example

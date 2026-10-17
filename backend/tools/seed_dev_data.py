@@ -274,10 +274,12 @@ def environment_lines(data: SeedData) -> list[str]:
     return [
         "# tools.seed_dev_data が投入した開発用の操作主体。",
         "DEV_ACTOR_ROLE=vendor_system_admin",
+        f"DEV_ACTOR_PRINCIPAL_ID={_VENDOR_SUBJECT}",
         f"DEV_ACTOR_PERSON_ID={data.vendor_person.id.value}",
         f"DEV_ACTOR_ACCOUNT_ID={data.vendor_account.id.value}",
         f"DEV_ACTOR_CORPORATE_ID={data.corporate.id.value}",
         f"DEV_ACTOR_STORE_IDS={data.store.id.value}",
+        f"# DEV_ACTOR_PRINCIPAL_ID={_ADMIN_SUBJECT}",
         "# 法人管理者として試すときは DEV_ACTOR_ROLE=corporate_admin にして、",
         "# 本人とアカウントを次の2つへ差し替える。",
         f"# DEV_ACTOR_PERSON_ID={data.admin_person.id.value}",

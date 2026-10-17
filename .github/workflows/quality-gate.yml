@@ -19,6 +19,10 @@ concurrency:
 permissions:
   contents: read
 
+defaults:
+  run:
+    working-directory: backend
+
 jobs:
   quality-gate:
     runs-on: ubuntu-latest
@@ -33,7 +37,7 @@ jobs:
         with:
           # Python のバージョンは .python-version が単一の出所なので、ここでは指定しない。
           enable-cache: true
-          cache-dependency-glob: uv.lock
+          cache-dependency-glob: backend/uv.lock
 
       - name: 依存を同期する
         run: uv sync --locked
@@ -88,7 +92,7 @@ jobs:
         uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
-          cache-dependency-glob: uv.lock
+          cache-dependency-glob: backend/uv.lock
 
       - name: 依存を同期する
         run: uv sync --locked
@@ -97,3 +101,24 @@ jobs:
         env:
           TEST_DATABASE_URL: postgresql+asyncpg://pharmacydomain:pharmacydomain-ci-password@localhost:5432/pharmacydomain
         run: uv run pytest -m integration -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+        timeout-minutes: 3

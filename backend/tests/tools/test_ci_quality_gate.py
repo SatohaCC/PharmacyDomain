@@ -15,7 +15,7 @@ from pathlib import Path
 
 import yaml
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = Path(__file__).resolve().parents[3]
 _WORKFLOW_DIR = _ROOT / ".github" / "workflows"
 _AGENTS_MD = _ROOT / "AGENTS.md"
 
@@ -30,6 +30,12 @@ REQUIRED_GATES: tuple[str, ...] = (
     "uv run ruff format --check .",
     "uv run lint-imports",
     "uv run pytest -m integration -q",
+    "pnpm install --frozen-lockfile",
+    "pnpm typecheck",
+    "pnpm lint",
+    "pnpm test",
+    "pnpm build",
+    "pnpm test:e2e",
 )
 
 # ゲートが「実行されるが誰も見ない」状態にならないための最低限のトリガ。
