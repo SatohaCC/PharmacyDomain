@@ -1,10 +1,6 @@
+import { ApiError, errorText } from "../src/shared/api/errors";
 import { describe, expect, it } from "vitest";
-import {
-  ApiError,
-  errorText,
-  safeReturnPath,
-  readInvitation,
-} from "../src/shared/api/client";
+import { safeReturnPath, readInvitation } from "../src/shared/navigation/paths";
 describe("API境界", () => {
   it.each([
     [401, "再ログイン"],

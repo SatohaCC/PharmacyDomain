@@ -15,8 +15,11 @@ const output = execFileSync(
   { cwd: backend, encoding: "utf8", env: { ...process.env, PYTHONUTF8: "1" } },
 );
 const schema = JSON.parse(output);
-const dest = new URL("../src/shared/api/schema.d.ts", import.meta.url);
-mkdirSync(new URL("../src/shared/api/", import.meta.url), { recursive: true });
+const dest = new URL(
+  "../src/shared/api/generated/schema.d.ts",
+  import.meta.url,
+);
+mkdirSync(new URL("../src/shared/api/generated/", import.meta.url), { recursive: true });
 writeFileSync(
   dest,
   await format(astToString(await openapiTS(schema)), { parser: "typescript" }),

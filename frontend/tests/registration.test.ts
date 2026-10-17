@@ -2,7 +2,7 @@ import { expect, it, vi } from "vitest";
 import {
   prepareInvitation,
   type RegistrationProgress,
-} from "../src/features/users/registration";
+} from "../src/features/users/model/prepare-invitation";
 it("招待失敗後は本人を重複登録せず再試行する", async () => {
   const createPerson = vi.fn().mockResolvedValue("person-1");
   const invite = vi

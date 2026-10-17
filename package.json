@@ -30,6 +30,10 @@
     "db:seed": "docker compose run --rm api uv run --frozen python -m tools.seed_dev_data",
     "docker:build": "docker compose build api frontend",
     "docker:up": "docker compose up -d",
-    "bootstrap": "pnpm install --frozen-lockfile && pnpm sync:backend"
+    "bootstrap": "pnpm install --frozen-lockfile && pnpm sync:backend",
+    "storybook": "pnpm --filter pharmacydomain-admin storybook",
+    "build:storybook": "pnpm --filter pharmacydomain-admin build:storybook",
+    "test:stories": "pnpm --filter pharmacydomain-admin test:stories",
+    "test:visual": "pnpm --filter pharmacydomain-admin test:visual"
   }
 }

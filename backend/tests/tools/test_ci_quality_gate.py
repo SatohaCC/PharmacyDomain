@@ -34,6 +34,8 @@ REQUIRED_GATES: tuple[str, ...] = (
     "pnpm test:frontend",
     "pnpm build",
     "pnpm test:e2e",
+    "pnpm test:stories",
+    "pnpm build:storybook",
 )
 
 # ゲートが「実行されるが誰も見ない」状態にならないための最低限のトリガ。

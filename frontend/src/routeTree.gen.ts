@@ -10,231 +10,231 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AdminRouteImport } from './routes/admin'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as AdminIndexRouteImport } from './routes/admin.index'
-import { Route as AdminCorporatesRouteImport } from './routes/admin.corporates'
-import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
-import { Route as InvitationsAcceptRouteImport } from './routes/invitations.accept'
-import { Route as AdminCorporatesIndexRouteImport } from './routes/admin.corporates.index'
-import { Route as AdminCorporatesCorporateIdRouteImport } from './routes/admin.corporates.$corporateId'
-import { Route as AdminCorporatesNewRouteImport } from './routes/admin.corporates.new'
-import { Route as AdminCorporatesCorporateIdIndexRouteImport } from './routes/admin.corporates.$corporateId.index'
-import { Route as AdminCorporatesCorporateIdStoresRouteImport } from './routes/admin.corporates.$corporateId.stores'
-import { Route as AdminCorporatesCorporateIdUsersRouteImport } from './routes/admin.corporates.$corporateId.users'
-import { Route as AdminCorporatesCorporateIdStoresIndexRouteImport } from './routes/admin.corporates.$corporateId.stores.index'
-import { Route as AdminCorporatesCorporateIdStoresNewRouteImport } from './routes/admin.corporates.$corporateId.stores.new'
-import { Route as AdminCorporatesCorporateIdUsersIndexRouteImport } from './routes/admin.corporates.$corporateId.users.index'
-import { Route as AdminCorporatesCorporateIdUsersNewRouteImport } from './routes/admin.corporates.$corporateId.users.new'
+import { Route as AdminRouteRouteImport } from './routes/admin/route'
+import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as AdminCorporatesRouteRouteImport } from './routes/admin/corporates/route'
+import { Route as LoginIndexRouteImport } from './routes/login/index'
+import { Route as AdminCorporatesIndexRouteImport } from './routes/admin/corporates/index'
+import { Route as AdminCorporatesCorporateIdRouteRouteImport } from './routes/admin/corporates/$corporateId/route'
+import { Route as AuthCallbackIndexRouteImport } from './routes/auth/callback/index'
+import { Route as InvitationsAcceptIndexRouteImport } from './routes/invitations/accept/index'
+import { Route as AdminCorporatesCorporateIdIndexRouteImport } from './routes/admin/corporates/$corporateId/index'
+import { Route as AdminCorporatesCorporateIdStoresRouteRouteImport } from './routes/admin/corporates/$corporateId/stores/route'
+import { Route as AdminCorporatesCorporateIdUsersRouteRouteImport } from './routes/admin/corporates/$corporateId/users/route'
+import { Route as AdminCorporatesNewIndexRouteImport } from './routes/admin/corporates/new/index'
+import { Route as AdminCorporatesCorporateIdStoresIndexRouteImport } from './routes/admin/corporates/$corporateId/stores/index'
+import { Route as AdminCorporatesCorporateIdUsersIndexRouteImport } from './routes/admin/corporates/$corporateId/users/index'
+import { Route as AdminCorporatesCorporateIdStoresNewIndexRouteImport } from './routes/admin/corporates/$corporateId/stores/new/index'
+import { Route as AdminCorporatesCorporateIdUsersNewIndexRouteImport } from './routes/admin/corporates/$corporateId/users/new/index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminRoute = AdminRouteImport.update({
+const AdminRouteRoute = AdminRouteRouteImport.update({
   id: '/admin',
   path: '/admin',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AdminRoute,
+  getParentRoute: () => AdminRouteRoute,
 } as any)
-const AdminCorporatesRoute = AdminCorporatesRouteImport.update({
+const AdminCorporatesRouteRoute = AdminCorporatesRouteRouteImport.update({
   id: '/corporates',
   path: '/corporates',
-  getParentRoute: () => AdminRoute,
+  getParentRoute: () => AdminRouteRoute,
 } as any)
-const AuthCallbackRoute = AuthCallbackRouteImport.update({
-  id: '/auth/callback',
-  path: '/auth/callback',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InvitationsAcceptRoute = InvitationsAcceptRouteImport.update({
-  id: '/invitations/accept',
-  path: '/invitations/accept',
+const LoginIndexRoute = LoginIndexRouteImport.update({
+  id: '/login/',
+  path: '/login/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminCorporatesIndexRoute = AdminCorporatesIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AdminCorporatesRoute,
+  getParentRoute: () => AdminCorporatesRouteRoute,
 } as any)
-const AdminCorporatesCorporateIdRoute =
-  AdminCorporatesCorporateIdRouteImport.update({
+const AdminCorporatesCorporateIdRouteRoute =
+  AdminCorporatesCorporateIdRouteRouteImport.update({
     id: '/$corporateId',
     path: '/$corporateId',
-    getParentRoute: () => AdminCorporatesRoute,
+    getParentRoute: () => AdminCorporatesRouteRoute,
   } as any)
-const AdminCorporatesNewRoute = AdminCorporatesNewRouteImport.update({
-  id: '/new',
-  path: '/new',
-  getParentRoute: () => AdminCorporatesRoute,
+const AuthCallbackIndexRoute = AuthCallbackIndexRouteImport.update({
+  id: '/auth/callback/',
+  path: '/auth/callback/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InvitationsAcceptIndexRoute = InvitationsAcceptIndexRouteImport.update({
+  id: '/invitations/accept/',
+  path: '/invitations/accept/',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AdminCorporatesCorporateIdIndexRoute =
   AdminCorporatesCorporateIdIndexRouteImport.update({
     id: '/',
     path: '/',
-    getParentRoute: () => AdminCorporatesCorporateIdRoute,
+    getParentRoute: () => AdminCorporatesCorporateIdRouteRoute,
   } as any)
-const AdminCorporatesCorporateIdStoresRoute =
-  AdminCorporatesCorporateIdStoresRouteImport.update({
+const AdminCorporatesCorporateIdStoresRouteRoute =
+  AdminCorporatesCorporateIdStoresRouteRouteImport.update({
     id: '/stores',
     path: '/stores',
-    getParentRoute: () => AdminCorporatesCorporateIdRoute,
+    getParentRoute: () => AdminCorporatesCorporateIdRouteRoute,
   } as any)
-const AdminCorporatesCorporateIdUsersRoute =
-  AdminCorporatesCorporateIdUsersRouteImport.update({
+const AdminCorporatesCorporateIdUsersRouteRoute =
+  AdminCorporatesCorporateIdUsersRouteRouteImport.update({
     id: '/users',
     path: '/users',
-    getParentRoute: () => AdminCorporatesCorporateIdRoute,
+    getParentRoute: () => AdminCorporatesCorporateIdRouteRoute,
   } as any)
+const AdminCorporatesNewIndexRoute = AdminCorporatesNewIndexRouteImport.update({
+  id: '/new/',
+  path: '/new/',
+  getParentRoute: () => AdminCorporatesRouteRoute,
+} as any)
 const AdminCorporatesCorporateIdStoresIndexRoute =
   AdminCorporatesCorporateIdStoresIndexRouteImport.update({
     id: '/',
     path: '/',
-    getParentRoute: () => AdminCorporatesCorporateIdStoresRoute,
-  } as any)
-const AdminCorporatesCorporateIdStoresNewRoute =
-  AdminCorporatesCorporateIdStoresNewRouteImport.update({
-    id: '/new',
-    path: '/new',
-    getParentRoute: () => AdminCorporatesCorporateIdStoresRoute,
+    getParentRoute: () => AdminCorporatesCorporateIdStoresRouteRoute,
   } as any)
 const AdminCorporatesCorporateIdUsersIndexRoute =
   AdminCorporatesCorporateIdUsersIndexRouteImport.update({
     id: '/',
     path: '/',
-    getParentRoute: () => AdminCorporatesCorporateIdUsersRoute,
+    getParentRoute: () => AdminCorporatesCorporateIdUsersRouteRoute,
   } as any)
-const AdminCorporatesCorporateIdUsersNewRoute =
-  AdminCorporatesCorporateIdUsersNewRouteImport.update({
-    id: '/new',
-    path: '/new',
-    getParentRoute: () => AdminCorporatesCorporateIdUsersRoute,
+const AdminCorporatesCorporateIdStoresNewIndexRoute =
+  AdminCorporatesCorporateIdStoresNewIndexRouteImport.update({
+    id: '/new/',
+    path: '/new/',
+    getParentRoute: () => AdminCorporatesCorporateIdStoresRouteRoute,
+  } as any)
+const AdminCorporatesCorporateIdUsersNewIndexRoute =
+  AdminCorporatesCorporateIdUsersNewIndexRouteImport.update({
+    id: '/new/',
+    path: '/new/',
+    getParentRoute: () => AdminCorporatesCorporateIdUsersRouteRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRouteWithChildren
-  '/login': typeof LoginRoute
-  '/admin/corporates': typeof AdminCorporatesRouteWithChildren
-  '/auth/callback': typeof AuthCallbackRoute
-  '/invitations/accept': typeof InvitationsAcceptRoute
+  '/admin': typeof AdminRouteRouteWithChildren
+  '/admin/corporates': typeof AdminCorporatesRouteRouteWithChildren
   '/admin/': typeof AdminIndexRoute
-  '/admin/corporates/$corporateId': typeof AdminCorporatesCorporateIdRouteWithChildren
-  '/admin/corporates/new': typeof AdminCorporatesNewRoute
+  '/login/': typeof LoginIndexRoute
+  '/admin/corporates/$corporateId': typeof AdminCorporatesCorporateIdRouteRouteWithChildren
   '/admin/corporates/': typeof AdminCorporatesIndexRoute
-  '/admin/corporates/$corporateId/stores': typeof AdminCorporatesCorporateIdStoresRouteWithChildren
-  '/admin/corporates/$corporateId/users': typeof AdminCorporatesCorporateIdUsersRouteWithChildren
+  '/auth/callback/': typeof AuthCallbackIndexRoute
+  '/invitations/accept/': typeof InvitationsAcceptIndexRoute
+  '/admin/corporates/$corporateId/stores': typeof AdminCorporatesCorporateIdStoresRouteRouteWithChildren
+  '/admin/corporates/$corporateId/users': typeof AdminCorporatesCorporateIdUsersRouteRouteWithChildren
   '/admin/corporates/$corporateId/': typeof AdminCorporatesCorporateIdIndexRoute
-  '/admin/corporates/$corporateId/stores/new': typeof AdminCorporatesCorporateIdStoresNewRoute
-  '/admin/corporates/$corporateId/users/new': typeof AdminCorporatesCorporateIdUsersNewRoute
+  '/admin/corporates/new/': typeof AdminCorporatesNewIndexRoute
   '/admin/corporates/$corporateId/stores/': typeof AdminCorporatesCorporateIdStoresIndexRoute
   '/admin/corporates/$corporateId/users/': typeof AdminCorporatesCorporateIdUsersIndexRoute
+  '/admin/corporates/$corporateId/stores/new/': typeof AdminCorporatesCorporateIdStoresNewIndexRoute
+  '/admin/corporates/$corporateId/users/new/': typeof AdminCorporatesCorporateIdUsersNewIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/login': typeof LoginRoute
-  '/auth/callback': typeof AuthCallbackRoute
-  '/invitations/accept': typeof InvitationsAcceptRoute
   '/admin': typeof AdminIndexRoute
-  '/admin/corporates/new': typeof AdminCorporatesNewRoute
+  '/login': typeof LoginIndexRoute
   '/admin/corporates': typeof AdminCorporatesIndexRoute
+  '/auth/callback': typeof AuthCallbackIndexRoute
+  '/invitations/accept': typeof InvitationsAcceptIndexRoute
   '/admin/corporates/$corporateId': typeof AdminCorporatesCorporateIdIndexRoute
-  '/admin/corporates/$corporateId/stores/new': typeof AdminCorporatesCorporateIdStoresNewRoute
-  '/admin/corporates/$corporateId/users/new': typeof AdminCorporatesCorporateIdUsersNewRoute
+  '/admin/corporates/new': typeof AdminCorporatesNewIndexRoute
   '/admin/corporates/$corporateId/stores': typeof AdminCorporatesCorporateIdStoresIndexRoute
   '/admin/corporates/$corporateId/users': typeof AdminCorporatesCorporateIdUsersIndexRoute
+  '/admin/corporates/$corporateId/stores/new': typeof AdminCorporatesCorporateIdStoresNewIndexRoute
+  '/admin/corporates/$corporateId/users/new': typeof AdminCorporatesCorporateIdUsersNewIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/admin': typeof AdminRouteWithChildren
-  '/login': typeof LoginRoute
-  '/admin/corporates': typeof AdminCorporatesRouteWithChildren
-  '/auth/callback': typeof AuthCallbackRoute
-  '/invitations/accept': typeof InvitationsAcceptRoute
+  '/admin': typeof AdminRouteRouteWithChildren
+  '/admin/corporates': typeof AdminCorporatesRouteRouteWithChildren
   '/admin/': typeof AdminIndexRoute
-  '/admin/corporates/$corporateId': typeof AdminCorporatesCorporateIdRouteWithChildren
-  '/admin/corporates/new': typeof AdminCorporatesNewRoute
+  '/login/': typeof LoginIndexRoute
+  '/admin/corporates/$corporateId': typeof AdminCorporatesCorporateIdRouteRouteWithChildren
   '/admin/corporates/': typeof AdminCorporatesIndexRoute
-  '/admin/corporates/$corporateId/stores': typeof AdminCorporatesCorporateIdStoresRouteWithChildren
-  '/admin/corporates/$corporateId/users': typeof AdminCorporatesCorporateIdUsersRouteWithChildren
+  '/auth/callback/': typeof AuthCallbackIndexRoute
+  '/invitations/accept/': typeof InvitationsAcceptIndexRoute
+  '/admin/corporates/$corporateId/stores': typeof AdminCorporatesCorporateIdStoresRouteRouteWithChildren
+  '/admin/corporates/$corporateId/users': typeof AdminCorporatesCorporateIdUsersRouteRouteWithChildren
   '/admin/corporates/$corporateId/': typeof AdminCorporatesCorporateIdIndexRoute
-  '/admin/corporates/$corporateId/stores/new': typeof AdminCorporatesCorporateIdStoresNewRoute
-  '/admin/corporates/$corporateId/users/new': typeof AdminCorporatesCorporateIdUsersNewRoute
+  '/admin/corporates/new/': typeof AdminCorporatesNewIndexRoute
   '/admin/corporates/$corporateId/stores/': typeof AdminCorporatesCorporateIdStoresIndexRoute
   '/admin/corporates/$corporateId/users/': typeof AdminCorporatesCorporateIdUsersIndexRoute
+  '/admin/corporates/$corporateId/stores/new/': typeof AdminCorporatesCorporateIdStoresNewIndexRoute
+  '/admin/corporates/$corporateId/users/new/': typeof AdminCorporatesCorporateIdUsersNewIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/admin'
-    | '/login'
     | '/admin/corporates'
-    | '/auth/callback'
-    | '/invitations/accept'
     | '/admin/'
+    | '/login/'
     | '/admin/corporates/$corporateId'
-    | '/admin/corporates/new'
     | '/admin/corporates/'
+    | '/auth/callback/'
+    | '/invitations/accept/'
     | '/admin/corporates/$corporateId/stores'
     | '/admin/corporates/$corporateId/users'
     | '/admin/corporates/$corporateId/'
-    | '/admin/corporates/$corporateId/stores/new'
-    | '/admin/corporates/$corporateId/users/new'
+    | '/admin/corporates/new/'
     | '/admin/corporates/$corporateId/stores/'
     | '/admin/corporates/$corporateId/users/'
+    | '/admin/corporates/$corporateId/stores/new/'
+    | '/admin/corporates/$corporateId/users/new/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
     | '/login'
+    | '/admin/corporates'
     | '/auth/callback'
     | '/invitations/accept'
-    | '/admin'
-    | '/admin/corporates/new'
-    | '/admin/corporates'
     | '/admin/corporates/$corporateId'
-    | '/admin/corporates/$corporateId/stores/new'
-    | '/admin/corporates/$corporateId/users/new'
+    | '/admin/corporates/new'
     | '/admin/corporates/$corporateId/stores'
     | '/admin/corporates/$corporateId/users'
+    | '/admin/corporates/$corporateId/stores/new'
+    | '/admin/corporates/$corporateId/users/new'
   id:
     | '__root__'
     | '/'
     | '/admin'
-    | '/login'
     | '/admin/corporates'
-    | '/auth/callback'
-    | '/invitations/accept'
     | '/admin/'
+    | '/login/'
     | '/admin/corporates/$corporateId'
-    | '/admin/corporates/new'
     | '/admin/corporates/'
+    | '/auth/callback/'
+    | '/invitations/accept/'
     | '/admin/corporates/$corporateId/stores'
     | '/admin/corporates/$corporateId/users'
     | '/admin/corporates/$corporateId/'
-    | '/admin/corporates/$corporateId/stores/new'
-    | '/admin/corporates/$corporateId/users/new'
+    | '/admin/corporates/new/'
     | '/admin/corporates/$corporateId/stores/'
     | '/admin/corporates/$corporateId/users/'
+    | '/admin/corporates/$corporateId/stores/new/'
+    | '/admin/corporates/$corporateId/users/new/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AdminRoute: typeof AdminRouteWithChildren
-  LoginRoute: typeof LoginRoute
-  AuthCallbackRoute: typeof AuthCallbackRoute
-  InvitationsAcceptRoute: typeof InvitationsAcceptRoute
+  AdminRouteRoute: typeof AdminRouteRouteWithChildren
+  LoginIndexRoute: typeof LoginIndexRoute
+  AuthCallbackIndexRoute: typeof AuthCallbackIndexRoute
+  InvitationsAcceptIndexRoute: typeof InvitationsAcceptIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -250,14 +250,7 @@ declare module '@tanstack/react-router' {
       id: '/admin'
       path: '/admin'
       fullPath: '/admin'
-      preLoaderRoute: typeof AdminRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
+      preLoaderRoute: typeof AdminRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -265,27 +258,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
-      parentRoute: typeof AdminRoute
+      parentRoute: typeof AdminRouteRoute
     }
     '/admin/corporates': {
       id: '/admin/corporates'
       path: '/corporates'
       fullPath: '/admin/corporates'
-      preLoaderRoute: typeof AdminCorporatesRouteImport
-      parentRoute: typeof AdminRoute
+      preLoaderRoute: typeof AdminCorporatesRouteRouteImport
+      parentRoute: typeof AdminRouteRoute
     }
-    '/auth/callback': {
-      id: '/auth/callback'
-      path: '/auth/callback'
-      fullPath: '/auth/callback'
-      preLoaderRoute: typeof AuthCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/invitations/accept': {
-      id: '/invitations/accept'
-      path: '/invitations/accept'
-      fullPath: '/invitations/accept'
-      preLoaderRoute: typeof InvitationsAcceptRouteImport
+    '/login/': {
+      id: '/login/'
+      path: '/login'
+      fullPath: '/login/'
+      preLoaderRoute: typeof LoginIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/corporates/': {
@@ -293,164 +279,180 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/admin/corporates/'
       preLoaderRoute: typeof AdminCorporatesIndexRouteImport
-      parentRoute: typeof AdminCorporatesRoute
+      parentRoute: typeof AdminCorporatesRouteRoute
     }
     '/admin/corporates/$corporateId': {
       id: '/admin/corporates/$corporateId'
       path: '/$corporateId'
       fullPath: '/admin/corporates/$corporateId'
-      preLoaderRoute: typeof AdminCorporatesCorporateIdRouteImport
-      parentRoute: typeof AdminCorporatesRoute
+      preLoaderRoute: typeof AdminCorporatesCorporateIdRouteRouteImport
+      parentRoute: typeof AdminCorporatesRouteRoute
     }
-    '/admin/corporates/new': {
-      id: '/admin/corporates/new'
-      path: '/new'
-      fullPath: '/admin/corporates/new'
-      preLoaderRoute: typeof AdminCorporatesNewRouteImport
-      parentRoute: typeof AdminCorporatesRoute
+    '/auth/callback/': {
+      id: '/auth/callback/'
+      path: '/auth/callback'
+      fullPath: '/auth/callback/'
+      preLoaderRoute: typeof AuthCallbackIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invitations/accept/': {
+      id: '/invitations/accept/'
+      path: '/invitations/accept'
+      fullPath: '/invitations/accept/'
+      preLoaderRoute: typeof InvitationsAcceptIndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/admin/corporates/$corporateId/': {
       id: '/admin/corporates/$corporateId/'
       path: '/'
       fullPath: '/admin/corporates/$corporateId/'
       preLoaderRoute: typeof AdminCorporatesCorporateIdIndexRouteImport
-      parentRoute: typeof AdminCorporatesCorporateIdRoute
+      parentRoute: typeof AdminCorporatesCorporateIdRouteRoute
     }
     '/admin/corporates/$corporateId/stores': {
       id: '/admin/corporates/$corporateId/stores'
       path: '/stores'
       fullPath: '/admin/corporates/$corporateId/stores'
-      preLoaderRoute: typeof AdminCorporatesCorporateIdStoresRouteImport
-      parentRoute: typeof AdminCorporatesCorporateIdRoute
+      preLoaderRoute: typeof AdminCorporatesCorporateIdStoresRouteRouteImport
+      parentRoute: typeof AdminCorporatesCorporateIdRouteRoute
     }
     '/admin/corporates/$corporateId/users': {
       id: '/admin/corporates/$corporateId/users'
       path: '/users'
       fullPath: '/admin/corporates/$corporateId/users'
-      preLoaderRoute: typeof AdminCorporatesCorporateIdUsersRouteImport
-      parentRoute: typeof AdminCorporatesCorporateIdRoute
+      preLoaderRoute: typeof AdminCorporatesCorporateIdUsersRouteRouteImport
+      parentRoute: typeof AdminCorporatesCorporateIdRouteRoute
+    }
+    '/admin/corporates/new/': {
+      id: '/admin/corporates/new/'
+      path: '/new'
+      fullPath: '/admin/corporates/new/'
+      preLoaderRoute: typeof AdminCorporatesNewIndexRouteImport
+      parentRoute: typeof AdminCorporatesRouteRoute
     }
     '/admin/corporates/$corporateId/stores/': {
       id: '/admin/corporates/$corporateId/stores/'
       path: '/'
       fullPath: '/admin/corporates/$corporateId/stores/'
       preLoaderRoute: typeof AdminCorporatesCorporateIdStoresIndexRouteImport
-      parentRoute: typeof AdminCorporatesCorporateIdStoresRoute
-    }
-    '/admin/corporates/$corporateId/stores/new': {
-      id: '/admin/corporates/$corporateId/stores/new'
-      path: '/new'
-      fullPath: '/admin/corporates/$corporateId/stores/new'
-      preLoaderRoute: typeof AdminCorporatesCorporateIdStoresNewRouteImport
-      parentRoute: typeof AdminCorporatesCorporateIdStoresRoute
+      parentRoute: typeof AdminCorporatesCorporateIdStoresRouteRoute
     }
     '/admin/corporates/$corporateId/users/': {
       id: '/admin/corporates/$corporateId/users/'
       path: '/'
       fullPath: '/admin/corporates/$corporateId/users/'
       preLoaderRoute: typeof AdminCorporatesCorporateIdUsersIndexRouteImport
-      parentRoute: typeof AdminCorporatesCorporateIdUsersRoute
+      parentRoute: typeof AdminCorporatesCorporateIdUsersRouteRoute
     }
-    '/admin/corporates/$corporateId/users/new': {
-      id: '/admin/corporates/$corporateId/users/new'
+    '/admin/corporates/$corporateId/stores/new/': {
+      id: '/admin/corporates/$corporateId/stores/new/'
       path: '/new'
-      fullPath: '/admin/corporates/$corporateId/users/new'
-      preLoaderRoute: typeof AdminCorporatesCorporateIdUsersNewRouteImport
-      parentRoute: typeof AdminCorporatesCorporateIdUsersRoute
+      fullPath: '/admin/corporates/$corporateId/stores/new/'
+      preLoaderRoute: typeof AdminCorporatesCorporateIdStoresNewIndexRouteImport
+      parentRoute: typeof AdminCorporatesCorporateIdStoresRouteRoute
+    }
+    '/admin/corporates/$corporateId/users/new/': {
+      id: '/admin/corporates/$corporateId/users/new/'
+      path: '/new'
+      fullPath: '/admin/corporates/$corporateId/users/new/'
+      preLoaderRoute: typeof AdminCorporatesCorporateIdUsersNewIndexRouteImport
+      parentRoute: typeof AdminCorporatesCorporateIdUsersRouteRoute
     }
   }
 }
 
-interface AdminCorporatesCorporateIdStoresRouteChildren {
-  AdminCorporatesCorporateIdStoresNewRoute: typeof AdminCorporatesCorporateIdStoresNewRoute
+interface AdminCorporatesCorporateIdStoresRouteRouteChildren {
   AdminCorporatesCorporateIdStoresIndexRoute: typeof AdminCorporatesCorporateIdStoresIndexRoute
+  AdminCorporatesCorporateIdStoresNewIndexRoute: typeof AdminCorporatesCorporateIdStoresNewIndexRoute
 }
 
-const AdminCorporatesCorporateIdStoresRouteChildren: AdminCorporatesCorporateIdStoresRouteChildren =
+const AdminCorporatesCorporateIdStoresRouteRouteChildren: AdminCorporatesCorporateIdStoresRouteRouteChildren =
   {
-    AdminCorporatesCorporateIdStoresNewRoute:
-      AdminCorporatesCorporateIdStoresNewRoute,
     AdminCorporatesCorporateIdStoresIndexRoute:
       AdminCorporatesCorporateIdStoresIndexRoute,
+    AdminCorporatesCorporateIdStoresNewIndexRoute:
+      AdminCorporatesCorporateIdStoresNewIndexRoute,
   }
 
-const AdminCorporatesCorporateIdStoresRouteWithChildren =
-  AdminCorporatesCorporateIdStoresRoute._addFileChildren(
-    AdminCorporatesCorporateIdStoresRouteChildren,
+const AdminCorporatesCorporateIdStoresRouteRouteWithChildren =
+  AdminCorporatesCorporateIdStoresRouteRoute._addFileChildren(
+    AdminCorporatesCorporateIdStoresRouteRouteChildren,
   )
 
-interface AdminCorporatesCorporateIdUsersRouteChildren {
-  AdminCorporatesCorporateIdUsersNewRoute: typeof AdminCorporatesCorporateIdUsersNewRoute
+interface AdminCorporatesCorporateIdUsersRouteRouteChildren {
   AdminCorporatesCorporateIdUsersIndexRoute: typeof AdminCorporatesCorporateIdUsersIndexRoute
+  AdminCorporatesCorporateIdUsersNewIndexRoute: typeof AdminCorporatesCorporateIdUsersNewIndexRoute
 }
 
-const AdminCorporatesCorporateIdUsersRouteChildren: AdminCorporatesCorporateIdUsersRouteChildren =
+const AdminCorporatesCorporateIdUsersRouteRouteChildren: AdminCorporatesCorporateIdUsersRouteRouteChildren =
   {
-    AdminCorporatesCorporateIdUsersNewRoute:
-      AdminCorporatesCorporateIdUsersNewRoute,
     AdminCorporatesCorporateIdUsersIndexRoute:
       AdminCorporatesCorporateIdUsersIndexRoute,
+    AdminCorporatesCorporateIdUsersNewIndexRoute:
+      AdminCorporatesCorporateIdUsersNewIndexRoute,
   }
 
-const AdminCorporatesCorporateIdUsersRouteWithChildren =
-  AdminCorporatesCorporateIdUsersRoute._addFileChildren(
-    AdminCorporatesCorporateIdUsersRouteChildren,
+const AdminCorporatesCorporateIdUsersRouteRouteWithChildren =
+  AdminCorporatesCorporateIdUsersRouteRoute._addFileChildren(
+    AdminCorporatesCorporateIdUsersRouteRouteChildren,
   )
 
-interface AdminCorporatesCorporateIdRouteChildren {
-  AdminCorporatesCorporateIdStoresRoute: typeof AdminCorporatesCorporateIdStoresRouteWithChildren
-  AdminCorporatesCorporateIdUsersRoute: typeof AdminCorporatesCorporateIdUsersRouteWithChildren
+interface AdminCorporatesCorporateIdRouteRouteChildren {
+  AdminCorporatesCorporateIdStoresRouteRoute: typeof AdminCorporatesCorporateIdStoresRouteRouteWithChildren
+  AdminCorporatesCorporateIdUsersRouteRoute: typeof AdminCorporatesCorporateIdUsersRouteRouteWithChildren
   AdminCorporatesCorporateIdIndexRoute: typeof AdminCorporatesCorporateIdIndexRoute
 }
 
-const AdminCorporatesCorporateIdRouteChildren: AdminCorporatesCorporateIdRouteChildren =
+const AdminCorporatesCorporateIdRouteRouteChildren: AdminCorporatesCorporateIdRouteRouteChildren =
   {
-    AdminCorporatesCorporateIdStoresRoute:
-      AdminCorporatesCorporateIdStoresRouteWithChildren,
-    AdminCorporatesCorporateIdUsersRoute:
-      AdminCorporatesCorporateIdUsersRouteWithChildren,
+    AdminCorporatesCorporateIdStoresRouteRoute:
+      AdminCorporatesCorporateIdStoresRouteRouteWithChildren,
+    AdminCorporatesCorporateIdUsersRouteRoute:
+      AdminCorporatesCorporateIdUsersRouteRouteWithChildren,
     AdminCorporatesCorporateIdIndexRoute: AdminCorporatesCorporateIdIndexRoute,
   }
 
-const AdminCorporatesCorporateIdRouteWithChildren =
-  AdminCorporatesCorporateIdRoute._addFileChildren(
-    AdminCorporatesCorporateIdRouteChildren,
+const AdminCorporatesCorporateIdRouteRouteWithChildren =
+  AdminCorporatesCorporateIdRouteRoute._addFileChildren(
+    AdminCorporatesCorporateIdRouteRouteChildren,
   )
 
-interface AdminCorporatesRouteChildren {
-  AdminCorporatesCorporateIdRoute: typeof AdminCorporatesCorporateIdRouteWithChildren
-  AdminCorporatesNewRoute: typeof AdminCorporatesNewRoute
+interface AdminCorporatesRouteRouteChildren {
+  AdminCorporatesCorporateIdRouteRoute: typeof AdminCorporatesCorporateIdRouteRouteWithChildren
   AdminCorporatesIndexRoute: typeof AdminCorporatesIndexRoute
+  AdminCorporatesNewIndexRoute: typeof AdminCorporatesNewIndexRoute
 }
 
-const AdminCorporatesRouteChildren: AdminCorporatesRouteChildren = {
-  AdminCorporatesCorporateIdRoute: AdminCorporatesCorporateIdRouteWithChildren,
-  AdminCorporatesNewRoute: AdminCorporatesNewRoute,
+const AdminCorporatesRouteRouteChildren: AdminCorporatesRouteRouteChildren = {
+  AdminCorporatesCorporateIdRouteRoute:
+    AdminCorporatesCorporateIdRouteRouteWithChildren,
   AdminCorporatesIndexRoute: AdminCorporatesIndexRoute,
+  AdminCorporatesNewIndexRoute: AdminCorporatesNewIndexRoute,
 }
 
-const AdminCorporatesRouteWithChildren = AdminCorporatesRoute._addFileChildren(
-  AdminCorporatesRouteChildren,
-)
+const AdminCorporatesRouteRouteWithChildren =
+  AdminCorporatesRouteRoute._addFileChildren(AdminCorporatesRouteRouteChildren)
 
-interface AdminRouteChildren {
-  AdminCorporatesRoute: typeof AdminCorporatesRouteWithChildren
+interface AdminRouteRouteChildren {
+  AdminCorporatesRouteRoute: typeof AdminCorporatesRouteRouteWithChildren
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
-const AdminRouteChildren: AdminRouteChildren = {
-  AdminCorporatesRoute: AdminCorporatesRouteWithChildren,
+const AdminRouteRouteChildren: AdminRouteRouteChildren = {
+  AdminCorporatesRouteRoute: AdminCorporatesRouteRouteWithChildren,
   AdminIndexRoute: AdminIndexRoute,
 }
 
-const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
+  AdminRouteRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AdminRoute: AdminRouteWithChildren,
-  LoginRoute: LoginRoute,
-  AuthCallbackRoute: AuthCallbackRoute,
-  InvitationsAcceptRoute: InvitationsAcceptRoute,
+  AdminRouteRoute: AdminRouteRouteWithChildren,
+  LoginIndexRoute: LoginIndexRoute,
+  AuthCallbackIndexRoute: AuthCallbackIndexRoute,
+  InvitationsAcceptIndexRoute: InvitationsAcceptIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

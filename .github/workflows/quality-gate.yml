@@ -125,3 +125,19 @@ jobs:
       - run: pnpm test:e2e:install
       - run: pnpm test:e2e
         timeout-minutes: 3
+
+  storybook:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:e2e:install
+      - run: pnpm test:stories
+        timeout-minutes: 3
+      - run: pnpm build:storybook
+        timeout-minutes: 2

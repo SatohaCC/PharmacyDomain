@@ -11,6 +11,7 @@
 **/.env*
 **/test-results/
 **/playwright-report/
+**/storybook-static/
 for-llm/
 graphify-out/
 .agents/

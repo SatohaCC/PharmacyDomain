@@ -1,8 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 const corp = {
   id: "corp-1",
-  name: "さくら薬局グループ",
-  representative_name: "山田 太郎",
+  name: "テスト薬局グループ",
+  representative_name: "テスト 太郎",
   is_active: true,
 };
 const actor = {
@@ -94,14 +94,14 @@ test("法人と店舗を登録できる", async ({ page }) => {
     page.getByRole("heading", { name: "法人登録", exact: true }),
   ).toBeVisible();
   await page.getByLabel("法人名").fill(corp.name);
-  await page.getByLabel("代表者の姓").fill("山田");
+  await page.getByLabel("代表者の姓").fill("テスト");
   await page.getByLabel("代表者の名").fill("太郎");
   await page.getByRole("button", { name: "登録する" }).click();
   await expect(page.getByRole("heading", { name: corp.name })).toBeVisible();
   await page.getByRole("link", { name: /店舗を登録/ }).click();
   for (const [label, value] of [
-    ["店舗名", "さくら本店"],
-    ["店舗名カナ", "サクラホンテン"],
+    ["店舗名", "テスト薬局本店"],
+    ["店舗名カナ", "テストヤッキョクホンテン"],
     ["郵便番号", "1000001"],
     ["住所", "東京都千代田区"],
     ["電話番号", "0312345678"],
@@ -109,7 +109,7 @@ test("法人と店舗を登録できる", async ({ page }) => {
     await page.getByLabel(label, { exact: false }).first().fill(value);
   await page.getByRole("button", { name: "登録する" }).click();
   await expect(
-    page.getByRole("cell", { name: "さくら本店", exact: true }),
+    page.getByRole("cell", { name: "テスト薬局本店", exact: true }),
   ).toBeVisible();
   await page.screenshot({
     path: "test-results/admin-stores.png",
@@ -120,9 +120,9 @@ test("招待失敗から本人の再登録なしに再試行できる", async ({
   const state = await mock(page);
   await connect(page, "/admin/corporates/corp-1/users/new");
   for (const [label, value] of [
-    ["姓", "山田"],
+    ["姓", "テスト"],
     ["名", "花子"],
-    ["姓カナ", "ヤマダ"],
+    ["姓カナ", "テスト"],
     ["名カナ", "ハナコ"],
   ])
     await page
@@ -145,6 +145,20 @@ test("招待失敗から本人の再登録なしに再試行できる", async ({
       JSON.stringify({ ...localStorage, ...sessionStorage }),
     ),
   ).not.toContain("test-secret");
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("再表示");
+    await dialog.dismiss();
+  });
+  await page.getByRole("link", { name: "ユーザー一覧へ" }).click();
+  await expect(
+    page.getByRole("heading", { name: "招待を発行しました" }),
+  ).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("link", { name: "ユーザー一覧へ" }).click();
+  await expect(
+    page.getByRole("heading", { name: "ユーザー一覧" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("招待URL", { exact: false })).toHaveCount(0);
 });
 test("法人管理者には法人登録を表示しない", async ({ page }) => {
   await mock(page, ["corporate_admin"]);
@@ -207,7 +221,7 @@ for (const [status, message] of [
     });
     await connect(page, "/admin/corporates/new");
     await page.getByLabel("法人名").fill("失敗検証法人");
-    await page.getByLabel("代表者の姓").fill("山田");
+    await page.getByLabel("代表者の姓").fill("テスト");
     await page.getByLabel("代表者の名").fill("太郎");
     await page.getByRole("button", { name: "登録する" }).click();
     await expect(page.getByRole("alert")).toContainText(message);
@@ -288,8 +302,8 @@ test("店舗ロールの招待はスタッフ紐付け後に発行する", async
         {
           id: "store-1",
           corporate_id: "corp-1",
-          name: "検証店舗",
-          name_kana: "ケンショウ",
+          name: "テスト店舗",
+          name_kana: "テスト",
           code: null,
         },
       ],
@@ -300,9 +314,9 @@ test("店舗ロールの招待はスタッフ紐付け後に発行する", async
       json: [
         {
           id: "staff-1",
-          last_name: "検証",
+          last_name: "テスト",
           first_name: "太郎",
-          last_name_kana: "ケンショウ",
+          last_name_kana: "テスト",
           first_name_kana: "タロウ",
           is_active: true,
           is_pharmacist: false,
@@ -321,19 +335,20 @@ test("店舗ロールの招待はスタッフ紐付け後に発行する", async
   );
   await connect(page, "/admin/corporates/corp-1/users/new");
   for (const [label, value] of [
-    ["姓", "検証"],
+    ["姓", "テスト"],
     ["名", "太郎"],
-    ["姓カナ", "ケンショウ"],
+    ["姓カナ", "テスト"],
     ["名カナ", "タロウ"],
   ])
     await page.getByLabel(label, { exact: false }).first().fill(value);
-  await page
-    .getByRole("combobox", { name: "ロール", exact: true })
-    .selectOption("store_viewer");
-  await page.getByLabel("検証店舗", { exact: true }).check();
-  await page
-    .getByRole("combobox", { name: "スタッフ", exact: true })
-    .selectOption("staff-1");
+  await page.getByRole("button", { name: / ロール$/ }).click();
+  await page.getByRole("option", { name: "店舗閲覧者", exact: true }).click();
+  await page.getByText("テスト店舗", { exact: true }).click();
+  await expect(
+    page.getByRole("checkbox", { name: "テスト店舗", exact: true }),
+  ).toBeChecked();
+  await page.getByRole("button", { name: / スタッフ(?:必須| 必須)?$/ }).click();
+  await page.getByRole("option", { name: "テスト 太郎", exact: true }).click();
   await page.getByLabel("宛先メールアドレス").fill("staff@example.test");
   await page.getByLabel("招待期限").fill("2030-01-01T12:00");
   await page.getByRole("button", { name: "招待を発行する" }).click();
@@ -360,12 +375,12 @@ test("法人検索を変更すると前ページのカーソルを破棄する",
   await connect(page);
   await page.getByRole("link", { name: "次のページ" }).click();
   await expect(page.getByRole("link", { name: "次のページ" })).toHaveCount(0);
-  await page.getByLabel("法人名で検索").fill("さくら");
+  await page.getByLabel("法人名で検索").fill("テスト");
   await page.getByRole("button", { name: "検索する" }).click();
   await expect(page.getByRole("link", { name: "次のページ" })).toBeVisible();
   expect(queries.some((q) => q.includes("cursor=next-page"))).toBeTruthy();
   const last = new URLSearchParams(queries.at(-1));
-  expect(last.get("name")).toBe("さくら");
+  expect(last.get("name")).toBe("テスト");
   expect(last.has("cursor")).toBeFalsy();
 });
 test("法人を切り替えた後に前法人の遅い店舗応答を表示しない", async ({
@@ -417,9 +432,10 @@ test("法人を切り替えた後に前法人の遅い店舗応答を表示し�
 test("既存本人IDの招待では本人登録を繰り返さない", async ({ page }) => {
   const state = await mock(page);
   await connect(page, "/admin/corporates/corp-1/users/new");
+  await page.getByRole("button", { name: / 本人の指定$/ }).click();
   await page
-    .getByRole("combobox", { name: "本人の指定", exact: true })
-    .selectOption("existing");
+    .getByRole("option", { name: "登録済みの本人IDを指定", exact: true })
+    .click();
   await page.getByRole("textbox", { name: /^本人ID/ }).fill("existing-person");
   await page.getByLabel("宛先メールアドレス").fill("existing@example.test");
   await page.getByLabel("招待期限").fill("2030-01-01T12:00");
@@ -438,8 +454,8 @@ test("店舗ユーザーのスタッフを新規登録して招待できる", as
       json: [
         {
           id: "store-1",
-          name: "検証店舗",
-          name_kana: "ケンショウ",
+          name: "テスト店舗",
+          name_kana: "テスト",
           code: null,
         },
       ],
@@ -459,22 +475,24 @@ test("店舗ユーザーのスタッフを新規登録して招待できる", as
   );
   await connect(page, "/admin/corporates/corp-1/users/new");
   for (const [label, value] of [
-    ["姓", "検証"],
+    ["姓", "テスト"],
     ["名", "太郎"],
-    ["姓カナ", "ケンショウ"],
+    ["姓カナ", "テスト"],
     ["名カナ", "タロウ"],
   ])
     await page.getByLabel(label, { exact: false }).first().fill(value);
+  await page.getByRole("button", { name: / ロール$/ }).click();
+  await page.getByRole("option", { name: "店舗操作者", exact: true }).click();
+  await page.getByText("テスト店舗", { exact: true }).click();
+  await expect(
+    page.getByRole("checkbox", { name: "テスト店舗", exact: true }),
+  ).toBeChecked();
+  await page.getByRole("button", { name: / スタッフの指定$/ }).click();
   await page
-    .getByRole("combobox", { name: "ロール", exact: true })
-    .selectOption("store_operator");
-  await page.getByLabel("検証店舗", { exact: true }).check();
-  await page
-    .getByRole("combobox", { name: "スタッフの指定", exact: true })
-    .selectOption("new");
-  await page
-    .getByRole("combobox", { name: "主所属店舗", exact: true })
-    .selectOption("store-1");
+    .getByRole("option", { name: "スタッフを新規登録", exact: true })
+    .click();
+  await page.getByRole("button", { name: / 主所属店舗(?:必須| 必須)?$/ }).click();
+  await page.getByRole("option", { name: "テスト店舗", exact: true }).click();
   await page.getByLabel("所属開始日").fill("2026-10-01");
   await page.getByLabel("宛先メールアドレス").fill("newstaff@example.test");
   await page.getByLabel("招待期限").fill("2030-01-01T12:00");

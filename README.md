@@ -38,3 +38,14 @@ backend側はOIDC_ISSUER・OIDC_AUDIENCE・OIDC_JWKS_URL等を設定し、`app.m
 `pnpm test:e2e` はAPIを制御したブラウザーテスト。実API確認用の `tests/e2e/real.spec.ts` はREAL_E2E_TOKENS（vendor/inviteeキーを持つJSONファイル）とE2E_BASE_URLを指定した専用環境でだけ実行する。テスト用サーバーは `backend/tests/browser_server.py` で、既存の署名JWT検証を使用するが鍵取得をテストダブルに置き換える。必ず専用一時DBを用意してマイグレーション・seedを済ませ、DATABASE_URLとREAL_E2E_TOKENSを設定し、ループバックでだけ起動する。本番では起動しない。実IdPとのログイン確認は別途必要。
 
 設計の全体像は [docs/README.md](docs/README.md) を参照。
+
+
+## 管理画面のUI開発
+
+`pnpm storybook`で共通部品、デザイントークン、各画面の状態を確認する。Storybookは実APIやIdPなしで起動できる。`pnpm test:stories`はstoryの操作とアクセシビリティをChromiumで検証し、`pnpm build:storybook`で静的配布物を作る。これらはCIの独立ジョブでも実行する。
+
+URLは`frontend/src/routes/`のフォルダ階層で表す。ルートは認証・URL・画面の接続に絞り、`features/*/ui`のpageがhookとviewを接続する。viewは表示用の値と操作を受け取り、APIやRouterを直接呼ばない。React Aria ComponentsとStyleXは`shared/ui`の内部に置き、公開propsへ固有の型を漏らさない。汎用部品は役割で分類し、法人等の業務を知る部品はfeaturesに置く。ESLintと違反注入テストで依存を検証する。
+
+デザイントークンは`frontend/src/shared/ui/theme/tokens.stylex.ts`を正典とし、画面はvariantやgap等の独自propsで組み立てる。見た目は余白を広くしたシンプルな構成とし、フォームは基本1列、関連の強い短い項目だけ横並びにする。
+
+`pnpm build:storybook`後の`pnpm test:visual`で、主要画面をPC幅と390px幅で画像比較する。基準画像はOS別に管理する。現時点の基準はWindowsのChromiumで確認したもので、CIではOS差のある画像比較を実行せず、storyの操作・アクセシビリティと静的ビルドを必須にする。新しいOSの基準を追加する場合は、画像を確認してから`pnpm test:visual --update-snapshots`で保存する。実IME入力と実IdP接続は自動テストとは別に確認する。
