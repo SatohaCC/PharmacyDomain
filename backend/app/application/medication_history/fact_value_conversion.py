@@ -9,13 +9,11 @@ from enum import Enum
 from typing import Any, Union, cast, get_args, get_origin, get_type_hints
 
 from app.domain.foundation.primitives.base import DomainPrimitive
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.exceptions import MedicationHistoryDomainError
-from app.domain.medication_history.fact_correction import (
+from app.domain.medication_history.value_objects import (
     FACT_ARRAY_TYPES,
     FACT_FIELD_TYPES,
-)
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
 )
 from app.domain.staff.identifiers import StaffId
 

@@ -1,4 +1,4 @@
-"""スタッフの公開識別子。"""
+"""staffの公開識別子。"""
 
 from __future__ import annotations
 

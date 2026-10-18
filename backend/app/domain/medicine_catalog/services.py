@@ -1,16 +1,11 @@
-"""医薬品マスタに関わるドメインサービス。
-
-無状態（Stateless）であり、本物の集約を引数で受け取る。
-"""
+"""medicine_catalogのドメインサービス。"""
 
 from __future__ import annotations
 
 from collections.abc import Iterable
 
-from app.domain.medicine_catalog.exceptions import (
-    MedicineEffectivePeriodConflictError,
-)
-from app.domain.medicine_catalog.medicine import Medicine
+from app.domain.medicine_catalog.entities import Medicine
+from app.domain.medicine_catalog.exceptions import MedicineEffectivePeriodConflictError
 
 
 class MedicineEffectivePeriodConflictService:

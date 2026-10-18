@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-from app.domain.corporate.corporate import Corporate
-from app.domain.corporate.primitives import (
-    CorporateName,
-    CorporateRepresentativeName,
-)
+from app.domain.corporate.entities import Corporate
+from app.domain.corporate.primitives import CorporateName, CorporateRepresentativeName
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository
 
 

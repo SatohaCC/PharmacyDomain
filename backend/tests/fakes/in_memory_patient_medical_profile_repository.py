@@ -5,11 +5,9 @@ from __future__ import annotations
 import copy
 
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.medication_history.entities import PatientMedicalProfile
 from app.domain.medication_history.identifiers import PatientMedicalProfileId
-from app.domain.medication_history.patient_medical_profile import (
-    PatientMedicalProfile,
-)
-from app.domain.medication_history.repository import PatientMedicalProfileRepository
+from app.domain.medication_history.repositories import PatientMedicalProfileRepository
 from app.domain.medication_history.services import (
     PatientMedicalProfileUniquenessService,
 )

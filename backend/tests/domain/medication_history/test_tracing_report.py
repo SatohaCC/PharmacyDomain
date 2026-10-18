@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.exceptions import (
     DuplicatedTracingReportIdError,
     TracingReportAlreadyRespondedError,
@@ -13,9 +14,6 @@ from app.domain.medication_history.exceptions import (
     TracingReportNotFoundError,
     TracingReportOnDraftError,
     TracingReportResponseDateBeforeProvidedError,
-)
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
 )
 from app.domain.medication_history.primitives import (
     PhysicianName,

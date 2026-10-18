@@ -3,16 +3,15 @@
 from app.application.staff.reference import StaffStoreReference
 from app.application.store.reference import ManagerStaffReference
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.staff.entities import Staff
 from app.domain.staff.identifiers import StaffId
-from app.domain.staff.repository import StaffRepository
-from app.domain.staff.staff import Staff
-from app.domain.staff.store_source import StoreSource
-from app.domain.staff.value_objects import PharmacistProfile
+from app.domain.staff.repositories import StaffRepository
+from app.domain.staff.value_objects import PharmacistProfile, StoreSource
+from app.domain.store.entities import Store
 from app.domain.store.identifiers import StoreId
-from app.domain.store.lifecycle import StoreStatus
-from app.domain.store.manager_source import ManagerStaffAffiliation, ManagerStaffSource
-from app.domain.store.repository import StoreRepository
-from app.domain.store.store import Store
+from app.domain.store.primitives import StoreStatus
+from app.domain.store.repositories import StoreRepository
+from app.domain.store.value_objects import ManagerStaffAffiliation, ManagerStaffSource
 
 
 def staff_store_source(value: Store) -> StoreSource:

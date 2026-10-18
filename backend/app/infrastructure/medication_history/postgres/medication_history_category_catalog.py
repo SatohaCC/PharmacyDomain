@@ -8,10 +8,8 @@ from __future__ import annotations
 from sqlalchemy import select
 
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.medication_history.category_catalog import (
-    MedicationHistoryCategoryCatalog,
-)
-from app.domain.medication_history.repository import (
+from app.domain.medication_history.entities import MedicationHistoryCategoryCatalog
+from app.domain.medication_history.repositories import (
     MedicationHistoryCategoryCatalogRepository,
 )
 from app.infrastructure.postgres.repository_base import (

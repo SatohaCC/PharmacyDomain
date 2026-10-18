@@ -8,7 +8,7 @@ from app.application.access_control.models import (
     Permission,
 )
 from app.application.common.exceptions import AuthorizationError
-from app.domain.corporate.corporate import Corporate
+from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
 
 

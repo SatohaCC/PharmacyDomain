@@ -1,13 +1,68 @@
-"""医薬品マスタを照合するコードの複合値。"""
+"""medicine_catalogの複合値と参照スナップショット。"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from typing import ClassVar
 
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.value_object import ValueObject
-from app.domain.medicine_catalog.primitives import MedicineCode, MedicineCodeType
+from app.domain.medicine_catalog.exceptions import MedicineEffectivePeriodInvertedError
+from app.domain.medicine_catalog.primitives import (
+    MedicineCode,
+    MedicineCodeType,
+    MedicineListedOn,
+    MedicineWithdrawnOn,
+)
+
+
+@dataclass(frozen=True, kw_only=True)
+class MedicineEffectivePeriod(ValueObject):
+    """マスタ行が有効な期間。
+
+    終了日を**含む**閉区間 ``[listed_on, withdrawn_on]`` とする。経過措置期限は
+    「その日まで使える」を意味するため、資格の ``CoverageActivation``
+    （``[activated_on, deactivated_on)`` の半開区間）とは区間の取り方が違う。
+    同じ形にすると、期限当日の調剤を誤って弾く。
+    """
+
+    listed_on: MedicineListedOn
+    withdrawn_on: MedicineWithdrawnOn | None = None
+
+    _FIELD_LABELS: ClassVar[dict[str, str]] = {
+        "listed_on": "収載日",
+        "withdrawn_on": "経過措置期限",
+    }
+
+    def validate(self) -> None:
+        """経過措置期限が収載日以降であることを検証する。"""
+        if (
+            self.withdrawn_on is not None
+            and self.withdrawn_on.value < self.listed_on.value
+        ):
+            raise MedicineEffectivePeriodInvertedError()
+
+    def includes(self, target_date: date) -> bool:
+        """指定日にこの行が有効かを返す。"""
+        if target_date < self.listed_on.value:
+            return False
+        return self.withdrawn_on is None or target_date <= self.withdrawn_on.value
+
+    def overlaps(self, other: MedicineEffectivePeriod) -> bool:
+        """別の期間と1日でも重なるかを返す。
+
+        ``withdrawn_on`` が ``None`` の期間は未来側に終わりがないとみなす。
+        """
+        self_ends_first = (
+            self.withdrawn_on is not None
+            and self.withdrawn_on.value < other.listed_on.value
+        )
+        other_ends_first = (
+            other.withdrawn_on is not None
+            and other.withdrawn_on.value < self.listed_on.value
+        )
+        return not (self_ends_first or other_ends_first)
 
 
 @dataclass(frozen=True, kw_only=True)

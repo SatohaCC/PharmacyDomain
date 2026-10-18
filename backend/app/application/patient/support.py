@@ -2,9 +2,9 @@
 
 from app.application.patient.exceptions import PatientNotFoundError
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.entities import Patient
 from app.domain.patient.identifiers import PatientId
-from app.domain.patient.patient import Patient
-from app.domain.patient.repository import PatientRepository
+from app.domain.patient.repositories import PatientRepository
 
 
 async def load_patient_or_raise(

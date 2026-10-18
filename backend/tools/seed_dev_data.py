@@ -26,31 +26,30 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 
-from app.domain.corporate.corporate import Corporate
+from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.corporate.primitives import CorporateName, CorporateRepresentativeName
-from app.domain.identity.account_person import AccountPerson
+from app.domain.identity.entities import (
+    AccountPerson,
+    CorporateMembership,
+    StaffPersonLink,
+    UserAccount,
+)
 from app.domain.identity.identifiers import CorporateMembershipId
-from app.domain.identity.membership import CorporateMembership
 from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole
-from app.domain.identity.staff_person_link import StaffPersonLink
-from app.domain.identity.user_account import UserAccount
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNamePart, PersonNames
+from app.domain.staff.entities import Staff
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import PharmacistLicenseNumber, StaffCode
-from app.domain.staff.staff import Staff
 from app.domain.staff.value_objects import (
     AffiliationPeriod,
     PharmacistProfile,
     StaffQualifications,
     StoreAffiliation,
 )
+from app.domain.store.entities import Store, StoreManagerAssignment
 from app.domain.store.identifiers import StoreId, StoreManagerAssignmentId
-from app.domain.store.manager_assignment import (
-    ManagerAssignmentPeriod,
-    StoreManagerAssignment,
-)
 from app.domain.store.primitives import (
     StoreAddressLine,
     StoreCode,
@@ -59,8 +58,12 @@ from app.domain.store.primitives import (
     StorePhoneNumber,
     StorePostalCode,
 )
-from app.domain.store.store import Store
-from app.domain.store.value_objects import ContactInfo, StoreAddress, StoreNames
+from app.domain.store.value_objects import (
+    ContactInfo,
+    ManagerAssignmentPeriod,
+    StoreAddress,
+    StoreNames,
+)
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )

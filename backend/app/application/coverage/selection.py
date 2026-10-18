@@ -8,11 +8,11 @@ from app.application.coverage.reference import (
     CoverageValidityBoundary,
 )
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.coverage.coverage_selection import CoverageSelection
 from app.domain.coverage.identifiers import PatientCoverageId
 from app.domain.coverage.primitives import CoverageAppliedOn
-from app.domain.coverage.repository import PatientCoverageRepository
+from app.domain.coverage.repositories import PatientCoverageRepository
 from app.domain.coverage.services import CoverageSelectionService
+from app.domain.coverage.value_objects import CoverageSelection
 from app.domain.foundation.exceptions import DomainError
 from app.domain.patient.identifiers import PatientId
 

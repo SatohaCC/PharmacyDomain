@@ -15,17 +15,15 @@ from sqlalchemy import Connection, insert, text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.domain.care_event.identifiers import EventId
-from app.domain.medication_history.entities import FollowUpRecord
+from app.domain.medication_history.entities import (
+    FollowUpRecord,
+    MedicationHistoryRecord,
+    PatientMedicalProfile,
+)
 from app.domain.medication_history.identifiers import (
     FollowUpId,
     MedicationHistoryRecordId,
     TracingReportId,
-)
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
-from app.domain.medication_history.patient_medical_profile import (
-    PatientMedicalProfile,
 )
 from app.domain.medication_history.primitives import (
     FinalizationDelayReason,

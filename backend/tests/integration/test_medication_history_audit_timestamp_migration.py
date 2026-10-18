@@ -12,9 +12,7 @@ from alembic.operations import Operations
 from sqlalchemy import Connection, insert, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.primitives import FollowUpRecordedTimestamp
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,

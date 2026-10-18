@@ -5,9 +5,9 @@ from __future__ import annotations
 import copy
 
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.reception.entities import Reception
 from app.domain.reception.identifiers import ReceptionId
-from app.domain.reception.reception import Reception
-from app.domain.reception.repository import ReceptionRepository
+from app.domain.reception.repositories import ReceptionRepository
 from app.domain.store.identifiers import StoreId
 
 

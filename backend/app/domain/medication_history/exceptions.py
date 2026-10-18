@@ -1,4 +1,4 @@
-"""MedicationHistoryドメインの業務例外。"""
+"""medication_historyの業務例外。"""
 
 from __future__ import annotations
 

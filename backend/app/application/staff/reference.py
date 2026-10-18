@@ -3,7 +3,7 @@
 from typing import Protocol
 
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.staff.store_source import StoreSource
+from app.domain.staff.value_objects import StoreSource
 from app.domain.store.identifiers import StoreId
 
 

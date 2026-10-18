@@ -18,16 +18,18 @@ from app.application.dispensing.reference import (
     StoreReferenceBoundary,
 )
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.dispensing.prescription_source import PrescriptionSource
-from app.domain.dispensing.value_objects import PharmacistQualification
+from app.domain.dispensing.value_objects import (
+    PharmacistQualification,
+    PrescriptionSource,
+)
 from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.prescription.primitives import PrescriptionStatus
-from app.domain.prescription.repository import PrescriptionRepository
+from app.domain.prescription.repositories import PrescriptionRepository
 from app.domain.staff.identifiers import StaffId
-from app.domain.staff.repository import StaffRepository
+from app.domain.staff.repositories import StaffRepository
 from app.domain.staff.value_objects import PharmacistProfile
 from app.domain.store.identifiers import StoreId
-from app.domain.store.repository import StoreRepository
+from app.domain.store.repositories import StoreRepository
 
 
 class DispensingStoreReferenceAdapter(StoreReferenceBoundary):

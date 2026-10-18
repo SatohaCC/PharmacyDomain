@@ -12,11 +12,16 @@ from app.application.access_control.store_access import (
 from app.application.common.clock import Clock, business_date
 from app.application.store.exceptions import StoreNotFoundError
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.store.exceptions import (
+    ManagerAbsenceConflictError,
+    StoreStateConflictError,
+)
 from app.domain.store.identifiers import StoreId
-from app.domain.store.lifecycle import StoreStateConflictError, StoreStatus
-from app.domain.store.manager_assignment import ManagerAbsenceConflictError
-from app.domain.store.manager_repository import StoreManagerAssignmentRepository
-from app.domain.store.repository import StoreRepository
+from app.domain.store.primitives import StoreStatus
+from app.domain.store.repositories import (
+    StoreManagerAssignmentRepository,
+    StoreRepository,
+)
 
 
 class StoreOperationAdapter(StoreOperationBoundary):

@@ -1,10 +1,4 @@
-"""MedicationHistoryコンテキストの識別子・薬歴プリミティブ。
-
-**電子処方箋管理サービス 記録条件仕様（調剤編）は本コンテキストの根拠ではない。**
-同仕様には「薬歴」「服薬指導」「SOAP」の語が現れず、対応するレコードも別表も無い。
-根拠は薬剤師法第25条の2・第28条、薬剤師法施行規則第16条、薬担規則第10条、および
-保険調剤の理解のために（令和8年度）第2節 薬学管理料 通則(4) である。
-"""
+"""medication_historyの単一値と列挙・検証規則。"""
 
 from __future__ import annotations
 
@@ -13,7 +7,9 @@ from typing import ClassVar
 
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.primitives.primitives import (
+    BaseAddress,
     BaseAwareTimestamp,
+    BaseDate,
     BaseFreeText,
     BaseNormalizedString,
     BasePositiveInt,
@@ -55,9 +51,6 @@ class MedicationHistoryRecordedTimestamp(BaseAwareTimestamp):
     """薬歴をシステムへ登録したUTC時刻。"""
 
     timestamp_name: ClassVar[str] = "薬歴登録日時"
-
-
-FollowUpRecordedTimestamp = MedicationHistoryRecordedTimestamp
 
 
 class MedicationHistoryImportTimestamp(BaseAwareTimestamp):
@@ -600,3 +593,105 @@ class BillingAdditionName(BaseNormalizedString):
             raise DomainValidationError("算定加算名称は空にできません。")
         if len(self.value) > 100:
             raise DomainValidationError("算定加算名称は100文字以内で指定してください。")
+
+
+class MedicineName(BaseNormalizedString):
+    """薬品名称。
+
+    医薬品マスタの表示名だけでなく、未収載薬・OTC・健康食品の名称も表す。
+    この値を持つことは医薬品マスタ行の存在を意味しない。
+    """
+
+    def validate(self) -> None:
+        super().validate()
+        if len(self.value) > 180:
+            raise DomainValidationError("薬品名称は180文字以内で指定してください。")
+
+
+class PatientBirthDate(BaseDate):
+    """患者の生年月日。"""
+
+
+class MedicalInstitutionName(BaseNormalizedString):
+    """医療機関名称。JAHIS レコードNo.1 で ``N60``（漢字半角混在可）。"""
+
+    def validate(self) -> None:
+        super().validate()
+        if len(self.value) > 60:
+            raise DomainValidationError("医療機関名称は60文字以内で指定してください。")
+
+
+class MedicalInstitutionAddressLine(BaseAddress):
+    """医療機関の所在地。"""
+
+
+class PrescriptionIssuedDate(BaseDate):
+    """処方箋交付年月日。"""
+
+
+class InquiryNumber(BasePositiveInt):
+    """疑義照会の連番。
+
+    規格（調剤編 511）は「複数記録可（最大999）」なので上限を999に揃える。
+    99に絞る業務上の根拠がない。
+    """
+
+    def validate(self) -> None:
+        super().validate()
+        if self.value > 999:
+            raise DomainValidationError("照会連番は999以内で指定してください。")
+
+
+class DispensingProcessStatus(StrEnum):
+    """調剤セッションの状態。"""
+
+    IN_PROGRESS = "in_progress"
+    VERIFIED = "verified"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+    @property
+    def label(self) -> str:
+        """画面表示・帳票出力用の日本語名称。"""
+        labels = {
+            self.IN_PROGRESS: "調剤調製中",
+            self.VERIFIED: "最終鑑査済（交付待ち）",
+            self.COMPLETED: "交付済",
+            self.CANCELLED: "調剤中止",
+        }
+        return labels[self]
+
+    @property
+    def is_terminal(self) -> bool:
+        """これ以上状態が動かない終端か。"""
+        return self in {
+            DispensingProcessStatus.COMPLETED,
+            DispensingProcessStatus.CANCELLED,
+        }
+
+
+class ExternalCorrectionKind(StrEnum):
+    """外部処方訂正の通知種別。"""
+
+    UPDATE = "update"
+    DELETE = "delete"
+
+
+class ExternalCorrectionStatus(StrEnum):
+    """外部処方訂正の確認状態。"""
+
+    PENDING = "pending"
+    INVESTIGATING = "investigating"
+    RESOLVED = "resolved"
+
+
+class ExternalCorrectionDecision(StrEnum):
+    """外部処方訂正への判断。"""
+
+    AMEND = "amend"
+    NO_ACTION = "no_action"
+    INVESTIGATING = "investigating"
+    MATCH_REREGISTERED_PRESCRIPTION = "match_reregistered_prescription"
+
+
+FollowUpRecordedTimestamp = MedicationHistoryRecordedTimestamp

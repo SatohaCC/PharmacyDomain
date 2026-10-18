@@ -11,15 +11,12 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.sql.elements import ColumnClause
 from sqlalchemy.sql.selectable import TableClause
 
-from app.domain.care_event.event import Event
-from app.domain.care_event.event_definition import EventDefinition
+from app.domain.care_event.entities import Event, EventDefinition
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
     EventOccurredTimestamp,
 )
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )

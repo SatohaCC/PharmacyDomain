@@ -9,7 +9,7 @@ from app.application.access_control.models import Permission
 from app.application.patient.exceptions import PatientExternalIdentifierNotFoundError
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.identifiers import PatientExternalIdentifierId
-from app.domain.patient.repository import PatientExternalIdentifierRepository
+from app.domain.patient.repositories import PatientExternalIdentifierRepository
 
 
 @dataclass(frozen=True, kw_only=True)

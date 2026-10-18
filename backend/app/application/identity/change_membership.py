@@ -17,9 +17,9 @@ from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.identifiers import CorporateMembershipId
 from app.domain.identity.primitives import AccountStatus, MembershipRole
-from app.domain.staff.repository import StaffRepository
+from app.domain.staff.repositories import StaffRepository
 from app.domain.store.identifiers import StoreId
-from app.domain.store.repository import StoreRepository
+from app.domain.store.repositories import StoreRepository
 
 
 class ChangeMembershipUseCase:

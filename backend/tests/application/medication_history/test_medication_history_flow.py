@@ -57,6 +57,10 @@ from app.application.medication_history.update_medication_history_draft import (
     UpdateMedicationHistoryDraftCommand,
 )
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.medication_history.entities import (
+    MedicationHistoryRecord,
+    PatientMedicalProfile,
+)
 from app.domain.medication_history.exceptions import (
     CounselorQualificationError,
     FinalizationDelayReasonRequiredError,
@@ -67,12 +71,6 @@ from app.domain.medication_history.exceptions import (
     SoapContentRequiredError,
 )
 from app.domain.medication_history.identifiers import MedicationHistoryRecordId
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
-from app.domain.medication_history.patient_medical_profile import (
-    PatientMedicalProfile,
-)
 from app.domain.medication_history.primitives import (
     CounselingTimestamp,
     FinalizationDelayReason,

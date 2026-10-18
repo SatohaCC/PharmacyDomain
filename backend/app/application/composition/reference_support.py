@@ -13,9 +13,9 @@
 from __future__ import annotations
 
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.store.entities import Store
 from app.domain.store.identifiers import StoreId
-from app.domain.store.repository import StoreRepository
-from app.domain.store.store import Store
+from app.domain.store.repositories import StoreRepository
 
 
 async def load_store_in_corporate(

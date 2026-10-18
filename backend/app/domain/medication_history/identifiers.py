@@ -1,4 +1,4 @@
-"""薬歴・頭書き・指導記録の公開識別子。"""
+"""medication_historyの公開識別子。"""
 
 from __future__ import annotations
 

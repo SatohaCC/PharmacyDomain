@@ -14,18 +14,18 @@ from app.application.store.management import (
     ManageStoreManagerCommand,
     ManageStoreManagerUseCase,
 )
-from app.domain.identity.staff_person_link import StaffPersonLink
+from app.domain.identity.entities import StaffPersonLink
 from app.domain.shared.actor import AccountPersonId
+from app.domain.staff.entities import Staff
 from app.domain.staff.primitives import PharmacistLicenseNumber
-from app.domain.staff.staff import Staff
 from app.domain.staff.value_objects import (
     AffiliationPeriod,
     PharmacistProfile,
     StaffQualifications,
     StoreAffiliation,
 )
-from app.domain.store.manager_assignment import ManagerPersonUnresolvedError
-from app.domain.store.store import Store
+from app.domain.store.entities import Store
+from app.domain.store.exceptions import ManagerPersonUnresolvedError
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store

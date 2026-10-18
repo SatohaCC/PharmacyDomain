@@ -1,4 +1,4 @@
-"""Receptionコンテキストの識別子と監査プリミティブ。"""
+"""receptionの単一値と列挙・検証規則。"""
 
 from __future__ import annotations
 

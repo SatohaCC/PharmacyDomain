@@ -14,7 +14,7 @@ from app.application.coverage.support import (
 )
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.identifiers import PatientCoverageId
-from app.domain.coverage.repository import PatientCoverageRepository
+from app.domain.coverage.repositories import PatientCoverageRepository
 from app.domain.coverage.services import PatientCoverageConflictService
 
 

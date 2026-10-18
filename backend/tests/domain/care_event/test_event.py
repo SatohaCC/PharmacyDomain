@@ -6,8 +6,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.domain.care_event.event import Event
-from app.domain.care_event.event_definition import EventDefinition
+from app.domain.care_event.entities import Event, EventDefinition
 from app.domain.care_event.identifiers import EventId, EventTypeId
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,

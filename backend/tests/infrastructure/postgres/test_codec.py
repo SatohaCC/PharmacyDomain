@@ -14,8 +14,8 @@ from typing import Any
 import pytest
 
 import app.domain
-from app.domain.corporate.corporate import Corporate
-from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.corporate.entities import Corporate
+from app.domain.dispensing.entities import DispensingProcess
 from app.domain.dispensing.exceptions import VerificationStatusMismatchError
 from app.domain.dispensing.primitives import (
     DispensingCancellationReason,
@@ -27,9 +27,7 @@ from app.domain.dispensing.primitives import (
 )
 from app.domain.foundation.exceptions import DomainError
 from app.domain.foundation.primitives.base import DomainPrimitive
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.primitives import (
     CounselingMethod,
     FinalizedTimestamp,
@@ -39,51 +37,46 @@ from app.domain.medication_history.primitives import (
     MedicationHistoryStatus,
 )
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
-from app.domain.patient.heading import (
-    PatientHeadingContent,
-    PatientHeadingRevision,
-    PatientHeadingText,
-)
-from app.domain.patient.lifecycle import PatientStatus
-from app.domain.patient.patient import Patient
+from app.domain.patient.entities import Patient
 from app.domain.patient.primitives import (
     ExternalPatientId,
     PatientAddress,
     PatientBirthDate,
     PatientGenderCode,
+    PatientHeadingText,
     PatientPhoneNumber,
     PatientPostalCode,
-)
-from app.domain.patient.profile_history import (
-    PatientProfileChange,
     PatientProfileChangeSource,
+    PatientStatus,
+)
+from app.domain.patient.value_objects import (
+    PatientHeadingContent,
+    PatientHeadingRevision,
+    PatientProfileChange,
     PatientProfileSnapshot,
 )
+from app.domain.prescription.entities import Prescription
 from app.domain.prescription.exceptions import (
     BlockingInquiryExistsError,
     OpenInquiryExistsError,
 )
-from app.domain.prescription.prescription import Prescription
 from app.domain.prescription.primitives import (
     InquiryNumber,
     InquiryResultType,
     PrescriptionStatus,
 )
+from app.domain.reception.entities import Reception
 from app.domain.reception.identifiers import ReceptionId
 from app.domain.reception.primitives import ReceptionFieldPath, ReceptionFingerprint
-from app.domain.reception.reception import (
-    Reception,
-    ReceptionCorrection,
-    ReceptionSourceData,
-)
+from app.domain.reception.value_objects import ReceptionCorrection, ReceptionSourceData
 from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.domain.staff.entities import Staff
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import (
     DietitianRegistrationNumber,
     PharmacistLicenseNumber,
     SellerRegistrationNumber,
 )
-from app.domain.staff.staff import Staff
 from app.domain.staff.value_objects import (
     BaseQualificationProfile,
     DietitianProfile,
@@ -91,17 +84,19 @@ from app.domain.staff.value_objects import (
     RegisteredSellerProfile,
     StaffQualifications,
 )
-from app.domain.store.business_hours import (
-    BusinessDayException,
-    BusinessHours,
-    BusinessHourSlot,
+from app.domain.store.entities import Store
+from app.domain.store.identifiers import StoreId
+from app.domain.store.primitives import (
     BusinessHoursNote,
     BusinessWeekday,
     StoreOpeningState,
+)
+from app.domain.store.value_objects import (
+    BusinessDayException,
+    BusinessHours,
+    BusinessHourSlot,
     WeekdayBusinessHours,
 )
-from app.domain.store.identifiers import StoreId
-from app.domain.store.store import Store
 from app.infrastructure.postgres.codec import (
     QUALIFICATION_PROFILE_TAGS,
     QUALIFICATION_TAG_KEY,

@@ -24,10 +24,12 @@ from app.application.dispensing.reference import (
     StoreReferenceBoundary,
 )
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.dispensing.prescription_source import PrescriptionSource
-from app.domain.dispensing.value_objects import PharmacistQualification
+from app.domain.dispensing.value_objects import (
+    PharmacistQualification,
+    PrescriptionSource,
+)
+from app.domain.prescription.entities import Prescription
 from app.domain.prescription.identifiers import PrescriptionId
-from app.domain.prescription.prescription import Prescription
 from app.domain.prescription.primitives import PrescriptionStatus
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.value_objects import PharmacistProfile, StaffQualifications

@@ -10,13 +10,12 @@ from app.domain.patient.exceptions import (
     PatientHeadingConflictError,
     PatientStateConflictError,
 )
-from app.domain.patient.heading import (
+from app.domain.patient.identifiers import PatientId
+from app.domain.patient.primitives import PatientHeadingText, PatientStatus
+from app.domain.patient.value_objects import (
     PatientHeadingContent,
     PatientHeadingRevision,
-    PatientHeadingText,
 )
-from app.domain.patient.identifiers import PatientId
-from app.domain.patient.lifecycle import PatientStatus
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from tests.factories.persistence_factory import create_patient
 

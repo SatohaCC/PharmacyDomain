@@ -40,7 +40,7 @@ from app.application.medication_history.start_medication_history import (
 )
 from app.application.patient.get_patient import GetPatientQuery, GetPatientUseCase
 from app.application.patient.register_patient import RegisterPatientUseCase
-from app.domain.care_event.event import Event
+from app.domain.care_event.entities import Event
 from app.domain.care_event.identifiers import EventTypeId
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,

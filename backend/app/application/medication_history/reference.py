@@ -14,9 +14,9 @@ from app.domain.care_event.identifiers import EventId, EventTypeId
 from app.domain.care_event.primitives import EventOccurredTimestamp, EventTypeName
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.identifiers import DispensingId
-from app.domain.medication_history.dispensing_source import DispensingSource
 from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.value_objects import (
+    DispensingSource,
     PharmacistQualification,
     StatutoryRecordSource,
 )

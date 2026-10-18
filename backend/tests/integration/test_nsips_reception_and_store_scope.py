@@ -15,9 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.domain.dispensing.identifiers import DispensingId
 from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.reception.entities import Reception
 from app.domain.reception.identifiers import ReceptionId
 from app.domain.reception.primitives import ReceptionFieldPath, ReceptionFingerprint
-from app.domain.reception.reception import Reception, ReceptionCorrection
+from app.domain.reception.value_objects import ReceptionCorrection
 from app.domain.store.identifiers import StoreId
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,

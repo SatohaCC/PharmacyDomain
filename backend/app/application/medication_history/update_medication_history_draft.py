@@ -33,7 +33,7 @@ from app.domain.medication_history.primitives import (
     BillingAdditionName,
     CounselingMethod,
 )
-from app.domain.medication_history.repository import MedicationHistoryRepository
+from app.domain.medication_history.repositories import MedicationHistoryRepository
 from app.domain.medication_history.value_objects import BillingAddition
 
 

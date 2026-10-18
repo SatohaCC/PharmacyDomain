@@ -20,7 +20,7 @@ from app.application.medication_history.support import (
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.primitives import AmendmentReason, AmendmentTimestamp
-from app.domain.medication_history.repository import MedicationHistoryRepository
+from app.domain.medication_history.repositories import MedicationHistoryRepository
 from app.domain.medication_history.services import CounselorQualificationService
 from app.domain.staff.identifiers import StaffId
 

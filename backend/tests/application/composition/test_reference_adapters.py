@@ -57,12 +57,7 @@ from app.application.prescription.exceptions import (
     PrescriptionStoreNotFoundError,
 )
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.coverage.coverage_selection import (
-    CoverageSelection,
-    SelectedPublicExpenseSource,
-)
-from app.domain.coverage.coverage_selection_record import CoverageSelectionRecord
-from app.domain.coverage.coverage_snapshot import PublicExpenseCoverageSnapshot
+from app.domain.coverage.entities import CoverageSelectionRecord
 from app.domain.coverage.identifiers import CoverageSelectionRecordId, PatientCoverageId
 from app.domain.coverage.primitives import (
     CoverageAppliedOn,
@@ -71,6 +66,11 @@ from app.domain.coverage.primitives import (
     OperatorPrincipalId,
     PublicPayerNumber,
     PublicRecipientNumber,
+)
+from app.domain.coverage.value_objects import (
+    CoverageSelection,
+    PublicExpenseCoverageSnapshot,
+    SelectedPublicExpenseSource,
 )
 from app.domain.dispensing.identifiers import DispensingId
 from app.domain.patient.identifiers import PatientId

@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from app.application.access_control.models import ActorContext, Permission
-from app.domain.corporate.corporate import Corporate
+from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
 
 

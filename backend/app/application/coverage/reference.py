@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Protocol
 
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.coverage.coverage_selection import CoverageSelection
 from app.domain.coverage.primitives import CoverageAppliedOn
+from app.domain.coverage.value_objects import CoverageSelection
 from app.domain.patient.identifiers import PatientId
 from app.domain.store.identifiers import StoreId
 

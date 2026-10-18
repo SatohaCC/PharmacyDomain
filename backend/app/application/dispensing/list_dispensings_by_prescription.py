@@ -8,7 +8,7 @@ from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.dispensing.get_dispensing import DispensingProcessDto
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.dispensing.repository import DispensingProcessRepository
+from app.domain.dispensing.repositories import DispensingProcessRepository
 from app.domain.prescription.identifiers import PrescriptionId
 
 

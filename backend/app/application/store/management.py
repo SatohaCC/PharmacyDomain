@@ -24,21 +24,23 @@ from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.shared.actor import AccountPersonId
 from app.domain.staff.identifiers import StaffId
-from app.domain.store.identifiers import StoreId, StoreManagerAssignmentId
-from app.domain.store.lifecycle import (
+from app.domain.store.entities import StoreManagerAssignment
+from app.domain.store.exceptions import (
+    ManagerPersonUnresolvedError,
     StoreStateConflictError,
+)
+from app.domain.store.identifiers import StoreId, StoreManagerAssignmentId
+from app.domain.store.primitives import (
+    ManagerAssignmentStatus,
     StoreStatus,
     StoreStatusReason,
 )
-from app.domain.store.manager_assignment import (
-    ManagerAssignmentPeriod,
-    ManagerAssignmentStatus,
-    ManagerPersonUnresolvedError,
-    StoreManagerAssignment,
+from app.domain.store.repositories import (
+    StoreManagerAssignmentRepository,
+    StoreRepository,
 )
-from app.domain.store.manager_repository import StoreManagerAssignmentRepository
-from app.domain.store.manager_service import StoreManagerAssignmentService
-from app.domain.store.repository import StoreRepository
+from app.domain.store.services import StoreManagerAssignmentService
+from app.domain.store.value_objects import ManagerAssignmentPeriod
 
 
 class StaffPersonBoundary(Protocol):

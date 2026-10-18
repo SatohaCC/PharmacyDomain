@@ -17,18 +17,18 @@ from app.application.identity.support import (
 )
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.identity.entities import UserInvitation
 from app.domain.identity.identifiers import UserInvitationId
-from app.domain.identity.invitation import (
+from app.domain.identity.primitives import (
     InvitationAddressee,
     InvitationDigest,
-    UserInvitation,
+    MembershipRole,
 )
-from app.domain.identity.primitives import MembershipRole
 from app.domain.shared.actor import AccountPersonId
 from app.domain.staff.identifiers import StaffId
-from app.domain.staff.repository import StaffRepository
+from app.domain.staff.repositories import StaffRepository
 from app.domain.store.identifiers import StoreId
-from app.domain.store.repository import StoreRepository
+from app.domain.store.repositories import StoreRepository
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -7,11 +7,11 @@ from datetime import date, datetime
 import pytest
 
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.coverage.entities import PatientCoverage
 from app.domain.coverage.exceptions import (
     CoveragePeriodConflictError,
     InsuranceCoveragePriorityError,
 )
-from app.domain.coverage.patient_coverage import PatientCoverage
 from app.domain.coverage.primitives import (
     CoverageActivatedOn,
     CoverageBenefitRatio,

@@ -45,28 +45,24 @@ from app.application.prescription.support import (
     build_rps,
 )
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.entities import DispensingProcess
 from app.domain.dispensing.identifiers import DispensingId
 from app.domain.dispensing.primitives import (
     DispensingCancellationReason,
     DispensingProcessStatus,
 )
-from app.domain.dispensing.reference_primitives import (
-    DispensingQuantity as DispensedQuantity,
-)
-from app.domain.dispensing.repository import DispensingProcessRepository
+from app.domain.dispensing.primitives import DispensingQuantity as DispensedQuantity
+from app.domain.dispensing.repositories import DispensingProcessRepository
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.identifiers import MedicationHistoryRecordId
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
-from app.domain.medication_history.primitives import ExternalCorrectionTimestamp
-from app.domain.medication_history.repository import MedicationHistoryRepository
-from app.domain.medication_history.value_objects import (
+from app.domain.medication_history.primitives import (
     ExternalCorrectionKind,
     ExternalCorrectionStatus,
-    ExternalPrescriptionCorrection,
+    ExternalCorrectionTimestamp,
 )
+from app.domain.medication_history.repositories import MedicationHistoryRepository
+from app.domain.medication_history.value_objects import ExternalPrescriptionCorrection
 from app.domain.patient.identifiers import PatientId
 from app.domain.patient.primitives import (
     ExternalPatientId,
@@ -77,30 +73,28 @@ from app.domain.patient.primitives import (
     PatientPhoneNumber,
     PatientPostalCode,
 )
-from app.domain.patient.profile_history import (
-    PatientProfileChange,
-    PatientProfileSnapshot,
-)
-from app.domain.patient.repository import (
+from app.domain.patient.repositories import (
     PatientExternalIdentifierRepository,
     PatientRepository,
 )
-from app.domain.prescription.identifiers import PrescriptionId
-from app.domain.prescription.prescription import (
-    Prescription,
-    PrescriptionRp,
+from app.domain.patient.value_objects import (
+    PatientProfileChange,
+    PatientProfileSnapshot,
 )
+from app.domain.prescription.entities import Prescription
+from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.prescription.primitives import PrescriptionStatus
-from app.domain.prescription.repository import PrescriptionRepository
+from app.domain.prescription.repositories import PrescriptionRepository
+from app.domain.prescription.value_objects import PrescriptionRp
+from app.domain.reception.entities import Reception
 from app.domain.reception.identifiers import ReceptionId
 from app.domain.reception.primitives import ReceptionFieldPath, ReceptionFingerprint
-from app.domain.reception.reception import (
-    Reception,
+from app.domain.reception.repositories import ReceptionRepository
+from app.domain.reception.value_objects import (
     ReceptionBillingAddition,
     ReceptionCorrection,
     ReceptionSourceData,
 )
-from app.domain.reception.repository import ReceptionRepository
 from app.domain.shared.person_name import PersonNames
 from app.domain.store.identifiers import StoreId
 

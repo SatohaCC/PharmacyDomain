@@ -6,7 +6,7 @@ from app.application.store.support import load_store_or_raise, to_optional_text
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.store.identifiers import StoreId
 from app.domain.store.primitives import StoreName, StoreNameKana, StoreNameRomaji
-from app.domain.store.repository import StoreRepository
+from app.domain.store.repositories import StoreRepository
 from app.domain.store.services import StoreNameUniquenessService
 from app.domain.store.value_objects import StoreNames
 

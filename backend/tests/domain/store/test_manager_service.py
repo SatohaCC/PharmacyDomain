@@ -17,13 +17,11 @@ from app.domain.staff.value_objects import (
     StaffQualifications,
     StoreAffiliation,
 )
+from app.domain.store.entities import StoreManagerAssignment
 from app.domain.store.identifiers import StoreManagerAssignmentId
-from app.domain.store.lifecycle import StoreStatus
-from app.domain.store.manager_assignment import (
-    ManagerAssignmentPeriod,
-    StoreManagerAssignment,
-)
-from app.domain.store.manager_service import StoreManagerAssignmentService
+from app.domain.store.primitives import StoreStatus
+from app.domain.store.services import StoreManagerAssignmentService
+from app.domain.store.value_objects import ManagerAssignmentPeriod
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store
 

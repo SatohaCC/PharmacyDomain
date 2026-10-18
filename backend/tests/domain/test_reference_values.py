@@ -4,8 +4,8 @@ import pytest
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.medication_history.dispensing_source import RpSource
-from app.domain.staff.store_source import StoreSource
+from app.domain.medication_history.value_objects import RpSource
+from app.domain.staff.value_objects import StoreSource
 from app.domain.store.identifiers import StoreId
 
 

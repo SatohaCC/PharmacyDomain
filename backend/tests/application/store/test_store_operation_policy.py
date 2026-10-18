@@ -18,8 +18,11 @@ from app.application.access_control.store_access import (
     StoreOperationKind,
 )
 from app.application.composition.store_operation_adapter import StoreOperationAdapter
-from app.domain.store.lifecycle import StoreStateConflictError, StoreStatus
-from app.domain.store.manager_assignment import ManagerAbsenceConflictError
+from app.domain.store.exceptions import (
+    ManagerAbsenceConflictError,
+    StoreStateConflictError,
+)
+from app.domain.store.primitives import StoreStatus
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.factories.store_factory import create_manager_assignment, create_store
 from tests.fakes.fake_clock import FakeClock

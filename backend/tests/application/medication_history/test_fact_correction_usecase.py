@@ -20,18 +20,16 @@ from app.application.medication_history.exceptions import (
 )
 from app.domain.care_event.identifiers import EventId
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.medication_history.category_catalog import (
+from app.domain.medication_history.entities import (
     MedicationHistoryCategoryCatalog,
+    MedicationHistoryRecord,
+    PatientMedicalProfile,
 )
 from app.domain.medication_history.exceptions import (
     CounselorQualificationError,
     RequiredCategoryMissingError,
 )
 from app.domain.medication_history.identifiers import CategoryCatalogId
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
-from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
 from app.domain.medication_history.primitives import (
     CounselingNote,
     MajorCategoryCode,

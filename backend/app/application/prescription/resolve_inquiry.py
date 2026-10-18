@@ -22,7 +22,7 @@ from app.domain.prescription.primitives import (
     InquiryTimestamp,
     PrescriberName,
 )
-from app.domain.prescription.repository import PrescriptionRepository
+from app.domain.prescription.repositories import PrescriptionRepository
 from app.domain.prescription.value_objects import PrescriberResponse
 
 

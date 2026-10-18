@@ -1,4 +1,4 @@
-"""保険資格の有効期間と選択の整合性を確認するドメインサービス。"""
+"""coverageのドメインサービス。"""
 
 from __future__ import annotations
 
@@ -6,18 +6,18 @@ from collections.abc import Iterable
 from datetime import date, datetime
 
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.coverage.combination import (
-    CoverageCombination,
-    SelectedInsuranceCoverage,
-    SelectedPublicExpenseCoverage,
-)
+from app.domain.coverage.entities import PatientCoverage
 from app.domain.coverage.exceptions import (
     CoverageCombinationError,
     CoveragePeriodConflictError,
 )
 from app.domain.coverage.identifiers import PatientCoverageId
-from app.domain.coverage.patient_coverage import PatientCoverage
 from app.domain.coverage.primitives import CoverageType
+from app.domain.coverage.value_objects import (
+    CoverageCombination,
+    SelectedInsuranceCoverage,
+    SelectedPublicExpenseCoverage,
+)
 from app.domain.patient.identifiers import PatientId
 
 

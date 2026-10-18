@@ -1,4 +1,4 @@
-"""Dispensingドメインの業務例外。"""
+"""dispensingの業務例外。"""
 
 from __future__ import annotations
 

@@ -12,9 +12,9 @@ from app.application.common.exceptions import AuthorizationError
 from app.application.patient.support import load_patient_or_raise
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.identifiers import PatientId
-from app.domain.patient.lifecycle import PatientStatusReason
-from app.domain.patient.merge_service import PatientMergeService
-from app.domain.patient.repository import PatientRepository
+from app.domain.patient.primitives import PatientStatusReason
+from app.domain.patient.repositories import PatientRepository
+from app.domain.patient.services import PatientMergeService
 
 
 @dataclass(frozen=True, kw_only=True)

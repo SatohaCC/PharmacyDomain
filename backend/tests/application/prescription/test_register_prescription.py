@@ -38,9 +38,11 @@ from app.domain.prescription.exceptions import (
     RefillNotAllowedError,
 )
 from app.domain.prescription.identifiers import PrescriptionId
-from app.domain.prescription.primitives import PrescriptionStatus
-from app.domain.prescription.reference_primitives import MedicineCodeType
-from app.domain.prescription.value_objects import MedicineRestrictionFlag
+from app.domain.prescription.primitives import (
+    MedicineCodeType,
+    MedicineRestrictionFlag,
+    PrescriptionStatus,
+)
 from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.store.identifiers import StoreId
 from tests.application.prescription.helpers import (

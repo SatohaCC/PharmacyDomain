@@ -18,7 +18,7 @@ from app.application.care_event.references import (
     EventReceptionBoundary,
 )
 from app.application.common.clock import Clock
-from app.domain.care_event.event import Event
+from app.domain.care_event.entities import Event
 from app.domain.care_event.exceptions import EventAlreadyAssociatedError
 from app.domain.care_event.identifiers import EventId, EventTypeId
 from app.domain.care_event.primitives import (
@@ -26,7 +26,10 @@ from app.domain.care_event.primitives import (
     EventOccurredTimestamp,
     EventTypeStandardCode,
 )
-from app.domain.care_event.repository import EventDefinitionRepository, EventRepository
+from app.domain.care_event.repositories import (
+    EventDefinitionRepository,
+    EventRepository,
+)
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.identifiers import DispensingId
 from app.domain.foundation.exceptions import DomainError

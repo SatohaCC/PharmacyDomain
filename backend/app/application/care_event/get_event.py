@@ -14,7 +14,7 @@ from app.application.access_control.store_access import (
 from app.application.care_event.create_event import EventDto
 from app.application.care_event.references import EventMedicationHistoryBoundary
 from app.domain.care_event.identifiers import EventId
-from app.domain.care_event.repository import EventRepository
+from app.domain.care_event.repositories import EventRepository
 from app.domain.corporate.identifiers import CorporateId
 
 

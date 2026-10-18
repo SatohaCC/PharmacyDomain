@@ -1,11 +1,8 @@
 import pytest
 
-from app.domain.corporate.corporate import Corporate
+from app.domain.corporate.entities import Corporate
 from app.domain.corporate.exceptions import CorporateNameAlreadyExistsError
-from app.domain.corporate.primitives import (
-    CorporateName,
-    CorporateRepresentativeName,
-)
+from app.domain.corporate.primitives import CorporateName, CorporateRepresentativeName
 from app.domain.corporate.services import CorporateNameUniquenessService
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository
 

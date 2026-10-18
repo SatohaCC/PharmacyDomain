@@ -10,7 +10,7 @@ from app.application.prescription.get_prescription import PrescriptionDto
 from app.application.prescription.support import load_prescription_or_raise
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.prescription.identifiers import PrescriptionId
-from app.domain.prescription.repository import PrescriptionRepository
+from app.domain.prescription.repositories import PrescriptionRepository
 
 
 @dataclass(frozen=True, kw_only=True)

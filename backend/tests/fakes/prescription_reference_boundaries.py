@@ -28,9 +28,9 @@ from app.application.prescription.reference import (
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.identifiers import CoverageSelectionRecordId
 from app.domain.patient.identifiers import PatientId
-from app.domain.prescription.reference_values import MedicineIdentifier
 from app.domain.prescription.value_objects import (
     MedicineClassification,
+    MedicineIdentifier,
     PharmacistQualification,
 )
 from app.domain.shared.public_expense import PublicExpenseBurden

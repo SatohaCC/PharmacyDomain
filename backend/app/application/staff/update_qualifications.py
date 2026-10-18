@@ -16,7 +16,7 @@ from app.domain.staff.primitives import (
     PharmacistLicenseNumber,
     SellerRegistrationNumber,
 )
-from app.domain.staff.repository import StaffRepository
+from app.domain.staff.repositories import StaffRepository
 from app.domain.staff.value_objects import (
     BaseQualificationProfile,
     DietitianProfile,

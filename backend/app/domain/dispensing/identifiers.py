@@ -1,4 +1,4 @@
-"""調剤セッションの公開識別子。"""
+"""dispensingの公開識別子。"""
 
 from __future__ import annotations
 

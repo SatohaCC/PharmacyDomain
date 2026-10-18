@@ -5,9 +5,9 @@ from __future__ import annotations
 import copy
 
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.entities import DispensingProcess
 from app.domain.dispensing.identifiers import DispensingId
-from app.domain.dispensing.repository import DispensingProcessRepository
+from app.domain.dispensing.repositories import DispensingProcessRepository
 from app.domain.dispensing.services import DispensingIterationUniquenessService
 from app.domain.prescription.identifiers import PrescriptionId
 

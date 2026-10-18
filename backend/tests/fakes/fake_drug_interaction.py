@@ -4,11 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from app.domain.prescription.interaction_audit import (
-    DrugInteractionDataSource,
-    DrugInteractionPair,
-)
-from app.domain.prescription.reference_primitives import YjCode
+from app.domain.prescription.primitives import YjCode
+from app.domain.prescription.repositories import DrugInteractionDataSource
+from app.domain.prescription.value_objects import DrugInteractionPair
 
 
 class FakeDrugInteractionDataSource(DrugInteractionDataSource):

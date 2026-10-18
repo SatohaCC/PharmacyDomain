@@ -109,17 +109,37 @@ def _run_contract(
         (
             "domain-entities",
             "app.domain.example.entities",
-            "app.domain.example.repository",
+            "app.domain.example.repositories",
         ),
         (
             "domain-repositories",
-            "app.domain.example.repository",
+            "app.domain.example.repositories",
             "app.domain.example.services",
         ),
         (
             "domain-contexts",
             "app.domain.example.entities",
             "app.domain.another.primitives",
+        ),
+        (
+            "domain-contexts",
+            "app.domain.example.entities",
+            "app.domain.another.entities",
+        ),
+        (
+            "domain-contexts",
+            "app.domain.example.entities",
+            "app.domain.another.value_objects",
+        ),
+        (
+            "domain-contexts",
+            "app.domain.example.entities",
+            "app.domain.another.repositories",
+        ),
+        (
+            "domain-contexts",
+            "app.domain.example.entities",
+            "app.domain.another.services",
         ),
         (
             "application-contexts",
@@ -195,6 +215,21 @@ def test_レイヤー_ApplicationからDomainへの参照は_許可する(tmp_pa
             "domain-values",
             "app.domain.example.value_objects",
             "app.domain.example.primitives",
+        ),
+        (
+            "domain-entities",
+            "app.domain.example.entities",
+            "app.domain.example.value_objects",
+        ),
+        (
+            "domain-repositories",
+            "app.domain.example.repositories",
+            "app.domain.example.entities",
+        ),
+        (
+            "domain-repositories",
+            "app.domain.example.services",
+            "app.domain.example.repositories",
         ),
         (
             "presentation-hierarchy",
@@ -285,6 +320,46 @@ def test_業務コンテキスト_追加時は_Applicationの依存契約にも�
         if p.is_dir() and p.name not in {"foundation", "shared", "__pycache__"}
     }
     assert set(contract["modules"]) == contexts
+
+
+def test_Domain役割モジュール_全コンテキストが_内部依存契約で検査される() -> None:
+    # Arrange
+    config = tomllib.loads((_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    contracts = {
+        item["id"]: item for item in config["tool"]["importlinter"]["contracts"]
+    }
+    hierarchy = (
+        (
+            "domain-primitives",
+            {"identifiers", "exceptions", "primitives"},
+            {"value_objects", "entities", "repositories", "services"},
+        ),
+        ("domain-values", {"value_objects"}, {"entities", "repositories", "services"}),
+        ("domain-entities", {"entities"}, {"repositories", "services"}),
+        ("domain-repositories", {"repositories"}, {"services"}),
+    )
+    paths = [
+        path
+        for path in (_ROOT / "app/domain").glob("*/*.py")
+        if path.parent.name not in {"foundation", "shared"}
+        and path.name != "__init__.py"
+    ]
+    assert paths
+
+    # Act / Assert
+    for contract_id, sources, targets in hierarchy:
+        contract = contracts[contract_id]
+        for path in paths:
+            module = ".".join(path.relative_to(_ROOT).with_suffix("").parts)
+            for roles, key in (
+                (sources, "source_modules"),
+                (targets, "forbidden_modules"),
+            ):
+                if path.stem in roles:
+                    assert any(
+                        fnmatch.fnmatchcase(module, pattern)
+                        for pattern in contract[key]
+                    ), (contract_id, key, module)
 
 
 def test_ユースケース_追加時は_入力と参照契約の禁止先にも登録する() -> None:

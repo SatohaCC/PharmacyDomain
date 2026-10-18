@@ -3,21 +3,27 @@
 from collections.abc import Collection
 
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.identity.account_person import AccountPerson
+from app.domain.identity.entities import (
+    AccountPerson,
+    CorporateMembership,
+    StaffPersonLink,
+    UserAccount,
+    UserInvitation,
+)
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.identifiers import CorporateMembershipId, UserInvitationId
-from app.domain.identity.invitation import InvitationDigest, UserInvitation
-from app.domain.identity.membership import CorporateMembership
-from app.domain.identity.primitives import AccountStatus, ExternalSubjectKey
-from app.domain.identity.repository import (
+from app.domain.identity.primitives import (
+    AccountStatus,
+    ExternalSubjectKey,
+    InvitationDigest,
+)
+from app.domain.identity.repositories import (
     AccountPersonRepository,
     CorporateMembershipRepository,
     StaffPersonLinkRepository,
     UserAccountRepository,
     UserInvitationRepository,
 )
-from app.domain.identity.staff_person_link import StaffPersonLink
-from app.domain.identity.user_account import UserAccount
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.identifiers import StaffId
 

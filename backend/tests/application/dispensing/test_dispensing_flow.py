@@ -65,8 +65,6 @@ from app.domain.dispensing.primitives import (
     DispensingCompletionTimestamp,
     DispensingProcessStatus,
     DispensingSplitReason,
-)
-from app.domain.dispensing.reference_primitives import (
     GenericSubstitutionRestrictionType,
     InquiryNumber,
     InquiryResultType,

@@ -8,21 +8,17 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.domain.care_event.event_definition import EventDefinition
+from app.domain.care_event.entities import EventDefinition
 from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.primitives import (
+    ExternalCorrectionDecision,
+    ExternalCorrectionStatus,
     ExternalCorrectionTimestamp,
     FinalizedTimestamp,
 )
-from app.domain.medication_history.value_objects import (
-    ExternalCorrectionDecision,
-    ExternalCorrectionStatus,
-    ExternalPrescriptionCorrection,
-)
+from app.domain.medication_history.value_objects import ExternalPrescriptionCorrection
 from app.domain.patient.identifiers import PatientId
 from app.domain.staff.identifiers import StaffId
 from app.domain.store.identifiers import StoreId

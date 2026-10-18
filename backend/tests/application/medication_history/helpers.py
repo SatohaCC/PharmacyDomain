@@ -60,7 +60,7 @@ from app.application.medication_history.update_medication_history_draft import (
 from app.application.medication_history.verify_statutory_record import (
     VerifyStatutoryRecordUseCase,
 )
-from app.domain.care_event.event import Event
+from app.domain.care_event.entities import Event
 from app.domain.care_event.identifiers import EventId, EventTypeId
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
@@ -69,15 +69,16 @@ from app.domain.care_event.primitives import (
     EventTypeStandardCode,
 )
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.entities import DispensingProcess
 from app.domain.medication_history.services import (
     CounselorQualificationService,
     StatutoryDispensingRecordService,
 )
 from app.domain.patient.identifiers import PatientId
+from app.domain.reception.entities import Reception
 from app.domain.reception.identifiers import ReceptionId
 from app.domain.reception.primitives import ReceptionFingerprint
-from app.domain.reception.reception import Reception, ReceptionSourceData
+from app.domain.reception.value_objects import ReceptionSourceData
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import PharmacistLicenseNumber

@@ -16,8 +16,8 @@ from app.application.patient.register_patient_external_identifier import (
     RegisterPatientExternalIdentifierUseCase,
 )
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.entities import Patient
 from app.domain.patient.exceptions import PatientExternalIdentifierAlreadyExistsError
-from app.domain.patient.patient import Patient
 from app.domain.shared.person_name import PersonNames
 from app.domain.store.identifiers import StoreId
 from tests.application.access_helpers import create_vendor_corporate_access

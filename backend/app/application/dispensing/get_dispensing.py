@@ -12,17 +12,15 @@ from app.application.access_control.models import Permission
 from app.application.common.optional_conversion import unwrap
 from app.application.dispensing.support import load_dispensing_or_raise
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.dispensing.dispensing_process import (
+from app.domain.dispensing.entities import DispensingProcess
+from app.domain.dispensing.identifiers import DispensingId
+from app.domain.dispensing.repositories import DispensingProcessRepository
+from app.domain.dispensing.value_objects import (
     DispensedMedicine,
     DispensedRp,
-    DispensingProcess,
-)
-from app.domain.dispensing.identifiers import DispensingId
-from app.domain.dispensing.reference_values import DosageInstruction
-from app.domain.dispensing.repository import DispensingProcessRepository
-from app.domain.dispensing.value_objects import (
     DispensingPrescriptionAudit,
     DispensingVerification,
+    DosageInstruction,
     QuantityAdjustment,
     SubstitutionDetail,
 )

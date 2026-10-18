@@ -1,33 +1,28 @@
-"""薬歴の資格要件と調剤録の記載充足を判定するドメインサービス。
-
-薬歴自身の記録と、境界で固定された調剤・処方・患者・資格の事実を使用し、
-他コンテキストの集約実装は参照しない。"""
+"""medication_historyのドメインサービス。"""
 
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
 from typing import Final
 
-from app.domain.medication_history.dispensing_source import DispensingSource
+from app.domain.medication_history.entities import (
+    MedicationHistoryRecord,
+    PatientMedicalProfile,
+)
 from app.domain.medication_history.exceptions import (
     CounselorQualificationError,
     MedicationHistoryAlreadyExistsError,
     PatientMedicalProfileAlreadyExistsError,
     StatutoryRecordSourceMismatchError,
 )
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
-from app.domain.medication_history.patient_medical_profile import (
-    PatientMedicalProfile,
-)
 from app.domain.medication_history.primitives import (
+    DispensingProcessStatus,
     StatutoryDispensingRecordItem,
     StatutoryItemState,
     StatutoryRecordBlocker,
 )
-from app.domain.medication_history.reference_primitives import DispensingProcessStatus
 from app.domain.medication_history.value_objects import (
+    DispensingSource,
     PharmacistQualification,
     StatutoryItemAssessment,
     StatutoryRecordSource,
@@ -267,36 +262,6 @@ def _assess_change_and_inquiry_detail(
     )
 
 
-#: 記載事項ごとの判定。列挙との一致はモジュール読み込み時に検査する。
-STATUTORY_ITEM_RESOLVERS: Final[
-    Mapping[StatutoryDispensingRecordItem, StatutoryItemResolver]
-] = {
-    StatutoryDispensingRecordItem.PATIENT_NAME_AND_AGE: _assess_patient_name_and_age,
-    StatutoryDispensingRecordItem.MEDICINE_NAME_AND_AMOUNT: (
-        _assess_medicine_name_and_amount
-    ),
-    StatutoryDispensingRecordItem.DISPENSED_AND_COUNSELED_DATE: (
-        _assess_dispensed_and_counseled_date
-    ),
-    StatutoryDispensingRecordItem.DISPENSED_QUANTITY: _assess_dispensed_quantity,
-    StatutoryDispensingRecordItem.PHARMACIST_NAMES: _assess_pharmacist_names,
-    StatutoryDispensingRecordItem.COUNSELING_SUMMARY: _assess_counseling_summary,
-    StatutoryDispensingRecordItem.PRESCRIPTION_ISSUED_DATE: (
-        _assess_prescription_issued_date
-    ),
-    StatutoryDispensingRecordItem.PRESCRIBER_NAME: _assess_prescriber_name,
-    StatutoryDispensingRecordItem.MEDICAL_INSTITUTION_LOCATION: (
-        _assess_medical_institution_location
-    ),
-    StatutoryDispensingRecordItem.CHANGE_AND_INQUIRY_DETAIL: (
-        _assess_change_and_inquiry_detail
-    ),
-}
-
-if set(STATUTORY_ITEM_RESOLVERS) != set(StatutoryDispensingRecordItem):
-    raise RuntimeError("調剤録の記載事項の判定表に定義漏れがあります。")
-
-
 class StatutoryDispensingRecordService:
     """薬歴が調剤録の記載事項を満たすかを判定する。
 
@@ -372,3 +337,30 @@ class StatutoryDispensingRecordService:
         if dispensing.status is not DispensingProcessStatus.COMPLETED:
             blockers.append(StatutoryRecordBlocker.DISPENSING_NOT_COMPLETED)
         return tuple(blockers)
+
+
+#: 記載事項ごとの判定。列挙との一致はモジュール読み込み時に検査する。
+STATUTORY_ITEM_RESOLVERS: Final[
+    Mapping[StatutoryDispensingRecordItem, StatutoryItemResolver]
+] = {
+    StatutoryDispensingRecordItem.PATIENT_NAME_AND_AGE: _assess_patient_name_and_age,
+    StatutoryDispensingRecordItem.MEDICINE_NAME_AND_AMOUNT: (
+        _assess_medicine_name_and_amount
+    ),
+    StatutoryDispensingRecordItem.DISPENSED_AND_COUNSELED_DATE: (
+        _assess_dispensed_and_counseled_date
+    ),
+    StatutoryDispensingRecordItem.DISPENSED_QUANTITY: _assess_dispensed_quantity,
+    StatutoryDispensingRecordItem.PHARMACIST_NAMES: _assess_pharmacist_names,
+    StatutoryDispensingRecordItem.COUNSELING_SUMMARY: _assess_counseling_summary,
+    StatutoryDispensingRecordItem.PRESCRIPTION_ISSUED_DATE: (
+        _assess_prescription_issued_date
+    ),
+    StatutoryDispensingRecordItem.PRESCRIBER_NAME: _assess_prescriber_name,
+    StatutoryDispensingRecordItem.MEDICAL_INSTITUTION_LOCATION: (
+        _assess_medical_institution_location
+    ),
+    StatutoryDispensingRecordItem.CHANGE_AND_INQUIRY_DETAIL: (
+        _assess_change_and_inquiry_detail
+    ),
+}

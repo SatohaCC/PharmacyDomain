@@ -24,7 +24,7 @@ from app.domain.medication_history.primitives import (
     TracingReportResponseContent,
     TracingReportTimestamp,
 )
-from app.domain.medication_history.repository import MedicationHistoryRepository
+from app.domain.medication_history.repositories import MedicationHistoryRepository
 from app.domain.medication_history.value_objects import TracingReportResponse
 from app.domain.staff.identifiers import StaffId
 

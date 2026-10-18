@@ -9,16 +9,17 @@ import pytest
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.patient.entities import Patient
 from app.domain.patient.exceptions import PatientStateConflictError
 from app.domain.patient.identifiers import PatientId
-from app.domain.patient.lifecycle import (
+from app.domain.patient.primitives import (
+    PatientBirthDate,
+    PatientNumber,
     PatientStatus,
-    PatientStatusChange,
     PatientStatusReason,
 )
-from app.domain.patient.merge_service import PatientMergeService
-from app.domain.patient.patient import Patient
-from app.domain.patient.primitives import PatientBirthDate, PatientNumber
+from app.domain.patient.services import PatientMergeService
+from app.domain.patient.value_objects import PatientStatusChange
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
 

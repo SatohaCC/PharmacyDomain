@@ -10,7 +10,7 @@ from app.application.care_event.list_related_candidates import (
     ListRelatedEventCandidatesQuery,
     RelatedEventCandidateDto,
 )
-from app.domain.care_event.event import Event
+from app.domain.care_event.entities import Event
 from app.domain.care_event.identifiers import EventId, EventTypeId
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,

@@ -2,10 +2,10 @@ from dataclasses import dataclass
 
 from app.application.access_control.models import Permission
 from app.application.corporate.corporate_access import CorporateAccessService
-from app.domain.corporate.corporate import Corporate
+from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.corporate.primitives import CorporateName, CorporateRepresentativeName
-from app.domain.corporate.repository import CorporateRepository
+from app.domain.corporate.repositories import CorporateRepository
 from app.domain.corporate.services import CorporateNameUniquenessService
 
 

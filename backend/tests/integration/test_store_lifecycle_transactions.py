@@ -12,8 +12,8 @@ from app.application.store.management import (
     RevokeStoreClosureCommand,
 )
 from app.domain.foundation.exceptions import DomainError
-from app.domain.store.lifecycle import StoreStatus
-from app.domain.store.manager_assignment import ManagerAbsenceConflictError
+from app.domain.store.exceptions import ManagerAbsenceConflictError
+from app.domain.store.primitives import StoreStatus
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )

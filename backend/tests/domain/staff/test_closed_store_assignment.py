@@ -8,7 +8,7 @@ import pytest
 from app.application.composition.organization_snapshot_mapping import staff_store_source
 from app.domain.foundation.exceptions import DomainError
 from app.domain.staff.services import StaffStoreAssignmentService
-from app.domain.store.lifecycle import StoreStatus
+from app.domain.store.primitives import StoreStatus
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store
 

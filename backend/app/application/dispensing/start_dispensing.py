@@ -25,16 +25,16 @@ from app.application.dispensing.support import (
     to_optional_text,
 )
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.entities import DispensingProcess
 from app.domain.dispensing.primitives import (
     DispensedDate,
     DispensingIteration,
     DispensingSplitReason,
     DispensingTimestamp,
+    PrescriptionStatus,
     TotalSplitCount,
 )
-from app.domain.dispensing.reference_primitives import PrescriptionStatus
-from app.domain.dispensing.repository import DispensingProcessRepository
+from app.domain.dispensing.repositories import DispensingProcessRepository
 from app.domain.dispensing.services import (
     DispensingConsistencyService,
     DispensingIterationUniquenessService,

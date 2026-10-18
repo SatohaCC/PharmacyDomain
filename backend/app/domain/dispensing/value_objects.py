@@ -1,37 +1,289 @@
-"""Dispensingコンテキストの複合 Value Object。
-
-集約とその子要素（``DispensedRp`` / ``DispensedMedicine``）は
-``dispensing_process.py`` にある。
-"""
+"""dispensingの複合値と参照スナップショット。"""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import date
 from typing import ClassVar
 
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.exceptions import (
+    DispensedMedicineRequiredError,
+    DuplicatedDispensedLineNumberError,
+    DuplicatedPreparationMethodError,
     InquiryReferenceRequiredError,
     QuantityAdjustmentInvalidError,
+    SubstitutionWithoutChangeError,
 )
 from app.domain.dispensing.primitives import (
     AuditNotes,
     AuditTimestamp,
+    DailyFrequency,
+    DispensingQuantity,
+    DosageAmount,
+    DosageCode,
+    DosageCodeType,
+    DosageFormCategory,
+    DosageName,
+    GenericSubstitutionRestrictionType,
+    InquiryNumber,
+    InquiryResultType,
+    MedicineCode,
+    MedicineCodeType,
+    MedicineLineNumber,
+    MedicineName,
+    MedicineUnit,
+    PreparationMethod,
+    PrescriptionStatus,
     QuantityAdjustmentReason,
+    RpNumber,
     SubstitutionCategory,
     SubstitutionReason,
     VerificationNotes,
     VerificationResult,
     VerificationTimestamp,
 )
-from app.domain.dispensing.reference_primitives import (
-    DispensingQuantity,
-    InquiryNumber,
-    MedicineName,
-)
-from app.domain.dispensing.reference_values import MedicineIdentifier
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.value_object import ValueObject
+from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.staff.identifiers import StaffId
+
+
+@dataclass(frozen=True, kw_only=True)
+class DispensedMedicine(ValueObject):
+    """調剤した医薬品の1明細。
+
+    変更調剤の実績は以下の3つの観点に分かれます：
+    1. 薬品自体の変更（代替調剤）: ``substitution``（本明細で保持）
+    2. 調製方法の変更（一包化・粉砕等）: ``preparations``（本明細で保持）
+    3. 数量の調整（減数調剤）: 剤単位で管理されるため :class:`DispensedRp` で保持
+    """
+
+    line_number: MedicineLineNumber
+    identifier: MedicineIdentifier
+    name: MedicineName
+    amount: DosageAmount
+    unit: MedicineUnit
+    substitution: SubstitutionDetail | None = None
+    preparations: tuple[PreparationMethod, ...] = ()
+    public_expense_burden: PublicExpenseBurden | None = None
+
+    def validate(self) -> None:
+        """この明細だけで判定できる不変条件を検証する。"""
+        self._ensure_substitution_describes_a_change()
+        self._ensure_preparations_are_unique()
+
+    def _ensure_substitution_describes_a_change(self) -> None:
+        """代替調剤の変更前と変更後が同一でないことを検証する。"""
+        if self.substitution is None:
+            return
+        if not self.substitution.describes_change_from(self.identifier, self.name):
+            raise SubstitutionWithoutChangeError(medicine_name=self.name.value)
+
+    def _ensure_preparations_are_unique(self) -> None:
+        """同一の調製方法が重複して指定されていないことを検証する。
+
+        一包化と粉砕のように「異なる」調製方法の組み合わせは正当ですが、
+        同じ調製方法の重複指定は拒否します。
+        """
+        if len(self.preparations) != len(set(self.preparations)):
+            raise DuplicatedPreparationMethodError()
+
+    @property
+    def is_substituted(self) -> bool:
+        """処方原本から薬品そのものを置き換えたか。"""
+        return self.substitution is not None
+
+
+@dataclass(frozen=True, kw_only=True)
+class DispensedRp(ValueObject):
+    """調剤した剤（Rp）。処方箋の剤に ``rp_number`` で対応する。"""
+
+    rp_number: RpNumber
+    category: DosageFormCategory
+    quantity: DispensingQuantity
+    dosage_instruction: DosageInstruction
+    medicines: tuple[DispensedMedicine, ...]
+    quantity_adjustment: QuantityAdjustment | None = None
+
+    def validate(self) -> None:
+        """剤の構造的な不変条件を検証する。"""
+        self._ensure_has_medicine()
+        self._ensure_line_numbers_are_unique()
+        self._ensure_quantity_adjustment_reduces()
+
+    def _ensure_has_medicine(self) -> None:
+        """薬品明細が1件以上あることを検証する。"""
+        if not self.medicines:
+            raise DispensedMedicineRequiredError()
+
+    def _ensure_line_numbers_are_unique(self) -> None:
+        """剤（RP）内の薬品明細連番が重複していないことを検証する。
+
+        減数調剤や分割調剤において処方箋の一部の薬品のみを調剤する場合があるため、
+        連番の欠番は許容されますが、重複は拒否します。
+        """
+        numbers = [medicine.line_number for medicine in self.medicines]
+        if len(numbers) != len(set(numbers)):
+            raise DuplicatedDispensedLineNumberError()
+
+    def _ensure_quantity_adjustment_reduces(self) -> None:
+        """減数調剤なら、実際の数量が処方時より少ないことを検証する。"""
+        if self.quantity_adjustment is None:
+            return
+        self.quantity_adjustment.ensure_reduces(self.quantity)
+
+    @property
+    def is_quantity_adjusted(self) -> bool:
+        """減数調剤を行ったか。"""
+        return self.quantity_adjustment is not None
+
+    @property
+    def has_substitution(self) -> bool:
+        """この剤に代替調剤を行った薬品が含まれるか。"""
+        return any(medicine.is_substituted for medicine in self.medicines)
+
+
+@dataclass(frozen=True, kw_only=True)
+class SubstitutionRestriction(ValueObject):
+    """処方原本に記載された変更制限。"""
+
+    restriction_type: GenericSubstitutionRestrictionType
+
+
+@dataclass(frozen=True, kw_only=True)
+class PrescriptionMedicine(ValueObject):
+    """薬品の対応と変更制限の判定に必要な原本情報。"""
+
+    line_number: MedicineLineNumber
+    identifier: MedicineIdentifier
+    name: MedicineName
+    substitution_restriction: SubstitutionRestriction | None
+
+
+@dataclass(frozen=True, kw_only=True)
+class PrescriptionRp(ValueObject):
+    """原本の剤番号と薬品の対応。"""
+
+    rp_number: RpNumber
+    medicines: tuple[PrescriptionMedicine, ...]
+
+
+@dataclass(frozen=True, kw_only=True)
+class InquiryResponse(ValueObject):
+    """原本で確定した疑義照会の回答区分。"""
+
+    result_type: InquiryResultType
+
+
+@dataclass(frozen=True, kw_only=True)
+class PrescriptionInquiry(ValueObject):
+    """照会連番と合意結果の対応。"""
+
+    inquiry_number: InquiryNumber
+    response: InquiryResponse | None
+
+
+@dataclass(frozen=True, kw_only=True)
+class PrescriptionSource(ValueObject):
+    """原本の同一性と、調剤の判定に必要な固定値だけを保持する。"""
+
+    prescription_id: PrescriptionId
+    corporate_id: CorporateId
+    patient_id: PatientId
+    status: PrescriptionStatus
+    rps: tuple[PrescriptionRp, ...]
+    inquiries: tuple[PrescriptionInquiry, ...]
+    issued_on: date
+    valid_to: date
+    split_count: int | None
+    refill_count: int | None
+
+    def validate(self) -> None:
+        """期間と使用回数が判定可能な値であることを保証する。"""
+        if self.valid_to < self.issued_on:
+            raise DomainValidationError("原本の使用期限が交付日より前です。")
+        if any(
+            count is not None and count < 1
+            for count in (self.split_count, self.refill_count)
+        ):
+            raise DomainValidationError("原本の使用回数は1以上で指定してください。")
+
+
+@dataclass(frozen=True, kw_only=True)
+class MedicineIdentifier(ValueObject):
+    """薬品コード種別とコードを不可分に束ねる値オブジェクト。
+
+    桁数がコード種別に依存するため ``MedicineCode`` 単独では自己検証できない。
+    種別ごとに型を分けると、処方箋明細のフィールド型が動的になるため採らない。
+    コードなしの処方やマスタ未収載の持参薬も表せるため、医薬品マスタ行の存在を
+    意味しない。ここで所有するのは、外部データ間で薬品を照合するコード語彙である。
+    """
+
+    code_type: MedicineCodeType
+    code: MedicineCode | None = None
+
+    _FIELD_LABELS: ClassVar[dict[str, str]] = {
+        "code_type": "薬品コード種別",
+        "code": "薬品コード",
+    }
+
+    def validate(self) -> None:
+        """コード種別とコードの有無の整合性を検証する。"""
+        if self.code_type is MedicineCodeType.NONE:
+            if self.code is not None:
+                raise DomainValidationError(
+                    "薬品コード種別が「コードなし」のときは薬品コードを指定できません。"
+                )
+            return
+        if self.code is None:
+            raise DomainValidationError(
+                f"薬品コード種別が「{self.code_type.label}」のときは"
+                "薬品コードが必要です。"
+            )
+
+
+@dataclass(frozen=True, kw_only=True)
+class DosageInstruction(ValueObject):
+    """用法（JAHIS レコードNo.111 / 処方編 用法レコード）。
+
+    調剤側でも同じ値を持つ。減数調剤は「用法及び用量の変更は行わずに投与日数等を
+    減らす調剤」なので、調剤結果の用法は処方箋の用法と一致する。
+    """
+
+    code_type: DosageCodeType
+    name: DosageName
+    code: DosageCode | None = None
+    daily_frequency: DailyFrequency | None = None
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "code_type": "用法コード種別",
+        "name": "用法名称",
+        "code": "用法コード",
+        "daily_frequency": "1日回数",
+    }
+
+    def validate(self) -> None:
+        """コード種別とコードの有無の整合性を検証する。
+
+        ``MedicineIdentifier`` と同じ形の検証であり、コンテキスト固有の業務例外
+        ではなく ``DomainValidationError`` を送出する（Shared Kernel は各
+        コンテキストの例外型を知らない）。
+        """
+        if self.code_type is DosageCodeType.NONE:
+            if self.code is not None:
+                raise DomainValidationError(
+                    "用法コード種別が「コードなし」のときは用法コードを指定できません。"
+                )
+            return
+        if self.code is None:
+            raise DomainValidationError(
+                f"用法コード種別が「{self.code_type.label}」のときは"
+                "用法コードが必要です。"
+            )
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -15,7 +15,7 @@ from app.application.care_event.list_related_candidates import (
     ListRelatedEventCandidatesUseCase,
 )
 from app.application.corporate.corporate_access import CorporateAccessService
-from app.domain.care_event.event_definition import EventDefinition
+from app.domain.care_event.entities import EventDefinition
 from app.domain.care_event.identifiers import EventTypeId
 from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
 from app.domain.corporate.identifiers import CorporateId

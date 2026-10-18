@@ -13,7 +13,7 @@ import pytest
 from app.application.coverage.exceptions import CoverageSelectionError
 from app.application.coverage.selection import CoverageSelectionBuilder
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.coverage.patient_coverage import PatientCoverage
+from app.domain.coverage.entities import PatientCoverage
 from app.domain.coverage.primitives import (
     CoverageActivatedOn,
     CoverageAppliedOn,

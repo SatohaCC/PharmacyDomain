@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.store.entities import Store
 from app.domain.store.exceptions import (
     InsurancePharmacyNumberAlreadyExistsError,
     StoreCodeAlreadyExistsError,
@@ -10,11 +11,7 @@ from app.domain.store.exceptions import (
 )
 from app.domain.store.identifiers import StoreId
 from app.domain.store.primitives import InsurancePharmacyNumber, StoreCode, StoreName
-from app.domain.store.repository import (
-    StoreCatalogRepository,
-    StoreRepository,
-)
-from app.domain.store.store import Store
+from app.domain.store.repositories import StoreCatalogRepository, StoreRepository
 
 
 class InMemoryStoreRepository(StoreRepository, StoreCatalogRepository):

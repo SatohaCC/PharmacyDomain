@@ -29,15 +29,14 @@ from app.application.medication_history.reference import (
 )
 from app.domain.care_event.identifiers import EventId
 from app.domain.care_event.primitives import EventOccurredTimestamp
-from app.domain.care_event.repository import EventRepository
+from app.domain.care_event.repositories import EventRepository
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.identifiers import DispensingId
-from app.domain.dispensing.repository import DispensingProcessRepository
+from app.domain.dispensing.repositories import DispensingProcessRepository
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.medication_history.dispensing_source import DispensingSource
 from app.domain.medication_history.exceptions import MedicationHistoryDomainError
 from app.domain.medication_history.identifiers import MedicationHistoryRecordId
-from app.domain.medication_history.reference_primitives import (
+from app.domain.medication_history.primitives import (
     InquiryNumber,
     MedicalInstitutionAddressLine,
     MedicalInstitutionName,
@@ -45,22 +44,23 @@ from app.domain.medication_history.reference_primitives import (
     PrescriptionIssuedDate,
 )
 from app.domain.medication_history.value_objects import (
+    DispensingSource,
     PharmacistQualification,
     StatutoryInquiryRecord,
     StatutoryPharmacistName,
     StatutoryRecordSource,
 )
 from app.domain.patient.identifiers import PatientId
-from app.domain.patient.repository import PatientRepository
+from app.domain.patient.repositories import PatientRepository
 from app.domain.prescription.identifiers import PrescriptionId
-from app.domain.prescription.repository import PrescriptionRepository
+from app.domain.prescription.repositories import PrescriptionRepository
 from app.domain.reception.identifiers import ReceptionId
-from app.domain.reception.repository import ReceptionRepository
+from app.domain.reception.repositories import ReceptionRepository
 from app.domain.staff.identifiers import StaffId
-from app.domain.staff.repository import StaffRepository
+from app.domain.staff.repositories import StaffRepository
 from app.domain.staff.value_objects import PharmacistProfile
 from app.domain.store.identifiers import StoreId
-from app.domain.store.repository import StoreRepository
+from app.domain.store.repositories import StoreRepository
 
 
 class MedicationHistoryStoreReferenceAdapter(StoreReferenceBoundary):

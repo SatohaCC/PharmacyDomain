@@ -10,11 +10,11 @@ from __future__ import annotations
 from sqlalchemy import select
 
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.staff.entities import Staff
 from app.domain.staff.exceptions import StaffCodeAlreadyExistsError
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import StaffCode
-from app.domain.staff.repository import StaffCatalogRepository, StaffRepository
-from app.domain.staff.staff import Staff
+from app.domain.staff.repositories import StaffCatalogRepository, StaffRepository
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,

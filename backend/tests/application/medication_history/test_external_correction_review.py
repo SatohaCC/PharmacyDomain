@@ -25,22 +25,18 @@ from app.application.medication_history.review_external_prescription_correction 
     ReviewExternalPrescriptionCorrectionUseCase,
 )
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.exceptions import (
     CounselorQualificationError,
     MedicationHistoryNotFinalizedError,
 )
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
 from app.domain.medication_history.primitives import (
+    ExternalCorrectionDecision,
+    ExternalCorrectionKind,
     ExternalCorrectionTimestamp,
     FinalizedTimestamp,
 )
-from app.domain.medication_history.value_objects import (
-    ExternalCorrectionDecision,
-    ExternalCorrectionKind,
-    ExternalPrescriptionCorrection,
-)
+from app.domain.medication_history.value_objects import ExternalPrescriptionCorrection
 from app.domain.staff.value_objects import StaffQualifications
 from app.domain.store.identifiers import StoreId
 from tests.application.medication_history.helpers import (

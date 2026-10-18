@@ -1,4 +1,6 @@
-"""本人とアカウントの整合性違反。"""
+"""identityの業務例外。"""
+
+from __future__ import annotations
 
 from app.domain.foundation.exceptions import DomainError
 

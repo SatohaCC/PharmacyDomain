@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.shared.person_name import PersonNames
+from app.domain.staff.entities import Staff
 from app.domain.staff.primitives import JobTitle, StaffCode
-from app.domain.staff.staff import Staff
 from app.domain.staff.value_objects import StaffQualifications
 
 

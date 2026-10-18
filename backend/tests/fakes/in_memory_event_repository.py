@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import copy
 
-from app.domain.care_event.event import Event
+from app.domain.care_event.entities import Event
 from app.domain.care_event.identifiers import EventId
-from app.domain.care_event.repository import (
-    EventRepository,
-    RelatedEventReference,
-)
+from app.domain.care_event.repositories import EventRepository
+from app.domain.care_event.value_objects import RelatedEventReference
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.identifiers import PatientId
 from app.domain.reception.identifiers import ReceptionId

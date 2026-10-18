@@ -11,7 +11,7 @@ from app.application.staff.reference import StaffStoreReference
 from app.application.staff.support import load_staff_or_raise, load_store_or_raise
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.staff.identifiers import StaffId
-from app.domain.staff.repository import StaffRepository
+from app.domain.staff.repositories import StaffRepository
 from app.domain.staff.services import StaffStoreAssignmentService
 from app.domain.store.identifiers import StoreId
 

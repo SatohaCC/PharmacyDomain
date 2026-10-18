@@ -24,10 +24,8 @@ from app.application.medication_history.inputs import (
 )
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.identifiers import MedicationHistoryRecordId
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
 from app.domain.medication_history.primitives import (
     AdverseReactionSymptom,
     AllergenName,
@@ -42,17 +40,15 @@ from app.domain.medication_history.primitives import (
     HandbookNotPresentedReason,
     LifestyleNote,
     MajorCategoryCode,
+    MedicalInstitutionName,
+    MedicineName,
     MediumCategoryCode,
     ResidualDrugQuantity,
     ResidualDrugReason,
     RetractionReason,
     StatutoryCategory,
 )
-from app.domain.medication_history.reference_primitives import (
-    MedicalInstitutionName,
-    MedicineName,
-)
-from app.domain.medication_history.repository import MedicationHistoryRepository
+from app.domain.medication_history.repositories import MedicationHistoryRepository
 from app.domain.medication_history.value_objects import (
     CategorizedNote,
     FamilyPharmacistIntent,

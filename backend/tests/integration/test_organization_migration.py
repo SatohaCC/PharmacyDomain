@@ -8,7 +8,7 @@ from alembic.operations import Operations
 from sqlalchemy import Connection, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.domain.store.lifecycle import StoreStatus
+from app.domain.store.primitives import StoreStatus
 from app.infrastructure.corporate.postgres.corporate import CORPORATE_MAPPING
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,

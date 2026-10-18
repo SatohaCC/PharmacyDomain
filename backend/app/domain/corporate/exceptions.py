@@ -1,4 +1,6 @@
-"""法人ドメイン固有の業務例外定義。"""
+"""corporateの業務例外。"""
+
+from __future__ import annotations
 
 from app.domain.foundation.exceptions import DomainError
 

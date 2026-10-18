@@ -22,7 +22,7 @@ def test_禁止された接頭辞のimportは違反になる() -> None:
     # Act
     violations = analyze_source(
         source,
-        module_name="app.domain.corporate.corporate",
+        module_name="app.domain.corporate.entities",
         rules=[_DOMAIN_RULE],
     )
 
@@ -39,7 +39,7 @@ def test_許可された接頭辞のimportは違反にならない() -> None:
     # Act
     violations = analyze_source(
         source,
-        module_name="app.domain.corporate.corporate",
+        module_name="app.domain.corporate.entities",
         rules=[_DOMAIN_RULE],
     )
 
@@ -152,7 +152,7 @@ if TYPE_CHECKING:
     # Act
     violations = analyze_source(
         source,
-        module_name="app.domain.corporate.corporate",
+        module_name="app.domain.corporate.entities",
         rules=[_DOMAIN_RULE],
     )
 
@@ -161,14 +161,14 @@ if TYPE_CHECKING:
 
 
 def test_相対importを絶対モジュール名へ解決する() -> None:
-    # Arrange: app.domain.corporate.corporate から見た `from ..staff import X`。
+    # Arrange: app.domain.corporate.entities から見た `from ..staff import X`。
     source = "from ..staff import Staff\n"
     rule = ImportRule(package="app.domain", forbidden=("app.domain.staff",))
 
     # Act
     violations = analyze_source(
         source,
-        module_name="app.domain.corporate.corporate",
+        module_name="app.domain.corporate.entities",
         rules=[rule],
     )
 

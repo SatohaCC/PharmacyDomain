@@ -1,4 +1,4 @@
-"""受付記録の公開識別子。"""
+"""receptionの公開識別子。"""
 
 from __future__ import annotations
 

@@ -13,9 +13,9 @@ from app.application.composition.medicine_restriction_adapter import (
     MedicineCatalogRestrictionAdapter,
     prescription_identifier,
 )
-from app.domain.medicine_catalog.medicine import Medicine
+from app.domain.medicine_catalog.entities import Medicine
 from app.domain.medicine_catalog.primitives import NarcoticCategory
-from app.domain.prescription.value_objects import MedicineRestrictionFlag
+from app.domain.prescription.primitives import MedicineRestrictionFlag
 from tests.factories.medicine_catalog_factory import (
     create_identifier,
     create_medicine,

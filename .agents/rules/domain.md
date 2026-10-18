@@ -42,7 +42,7 @@ Domain層は業務上の事実、不変条件、状態遷移を所有する最�
 - **資格の適用枠**: 医療保険は同一患者・同一期間に1件だけで順位は1に固定。公費は第一から第四までを順位で管理し、同じ順位の期間だけを競合させる。
 - **レセプト番号の桁数**: 保険者番号（`InsurerNumber`）は6桁または8桁、公費負担者番号は8桁、公費受給者番号は7桁、枝番は2桁。桁数規定のない記号・番号は空でないことを要求する。Claim 側にも同じ検証を持たせる。
 - **スナップショットの必須項目**: `InsuranceCoverageSnapshot.benefit_ratio` は必須。公費は `CoverageSnapshot` で第一公費から順位が連続していることを検証する。
-- **公費順位の規則は1箇所**: 「上限4件・重複なし・第一公費から連続」の判定は Shared Kernel の `app/domain/shared/priority_rules.py` の `find_priority_violation()` だけが持つ。
+- **公費順位の規則は1箇所**: 「上限4件・重複なし・第一公費から連続」の判定は Coverage の `app/domain/coverage/primitives.py` の `find_priority_violation()` だけが持つ。
 
 ### 臨床・調剤・医薬品（Prescription / Dispensing / MedicationHistory / MedicineCatalog）
 

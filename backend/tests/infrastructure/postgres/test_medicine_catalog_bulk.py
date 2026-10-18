@@ -6,8 +6,8 @@ from datetime import date
 
 import pytest
 
+from app.domain.medicine_catalog.entities import Medicine
 from app.domain.medicine_catalog.exceptions import MedicineEffectivePeriodConflictError
-from app.domain.medicine_catalog.medicine import Medicine
 from app.domain.medicine_catalog.primitives import MedicineDosageForm
 from tests.factories.medicine_catalog_factory import create_medicine
 from tests.fakes.in_memory_medicine_catalog_repository import (

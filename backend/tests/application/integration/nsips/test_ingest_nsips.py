@@ -25,20 +25,22 @@ from app.application.integration.nsips.parser import NsipsParser
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.exceptions import DispensingPharmacistQualificationError
 from app.domain.dispensing.identifiers import DispensingId
-from app.domain.patient.external_identifier import PatientExternalIdentifier
-from app.domain.patient.heading import (
-    PatientHeadingContent,
-    PatientHeadingRevision,
+from app.domain.patient.entities import Patient, PatientExternalIdentifier
+from app.domain.patient.identifiers import PatientId
+from app.domain.patient.primitives import (
+    ExternalPatientId,
+    ExternalSystemName,
     PatientHeadingText,
 )
-from app.domain.patient.identifiers import PatientId
-from app.domain.patient.patient import Patient
-from app.domain.patient.primitives import ExternalPatientId, ExternalSystemName
+from app.domain.patient.value_objects import (
+    PatientHeadingContent,
+    PatientHeadingRevision,
+)
 from app.domain.prescription.exceptions import MedicineClassificationMissingError
 from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.reception.entities import Reception
 from app.domain.reception.identifiers import ReceptionId
 from app.domain.reception.primitives import ReceptionFingerprint
-from app.domain.reception.reception import Reception
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
 from app.domain.staff.value_objects import AffiliationPeriod, StoreAffiliation

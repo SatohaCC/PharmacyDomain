@@ -8,13 +8,19 @@ from datetime import datetime
 from app.application.access_control.models import ResolvedActorContext
 from app.application.common.optional_conversion import optional_id
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.identity.account_person import AccountPerson
+from app.domain.identity.entities import (
+    AccountPerson,
+    CorporateMembership,
+    StaffPersonLink,
+    UserAccount,
+    UserInvitation,
+)
 from app.domain.identity.identifiers import CorporateMembershipId
-from app.domain.identity.invitation import InvitationStatus, UserInvitation
-from app.domain.identity.membership import CorporateMembership
-from app.domain.identity.primitives import AccountStatus, MembershipRole
-from app.domain.identity.staff_person_link import StaffPersonLink
-from app.domain.identity.user_account import UserAccount
+from app.domain.identity.primitives import (
+    AccountStatus,
+    InvitationStatus,
+    MembershipRole,
+)
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
 from app.domain.staff.identifiers import StaffId

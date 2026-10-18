@@ -1,4 +1,4 @@
-"""保険資格と適用履歴の公開識別子。"""
+"""coverageの公開識別子。"""
 
 from __future__ import annotations
 

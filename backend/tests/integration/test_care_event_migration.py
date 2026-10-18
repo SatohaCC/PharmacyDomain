@@ -11,7 +11,7 @@ from pathlib import Path
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.domain.care_event.event import Event
+from app.domain.care_event.entities import Event
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
     EventOccurredTimestamp,

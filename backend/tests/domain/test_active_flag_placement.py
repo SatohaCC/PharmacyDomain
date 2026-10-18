@@ -83,9 +83,7 @@ def test_併用薬は_期間から継続中かを判定する() -> None:
     表との一致だけだと、表の側を編集して通してしまえる。この向きも1本残す。
     """
     # Arrange
-    from app.domain.medication_history.value_objects import (
-        ConcurrentMedicationRecord,
-    )
+    from app.domain.medication_history.value_objects import ConcurrentMedicationRecord
 
     # Act
     field_names = {item.name for item in dataclasses.fields(ConcurrentMedicationRecord)}

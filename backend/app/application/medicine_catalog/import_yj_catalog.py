@@ -11,7 +11,7 @@ from pathlib import Path
 from app.application.access_control.models import Permission
 from app.application.access_control.policy import AuthorizationService
 from app.application.common.exceptions import ApplicationError
-from app.domain.medicine_catalog.medicine import Medicine, MedicineEffectivePeriod
+from app.domain.medicine_catalog.entities import Medicine
 from app.domain.medicine_catalog.primitives import (
     GenericCategory,
     MedicineCatalogVersion,
@@ -24,8 +24,11 @@ from app.domain.medicine_catalog.primitives import (
     MedicineWithdrawnOn,
     NarcoticCategory,
 )
-from app.domain.medicine_catalog.repository import MedicineCatalogRepository
-from app.domain.medicine_catalog.value_objects import MedicineIdentifier
+from app.domain.medicine_catalog.repositories import MedicineCatalogRepository
+from app.domain.medicine_catalog.value_objects import (
+    MedicineEffectivePeriod,
+    MedicineIdentifier,
+)
 
 DEFAULT_CATALOG_VERSION = date(2026, 8, 15)
 DEFAULT_LISTED_ON = date(1950, 1, 1)

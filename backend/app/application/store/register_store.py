@@ -8,6 +8,7 @@ from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.store.support import to_optional_text
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.store.entities import Store
 from app.domain.store.identifiers import StoreId
 from app.domain.store.primitives import (
     InsurancePharmacyNumber,
@@ -21,13 +22,12 @@ from app.domain.store.primitives import (
     StorePhoneNumber,
     StorePostalCode,
 )
-from app.domain.store.repository import StoreRepository
+from app.domain.store.repositories import StoreRepository
 from app.domain.store.services import (
     InsurancePharmacyNumberUniquenessService,
     StoreCodeUniquenessService,
     StoreNameUniquenessService,
 )
-from app.domain.store.store import Store
 from app.domain.store.value_objects import ContactInfo, StoreAddress, StoreNames
 
 

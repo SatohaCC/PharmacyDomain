@@ -9,9 +9,9 @@ from app.application.corporate.exceptions import (
     CorporateInactiveError,
     CorporateNotFoundError,
 )
-from app.domain.care_event.event_definition import EventDefinition
+from app.domain.care_event.entities import EventDefinition
 from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
-from app.domain.corporate.corporate import Corporate
+from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
 from tests.application.corporate.helpers import create_corporate
 from tests.factories.prescription_factory import create_prescription

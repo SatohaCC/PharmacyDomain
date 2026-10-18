@@ -8,9 +8,7 @@ from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.medication_history.inputs import UpdateCategoryCatalogCommand
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.medication_history.category_catalog import (
-    MedicationHistoryCategoryCatalog,
-)
+from app.domain.medication_history.entities import MedicationHistoryCategoryCatalog
 from app.domain.medication_history.identifiers import CategoryCatalogId
 from app.domain.medication_history.primitives import (
     MajorCategoryCode,
@@ -18,7 +16,7 @@ from app.domain.medication_history.primitives import (
     MediumCategoryCode,
     MediumCategoryName,
 )
-from app.domain.medication_history.repository import (
+from app.domain.medication_history.repositories import (
     MedicationHistoryCategoryCatalogRepository,
 )
 from app.domain.medication_history.value_objects import (

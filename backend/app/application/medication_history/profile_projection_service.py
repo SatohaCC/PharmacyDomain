@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import replace
 
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
-from app.domain.medication_history.repository import (
+from app.domain.medication_history.entities import PatientMedicalProfile
+from app.domain.medication_history.repositories import (
     MedicationHistoryRepository,
     PatientMedicalProfileRepository,
 )

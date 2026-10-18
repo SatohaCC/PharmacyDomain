@@ -12,21 +12,18 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.application.common.optional_conversion import unwrap
-from app.domain.care_event.event import Event
-from app.domain.care_event.event_definition import EventDefinition
+from app.domain.care_event.entities import Event, EventDefinition
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
     EventOccurredTimestamp,
     EventTypeName,
 )
-from app.domain.medication_history.exceptions import (
-    MedicationHistoryAlreadyExistsError,
-)
+from app.domain.medication_history.exceptions import MedicationHistoryAlreadyExistsError
 from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.patient.identifiers import PatientId
+from app.domain.reception.entities import Reception
 from app.domain.reception.identifiers import ReceptionId
 from app.domain.reception.primitives import ReceptionFingerprint
-from app.domain.reception.reception import Reception
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )

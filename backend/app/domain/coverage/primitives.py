@@ -1,8 +1,9 @@
-"""Coverageコンテキストの識別子・資格情報プリミティブ。"""
+"""coverageの単一値と列挙・検証規則。"""
 
 from __future__ import annotations
 
-from enum import StrEnum
+from collections.abc import Sequence
+from enum import Enum, StrEnum, auto
 
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.primitives.primitives import (
@@ -113,3 +114,38 @@ class CoverageActivatedOn(BaseDate):
 
 class CoverageDeactivatedOn(BaseDate):
     """患者資格台帳行の無効化発効日。この日自体は有効区間に含まない。"""
+
+
+class PriorityViolation(Enum):
+    """順位列の違反種別。"""
+
+    #: 指定できる件数の上限を超えている。
+    EXCEEDS_MAXIMUM = auto()
+    #: 同じ順位が複数回指定されている。
+    DUPLICATED = auto()
+    #: 第一順位から連続していない（欠番がある）。
+    NOT_CONSECUTIVE = auto()
+
+
+def find_priority_violation(
+    priorities: Sequence[int], *, maximum: int
+) -> PriorityViolation | None:
+    """順位列が第一順位から重複なく連続しているかを検証する。
+
+    電子レセプトの公費欄は第一公費から順に埋める。第一公費が空で第三公費だけを
+    持つ組み合わせは提出時に返戻されるため、欠番を違反として扱う。
+
+    Args:
+        priorities: 検証する順位の列。並び順は問わない。
+        maximum: 指定できる件数の上限。
+
+    Returns:
+        違反があればその種別、なければ ``None``。
+    """
+    if len(priorities) > maximum:
+        return PriorityViolation.EXCEEDS_MAXIMUM
+    if len(priorities) != len(set(priorities)):
+        return PriorityViolation.DUPLICATED
+    if sorted(priorities) != list(range(1, len(priorities) + 1)):
+        return PriorityViolation.NOT_CONSECUTIVE
+    return None

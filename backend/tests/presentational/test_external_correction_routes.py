@@ -17,17 +17,13 @@ from app.application.medication_history.review_external_prescription_correction 
     ReviewExternalPrescriptionCorrectionUseCase,
 )
 from app.bootstrap import create_app
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.primitives import (
+    ExternalCorrectionKind,
     ExternalCorrectionTimestamp,
     FinalizedTimestamp,
 )
-from app.domain.medication_history.value_objects import (
-    ExternalCorrectionKind,
-    ExternalPrescriptionCorrection,
-)
+from app.domain.medication_history.value_objects import ExternalPrescriptionCorrection
 from app.presentational.dependencies import get_medication_history_use_cases
 from app.presentational.routers.medication_history import router as history_router
 from app.presentational.routers.nsips import (

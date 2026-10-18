@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.entities import DispensingProcess
 from app.domain.dispensing.exceptions import (
     CancellationReasonMismatchError,
     DispensedMedicineRequiredError,
@@ -35,26 +35,24 @@ from app.domain.dispensing.primitives import (
     DispensingCancellationReason,
     DispensingCompletionType,
     DispensingProcessStatus,
+    DispensingQuantity,
     DispensingSplitReason,
+    InquiryNumber,
+    MedicineCode,
+    MedicineCodeType,
+    MedicineName,
     NextDispensingDate,
     PreparationMethod,
     QuantityAdjustmentReason,
+    RpNumber,
     SubstitutionCategory,
     TotalSplitCount,
     VerificationResult,
     VerificationTimestamp,
 )
-from app.domain.dispensing.reference_primitives import (
-    DispensingQuantity,
-    InquiryNumber,
-    MedicineCode,
-    MedicineCodeType,
-    MedicineName,
-    RpNumber,
-)
-from app.domain.dispensing.reference_values import MedicineIdentifier
 from app.domain.dispensing.value_objects import (
     DispensingVerification,
+    MedicineIdentifier,
     QuantityAdjustment,
     SubstitutionDetail,
 )

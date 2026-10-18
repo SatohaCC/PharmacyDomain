@@ -13,9 +13,9 @@ from app.application.store.business_hours import BusinessHoursDto
 from app.application.store.exceptions import StoreNotFoundError
 from app.application.store.support import load_store_or_raise
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.store.entities import Store
 from app.domain.store.identifiers import StoreId
-from app.domain.store.repository import StoreRepository
-from app.domain.store.store import Store
+from app.domain.store.repositories import StoreRepository
 
 
 @dataclass(frozen=True, kw_only=True)

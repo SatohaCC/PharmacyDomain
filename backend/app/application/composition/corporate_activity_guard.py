@@ -2,26 +2,20 @@
 
 from app.application.common.organization_lock import OrganizationLock
 from app.application.corporate.support import load_active_corporate_or_raise
-from app.domain.care_event.event import Event
-from app.domain.care_event.event_definition import EventDefinition
-from app.domain.corporate.repository import CorporateRepository
-from app.domain.coverage.coverage_selection_record import CoverageSelectionRecord
-from app.domain.coverage.patient_coverage import PatientCoverage
-from app.domain.dispensing.dispensing_process import DispensingProcess
-from app.domain.medication_history.category_catalog import (
+from app.domain.care_event.entities import Event, EventDefinition
+from app.domain.corporate.repositories import CorporateRepository
+from app.domain.coverage.entities import CoverageSelectionRecord, PatientCoverage
+from app.domain.dispensing.entities import DispensingProcess
+from app.domain.medication_history.entities import (
     MedicationHistoryCategoryCatalog,
-)
-from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
+    PatientMedicalProfile,
 )
-from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
-from app.domain.patient.external_identifier import PatientExternalIdentifier
-from app.domain.patient.patient import Patient
-from app.domain.prescription.prescription import Prescription
-from app.domain.reception.reception import Reception
-from app.domain.staff.staff import Staff
-from app.domain.store.manager_assignment import StoreManagerAssignment
-from app.domain.store.store import Store
+from app.domain.patient.entities import Patient, PatientExternalIdentifier
+from app.domain.prescription.entities import Prescription
+from app.domain.reception.entities import Reception
+from app.domain.staff.entities import Staff
+from app.domain.store.entities import Store, StoreManagerAssignment
 
 
 class CorporateActivityWriteGuard:

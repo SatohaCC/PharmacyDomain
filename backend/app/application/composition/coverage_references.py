@@ -13,9 +13,9 @@ from app.application.coverage.reference import (
 )
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.identifiers import PatientId
-from app.domain.patient.repository import PatientRepository
+from app.domain.patient.repositories import PatientRepository
 from app.domain.store.identifiers import StoreId
-from app.domain.store.repository import StoreRepository
+from app.domain.store.repositories import StoreRepository
 
 
 class CoveragePatientReferenceAdapter(PatientReferenceBoundary):

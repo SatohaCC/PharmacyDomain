@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import copy
 
-from app.domain.care_event.event_definition import EventDefinition
+from app.domain.care_event.entities import EventDefinition
 from app.domain.care_event.identifiers import EventTypeId
-from app.domain.care_event.repository import EventDefinitionRepository
+from app.domain.care_event.repositories import EventDefinitionRepository
 from app.domain.corporate.identifiers import CorporateId
 
 

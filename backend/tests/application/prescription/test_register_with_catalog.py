@@ -23,9 +23,9 @@ from app.application.prescription.register_prescription import (
     RegisterPrescriptionCommand,
     RegisterPrescriptionUseCase,
 )
-from app.domain.medicine_catalog.medicine import Medicine
+from app.domain.medicine_catalog.entities import Medicine
 from app.domain.medicine_catalog.primitives import NarcoticCategory
-from app.domain.medicine_catalog.repository import MedicineCatalogRepository
+from app.domain.medicine_catalog.repositories import MedicineCatalogRepository
 from app.domain.prescription.exceptions import (
     MedicineClassificationMissingError,
     NarcoticPrescriptionDetailsRequiredError,

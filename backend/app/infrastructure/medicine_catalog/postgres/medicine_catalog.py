@@ -13,12 +13,10 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import Range
 
-from app.domain.medicine_catalog.exceptions import (
-    MedicineEffectivePeriodConflictError,
-)
+from app.domain.medicine_catalog.entities import Medicine
+from app.domain.medicine_catalog.exceptions import MedicineEffectivePeriodConflictError
 from app.domain.medicine_catalog.identifiers import MedicineCatalogEntryId
-from app.domain.medicine_catalog.medicine import Medicine
-from app.domain.medicine_catalog.repository import MedicineCatalogRepository
+from app.domain.medicine_catalog.repositories import MedicineCatalogRepository
 from app.domain.medicine_catalog.value_objects import MedicineIdentifier
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,

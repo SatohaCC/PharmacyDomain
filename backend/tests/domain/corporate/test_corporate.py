@@ -4,11 +4,11 @@ import uuid
 
 import pytest
 
-from app.domain.corporate.corporate import Corporate
+from app.domain.corporate.entities import Corporate
 from app.domain.corporate.exceptions import CorporateNameAlreadyExistsError
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.corporate.primitives import CorporateName, CorporateRepresentativeName
-from app.domain.corporate.repository import (
+from app.domain.corporate.repositories import (
     CorporateCatalogRepository,
     CorporateRepository,
 )

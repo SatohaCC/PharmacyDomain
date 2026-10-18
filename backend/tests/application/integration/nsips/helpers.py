@@ -38,11 +38,11 @@ from app.domain.dispensing.services import (
     DispensingIterationUniquenessService,
     DispensingPharmacistService,
 )
-from app.domain.prescription.reference_primitives import (
+from app.domain.prescription.primitives import (
     MedicineCode,
     MedicineCodeType,
+    MedicineRestrictionFlag,
 )
-from app.domain.prescription.reference_values import MedicineIdentifier
 from app.domain.prescription.services import (
     NarcoticPrescriptionService,
     PrescriptionDocumentNumberUniquenessService,
@@ -51,7 +51,7 @@ from app.domain.prescription.services import (
 )
 from app.domain.prescription.value_objects import (
     MedicineClassification,
-    MedicineRestrictionFlag,
+    MedicineIdentifier,
 )
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import PharmacistLicenseNumber

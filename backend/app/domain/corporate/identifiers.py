@@ -1,4 +1,6 @@
-"""法人の公開識別子。"""
+"""corporateの公開識別子。"""
+
+from __future__ import annotations
 
 from app.domain.foundation.primitives.identifiers import EntityUUID
 

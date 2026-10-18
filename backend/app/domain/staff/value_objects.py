@@ -1,4 +1,4 @@
-"""スタッフの資格と所属期間を表す複合値。"""
+"""staffの複合値と参照スナップショット。"""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 from datetime import date
 from typing import ClassVar, Self
 
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.value_object import ValueObject
 from app.domain.staff.primitives import (
@@ -19,6 +20,15 @@ from app.domain.staff.primitives import (
     StaffQualification,
 )
 from app.domain.store.identifiers import StoreId
+
+
+@dataclass(frozen=True, kw_only=True)
+class StoreSource(ValueObject):
+    """店舗の同一性、法人、閉局事実だけを保持する。"""
+
+    store_id: StoreId
+    corporate_id: CorporateId
+    is_closed: bool
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -75,89 +85,6 @@ class HealthSupportPharmacistInfo(ValueObject):
     completion_date: date  # 修了年月日
 
     _FIELD_LABELS: ClassVar[Mapping[str, str]] = {"completion_date": "修了年月日"}
-
-
-@dataclass(frozen=True, kw_only=True)
-class PharmacistProfile(BaseQualificationProfile):
-    """薬剤師資格（レセプト請求・施設基準に必要な情報を網羅）"""
-
-    license_number: PharmacistLicenseNumber  # 薬剤師名簿登録番号（国家資格）
-
-    # 保険調剤を行うための登録（※これがないと調剤業務ができない）
-    insurance_registration: InsurancePharmacistRegistration | None = None
-
-    # 施設基準・加算要件となる付加認定
-    certified_info: CertifiedPharmacistInfo | None = None
-    health_support_info: HealthSupportPharmacistInfo | None = None
-
-    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
-        "license_number": "薬剤師名簿登録番号",
-        "insurance_registration": "保険薬剤師登録情報",
-        "certified_info": "研修認定薬剤師情報",
-        "health_support_info": "健康サポート薬剤師情報",
-    }
-
-    @property
-    def qualification_type(self) -> StaffQualification:
-        return StaffQualification.PHARMACIST
-
-    @property
-    def display_name(self) -> str:
-        return "薬剤師"
-
-    # --- ドメインロジック（判定用ヘルパー） ---
-
-    def can_bill_insurance(self) -> bool:
-        """保険調剤（レセプト請求）が可能か"""
-        return self.insurance_registration is not None
-
-    def is_certified_on(self, today: date) -> bool:
-        """今日時点で有効な研修認定薬剤師か"""
-        if not self.certified_info:
-            return False
-        return self.certified_info.is_valid_on(today)
-
-
-@dataclass(frozen=True, kw_only=True)
-class DietitianProfile(BaseQualificationProfile):
-    """管理栄養士・栄養士資格"""
-
-    registration_number: DietitianRegistrationNumber
-    is_registered_dietitian: bool = True
-
-    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
-        "registration_number": "登録番号",
-        "is_registered_dietitian": "管理栄養士区分",
-    }
-
-    @property
-    def qualification_type(self) -> StaffQualification:
-        return (
-            StaffQualification.REGISTERED_DIETITIAN
-            if self.is_registered_dietitian
-            else StaffQualification.DIETITIAN
-        )
-
-    @property
-    def display_name(self) -> str:
-        return "管理栄養士" if self.is_registered_dietitian else "栄養士"
-
-
-@dataclass(frozen=True, kw_only=True)
-class RegisteredSellerProfile(BaseQualificationProfile):
-    """登録販売者資格"""
-
-    registration_number: SellerRegistrationNumber
-
-    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {"registration_number": "登録番号"}
-
-    @property
-    def qualification_type(self) -> StaffQualification:
-        return StaffQualification.REGISTERED_SELLER
-
-    @property
-    def display_name(self) -> str:
-        return "登録販売者"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -266,3 +193,86 @@ class StoreAffiliation(ValueObject):
         """所属期間を終了する（異動や兼務解除の際に呼ばれる）"""
         new_period = replace(self.period, end_date=end_date)
         return replace(self, period=new_period)
+
+
+@dataclass(frozen=True, kw_only=True)
+class PharmacistProfile(BaseQualificationProfile):
+    """薬剤師資格（レセプト請求・施設基準に必要な情報を網羅）"""
+
+    license_number: PharmacistLicenseNumber  # 薬剤師名簿登録番号（国家資格）
+
+    # 保険調剤を行うための登録（※これがないと調剤業務ができない）
+    insurance_registration: InsurancePharmacistRegistration | None = None
+
+    # 施設基準・加算要件となる付加認定
+    certified_info: CertifiedPharmacistInfo | None = None
+    health_support_info: HealthSupportPharmacistInfo | None = None
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "license_number": "薬剤師名簿登録番号",
+        "insurance_registration": "保険薬剤師登録情報",
+        "certified_info": "研修認定薬剤師情報",
+        "health_support_info": "健康サポート薬剤師情報",
+    }
+
+    @property
+    def qualification_type(self) -> StaffQualification:
+        return StaffQualification.PHARMACIST
+
+    @property
+    def display_name(self) -> str:
+        return "薬剤師"
+
+    # --- ドメインロジック（判定用ヘルパー） ---
+
+    def can_bill_insurance(self) -> bool:
+        """保険調剤（レセプト請求）が可能か"""
+        return self.insurance_registration is not None
+
+    def is_certified_on(self, today: date) -> bool:
+        """今日時点で有効な研修認定薬剤師か"""
+        if not self.certified_info:
+            return False
+        return self.certified_info.is_valid_on(today)
+
+
+@dataclass(frozen=True, kw_only=True)
+class DietitianProfile(BaseQualificationProfile):
+    """管理栄養士・栄養士資格"""
+
+    registration_number: DietitianRegistrationNumber
+    is_registered_dietitian: bool = True
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "registration_number": "登録番号",
+        "is_registered_dietitian": "管理栄養士区分",
+    }
+
+    @property
+    def qualification_type(self) -> StaffQualification:
+        return (
+            StaffQualification.REGISTERED_DIETITIAN
+            if self.is_registered_dietitian
+            else StaffQualification.DIETITIAN
+        )
+
+    @property
+    def display_name(self) -> str:
+        return "管理栄養士" if self.is_registered_dietitian else "栄養士"
+
+
+@dataclass(frozen=True, kw_only=True)
+class RegisteredSellerProfile(BaseQualificationProfile):
+    """登録販売者資格"""
+
+    registration_number: SellerRegistrationNumber
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {"registration_number": "登録番号"}
+
+    @property
+    def qualification_type(self) -> StaffQualification:
+        return StaffQualification.REGISTERED_SELLER
+
+    @property
+    def display_name(self) -> str:
+        return "登録販売者"

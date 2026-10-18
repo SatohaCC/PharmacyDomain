@@ -1,4 +1,8 @@
-"""患者（`patient`）コンテキストの識別子・属性プリミティブ。"""
+"""patientの単一値と列挙・検証規則。"""
+
+from __future__ import annotations
+
+from enum import StrEnum
 
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.primitives.primitives import (
@@ -7,6 +11,36 @@ from app.domain.foundation.primitives.primitives import (
     BaseNormalizedString,
     BasePositiveInt,
 )
+
+
+class PatientHeadingText(BaseFreeText):
+    """患者の自由記載の頭書き本文。"""
+
+    def validate(self) -> None:
+        if not self.value:
+            raise DomainValidationError("頭書き本文は空にできません。")
+        if len(self.value) > 10_000:
+            raise DomainValidationError("頭書きは10,000文字以内で指定してください。")
+
+
+class PatientStatus(StrEnum):
+    """患者のライフサイクル状態。"""
+
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    MERGED = "merged"
+
+
+class PatientStatusReason(BaseNormalizedString):
+    """患者の状態変更または名寄せ統合の理由。"""
+
+    def validate(self) -> None:
+        if not self.value:
+            raise DomainValidationError("患者状態変更理由は空にできません。")
+        if len(self.value) > 200:
+            raise DomainValidationError(
+                "患者状態変更理由は200文字以内で指定してください。"
+            )
 
 
 class PatientNumber(BasePositiveInt):
@@ -53,3 +87,10 @@ class ExternalPatientId(BaseNormalizedString):
 
 class PatientBirthDate(BaseDate):
     """患者の生年月日。"""
+
+
+class PatientProfileChangeSource(StrEnum):
+    """患者プロフィール変更の記録元。"""
+
+    NSIPS = "nsips"
+    MANUAL = "manual"

@@ -16,9 +16,7 @@ from app.application.medication_history.inputs import (
 )
 from app.domain.care_event.identifiers import EventId, EventTypeId
 from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
-from app.domain.medication_history.category_catalog import (
-    MedicationHistoryCategoryCatalog,
-)
+from app.domain.medication_history.entities import MedicationHistoryCategoryCatalog
 from app.domain.medication_history.exceptions import RequiredCategoryMissingError
 from app.domain.medication_history.identifiers import (
     CategoryCatalogId,

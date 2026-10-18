@@ -10,25 +10,23 @@ from datetime import UTC, date, datetime
 from app.domain.care_event.identifiers import EventId
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.identifiers import DispensingId
-from app.domain.medication_history.category_catalog import (
+from app.domain.medication_history.entities import (
     MedicationHistoryCategoryCatalog,
-)
-from app.domain.medication_history.exceptions import (
-    MedicationHistoryAlreadyExistsError,
-)
-from app.domain.medication_history.identifiers import MedicationHistoryRecordId
-from app.domain.medication_history.medication_history_record import (
     MedicationHistoryRecord,
 )
-from app.domain.medication_history.primitives import MedicationHistoryStatus
-from app.domain.medication_history.repository import (
-    FinalizedMedicationHistorySource,
+from app.domain.medication_history.exceptions import MedicationHistoryAlreadyExistsError
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
+from app.domain.medication_history.primitives import (
+    ExternalCorrectionStatus,
+    MedicationHistoryStatus,
+)
+from app.domain.medication_history.repositories import (
     MedicationHistoryCategoryCatalogRepository,
     MedicationHistoryExternalCorrectionMatch,
     MedicationHistoryRepository,
 )
 from app.domain.medication_history.services import MedicationHistoryUniquenessService
-from app.domain.medication_history.value_objects import ExternalCorrectionStatus
+from app.domain.medication_history.value_objects import FinalizedMedicationHistorySource
 from app.domain.patient.identifiers import PatientId
 from app.domain.store.identifiers import StoreId
 

@@ -12,16 +12,7 @@ from datetime import UTC, date, datetime
 import pytest
 
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.coverage.coverage_selection import (
-    CoverageSelection,
-    SelectedInsuranceSource,
-    SelectedPublicExpenseSource,
-)
-from app.domain.coverage.coverage_selection_record import CoverageSelectionRecord
-from app.domain.coverage.coverage_snapshot import (
-    InsuranceCoverageSnapshot,
-    PublicExpenseCoverageSnapshot,
-)
+from app.domain.coverage.entities import CoverageSelectionRecord
 from app.domain.coverage.exceptions import (
     CoverageCombinationInvalidError,
     CoverageSelectionInvalidError,
@@ -39,6 +30,13 @@ from app.domain.coverage.primitives import (
     OperatorPrincipalId,
     PublicPayerNumber,
     PublicRecipientNumber,
+)
+from app.domain.coverage.value_objects import (
+    CoverageSelection,
+    InsuranceCoverageSnapshot,
+    PublicExpenseCoverageSnapshot,
+    SelectedInsuranceSource,
+    SelectedPublicExpenseSource,
 )
 from app.domain.patient.identifiers import PatientId
 from app.domain.store.identifiers import StoreId

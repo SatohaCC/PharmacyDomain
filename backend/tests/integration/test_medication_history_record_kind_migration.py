@@ -14,9 +14,7 @@ from sqlalchemy import Connection, delete, insert, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
 from app.infrastructure.medication_history.postgres.medication_history import (
     MEDICATION_HISTORY_RECORD_MAPPING,

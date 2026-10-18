@@ -10,17 +10,17 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.domain.foundation.exceptions import ConcurrentModificationError
-from app.domain.medication_history.medication_history_record import (
+from app.domain.medication_history.entities import (
     MedicationHistoryRecord,
+    PatientMedicalProfile,
 )
-from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
 from app.domain.medication_history.primitives import (
     CounselingMethod,
     CounselingTimestamp,
     FinalizationDelayReason,
 )
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
-from app.domain.store.lifecycle import StoreStatus, StoreStatusReason
+from app.domain.store.primitives import StoreStatus, StoreStatusReason
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )

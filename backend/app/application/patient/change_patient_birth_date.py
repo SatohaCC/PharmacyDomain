@@ -14,7 +14,7 @@ from app.application.patient.support import load_patient_or_raise
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.identifiers import PatientId
 from app.domain.patient.primitives import PatientBirthDate
-from app.domain.patient.repository import PatientRepository
+from app.domain.patient.repositories import PatientRepository
 
 
 @dataclass(frozen=True, kw_only=True)

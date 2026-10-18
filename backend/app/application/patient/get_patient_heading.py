@@ -9,9 +9,9 @@ from app.application.access_control.models import Permission
 from app.application.common.optional_conversion import unwrap
 from app.application.patient.support import load_patient_or_raise
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.patient.heading import PatientHeadingRevision
 from app.domain.patient.identifiers import PatientId
-from app.domain.patient.repository import PatientRepository
+from app.domain.patient.repositories import PatientRepository
+from app.domain.patient.value_objects import PatientHeadingRevision
 
 
 @dataclass(frozen=True, kw_only=True)

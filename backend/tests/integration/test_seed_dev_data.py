@@ -24,7 +24,7 @@ from app.application.access_control.models import ActorRole
 from app.application.identity.resolve_actor import VerifiedSubject
 from app.bootstrap import create_app
 from app.dev_main import build_actor_provider
-from app.domain.store.lifecycle import StoreStatus, StoreStatusReason
+from app.domain.store.primitives import StoreStatus, StoreStatusReason
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )

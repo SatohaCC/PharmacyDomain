@@ -14,7 +14,7 @@ from app.application.medication_history.get_medication_history import (
 from app.application.medication_history.support import load_record_or_raise
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.identifiers import MedicationHistoryRecordId
-from app.domain.medication_history.repository import MedicationHistoryRepository
+from app.domain.medication_history.repositories import MedicationHistoryRepository
 from app.domain.patient.identifiers import PatientId
 
 

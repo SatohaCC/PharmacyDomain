@@ -8,10 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.domain.coverage.priority_rules import (
-    PriorityViolation,
-    find_priority_violation,
-)
+from app.domain.coverage.primitives import PriorityViolation, find_priority_violation
 
 
 @pytest.mark.parametrize(

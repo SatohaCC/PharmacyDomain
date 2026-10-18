@@ -10,17 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.application.staff.update_qualifications import UpdateStaffQualificationsCommand
 from app.application.store.management import ManagerAction, ManageStoreManagerCommand
 from app.domain.foundation.exceptions import DomainError
-from app.domain.identity.staff_person_link import StaffPersonLink
-from app.domain.store.identifiers import StoreManagerAssignmentId
-from app.domain.store.manager_assignment import (
-    ManagerAssignmentPeriod,
-    ManagerPersonUnresolvedError,
-    StoreManagerAssignment,
-)
-from app.domain.store.manager_repository import (
+from app.domain.identity.entities import StaffPersonLink
+from app.domain.store.entities import StoreManagerAssignment
+from app.domain.store.exceptions import (
     ManagerAssignmentConflictError,
     ManagerExclusiveDutyConflictError,
+    ManagerPersonUnresolvedError,
 )
+from app.domain.store.identifiers import StoreManagerAssignmentId
+from app.domain.store.value_objects import ManagerAssignmentPeriod
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )

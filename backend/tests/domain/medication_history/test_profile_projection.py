@@ -16,6 +16,10 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.medication_history.entities import (
+    MedicationHistoryRecord,
+    PatientMedicalProfile,
+)
 from app.domain.medication_history.exceptions import (
     AdverseReactionNotFoundError,
     AllergyNotFoundError,
@@ -25,10 +29,6 @@ from app.domain.medication_history.exceptions import (
     UnfinalizedRecordProjectionError,
 )
 from app.domain.medication_history.identifiers import MedicationHistoryRecordId
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
-from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
 from app.domain.medication_history.primitives import (
     ConditionStatus,
     FinalizedTimestamp,
