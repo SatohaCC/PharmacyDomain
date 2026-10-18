@@ -13,7 +13,7 @@ from app.application.composition.medication_history_references import (
 from app.application.medication_history.finalize_medication_history import (
     FinalizeMedicationHistoryCommand,
 )
-from app.domain.care_event.event import Event
+from app.domain.care_event.entities import Event
 from app.domain.care_event.identifiers import EventId, EventTypeId
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,

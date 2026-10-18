@@ -7,7 +7,7 @@ from typing import cast
 
 from sqlalchemy import select
 
-from app.domain.care_event.event import Event
+from app.domain.care_event.entities import Event
 from app.domain.care_event.exceptions import EventAlreadyAssociatedError
 from app.domain.care_event.identifiers import EventId
 from app.domain.care_event.primitives import (
@@ -15,7 +15,8 @@ from app.domain.care_event.primitives import (
     EventOccurredTimestamp,
     EventTypeName,
 )
-from app.domain.care_event.repository import EventRepository, RelatedEventReference
+from app.domain.care_event.repositories import EventRepository
+from app.domain.care_event.value_objects import RelatedEventReference
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.identifiers import PatientId
 from app.domain.reception.identifiers import ReceptionId

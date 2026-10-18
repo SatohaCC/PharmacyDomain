@@ -5,15 +5,13 @@ from datetime import UTC, date, datetime
 from app.domain.medication_history.primitives import (
     AmendmentReason,
     AmendmentTimestamp,
+    ExternalCorrectionKind,
+    ExternalCorrectionStatus,
     ExternalCorrectionTimestamp,
     FinalizationDelayReason,
     FinalizedTimestamp,
 )
-from app.domain.medication_history.value_objects import (
-    ExternalCorrectionKind,
-    ExternalCorrectionStatus,
-    ExternalPrescriptionCorrection,
-)
+from app.domain.medication_history.value_objects import ExternalPrescriptionCorrection
 from app.domain.shared.preservation import (
     PreservationPolicyCatalog,
     PreservationRecordKind,

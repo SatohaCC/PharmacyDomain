@@ -23,18 +23,16 @@ from app.application.medication_history.reference import (
 )
 from app.application.medication_history.support import load_record_or_raise, parse_enum
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.exceptions import MedicationHistoryDomainError
 from app.domain.medication_history.identifiers import MedicationHistoryRecordId
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
 from app.domain.medication_history.primitives import (
     CounselingTimestamp,
     FinalizationDelayReason,
     FinalizedTimestamp,
     MedicationHistoryReviewResult,
 )
-from app.domain.medication_history.repository import (
+from app.domain.medication_history.repositories import (
     MedicationHistoryCategoryCatalogRepository,
     MedicationHistoryRepository,
     PatientMedicalProfileRepository,

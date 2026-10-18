@@ -19,8 +19,8 @@ from app.application.store.management import (
 )
 from app.domain.foundation.exceptions import DomainError
 from app.domain.shared.actor import AccountPersonId, UserAccountId
-from app.domain.store.lifecycle import StoreStatus
-from app.domain.store.store import Store
+from app.domain.store.entities import Store
+from app.domain.store.primitives import StoreStatus
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.factories.store_factory import create_store
 from tests.fakes.fake_clock import FakeClock

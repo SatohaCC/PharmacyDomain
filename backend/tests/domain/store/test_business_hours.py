@@ -6,17 +6,19 @@ from datetime import UTC, date, time
 import pytest
 
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.store.business_hours import (
-    BusinessDayException,
-    BusinessHours,
-    BusinessHourSlot,
+from app.domain.store.primitives import (
     BusinessHoursNote,
     BusinessWeekday,
     StoreOpeningState,
+    StoreStatus,
+)
+from app.domain.store.value_objects import (
+    BusinessDayException,
+    BusinessHours,
+    BusinessHourSlot,
     WeekdayBusinessHours,
     weekday_of,
 )
-from app.domain.store.lifecycle import StoreStatus
 from tests.factories.store_factory import create_store
 
 #: 平日の標準的な開局。昼休みで2つに分かれる。

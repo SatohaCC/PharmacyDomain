@@ -11,6 +11,7 @@ from app.application.staff.reference import StaffStoreReference
 from app.application.staff.support import load_store_or_raise, to_optional_text
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.shared.person_name import PersonNames
+from app.domain.staff.entities import Staff
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import (
     DietitianRegistrationNumber,
@@ -22,12 +23,11 @@ from app.domain.staff.primitives import (
     StaffEmailAddress,
     StaffPhoneNumber,
 )
-from app.domain.staff.repository import StaffRepository
+from app.domain.staff.repositories import StaffRepository
 from app.domain.staff.services import (
     StaffCodeUniquenessService,
     StaffStoreAssignmentService,
 )
-from app.domain.staff.staff import Staff
 from app.domain.staff.value_objects import (
     BaseQualificationProfile,
     DietitianProfile,

@@ -1,4 +1,6 @@
-"""Coverageドメインの業務例外。"""
+"""coverageの業務例外。"""
+
+from __future__ import annotations
 
 from app.domain.foundation.exceptions import DomainError
 

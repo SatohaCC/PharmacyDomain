@@ -2,7 +2,7 @@
 
 from typing import Protocol
 
-from app.domain.staff.staff import Staff
+from app.domain.staff.entities import Staff
 
 
 class StaffAccessRevocationBoundary(Protocol):

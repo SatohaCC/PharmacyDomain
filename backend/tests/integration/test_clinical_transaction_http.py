@@ -36,21 +36,21 @@ from app.application.common.clock import Clock
 from app.application.dispensing.inputs import SubstitutionInput
 from app.bootstrap import create_app
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.entities import DispensingProcess
 from app.domain.dispensing.primitives import DispensingProcessStatus
-from app.domain.identity.account_person import AccountPerson
-from app.domain.identity.identifiers import CorporateMembershipId
-from app.domain.identity.membership import CorporateMembership
-from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole
-from app.domain.identity.staff_person_link import StaffPersonLink
-from app.domain.identity.user_account import UserAccount
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
+from app.domain.identity.entities import (
+    AccountPerson,
+    CorporateMembership,
+    StaffPersonLink,
+    UserAccount,
 )
+from app.domain.identity.identifiers import CorporateMembershipId
+from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.primitives import MedicationHistoryStatus
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
 from app.domain.patient.identifiers import PatientId
-from app.domain.prescription.prescription import Prescription
+from app.domain.prescription.entities import Prescription
 from app.domain.prescription.primitives import PrescriptionStatus
 from app.domain.shared.actor import UserAccountId
 from app.domain.staff.primitives import PharmacistLicenseNumber

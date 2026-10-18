@@ -1,14 +1,12 @@
-"""処方箋原本および疑義照会に関わるドメインサービス。
-
-無状態（Stateless）であり、処方箋などの本物のドメインオブジェクトを引数で受け取る。
-Repository の ``save()`` 契約と Application の事前チェックの双方から
-同じ実装を呼ぶことで、業務ルールの判定が複数箇所に分かれる事故を防ぐ。
-"""
+"""prescriptionのドメインサービス。"""
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+import dataclasses
+import itertools
+from collections.abc import Iterable, Mapping, Sequence
 
+from app.domain.prescription.entities import Prescription
 from app.domain.prescription.exceptions import (
     InquiryPharmacistQualificationError,
     MedicineClassificationMissingError,
@@ -18,15 +16,86 @@ from app.domain.prescription.exceptions import (
     PublicExpenseBurdenNotCoveredError,
     RefillNotAllowedError,
 )
-from app.domain.prescription.prescription import Prescription, PrescriptionMedicine
-from app.domain.prescription.primitives import PrescriptionSourceType
-from app.domain.prescription.reference_values import MedicineIdentifier
-from app.domain.prescription.value_objects import (
-    MedicineClassification,
+from app.domain.prescription.primitives import (
+    InteractionSeverity,
     MedicineRestrictionFlag,
+    PrescriptionSourceType,
+    YjCode,
+)
+from app.domain.prescription.repositories import DrugInteractionDataSource
+from app.domain.prescription.value_objects import (
+    DrugInteractionAuditResult,
+    DrugInteractionPair,
+    MedicineClassification,
+    MedicineIdentifier,
     PharmacistQualification,
+    PrescriptionMedicine,
 )
 from app.domain.shared.public_expense import PublicExpenseBurden
+
+
+class DrugInteractionAuditService:
+    """複数YJコードの全組み合わせ飲み合わせを判定・構築する無状態ドメインサービス。"""
+
+    async def audit(
+        self,
+        yj_codes: Sequence[YjCode],
+        data_source: DrugInteractionDataSource,
+    ) -> DrugInteractionAuditResult:
+        """すべての組み合わせの相互作用を判定した鑑査結果を返す。"""
+        # 1. 重複コードの一意化（順序を保持）
+        unique_codes = tuple(dict.fromkeys(yj_codes))
+
+        # 2. 単剤または0剤の場合は組み合わせなし
+        if len(unique_codes) < 2:
+            return DrugInteractionAuditResult(
+                target_yj_codes=unique_codes,
+                pairs=(),
+            )
+
+        # 3. 既知の相互作用データを一括取得
+        known_interactions = await data_source.find_interactions(
+            frozenset(unique_codes)
+        )
+
+        # 4. 全ペアの網羅生成と照合（対称性正規化 medicine_a <= medicine_b）
+        evaluated_pairs: list[DrugInteractionPair] = []
+        for code_x, code_y in itertools.combinations(unique_codes, 2):
+            med_a, med_b = (
+                (code_x, code_y) if code_x.value <= code_y.value else (code_y, code_x)
+            )
+            key = (med_a, med_b)
+            rev_key = (med_b, med_a)
+
+            found = known_interactions.get(key) or known_interactions.get(rev_key)
+            if found is not None:
+                # 辞書順で medicine_a <= medicine_b を保証
+                if found.medicine_a.value > found.medicine_b.value:
+                    pair = dataclasses.replace(
+                        found,
+                        medicine_a=found.medicine_b,
+                        medicine_b=found.medicine_a,
+                    )
+                else:
+                    pair = found
+            else:
+                pair = DrugInteractionPair(
+                    medicine_a=med_a,
+                    medicine_b=med_b,
+                    severity=InteractionSeverity.NONE,
+                    clinical_condition="",
+                    mechanism="",
+                    recommendation="",
+                )
+            evaluated_pairs.append(pair)
+
+        # 5. 出力ペアを辞書順で安定ソート
+        evaluated_pairs.sort(key=lambda p: (p.medicine_a.value, p.medicine_b.value))
+
+        return DrugInteractionAuditResult(
+            target_yj_codes=unique_codes,
+            pairs=tuple(evaluated_pairs),
+        )
 
 
 class PrescriptionDocumentNumberUniquenessService:

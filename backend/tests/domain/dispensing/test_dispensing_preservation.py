@@ -2,7 +2,7 @@
 
 from datetime import UTC, date, datetime
 
-from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.entities import DispensingProcess
 from app.domain.dispensing.primitives import (
     DispensingCompletionTimestamp,
     DispensingCompletionType,

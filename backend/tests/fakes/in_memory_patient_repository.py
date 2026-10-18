@@ -5,16 +5,15 @@ from __future__ import annotations
 import copy
 
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.entities import Patient, PatientExternalIdentifier
 from app.domain.patient.exceptions import PatientExternalIdentifierAlreadyExistsError
-from app.domain.patient.external_identifier import PatientExternalIdentifier
 from app.domain.patient.identifiers import PatientExternalIdentifierId, PatientId
-from app.domain.patient.patient import Patient
 from app.domain.patient.primitives import (
     ExternalPatientId,
     ExternalSystemName,
     PatientNumber,
 )
-from app.domain.patient.repository import (
+from app.domain.patient.repositories import (
     PatientExternalIdentifierRepository,
     PatientRepository,
 )

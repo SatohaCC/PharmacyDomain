@@ -5,11 +5,10 @@ from dataclasses import replace
 import pytest
 
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.identity.entities import CorporateMembership, UserAccount
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.identifiers import CorporateMembershipId
-from app.domain.identity.membership import CorporateMembership
 from app.domain.identity.primitives import AccountStatus, MembershipRole
-from app.domain.identity.user_account import UserAccount
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from tests.application.identity.test_invitation_management import _setup
 

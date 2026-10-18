@@ -69,21 +69,18 @@ from app.application.medication_history.review_external_prescription_correction 
     ReviewExternalPrescriptionCorrectionUseCase,
 )
 from app.bootstrap import create_app
-from app.domain.care_event.event_definition import EventDefinition
+from app.domain.care_event.entities import EventDefinition
 from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.primitives import StatutoryDispensingRecordItem
 from app.domain.medication_history.services import CounselorQualificationService
 from app.domain.medication_history.value_objects import SoapRecord
 from app.domain.patient.identifiers import PatientId
-from app.domain.prescription.primitives import (
-    InquiryNumber,
-    InquiryResultType,
-)
+from app.domain.prescription.primitives import InquiryNumber, InquiryResultType
+from app.domain.reception.entities import Reception
 from app.domain.reception.identifiers import ReceptionId
 from app.domain.reception.primitives import ReceptionFingerprint
-from app.domain.reception.reception import (
-    Reception,
+from app.domain.reception.value_objects import (
     ReceptionBillingAddition,
     ReceptionSourceData,
 )

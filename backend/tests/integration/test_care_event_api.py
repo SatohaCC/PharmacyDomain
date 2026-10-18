@@ -15,20 +15,20 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.application.access_control.models import ActorRole, ResolvedActorContext
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.identity.entities import (
+    CorporateMembership,
+    StaffPersonLink,
+    UserAccount,
+)
 from app.domain.identity.identifiers import CorporateMembershipId
-from app.domain.identity.membership import CorporateMembership
 from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole
-from app.domain.identity.staff_person_link import StaffPersonLink
-from app.domain.identity.user_account import UserAccount
+from app.domain.medication_history.entities import (
+    MedicationHistoryRecord,
+    PatientMedicalProfile,
+)
 from app.domain.medication_history.identifiers import (
     MedicationHistoryRecordId,
     TracingReportId,
-)
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
-from app.domain.medication_history.patient_medical_profile import (
-    PatientMedicalProfile,
 )
 from app.domain.medication_history.primitives import FinalizedTimestamp
 from app.domain.patient.identifiers import PatientId
@@ -40,9 +40,9 @@ from app.domain.staff.value_objects import (
     StaffQualifications,
     StoreAffiliation,
 )
+from app.domain.store.entities import Store
 from app.domain.store.identifiers import StoreId
-from app.domain.store.lifecycle import StoreStatus
-from app.domain.store.store import Store
+from app.domain.store.primitives import StoreStatus
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )

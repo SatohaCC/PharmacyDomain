@@ -8,8 +8,8 @@ from app.application.identity.dto import MembershipViewDto
 from app.application.identity.support import IdentityRepositories
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.identity.entities import CorporateMembership
 from app.domain.identity.identifiers import CorporateMembershipId
-from app.domain.identity.membership import CorporateMembership
 
 
 class ListUsersUseCase:

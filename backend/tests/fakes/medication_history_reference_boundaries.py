@@ -25,10 +25,10 @@ from app.application.medication_history.reference import (
     StoreReferenceBoundary,
 )
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.entities import DispensingProcess
 from app.domain.dispensing.identifiers import DispensingId
-from app.domain.medication_history.dispensing_source import DispensingSource
 from app.domain.medication_history.value_objects import (
+    DispensingSource,
     PharmacistQualification,
     StatutoryPharmacistName,
     StatutoryRecordSource,

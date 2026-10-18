@@ -19,23 +19,21 @@ from app.application.composition.organization_snapshot_mapping import (
     manager_staff_source,
 )
 from app.application.staff.access_revocation import StaffAccessRevocationBoundary
-from app.domain.identity.administrator_service import LastAdministratorService
-from app.domain.identity.membership import CorporateMembership
-from app.domain.identity.repository import (
+from app.domain.identity.entities import CorporateMembership
+from app.domain.identity.repositories import (
     CorporateMembershipRepository,
     UserAccountRepository,
 )
-from app.domain.staff.staff import Staff
-from app.domain.store.manager_assignment import (
-    ManagerAssignmentStatus,
-    StoreManagerAssignment,
-)
-from app.domain.store.manager_repository import (
-    ManagerAssignmentConflictError,
+from app.domain.identity.services import LastAdministratorService
+from app.domain.staff.entities import Staff
+from app.domain.store.entities import StoreManagerAssignment
+from app.domain.store.exceptions import ManagerAssignmentConflictError
+from app.domain.store.primitives import ManagerAssignmentStatus
+from app.domain.store.repositories import (
     StoreManagerAssignmentRepository,
+    StoreRepository,
 )
-from app.domain.store.manager_service import StoreManagerAssignmentService
-from app.domain.store.repository import StoreRepository
+from app.domain.store.services import StoreManagerAssignmentService
 
 
 class StaffAssignmentWriteGuard:

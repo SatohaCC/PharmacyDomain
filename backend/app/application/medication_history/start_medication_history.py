@@ -44,12 +44,10 @@ from app.application.medication_history.support import (
 from app.domain.care_event.identifiers import EventId
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.identifiers import DispensingId
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.exceptions import (
     MedicationHistoryAlreadyExistsError,
     MedicationHistoryDomainError,
-)
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
 )
 from app.domain.medication_history.primitives import (
     BillingAdditionCode,
@@ -60,7 +58,7 @@ from app.domain.medication_history.primitives import (
     MedicationHistoryRecordedTimestamp,
     MedicationHistorySourceSystem,
 )
-from app.domain.medication_history.repository import MedicationHistoryRepository
+from app.domain.medication_history.repositories import MedicationHistoryRepository
 from app.domain.medication_history.services import CounselorQualificationService
 from app.domain.medication_history.value_objects import BillingAddition
 from app.domain.staff.identifiers import StaffId

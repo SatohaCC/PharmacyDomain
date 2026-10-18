@@ -7,13 +7,13 @@ import pytest
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainError
+from app.domain.identity.entities import UserInvitation
 from app.domain.identity.identifiers import UserInvitationId
-from app.domain.identity.invitation import (
+from app.domain.identity.primitives import (
     InvitationDigest,
     InvitationStatus,
-    UserInvitation,
+    MembershipRole,
 )
-from app.domain.identity.primitives import MembershipRole
 from app.domain.shared.actor import AccountPersonId
 
 _EXPIRY = datetime(2026, 9, 18, 0, tzinfo=UTC)

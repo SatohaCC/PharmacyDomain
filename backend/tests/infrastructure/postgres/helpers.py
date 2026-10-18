@@ -13,11 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.sql import ClauseElement
 
 import migrations.versions
-from app.domain.corporate.corporate import Corporate
-from app.domain.corporate.primitives import (
-    CorporateName,
-    CorporateRepresentativeName,
-)
+from app.domain.corporate.entities import Corporate
+from app.domain.corporate.primitives import CorporateName, CorporateRepresentativeName
 from app.domain.shared.person_name import PersonNamePart
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from tests.fakes.recording_async_session import FakeResult, RecordingAsyncSession

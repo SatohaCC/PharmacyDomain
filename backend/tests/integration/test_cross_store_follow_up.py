@@ -17,19 +17,19 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.application.access_control.models import ActorRole, ResolvedActorContext
 from app.bootstrap import create_app
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.identity.account_person import AccountPerson
-from app.domain.identity.identifiers import CorporateMembershipId
-from app.domain.identity.membership import CorporateMembership
-from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole
-from app.domain.identity.staff_person_link import StaffPersonLink
-from app.domain.identity.user_account import UserAccount
-from app.domain.medication_history.identifiers import MedicationHistoryRecordId
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
+from app.domain.identity.entities import (
+    AccountPerson,
+    CorporateMembership,
+    StaffPersonLink,
+    UserAccount,
 )
-from app.domain.medication_history.patient_medical_profile import (
+from app.domain.identity.identifiers import CorporateMembershipId
+from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole
+from app.domain.medication_history.entities import (
+    MedicationHistoryRecord,
     PatientMedicalProfile,
 )
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.primitives import MedicationHistoryStatus
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
 from app.domain.shared.actor import UserAccountId
@@ -41,7 +41,7 @@ from app.domain.staff.value_objects import (
     StaffQualifications,
     StoreAffiliation,
 )
-from app.domain.store.store import Store
+from app.domain.store.entities import Store
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )

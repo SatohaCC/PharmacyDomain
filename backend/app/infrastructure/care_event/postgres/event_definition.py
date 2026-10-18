@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from app.domain.care_event.event_definition import EventDefinition
+from app.domain.care_event.entities import EventDefinition
 from app.domain.care_event.exceptions import EventDefinitionAlreadyExistsError
 from app.domain.care_event.identifiers import EventTypeId
-from app.domain.care_event.repository import EventDefinitionRepository
+from app.domain.care_event.repositories import EventDefinitionRepository
 from app.domain.corporate.identifiers import CorporateId
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,

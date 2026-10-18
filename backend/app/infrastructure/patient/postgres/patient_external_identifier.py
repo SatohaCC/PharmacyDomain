@@ -11,11 +11,11 @@ from __future__ import annotations
 from sqlalchemy import select
 
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.entities import PatientExternalIdentifier
 from app.domain.patient.exceptions import PatientExternalIdentifierAlreadyExistsError
-from app.domain.patient.external_identifier import PatientExternalIdentifier
 from app.domain.patient.identifiers import PatientExternalIdentifierId, PatientId
 from app.domain.patient.primitives import ExternalPatientId, ExternalSystemName
-from app.domain.patient.repository import PatientExternalIdentifierRepository
+from app.domain.patient.repositories import PatientExternalIdentifierRepository
 from app.domain.store.identifiers import StoreId
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,

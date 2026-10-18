@@ -7,10 +7,9 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.domain.foundation.exceptions import ConcurrentModificationError
-from app.domain.identity.account_person import AccountPerson
+from app.domain.identity.entities import AccountPerson, UserAccount
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.primitives import AccountStatus
-from app.domain.identity.user_account import UserAccount
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
 from app.infrastructure.identity.postgres.account_person import (

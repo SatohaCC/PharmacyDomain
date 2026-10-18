@@ -9,10 +9,7 @@ from app.domain.store.exceptions import (
     StoreCodeAlreadyExistsError,
     StoreNameAlreadyExistsError,
 )
-from app.domain.store.primitives import (
-    StoreCode,
-    StoreName,
-)
+from app.domain.store.primitives import StoreCode, StoreName
 from app.domain.store.services import (
     StoreCodeUniquenessService,
     StoreNameUniquenessService,

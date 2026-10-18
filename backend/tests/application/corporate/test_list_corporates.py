@@ -9,7 +9,7 @@ from app.application.corporate.list_corporates import (
     ListCorporatesQuery,
     ListCorporatesUseCase,
 )
-from app.domain.corporate.corporate import Corporate
+from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.corporate.primitives import CorporateName, CorporateRepresentativeName
 from app.domain.foundation.exceptions import DomainValidationError

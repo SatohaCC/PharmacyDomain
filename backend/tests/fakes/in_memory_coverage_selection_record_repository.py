@@ -5,9 +5,9 @@ from __future__ import annotations
 import copy
 
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.coverage.coverage_selection_record import CoverageSelectionRecord
+from app.domain.coverage.entities import CoverageSelectionRecord
 from app.domain.coverage.identifiers import CoverageSelectionRecordId
-from app.domain.coverage.repository import CoverageSelectionRecordRepository
+from app.domain.coverage.repositories import CoverageSelectionRecordRepository
 from app.domain.patient.identifiers import PatientId
 from app.domain.store.identifiers import StoreId
 

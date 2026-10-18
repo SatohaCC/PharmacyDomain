@@ -8,7 +8,7 @@ from app.application.access_control.models import Permission
 from app.application.common.organization_lock import OrganizationLock
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.corporate.repository import CorporateRepository
+from app.domain.corporate.repositories import CorporateRepository
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.exceptions import (
     FinalizationDateBeforeCounselingError,
     FinalizationDelayReasonRequiredError,
@@ -25,9 +26,6 @@ from app.domain.medication_history.exceptions import (
     ResidualDrugDetailNotAllowedError,
     ResidualDrugDetailRequiredError,
     SoapContentRequiredError,
-)
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
 )
 from app.domain.medication_history.primitives import (
     AmendmentReason,

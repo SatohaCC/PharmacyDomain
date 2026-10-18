@@ -1,4 +1,4 @@
-"""処方箋の公開識別子。"""
+"""prescriptionの公開識別子。"""
 
 from __future__ import annotations
 

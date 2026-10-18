@@ -37,9 +37,9 @@ from app.application.patient.reactivate_patient import (
     ReactivatePatientUseCase,
 )
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.entities import Patient
 from app.domain.patient.exceptions import PatientStateConflictError
 from app.domain.patient.identifiers import PatientId
-from app.domain.patient.patient import Patient
 from app.domain.patient.primitives import PatientBirthDate
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames

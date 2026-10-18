@@ -5,14 +5,14 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.patient.lifecycle import PatientStatus
-from app.domain.patient.patient import Patient
+from app.domain.patient.entities import Patient
 from app.domain.patient.primitives import (
     ExternalPatientId,
     PatientBirthDate,
     PatientNumber,
+    PatientStatus,
 )
-from app.domain.patient.profile_history import (
+from app.domain.patient.value_objects import (
     PatientProfileChange,
     PatientProfileSnapshot,
 )

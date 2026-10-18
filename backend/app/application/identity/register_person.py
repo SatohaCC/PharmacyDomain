@@ -7,8 +7,8 @@ from app.application.common.unit_of_work import UnitOfWork
 from app.application.identity.dto import PersonDto
 from app.application.identity.input_models import PersonNamesInput
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.identity.account_person import AccountPerson
-from app.domain.identity.repository import AccountPersonRepository
+from app.domain.identity.entities import AccountPerson
+from app.domain.identity.repositories import AccountPersonRepository
 from app.domain.shared.actor import AccountPersonId
 from app.domain.shared.person_name import PersonNames
 

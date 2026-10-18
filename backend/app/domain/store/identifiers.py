@@ -1,4 +1,6 @@
-"""店舗と管理薬剤師任命の公開識別子。"""
+"""storeの公開識別子。"""
+
+from __future__ import annotations
 
 from app.domain.foundation.primitives.identifiers import EntityUUID
 

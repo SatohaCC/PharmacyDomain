@@ -5,9 +5,7 @@ from __future__ import annotations
 import pytest
 
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.medication_history.category_catalog import (
-    MedicationHistoryCategoryCatalog,
-)
+from app.domain.medication_history.entities import MedicationHistoryCategoryCatalog
 from app.domain.medication_history.exceptions import (
     DuplicateMajorCategoryError,
     DuplicateMediumCategoryError,

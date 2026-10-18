@@ -12,7 +12,7 @@ from app.application.coverage.support import load_coverage_or_raise
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.identifiers import PatientCoverageId
 from app.domain.coverage.primitives import CoverageDeactivatedOn
-from app.domain.coverage.repository import PatientCoverageRepository
+from app.domain.coverage.repositories import PatientCoverageRepository
 
 
 @dataclass(frozen=True, kw_only=True)

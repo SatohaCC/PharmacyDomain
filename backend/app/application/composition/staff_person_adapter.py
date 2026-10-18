@@ -2,7 +2,7 @@
 
 from app.application.store.management import StaffPersonBoundary
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.identity.repository import StaffPersonLinkRepository
+from app.domain.identity.repositories import StaffPersonLinkRepository
 from app.domain.shared.actor import AccountPersonId
 from app.domain.staff.identifiers import StaffId
 

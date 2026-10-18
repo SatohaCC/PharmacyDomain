@@ -20,8 +20,8 @@ import pytest
 import tests.fakes
 from app.domain.care_event.identifiers import EventId
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.coverage.entities import PatientCoverage
 from app.domain.coverage.exceptions import CoveragePeriodConflictError
-from app.domain.coverage.patient_coverage import PatientCoverage
 from app.domain.coverage.primitives import (
     CoverageActivatedOn,
     CoverageDeactivatedOn,
@@ -32,7 +32,7 @@ from app.domain.coverage.primitives import (
     PublicPayerNumber,
     PublicRecipientNumber,
 )
-from app.domain.coverage.repository import PatientCoverageRepository
+from app.domain.coverage.repositories import PatientCoverageRepository
 from app.domain.coverage.value_objects import (
     CoverageActivation,
     CoveragePeriod,
@@ -41,28 +41,24 @@ from app.domain.coverage.value_objects import (
 from app.domain.dispensing.exceptions import DispensingAlreadyExistsError
 from app.domain.dispensing.identifiers import DispensingId
 from app.domain.dispensing.primitives import DispensingCancellationReason
-from app.domain.dispensing.repository import DispensingProcessRepository
+from app.domain.dispensing.repositories import DispensingProcessRepository
+from app.domain.medication_history.entities import PatientMedicalProfile
 from app.domain.medication_history.exceptions import (
     MedicationHistoryAlreadyExistsError,
     PatientMedicalProfileAlreadyExistsError,
 )
-from app.domain.medication_history.patient_medical_profile import (
-    PatientMedicalProfile,
-)
-from app.domain.medication_history.repository import (
+from app.domain.medication_history.repositories import (
     MedicationHistoryRepository,
     PatientMedicalProfileRepository,
 )
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
-from app.domain.medicine_catalog.exceptions import (
-    MedicineEffectivePeriodConflictError,
-)
-from app.domain.medicine_catalog.repository import MedicineCatalogRepository
+from app.domain.medicine_catalog.exceptions import MedicineEffectivePeriodConflictError
+from app.domain.medicine_catalog.repositories import MedicineCatalogRepository
+from app.domain.patient.entities import PatientExternalIdentifier
 from app.domain.patient.exceptions import PatientExternalIdentifierAlreadyExistsError
-from app.domain.patient.external_identifier import PatientExternalIdentifier
 from app.domain.patient.identifiers import PatientId
 from app.domain.patient.primitives import ExternalPatientId, ExternalSystemName
-from app.domain.patient.repository import PatientExternalIdentifierRepository
+from app.domain.patient.repositories import PatientExternalIdentifierRepository
 from app.domain.prescription.exceptions import (
     PrescriptionDocumentNumberAlreadyExistsError,
 )
@@ -71,7 +67,7 @@ from app.domain.prescription.primitives import (
     PrescriptionDocumentNumber,
     PrescriptionSourceType,
 )
-from app.domain.prescription.repository import PrescriptionRepository
+from app.domain.prescription.repositories import PrescriptionRepository
 from tests.factories.dispensing_factory import create_dispensing
 from tests.factories.medication_history_factory import (
     create_allergy_intent,

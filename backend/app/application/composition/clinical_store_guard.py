@@ -7,13 +7,11 @@ from app.application.access_control.store_access import (
     StoreOperationBoundary,
 )
 from app.application.common.organization_lock import OrganizationLock
-from app.domain.care_event.event import Event
-from app.domain.coverage.coverage_selection_record import CoverageSelectionRecord
-from app.domain.dispensing.dispensing_process import DispensingProcess
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
-from app.domain.prescription.prescription import Prescription
+from app.domain.care_event.entities import Event
+from app.domain.coverage.entities import CoverageSelectionRecord
+from app.domain.dispensing.entities import DispensingProcess
+from app.domain.medication_history.entities import MedicationHistoryRecord
+from app.domain.prescription.entities import Prescription
 
 
 class ClinicalStoreWriteGuard:

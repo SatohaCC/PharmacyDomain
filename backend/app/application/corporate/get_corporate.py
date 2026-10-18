@@ -3,7 +3,7 @@ from typing import Self
 
 from app.application.access_control.models import Permission
 from app.application.corporate.corporate_access import CorporateAccessService
-from app.domain.corporate.corporate import Corporate
+from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
 
 

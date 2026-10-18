@@ -12,7 +12,7 @@ from app.application.patient.register_patient_external_identifier import (
 from app.application.patient.support import load_patient_or_raise
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.identifiers import PatientId
-from app.domain.patient.repository import (
+from app.domain.patient.repositories import (
     PatientExternalIdentifierRepository,
     PatientRepository,
 )

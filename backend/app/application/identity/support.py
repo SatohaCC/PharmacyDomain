@@ -5,23 +5,22 @@ from dataclasses import dataclass
 from app.application.common.exceptions import NotFoundError
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.identity.administrator_service import LastAdministratorService
+from app.domain.identity.entities import CorporateMembership, UserAccount
 from app.domain.identity.exceptions import IdentityConflictError
-from app.domain.identity.membership import CorporateMembership
 from app.domain.identity.primitives import MembershipRole
-from app.domain.identity.repository import (
+from app.domain.identity.repositories import (
     AccountPersonRepository,
     CorporateMembershipRepository,
     StaffPersonLinkRepository,
     UserAccountRepository,
     UserInvitationRepository,
 )
-from app.domain.identity.user_account import UserAccount
+from app.domain.identity.services import LastAdministratorService
 from app.domain.shared.actor import AccountPersonId
 from app.domain.staff.identifiers import StaffId
-from app.domain.staff.repository import StaffRepository
+from app.domain.staff.repositories import StaffRepository
 from app.domain.store.identifiers import StoreId
-from app.domain.store.repository import StoreRepository
+from app.domain.store.repositories import StoreRepository
 
 
 @dataclass(frozen=True)

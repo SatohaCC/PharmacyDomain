@@ -12,16 +12,16 @@ from app.application.medication_history.reference import (
     MedicationHistoryEventReference,
 )
 from app.domain.care_event.identifiers import EventId
-from app.domain.care_event.repository import EventRepository
+from app.domain.care_event.repositories import EventRepository
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.identifiers import DispensingId
 from app.domain.foundation.exceptions import DomainError
-from app.domain.medication_history.repository import MedicationHistoryRepository
+from app.domain.medication_history.repositories import MedicationHistoryRepository
 from app.domain.patient.identifiers import PatientId
-from app.domain.patient.repository import PatientRepository
+from app.domain.patient.repositories import PatientRepository
 from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.reception.identifiers import ReceptionId
-from app.domain.reception.repository import ReceptionRepository
+from app.domain.reception.repositories import ReceptionRepository
 from app.domain.store.identifiers import StoreId
 
 

@@ -16,7 +16,7 @@ from typing import cast
 import pytest
 
 from app.application.composition.dispensing_snapshot_mapping import prescription_source
-from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.entities import DispensingProcess
 from app.domain.dispensing.exceptions import (
     DispensedMedicineNotInPrescriptionError,
     DispensedRpNotInPrescriptionError,
@@ -36,32 +36,28 @@ from app.domain.dispensing.exceptions import (
 from app.domain.dispensing.primitives import (
     DispensingCompletionType,
     DispensingSplitReason,
-    NextDispensingDate,
-    QuantityAdjustmentReason,
-    SubstitutionCategory,
-)
-from app.domain.dispensing.reference_primitives import (
     GenericSubstitutionRestrictionType,
     InquiryNumber,
     InquiryResultType,
     MedicineCode,
     MedicineCodeType,
     MedicineName,
+    NextDispensingDate,
+    QuantityAdjustmentReason,
+    SubstitutionCategory,
 )
-from app.domain.dispensing.reference_values import MedicineIdentifier
 from app.domain.dispensing.services import (
     REFILL_SCHEDULE_TOLERANCE_DAYS,
     DispensingConsistencyService,
     verify_substitution_restriction_table,
 )
-from app.domain.prescription.prescription import Prescription
+from app.domain.dispensing.value_objects import MedicineIdentifier
+from app.domain.prescription.entities import Prescription
 from app.domain.prescription.primitives import InquiryNumber as RxInquiryNumber
+from app.domain.prescription.primitives import MedicineCode as RxMedicineCode
+from app.domain.prescription.primitives import MedicineCodeType as RxMedicineCodeType
 from app.domain.prescription.primitives import RefillCount, SplitCount, SplitIteration
-from app.domain.prescription.reference_primitives import MedicineCode as RxMedicineCode
-from app.domain.prescription.reference_primitives import (
-    MedicineCodeType as RxMedicineCodeType,
-)
-from app.domain.prescription.reference_values import (
+from app.domain.prescription.value_objects import (
     MedicineIdentifier as RxMedicineIdentifier,
 )
 from app.domain.prescription.value_objects import (

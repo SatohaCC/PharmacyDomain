@@ -101,17 +101,13 @@ from app.domain.staff.exceptions import (
 from app.domain.staff.exceptions import StaffNotFoundError as StaffDomainNotFoundError
 from app.domain.store.exceptions import (
     InsurancePharmacyNumberAlreadyExistsError,
+    ManagerAbsenceConflictError,
+    ManagerAssignmentConflictError,
+    ManagerAssignmentStateConflictError,
+    ManagerExclusiveDutyConflictError,
     StoreCodeAlreadyExistsError,
     StoreNameAlreadyExistsError,
-)
-from app.domain.store.lifecycle import StoreStateConflictError
-from app.domain.store.manager_assignment import (
-    ManagerAbsenceConflictError,
-    ManagerAssignmentStateConflictError,
-)
-from app.domain.store.manager_repository import (
-    ManagerAssignmentConflictError,
-    ManagerExclusiveDutyConflictError,
+    StoreStateConflictError,
 )
 
 

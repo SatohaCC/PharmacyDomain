@@ -1,17 +1,10 @@
-"""調剤プロセスの原本対応・回数・使用期間・資格を判定するドメインサービス。
-
-自身の調剤記録と、処方原本から固定された利用側所有の値を照合する。
-スタッフの資格実装を参照せず、境界が提供する保有事実から要件を判定する。"""
+"""dispensingのドメインサービス。"""
 
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from enum import Enum, auto
 
-from app.domain.dispensing.dispensing_process import (
-    DispensedMedicine,
-    DispensingProcess,
-)
+from app.domain.dispensing.entities import DispensingProcess
 from app.domain.dispensing.exceptions import (
     DispensedMedicineNotInPrescriptionError,
     DispensedRpNotInPrescriptionError,
@@ -29,36 +22,28 @@ from app.domain.dispensing.exceptions import (
     SubstitutionOriginalMismatchError,
     SubstitutionRequiredError,
 )
-from app.domain.dispensing.prescription_source import (
-    PrescriptionInquiry,
-    PrescriptionMedicine,
-    PrescriptionRp,
-    PrescriptionSource,
-)
 from app.domain.dispensing.primitives import (
     DispensingSplitReason,
-    SubstitutionCategory,
-)
-from app.domain.dispensing.reference_primitives import (
     GenericSubstitutionRestrictionType,
     InquiryNumber,
     InquiryResultType,
     MedicineLineNumber,
     RpNumber,
+    SubstitutionCategory,
+    _MedicineCodeComparison,
 )
-from app.domain.dispensing.value_objects import PharmacistQualification
+from app.domain.dispensing.value_objects import (
+    DispensedMedicine,
+    PharmacistQualification,
+    PrescriptionInquiry,
+    PrescriptionMedicine,
+    PrescriptionRp,
+    PrescriptionSource,
+)
 
 #: リフィル2回目以降の調剤日が、前回の次回調剤予定日から離れてよい日数。
 #: 出典: 保険調剤の理解のために（令和8年度）。
 REFILL_SCHEDULE_TOLERANCE_DAYS = 7
-
-
-class _MedicineCodeComparison(Enum):
-    """記録された薬品コードの一致・不一致・比較不能を表す。"""
-
-    MATCH = auto()
-    MISMATCH = auto()
-    UNKNOWN = auto()
 
 
 def _compare_medicine_codes(
@@ -102,6 +87,7 @@ _FORBIDDEN_SUBSTITUTIONS: dict[
         {SubstitutionCategory.GENERIC_SUBSTITUTION}
     ),
 }
+
 
 #: 処方箋の変更制限に拘束されない代替調剤種別。
 #:
@@ -147,12 +133,6 @@ def verify_substitution_restriction_table(
             "変更制限の対応表に未知の代替調剤種別が含まれています: "
             f"{sorted(str(item) for item in unknown_categories)}。"
         )
-
-
-verify_substitution_restriction_table(
-    restriction_types=set(GenericSubstitutionRestrictionType),
-    categories=set(SubstitutionCategory),
-)
 
 
 class DispensingIterationUniquenessService:

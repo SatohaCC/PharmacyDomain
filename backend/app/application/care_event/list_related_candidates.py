@@ -11,7 +11,7 @@ from app.application.access_control.store_access import (
     StoreOperationBoundary,
 )
 from app.application.care_event.references import EventPatientBoundary
-from app.domain.care_event.repository import EventRepository
+from app.domain.care_event.repositories import EventRepository
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.identifiers import PatientId
 from app.domain.store.identifiers import StoreId

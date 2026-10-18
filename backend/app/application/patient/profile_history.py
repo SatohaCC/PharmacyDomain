@@ -5,11 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 
 from app.application.access_control.models import ResolvedActorContext
-from app.domain.patient.patient import Patient
-from app.domain.patient.profile_history import (
-    PatientProfileChange,
-    PatientProfileChangeSource,
-)
+from app.domain.patient.entities import Patient
+from app.domain.patient.primitives import PatientProfileChangeSource
+from app.domain.patient.value_objects import PatientProfileChange
 
 
 def record_manual_profile_change(

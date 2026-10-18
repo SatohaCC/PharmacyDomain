@@ -11,12 +11,6 @@ from datetime import UTC, date, datetime
 import pytest
 
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.prescription.dosage import (
-    DosageCode,
-    DosageCodeType,
-    DosageInstruction,
-    DosageName,
-)
 from app.domain.prescription.exceptions import (
     ApplicationSiteCodeRequiredError,
     DepartmentCodeRequiredError,
@@ -29,6 +23,9 @@ from app.domain.prescription.primitives import (
     DepartmentCode,
     DepartmentCodeType,
     DepartmentName,
+    DosageCode,
+    DosageCodeType,
+    DosageName,
     DosageSupplementCode,
     DosageSupplementText,
     DosageSupplementType,
@@ -48,6 +45,7 @@ from app.domain.prescription.primitives import (
 from app.domain.prescription.value_objects import (
     DEFAULT_VALID_DAYS,
     DepartmentInfo,
+    DosageInstruction,
     DosageSupplement,
     PrescriptionPeriod,
     SplitInstruction,

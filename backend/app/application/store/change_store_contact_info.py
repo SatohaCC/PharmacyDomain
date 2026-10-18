@@ -14,7 +14,7 @@ from app.domain.store.primitives import (
     StoreFaxNumber,
     StorePhoneNumber,
 )
-from app.domain.store.repository import StoreRepository
+from app.domain.store.repositories import StoreRepository
 from app.domain.store.value_objects import ContactInfo
 
 

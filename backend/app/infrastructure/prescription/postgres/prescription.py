@@ -10,13 +10,13 @@ from sqlalchemy import select
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.identifiers import PatientId
+from app.domain.prescription.entities import Prescription
 from app.domain.prescription.exceptions import (
     PrescriptionDocumentNumberAlreadyExistsError,
 )
 from app.domain.prescription.identifiers import PrescriptionId
-from app.domain.prescription.prescription import Prescription
 from app.domain.prescription.primitives import PrescriptionDocumentNumber
-from app.domain.prescription.repository import PrescriptionRepository
+from app.domain.prescription.repositories import PrescriptionRepository
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,

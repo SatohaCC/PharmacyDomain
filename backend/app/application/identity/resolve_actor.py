@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from app.application.access_control.models import ActorRole, ResolvedActorContext
 from app.application.common.exceptions import ApplicationError
 from app.domain.identity.primitives import AccountStatus, ExternalSubjectKey
-from app.domain.identity.repository import (
+from app.domain.identity.repositories import (
     AccountPersonRepository,
     CorporateMembershipRepository,
     UserAccountRepository,

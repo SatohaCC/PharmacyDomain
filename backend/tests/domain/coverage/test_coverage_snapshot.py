@@ -4,11 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from app.domain.coverage.coverage_snapshot import (
-    CoverageSnapshot,
-    InsuranceCoverageSnapshot,
-    PublicExpenseCoverageSnapshot,
-)
 from app.domain.coverage.exceptions import CoverageCombinationInvalidError
 from app.domain.coverage.primitives import (
     CoverageBenefitRatio,
@@ -20,6 +15,11 @@ from app.domain.coverage.primitives import (
     InsurerNumber,
     PublicPayerNumber,
     PublicRecipientNumber,
+)
+from app.domain.coverage.value_objects import (
+    CoverageSnapshot,
+    InsuranceCoverageSnapshot,
+    PublicExpenseCoverageSnapshot,
 )
 from app.domain.foundation.exceptions import DomainValidationError
 

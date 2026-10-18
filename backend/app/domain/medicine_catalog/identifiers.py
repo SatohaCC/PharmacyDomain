@@ -1,4 +1,4 @@
-"""医薬品マスタ行の公開識別子。"""
+"""medicine_catalogの公開識別子。"""
 
 from __future__ import annotations
 

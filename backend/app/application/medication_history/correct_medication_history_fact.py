@@ -27,7 +27,7 @@ from app.application.medication_history.reference import StaffQualificationBound
 from app.application.medication_history.support import load_record_or_raise
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.identifiers import MedicationHistoryRecordId
-from app.domain.medication_history.repository import (
+from app.domain.medication_history.repositories import (
     MedicationHistoryCategoryCatalogRepository,
     MedicationHistoryRepository,
     PatientMedicalProfileRepository,

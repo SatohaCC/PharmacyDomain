@@ -8,9 +8,9 @@ from app.application.corporate.support import (
     load_active_corporate_or_raise,
     load_corporate_or_raise,
 )
-from app.domain.corporate.corporate import Corporate
+from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.corporate.repository import CorporateRepository
+from app.domain.corporate.repositories import CorporateRepository
 
 
 class CorporateAccessService:

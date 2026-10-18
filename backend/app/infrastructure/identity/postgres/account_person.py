@@ -1,7 +1,7 @@
 """本人情報のPostgreSQL保存契約。"""
 
-from app.domain.identity.account_person import AccountPerson
-from app.domain.identity.repository import AccountPersonRepository
+from app.domain.identity.entities import AccountPerson
+from app.domain.identity.repositories import AccountPersonRepository
 from app.domain.shared.actor import AccountPersonId
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,

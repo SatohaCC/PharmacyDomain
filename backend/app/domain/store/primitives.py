@@ -1,4 +1,9 @@
+"""storeの単一値と列挙・検証規則。"""
+
+from __future__ import annotations
+
 import re
+from enum import StrEnum
 
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.primitives.primitives import (
@@ -8,6 +13,57 @@ from app.domain.foundation.primitives.primitives import (
     BasePostalCode,
     BaseTelephoneNumber,
 )
+
+
+class BusinessWeekday(StrEnum):
+    """開局予定を組み立てる曜日。"""
+
+    MONDAY = "monday"
+    TUESDAY = "tuesday"
+    WEDNESDAY = "wednesday"
+    THURSDAY = "thursday"
+    FRIDAY = "friday"
+    SATURDAY = "saturday"
+    SUNDAY = "sunday"
+
+
+class StoreOpeningState(StrEnum):
+    """ある日時に店舗が開いているか。"""
+
+    OPEN = "open"
+    CLOSED = "closed"
+    #: 開局時間が未登録で判定できない。
+    UNKNOWN = "unknown"
+
+
+class BusinessHoursNote(BaseNormalizedString):
+    """特例日の理由（「年末年始」「臨時休業」など）。"""
+
+    def validate(self) -> None:
+        """空でない100文字以内を要求する。"""
+        if not self.value or len(self.value) > 100:
+            raise DomainValidationError(
+                "特例日の理由は1から100文字で指定してください。"
+            )
+
+
+class StoreStatus(StrEnum):
+    """店舗の業務受付状態。"""
+
+    ACTIVE = "active"
+    SUSPENDED = "suspended"
+    CLOSED = "closed"
+
+
+class StoreStatusReason(BaseNormalizedString):
+    """店舗の状態を変更した理由。"""
+
+
+class ManagerAssignmentStatus(StrEnum):
+    """任命の取消状態。"""
+
+    CONFIRMED = "confirmed"
+    CANCELLED = "cancelled"
 
 
 class StorePostalCode(BasePostalCode):

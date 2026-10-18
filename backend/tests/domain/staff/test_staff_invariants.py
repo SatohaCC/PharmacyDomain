@@ -14,11 +14,11 @@ from datetime import date
 import pytest
 
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.staff.entities import Staff
 from app.domain.staff.exceptions import (
     ConcurrentStoreConflictError,
     PrimaryAffiliationDuplicationError,
 )
-from app.domain.staff.staff import Staff
 from app.domain.staff.value_objects import AffiliationPeriod, StoreAffiliation
 from app.domain.store.identifiers import StoreId
 from tests.factories.staff_factory import create_staff

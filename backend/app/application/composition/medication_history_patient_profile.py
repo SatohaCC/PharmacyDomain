@@ -9,7 +9,7 @@ from app.application.medication_history.get_medication_history_view import (
 )
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.identifiers import PatientId
-from app.domain.patient.repository import PatientRepository
+from app.domain.patient.repositories import PatientRepository
 
 
 class MedicationHistoryPatientProfileAdapter(CurrentPatientProfileBoundary):

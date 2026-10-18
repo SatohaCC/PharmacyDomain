@@ -5,10 +5,10 @@ from app.application.staff.exceptions import StaffNotFoundError
 from app.application.staff.reference import StaffStoreReference
 from app.application.store.exceptions import StoreNotFoundError
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.staff.entities import Staff
 from app.domain.staff.identifiers import StaffId
-from app.domain.staff.repository import StaffRepository
-from app.domain.staff.staff import Staff
-from app.domain.staff.store_source import StoreSource
+from app.domain.staff.repositories import StaffRepository
+from app.domain.staff.value_objects import StoreSource
 from app.domain.store.identifiers import StoreId
 
 __all__ = ["load_staff_or_raise", "load_store_or_raise", "to_optional_text"]

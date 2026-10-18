@@ -12,12 +12,12 @@ from __future__ import annotations
 import pytest
 
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.medication_history.entities import PatientMedicalProfile
 from app.domain.medication_history.exceptions import (
     CounselorQualificationError,
     MedicationHistoryAlreadyExistsError,
     PatientMedicalProfileAlreadyExistsError,
 )
-from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
 from app.domain.medication_history.services import (
     CounselorQualificationService,
     MedicationHistoryUniquenessService,

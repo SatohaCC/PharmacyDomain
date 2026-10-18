@@ -6,10 +6,10 @@ from datetime import timedelta
 import pytest
 
 from app.domain.care_event.identifiers import EventId
+from app.domain.medication_history.entities import PatientMedicalProfile
 from app.domain.medication_history.exceptions import (
     MedicationHistoryAlreadyFinalizedError,
 )
-from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
 from app.domain.medication_history.primitives import (
     FollowUpRecordedTimestamp,
     GenericPreferenceType,

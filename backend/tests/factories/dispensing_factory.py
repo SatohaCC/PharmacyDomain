@@ -11,28 +11,15 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.dispensing.dispensing_process import (
-    DispensedMedicine,
-    DispensedRp,
-    DispensingProcess,
-)
+from app.domain.dispensing.entities import DispensingProcess
 from app.domain.dispensing.primitives import (
     DispensedDate,
     DispensingCancellationReason,
     DispensingCompletionType,
     DispensingIteration,
+    DispensingQuantity,
     DispensingSplitReason,
     DispensingTimestamp,
-    PreparationMethod,
-    QuantityAdjustmentReason,
-    SubstitutionCategory,
-    SubstitutionReason,
-    TotalSplitCount,
-    VerificationResult,
-    VerificationTimestamp,
-)
-from app.domain.dispensing.reference_primitives import (
-    DispensingQuantity,
     DosageAmount,
     DosageCodeType,
     DosageFormCategory,
@@ -43,10 +30,20 @@ from app.domain.dispensing.reference_primitives import (
     MedicineLineNumber,
     MedicineName,
     MedicineUnit,
+    PreparationMethod,
+    QuantityAdjustmentReason,
     RpNumber,
+    SubstitutionCategory,
+    SubstitutionReason,
+    TotalSplitCount,
+    VerificationResult,
+    VerificationTimestamp,
 )
-from app.domain.dispensing.reference_values import DosageInstruction, MedicineIdentifier
 from app.domain.dispensing.value_objects import (
+    DispensedMedicine,
+    DispensedRp,
+    DosageInstruction,
+    MedicineIdentifier,
     QuantityAdjustment,
     SubstitutionDetail,
 )

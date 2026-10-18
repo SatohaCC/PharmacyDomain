@@ -10,15 +10,13 @@ import httpx
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.domain.care_event.event import Event
+from app.domain.care_event.entities import Event
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
     EventOccurredTimestamp,
 )
+from app.domain.medication_history.entities import PatientMedicalProfile
 from app.domain.medication_history.identifiers import MedicationHistoryRecordId
-from app.domain.medication_history.patient_medical_profile import (
-    PatientMedicalProfile,
-)
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,

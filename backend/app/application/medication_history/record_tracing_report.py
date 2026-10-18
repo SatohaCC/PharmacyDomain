@@ -20,6 +20,7 @@ from app.domain.medication_history.identifiers import (
     TracingReportId,
 )
 from app.domain.medication_history.primitives import (
+    MedicalInstitutionName,
     PhysicianName,
     TracingReportCategory,
     TracingReportContent,
@@ -27,8 +28,7 @@ from app.domain.medication_history.primitives import (
     TracingReportFeeCategory,
     TracingReportTimestamp,
 )
-from app.domain.medication_history.reference_primitives import MedicalInstitutionName
-from app.domain.medication_history.repository import MedicationHistoryRepository
+from app.domain.medication_history.repositories import MedicationHistoryRepository
 from app.domain.medication_history.services import CounselorQualificationService
 from app.domain.staff.identifiers import StaffId
 

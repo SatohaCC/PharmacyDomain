@@ -16,12 +16,7 @@ from app.application.coverage.get_last_coverage_selection import (
     GetLastCoverageSelectionUseCase,
 )
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.coverage.coverage_selection import (
-    CoverageSelection,
-    SelectedInsuranceSource,
-)
-from app.domain.coverage.coverage_selection_record import CoverageSelectionRecord
-from app.domain.coverage.coverage_snapshot import InsuranceCoverageSnapshot
+from app.domain.coverage.entities import CoverageSelectionRecord
 from app.domain.coverage.identifiers import PatientCoverageId
 from app.domain.coverage.primitives import (
     CoverageAppliedOn,
@@ -32,6 +27,11 @@ from app.domain.coverage.primitives import (
     CoverageSymbol,
     InsurerNumber,
     OperatorPrincipalId,
+)
+from app.domain.coverage.value_objects import (
+    CoverageSelection,
+    InsuranceCoverageSnapshot,
+    SelectedInsuranceSource,
 )
 from app.domain.patient.identifiers import PatientId
 from app.domain.store.identifiers import StoreId

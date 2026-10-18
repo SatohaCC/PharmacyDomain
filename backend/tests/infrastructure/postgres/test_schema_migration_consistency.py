@@ -25,35 +25,32 @@ from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.schema import CreateIndex, CreateTable
 
 import app.infrastructure as infrastructure
-from app.domain.care_event.event import Event
-from app.domain.care_event.event_definition import EventDefinition
+from app.domain.care_event.entities import Event, EventDefinition
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
     EventOccurredTimestamp,
     EventTypeName,
     EventTypeStandardCode,
 )
-from app.domain.identity.account_person import AccountPerson
-from app.domain.identity.identifiers import CorporateMembershipId, UserInvitationId
-from app.domain.identity.invitation import InvitationDigest, UserInvitation
-from app.domain.identity.membership import CorporateMembership
-from app.domain.identity.primitives import MembershipRole
-from app.domain.identity.staff_person_link import StaffPersonLink
-from app.domain.identity.user_account import UserAccount
-from app.domain.medication_history.category_catalog import (
-    MedicationHistoryCategoryCatalog,
+from app.domain.identity.entities import (
+    AccountPerson,
+    CorporateMembership,
+    StaffPersonLink,
+    UserAccount,
+    UserInvitation,
 )
+from app.domain.identity.identifiers import CorporateMembershipId, UserInvitationId
+from app.domain.identity.primitives import InvitationDigest, MembershipRole
+from app.domain.medication_history.entities import MedicationHistoryCategoryCatalog
 from app.domain.medication_history.primitives import FollowUpRecordedTimestamp
+from app.domain.reception.entities import Reception
 from app.domain.reception.identifiers import ReceptionId
 from app.domain.reception.primitives import ReceptionFieldPath, ReceptionFingerprint
-from app.domain.reception.reception import Reception
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
+from app.domain.store.entities import StoreManagerAssignment
 from app.domain.store.identifiers import StoreManagerAssignmentId
-from app.domain.store.manager_assignment import (
-    ManagerAssignmentPeriod,
-    StoreManagerAssignment,
-)
+from app.domain.store.value_objects import ManagerAssignmentPeriod
 from app.infrastructure.care_event.postgres.care_event import EVENT_MAPPING
 from app.infrastructure.care_event.postgres.event_definition import (
     EVENT_DEFINITION_MAPPING,

@@ -1,14 +1,14 @@
 """調剤の事実を薬歴が必要とする不変情報へ変換する。"""
 
 from app.application.common.optional_conversion import unwrap
-from app.domain.dispensing.dispensing_process import DispensingProcess
-from app.domain.medication_history.dispensing_source import (
+from app.domain.dispensing.entities import DispensingProcess
+from app.domain.medication_history.primitives import DispensingProcessStatus
+from app.domain.medication_history.value_objects import (
     DispensingSource,
     MedicineSource,
     RpSource,
     SubstitutionSource,
 )
-from app.domain.medication_history.reference_primitives import DispensingProcessStatus
 
 
 def dispensing_source(value: DispensingProcess) -> DispensingSource:

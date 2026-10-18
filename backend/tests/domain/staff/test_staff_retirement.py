@@ -18,12 +18,12 @@ from app.application.composition.organization_snapshot_mapping import (
     staff_store_source,
 )
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.staff.entities import Staff
 from app.domain.staff.exceptions import (
     AffiliationDateConflictError,
     InactiveStaffAssignmentError,
 )
 from app.domain.staff.services import StaffStoreAssignmentService
-from app.domain.staff.staff import Staff
 from app.domain.staff.value_objects import AffiliationPeriod, StoreAffiliation
 from app.domain.store.identifiers import StoreId
 from tests.factories.staff_factory import create_staff

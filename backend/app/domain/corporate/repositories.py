@@ -1,0 +1,57 @@
+"""corporateの保存・情報取得の抽象契約。"""
+
+from __future__ import annotations
+
+from typing import Protocol
+
+from app.domain.corporate.entities import Corporate
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.corporate.primitives import CorporateName
+from app.domain.corporate.value_objects import CorporateSearch
+
+
+class CorporateRepository(Protocol):
+    """法人を扱うユースケースが必要とする永続化操作。"""
+
+    async def get(self, corporate_id: CorporateId) -> Corporate | None:
+        """指定されたIDの法人を検索して返す。"""
+        ...
+
+    async def save(self, corporate: Corporate) -> None:
+        """法人を新規登録または変更する。
+
+        同名の別法人が存在する場合は、永続化層の一意性制約と合わせて保存を拒否すること。
+
+        読み込みから保存までの間に同じ集約が別トランザクションで更新されて
+        いた場合、上書きせずに ``ConcurrentModificationError`` を送出する。
+        同時更新が起こりえない実装（インメモリなど）では送出されない。
+        """
+        ...
+
+    async def exists_by_name(
+        self,
+        name: CorporateName,
+        *,
+        excluding_id: CorporateId | None = None,
+    ) -> bool:
+        """指定された法人名が既に登録されているか確認する。"""
+        ...
+
+
+# システム起動時・特権バッチ用のリポジトリ
+class CorporateCatalogRepository(Protocol):
+    async def list_all(self) -> list[Corporate]:
+        """全ての法人を返す。
+
+        法人ごとに持つマスタ（記載区分など）を起動時に補完する用途に限る。
+        リクエスト経路から呼ぶとテナント境界を越えるので使わないこと。
+        """
+        ...
+
+
+class CorporateSearchRepository(Protocol):
+    """絞り込みと件数制限を永続化側で適用する。"""
+
+    async def search(self, query: CorporateSearch) -> list[Corporate]:
+        """ID昇順で指定件数以内の法人を返す。"""
+        ...

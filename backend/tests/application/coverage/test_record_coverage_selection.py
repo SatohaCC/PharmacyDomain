@@ -17,15 +17,6 @@ from app.application.coverage.record_coverage_selection import (
     RecordCoverageSelectionUseCase,
 )
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.coverage.coverage_selection import (
-    CoverageSelection,
-    SelectedInsuranceSource,
-    SelectedPublicExpenseSource,
-)
-from app.domain.coverage.coverage_snapshot import (
-    InsuranceCoverageSnapshot,
-    PublicExpenseCoverageSnapshot,
-)
 from app.domain.coverage.identifiers import PatientCoverageId
 from app.domain.coverage.primitives import (
     CoverageBenefitRatio,
@@ -36,6 +27,13 @@ from app.domain.coverage.primitives import (
     InsurerNumber,
     PublicPayerNumber,
     PublicRecipientNumber,
+)
+from app.domain.coverage.value_objects import (
+    CoverageSelection,
+    InsuranceCoverageSnapshot,
+    PublicExpenseCoverageSnapshot,
+    SelectedInsuranceSource,
+    SelectedPublicExpenseSource,
 )
 from app.domain.patient.identifiers import PatientId
 from app.domain.store.identifiers import StoreId

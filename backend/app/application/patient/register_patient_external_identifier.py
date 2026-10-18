@@ -9,11 +9,11 @@ from app.application.access_control.models import Permission
 from app.application.patient.reference import PatientStoreReferenceBoundary
 from app.application.patient.support import load_patient_or_raise
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.entities import PatientExternalIdentifier
 from app.domain.patient.exceptions import PatientExternalIdentifierAlreadyExistsError
-from app.domain.patient.external_identifier import PatientExternalIdentifier
 from app.domain.patient.identifiers import PatientId
 from app.domain.patient.primitives import ExternalPatientId, ExternalSystemName
-from app.domain.patient.repository import (
+from app.domain.patient.repositories import (
     PatientExternalIdentifierRepository,
     PatientRepository,
 )

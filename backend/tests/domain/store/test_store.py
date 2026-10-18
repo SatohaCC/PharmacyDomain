@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import replace
 
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.store.entities import Store
 from app.domain.store.identifiers import StoreId
 from app.domain.store.primitives import StoreCode
-from app.domain.store.store import Store
 from tests.factories.store_factory import (
     VALID_INSURANCE_NUMBER,
     create_contact_info,

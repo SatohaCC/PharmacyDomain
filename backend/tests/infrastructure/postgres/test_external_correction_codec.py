@@ -3,18 +3,16 @@
 from dataclasses import replace
 from datetime import UTC, datetime
 
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.primitives import (
+    ExternalCorrectionDecision,
+    ExternalCorrectionKind,
+    ExternalCorrectionStatus,
     ExternalCorrectionTimestamp,
     FinalizedTimestamp,
 )
 from app.domain.medication_history.value_objects import (
-    ExternalCorrectionDecision,
-    ExternalCorrectionKind,
     ExternalCorrectionReviewEvent,
-    ExternalCorrectionStatus,
     ExternalPrescriptionCorrection,
 )
 from app.domain.prescription.identifiers import PrescriptionId

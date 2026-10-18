@@ -1,4 +1,6 @@
-"""業務イベントコンテキストの識別子と値プリミティブ。"""
+"""care_eventの単一値と列挙・検証規則。"""
+
+from __future__ import annotations
 
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.primitives.primitives import BaseAwareTimestamp, BaseFreeText

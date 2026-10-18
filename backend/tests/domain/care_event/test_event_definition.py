@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.domain.care_event.event_definition import EventDefinition
+from app.domain.care_event.entities import EventDefinition
 from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainError

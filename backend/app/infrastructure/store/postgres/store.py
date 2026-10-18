@@ -11,6 +11,7 @@ from typing import Any
 from sqlalchemy import Select, select
 
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.store.entities import Store
 from app.domain.store.exceptions import (
     InsurancePharmacyNumberAlreadyExistsError,
     StoreCodeAlreadyExistsError,
@@ -18,8 +19,7 @@ from app.domain.store.exceptions import (
 )
 from app.domain.store.identifiers import StoreId
 from app.domain.store.primitives import InsurancePharmacyNumber, StoreCode, StoreName
-from app.domain.store.repository import StoreCatalogRepository, StoreRepository
-from app.domain.store.store import Store
+from app.domain.store.repositories import StoreCatalogRepository, StoreRepository
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,

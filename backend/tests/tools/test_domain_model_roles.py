@@ -3,7 +3,83 @@
 import ast
 from pathlib import Path
 
+import pytest
+
 _DOMAIN = Path(__file__).resolve().parents[2] / "app" / "domain"
+
+
+def _role_violations(role: str, source: str) -> list[str]:
+    """明示した継承とサービス名から配置の逆転を検出する。"""
+    violations = []
+    for node in ast.parse(source).body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        bases = {
+            ast.unparse(base.value if isinstance(base, ast.Subscript) else base).rsplit(
+                ".", 1
+            )[-1]
+            for base in node.bases
+        }
+        expected = None
+        if bases & {"Entity", "AggregateRoot"}:
+            expected = "entities"
+        elif bases & {"ValueObject", "BaseQualificationProfile"}:
+            expected = "value_objects"
+        elif "Protocol" in bases:
+            expected = "repositories"
+        elif node.name.endswith("Service"):
+            expected = "services"
+        if expected is not None and role != expected:
+            violations.append(node.name)
+    return violations
+
+
+def test_Domainの役割別モジュール_定義の責務が_配置と一致する() -> None:
+    # Act
+    violations = [
+        f"{path.parent.name}/{path.name}:{name}"
+        for path in _DOMAIN.glob("*/*.py")
+        if path.parent.name not in {"foundation", "shared"}
+        for name in _role_violations(path.stem, path.read_text(encoding="utf-8"))
+    ]
+
+    # Assert
+    assert not violations, violations
+
+
+@pytest.mark.parametrize(
+    ("role", "source"),
+    [
+        ("primitives", "class Sample(ValueObject): pass"),
+        ("value_objects", "class Sample(Entity[SampleId]): pass"),
+        ("value_objects", "class Sample(AggregateRoot[SampleId]): pass"),
+        ("entities", "class Sample(Protocol): pass"),
+        ("entities", "class SampleService: pass"),
+    ],
+)
+def test_役割検査_誤った責務の定義を_検出する(role: str, source: str) -> None:
+    # Act
+    violations = _role_violations(role, source)
+
+    # Assert
+    assert len(violations) == 1
+
+
+@pytest.mark.parametrize(
+    ("role", "source"),
+    [
+        ("value_objects", "class Sample(ValueObject): pass"),
+        ("entities", "class Sample(Entity[SampleId]): pass"),
+        ("repositories", "class Sample(Protocol): pass"),
+        ("services", "class SampleService: pass"),
+    ],
+)
+def test_役割検査_責務が一致する定義を_許可する(role: str, source: str) -> None:
+    # Act
+    violations = _role_violations(role, source)
+
+    # Assert
+    assert violations == []
 
 
 def test_プリミティブ_複合値の定義を_持たない() -> None:

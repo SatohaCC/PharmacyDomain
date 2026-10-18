@@ -12,7 +12,7 @@ from app.application.patient.register_patient_external_identifier import (
 )
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.identifiers import PatientExternalIdentifierId
-from app.domain.patient.repository import PatientExternalIdentifierRepository
+from app.domain.patient.repositories import PatientExternalIdentifierRepository
 
 
 @dataclass(frozen=True, kw_only=True)

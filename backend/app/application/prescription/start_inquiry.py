@@ -21,7 +21,7 @@ from app.domain.prescription.primitives import (
     InquiryContent,
     InquiryTimestamp,
 )
-from app.domain.prescription.repository import PrescriptionRepository
+from app.domain.prescription.repositories import PrescriptionRepository
 from app.domain.prescription.services import InquiryPharmacistService
 from app.domain.staff.identifiers import StaffId
 

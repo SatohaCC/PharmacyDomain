@@ -7,16 +7,17 @@ from datetime import UTC, date, datetime, timedelta
 
 from app.domain.care_event.identifiers import EventId
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.entities import DispensingProcess
 from app.domain.dispensing.identifiers import DispensingId
-from app.domain.medication_history.entities import FollowUpRecord, TracingReport
+from app.domain.medication_history.entities import (
+    FollowUpRecord,
+    MedicationHistoryRecord,
+    TracingReport,
+)
 from app.domain.medication_history.identifiers import (
     FollowUpId,
     MedicationHistoryRecordId,
     TracingReportId,
-)
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
 )
 from app.domain.medication_history.primitives import (
     AdverseReactionSymptom,
@@ -34,13 +35,19 @@ from app.domain.medication_history.primitives import (
     FollowUpRecordedTimestamp,
     GenericPreferenceType,
     HandbookNotPresentedReason,
+    InquiryNumber,
     LifestyleNote,
+    MedicalInstitutionAddressLine,
+    MedicalInstitutionName,
     MedicationHistoryImportTimestamp,
     MedicationHistoryReviewResult,
     MedicationHistorySourceSystem,
     MedicationHistoryStatus,
+    MedicineName,
+    PatientBirthDate,
     PhysicianName,
     PrescriberActionType,
+    PrescriptionIssuedDate,
     RetractionReason,
     StatutoryCategory,
     TracingReportCategory,
@@ -49,14 +56,6 @@ from app.domain.medication_history.primitives import (
     TracingReportFeeCategory,
     TracingReportResponseContent,
     TracingReportTimestamp,
-)
-from app.domain.medication_history.reference_primitives import (
-    InquiryNumber,
-    MedicalInstitutionAddressLine,
-    MedicalInstitutionName,
-    MedicineName,
-    PatientBirthDate,
-    PrescriptionIssuedDate,
 )
 from app.domain.medication_history.value_objects import (
     BillingAddition,

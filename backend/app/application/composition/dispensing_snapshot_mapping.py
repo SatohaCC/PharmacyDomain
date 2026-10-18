@@ -1,14 +1,6 @@
 """処方原本の業務情報を調剤が所有する不変値へ変換する。"""
 
-from app.domain.dispensing.prescription_source import (
-    InquiryResponse,
-    PrescriptionInquiry,
-    PrescriptionMedicine,
-    PrescriptionRp,
-    PrescriptionSource,
-    SubstitutionRestriction,
-)
-from app.domain.dispensing.reference_primitives import (
+from app.domain.dispensing.primitives import (
     DailyFrequency,
     DosageCode,
     DosageCodeType,
@@ -23,9 +15,20 @@ from app.domain.dispensing.reference_primitives import (
     PrescriptionStatus,
     RpNumber,
 )
-from app.domain.dispensing.reference_values import DosageInstruction, MedicineIdentifier
-from app.domain.prescription.dosage import DosageInstruction as SourceDosageInstruction
-from app.domain.prescription.prescription import Prescription
+from app.domain.dispensing.value_objects import (
+    DosageInstruction,
+    InquiryResponse,
+    MedicineIdentifier,
+    PrescriptionInquiry,
+    PrescriptionMedicine,
+    PrescriptionRp,
+    PrescriptionSource,
+    SubstitutionRestriction,
+)
+from app.domain.prescription.entities import Prescription
+from app.domain.prescription.value_objects import (
+    DosageInstruction as SourceDosageInstruction,
+)
 
 
 def dispensing_dosage(value: SourceDosageInstruction) -> DosageInstruction:

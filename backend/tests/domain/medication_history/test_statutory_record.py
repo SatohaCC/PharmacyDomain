@@ -19,12 +19,10 @@ from app.application.composition.medication_history_snapshot_mapping import (
     dispensing_source,
 )
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.entities import DispensingProcess
 from app.domain.foundation.exceptions import DomainError
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.exceptions import StatutoryRecordSourceMismatchError
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
 from app.domain.medication_history.primitives import (
     StatutoryDispensingRecordItem,
     StatutoryItemState,

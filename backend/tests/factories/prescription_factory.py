@@ -12,22 +12,15 @@ from decimal import Decimal
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.identifiers import PatientId
-from app.domain.prescription.dosage import (
-    DosageCodeType,
-    DosageInstruction,
-    DosageName,
-)
-from app.domain.prescription.prescription import (
-    Prescription,
-    PrescriptionMedicine,
-    PrescriptionRp,
-)
+from app.domain.prescription.entities import Prescription
 from app.domain.prescription.primitives import (
     DepartmentCodeType,
     DepartmentName,
     DispensingQuantity,
     DosageAmount,
+    DosageCodeType,
     DosageFormCategory,
+    DosageName,
     GenericSubstitutionRestrictionType,
     InquiryCategory,
     InquiryContent,
@@ -38,7 +31,11 @@ from app.domain.prescription.primitives import (
     MedicalInstitutionCodeType,
     MedicalInstitutionName,
     MedicalInstitutionPrefectureCode,
+    MedicineCode,
+    MedicineCodeType,
     MedicineLineNumber,
+    MedicineName,
+    MedicineUnit,
     PrescriberName,
     PrescriptionDocumentNumber,
     PrescriptionIssuedDate,
@@ -46,21 +43,18 @@ from app.domain.prescription.primitives import (
     PrescriptionValidTo,
     RpNumber,
 )
-from app.domain.prescription.reference_primitives import (
-    MedicineCode,
-    MedicineCodeType,
-    MedicineName,
-    MedicineUnit,
-)
-from app.domain.prescription.reference_values import MedicineIdentifier
 from app.domain.prescription.value_objects import (
     DepartmentInfo,
+    DosageInstruction,
     GenericSubstitutionRestriction,
     MedicalInstitutionInfo,
+    MedicineIdentifier,
     PrescriberInfo,
     PrescriberResponse,
     PrescriptionManagementInfo,
+    PrescriptionMedicine,
     PrescriptionPeriod,
+    PrescriptionRp,
 )
 from app.domain.shared.person_name import PersonName, PersonNameKana
 from app.domain.shared.public_expense import PublicExpenseBurden

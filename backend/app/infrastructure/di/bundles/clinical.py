@@ -123,7 +123,7 @@ from app.domain.medication_history.services import (
     CounselorQualificationService,
     StatutoryDispensingRecordService,
 )
-from app.domain.prescription.interaction_audit import DrugInteractionDataSource
+from app.domain.prescription.repositories import DrugInteractionDataSource
 from app.domain.prescription.services import (
     InquiryPharmacistService,
     NarcoticPrescriptionService,

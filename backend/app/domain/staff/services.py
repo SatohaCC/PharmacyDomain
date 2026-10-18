@@ -1,7 +1,12 @@
+"""staffのドメインサービス。"""
+
+from __future__ import annotations
+
 from dataclasses import replace
 from datetime import date, timedelta
 
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.staff.entities import Staff
 from app.domain.staff.exceptions import (
     AffiliationDateConflictError,
     ClosedStoreAssignmentError,
@@ -12,10 +17,12 @@ from app.domain.staff.exceptions import (
 )
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import StaffCode
-from app.domain.staff.repository import StaffRepository
-from app.domain.staff.staff import Staff
-from app.domain.staff.store_source import StoreSource
-from app.domain.staff.value_objects import AffiliationPeriod, StoreAffiliation
+from app.domain.staff.repositories import StaffRepository
+from app.domain.staff.value_objects import (
+    AffiliationPeriod,
+    StoreAffiliation,
+    StoreSource,
+)
 
 
 class StaffCodeUniquenessService:

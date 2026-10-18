@@ -21,9 +21,12 @@ from app.application.composition.clinical_store_guard import ClinicalStoreWriteG
 from app.application.composition.store_operation_adapter import StoreOperationAdapter
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainError
+from app.domain.store.exceptions import (
+    ManagerAbsenceConflictError,
+    StoreStateConflictError,
+)
 from app.domain.store.identifiers import StoreId
-from app.domain.store.lifecycle import StoreStateConflictError, StoreStatus
-from app.domain.store.manager_assignment import ManagerAbsenceConflictError
+from app.domain.store.primitives import StoreStatus
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.factories.dispensing_factory import create_dispensing
 from tests.factories.medication_history_factory import (

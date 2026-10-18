@@ -6,8 +6,8 @@ from typing import cast
 import pytest
 
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.identity.entities import UserAccount
 from app.domain.identity.primitives import AccountStatus
-from app.domain.identity.user_account import UserAccount
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 
 

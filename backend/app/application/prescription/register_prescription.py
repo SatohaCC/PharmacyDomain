@@ -40,9 +40,9 @@ from app.application.prescription.support import (
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.identifiers import CoverageSelectionRecordId
 from app.domain.patient.identifiers import PatientId
-from app.domain.prescription.prescription import Prescription
+from app.domain.prescription.entities import Prescription
 from app.domain.prescription.primitives import PrescriptionDocumentNumber
-from app.domain.prescription.repository import PrescriptionRepository
+from app.domain.prescription.repositories import PrescriptionRepository
 from app.domain.prescription.services import (
     NarcoticPrescriptionService,
     PrescriptionDocumentNumberUniquenessService,

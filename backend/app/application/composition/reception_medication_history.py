@@ -8,7 +8,7 @@ from app.application.reception.reference import (
 )
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.identifiers import MedicationHistoryRecordId
-from app.domain.medication_history.repository import MedicationHistoryRepository
+from app.domain.medication_history.repositories import MedicationHistoryRepository
 
 
 class ReceptionMedicationHistoryAssociationAdapter(

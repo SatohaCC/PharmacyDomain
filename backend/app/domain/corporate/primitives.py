@@ -1,7 +1,6 @@
-"""法人（`corporate`）コンテキストの識別子・属性プリミティブ。
+"""corporateの単一値と列挙・検証規則。"""
 
-他の集約のIDや属性と型レベルで混同しないよう、それぞれを別型で包む。
-"""
+from __future__ import annotations
 
 from enum import StrEnum
 

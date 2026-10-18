@@ -19,7 +19,7 @@ from app.domain.dispensing.primitives import (
     DispensingCompletionType,
     NextDispensingDate,
 )
-from app.domain.dispensing.repository import DispensingProcessRepository
+from app.domain.dispensing.repositories import DispensingProcessRepository
 
 
 @dataclass(frozen=True, kw_only=True)

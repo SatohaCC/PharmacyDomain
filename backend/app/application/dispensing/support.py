@@ -19,19 +19,9 @@ from app.application.dispensing.inputs import (
     SubstitutionInput,
 )
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.dispensing.dispensing_process import (
-    DispensedMedicine,
-    DispensedRp,
-    DispensingProcess,
-)
+from app.domain.dispensing.entities import DispensingProcess
 from app.domain.dispensing.identifiers import DispensingId
 from app.domain.dispensing.primitives import (
-    PreparationMethod,
-    QuantityAdjustmentReason,
-    SubstitutionCategory,
-    SubstitutionReason,
-)
-from app.domain.dispensing.reference_primitives import (
     DailyFrequency,
     DispensingQuantity,
     DosageAmount,
@@ -45,11 +35,18 @@ from app.domain.dispensing.reference_primitives import (
     MedicineLineNumber,
     MedicineName,
     MedicineUnit,
+    PreparationMethod,
+    QuantityAdjustmentReason,
     RpNumber,
+    SubstitutionCategory,
+    SubstitutionReason,
 )
-from app.domain.dispensing.reference_values import DosageInstruction, MedicineIdentifier
-from app.domain.dispensing.repository import DispensingProcessRepository
+from app.domain.dispensing.repositories import DispensingProcessRepository
 from app.domain.dispensing.value_objects import (
+    DispensedMedicine,
+    DispensedRp,
+    DosageInstruction,
+    MedicineIdentifier,
     QuantityAdjustment,
     SubstitutionDetail,
 )

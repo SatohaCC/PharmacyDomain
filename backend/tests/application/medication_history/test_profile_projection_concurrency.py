@@ -24,16 +24,14 @@ from app.application.medication_history.profile_projection_service import (
     PatientMedicalProfileProjectionService,
 )
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.medication_history.entities import (
+    MedicationHistoryRecord,
+    PatientMedicalProfile,
+)
 from app.domain.medication_history.exceptions import MedicationHistoryDomainError
 from app.domain.medication_history.identifiers import MedicationHistoryRecordId
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
-from app.domain.medication_history.patient_medical_profile import PatientMedicalProfile
 from app.domain.medication_history.services import CounselorQualificationService
-from app.domain.medication_history.value_objects import (
-    ProfileUpdateIntents,
-)
+from app.domain.medication_history.value_objects import ProfileUpdateIntents
 from app.domain.patient.identifiers import PatientId
 from app.domain.store.identifiers import StoreId
 from tests.application.medication_history.helpers import (

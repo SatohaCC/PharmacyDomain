@@ -19,16 +19,16 @@ from app.application.prescription.reference import (
 )
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.identifiers import CoverageSelectionRecordId
-from app.domain.coverage.repository import CoverageSelectionRecordRepository
+from app.domain.coverage.repositories import CoverageSelectionRecordRepository
 from app.domain.patient.identifiers import PatientId
-from app.domain.patient.repository import PatientRepository
+from app.domain.patient.repositories import PatientRepository
 from app.domain.prescription.value_objects import PharmacistQualification
 from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.staff.identifiers import StaffId
-from app.domain.staff.repository import StaffRepository
+from app.domain.staff.repositories import StaffRepository
 from app.domain.staff.value_objects import PharmacistProfile
 from app.domain.store.identifiers import StoreId
-from app.domain.store.repository import StoreRepository
+from app.domain.store.repositories import StoreRepository
 
 #: 資格台帳の公費順位（第一〜第四）から、処方箋の公費枠への対応。
 #:

@@ -4,7 +4,7 @@ from typing import Protocol
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.staff.identifiers import StaffId
-from app.domain.store.manager_source import ManagerStaffSource
+from app.domain.store.value_objects import ManagerStaffSource
 
 
 class ManagerStaffReference(Protocol):

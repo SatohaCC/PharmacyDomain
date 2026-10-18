@@ -37,14 +37,15 @@ from app.application.reception.associate_reception_medication_history import (
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.identifiers import DispensingId
 from app.domain.dispensing.primitives import DispensingProcessStatus
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.primitives import (
     BillingAdditionCode,
     BillingAdditionName,
     CounselingMethod,
     CounselingTimestamp,
+    ExternalCorrectionDecision,
+    ExternalCorrectionKind,
+    ExternalCorrectionStatus,
     ExternalCorrectionTimestamp,
     FinalizedTimestamp,
     MedicationHistoryImportTimestamp,
@@ -54,27 +55,25 @@ from app.domain.medication_history.primitives import (
 )
 from app.domain.medication_history.value_objects import (
     BillingAddition,
-    ExternalCorrectionDecision,
-    ExternalCorrectionKind,
-    ExternalCorrectionStatus,
     HandbookStatus,
     ResidualDrugRecord,
 )
-from app.domain.patient.external_identifier import PatientExternalIdentifier
-from app.domain.patient.heading import PatientHeadingContent, PatientHeadingText
+from app.domain.patient.entities import PatientExternalIdentifier
 from app.domain.patient.identifiers import PatientId
 from app.domain.patient.primitives import (
     ExternalPatientId,
     ExternalSystemName,
     PatientAddress,
+    PatientHeadingText,
 )
+from app.domain.patient.value_objects import PatientHeadingContent
 from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.prescription.primitives import (
     PrescriptionDocumentNumber,
     PrescriptionStatus,
 )
 from app.domain.reception.identifiers import ReceptionId
-from app.domain.reception.reception import ReceptionSourceData
+from app.domain.reception.value_objects import ReceptionSourceData
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
 from app.domain.store.identifiers import StoreId

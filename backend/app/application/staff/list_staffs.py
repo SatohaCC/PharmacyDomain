@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.staff.repository import StaffCatalogRepository
-from app.domain.staff.staff import Staff
+from app.domain.staff.entities import Staff
+from app.domain.staff.repositories import StaffCatalogRepository
 
 
 @dataclass(frozen=True, kw_only=True)

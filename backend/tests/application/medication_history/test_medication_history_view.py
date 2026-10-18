@@ -26,7 +26,7 @@ from app.application.medication_history.get_medication_history_view import (
     GetMedicationHistoryViewUseCase,
     MedicationHistoryPatientProfileDto,
 )
-from app.domain.corporate.corporate import Corporate
+from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.primitives import FollowUpRecordedTimestamp
 from app.domain.patient.identifiers import PatientId

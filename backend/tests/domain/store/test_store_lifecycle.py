@@ -7,8 +7,8 @@ import pytest
 
 from app.domain.foundation.exceptions import DomainError, DomainValidationError
 from app.domain.shared.actor import AccountPersonId, UserAccountId
-from app.domain.store.lifecycle import StoreStatus, StoreStatusReason
-from app.domain.store.store import Store
+from app.domain.store.entities import Store
+from app.domain.store.primitives import StoreStatus, StoreStatusReason
 from tests.factories.store_factory import create_store
 
 _NOW = datetime(2026, 9, 17, 2, tzinfo=UTC)

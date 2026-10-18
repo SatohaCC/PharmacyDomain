@@ -12,6 +12,7 @@ from decimal import Decimal
 
 import pytest
 
+from app.domain.prescription.entities import Prescription
 from app.domain.prescription.exceptions import (
     BlockingInquiryExistsError,
     InquiryAlreadyResolvedError,
@@ -25,7 +26,6 @@ from app.domain.prescription.exceptions import (
     RpNumberSequenceError,
     UnequalDosageTotalMismatchError,
 )
-from app.domain.prescription.prescription import Prescription
 from app.domain.prescription.primitives import (
     DosageAmount,
     DosageSupplementText,
@@ -33,13 +33,13 @@ from app.domain.prescription.primitives import (
     GenericSubstitutionRestrictionType,
     InquiryNumber,
     InquiryResultType,
+    MedicineCodeType,
     MedicineSupplementText,
     MedicineSupplementType,
     PrescriptionSourceType,
     PrescriptionStatus,
     verify_supplement_code_partition,
 )
-from app.domain.prescription.reference_primitives import MedicineCodeType
 from app.domain.prescription.value_objects import (
     DosageSupplement,
     GenericSubstitutionRestriction,

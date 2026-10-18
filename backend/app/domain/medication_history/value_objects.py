@@ -1,22 +1,16 @@
-"""MedicationHistoryコンテキストの複合 Value Object。
-
-頭書きの要素（アレルギー歴・副作用歴・既往歴・併用薬・生活像・後発品意向・
-かかりつけ薬剤師）は**すべて ``ProfileProvenance`` を持つ**。1つでも由来の無い
-要素があると、頭書きが薬歴から再構築できなくなり「投影である」という前提が崩れる。
-
-薬歴が頭書きへ加える差分は ``ProfileUpdateIntents`` として薬歴側が持つ。
-由来（どの薬歴か・誰が・いつ）は投影時に薬歴から埋まるので、Intent は
-由来を持たない。持たせると、薬歴と食い違う由来を書ける余地ができる。
-"""
+"""medication_historyの複合値と参照スナップショット。"""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
-from enum import StrEnum
-from typing import ClassVar, Self
+from typing import ClassVar, Final, Self
 
+from app.domain.care_event.identifiers import EventId
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.identifiers import DispensingId
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.value_object import ValueObject
 from app.domain.medication_history.exceptions import (
     ConcurrentMedicationPeriodInvertedError,
@@ -27,9 +21,7 @@ from app.domain.medication_history.exceptions import (
     StatutoryItemAssessedTwiceError,
     StatutoryItemNotAssessedError,
 )
-from app.domain.medication_history.identifiers import (
-    MedicationHistoryRecordId,
-)
+from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.primitives import (
     AdverseReactionSymptom,
     AllergenName,
@@ -42,18 +34,34 @@ from app.domain.medication_history.primitives import (
     ConcurrentCategory,
     ConditionName,
     ConditionStatus,
+    CounselingMethod,
     CounselingNote,
+    CounselingTimestamp,
+    DispensingProcessStatus,
+    ExternalCorrectionDecision,
+    ExternalCorrectionKind,
+    ExternalCorrectionStatus,
     ExternalCorrectionTimestamp,
+    FactCorrectionTimestamp,
+    FinalizationDelayReason,
     GenericPreferenceType,
     HandbookConsolidationReason,
     HandbookNotPresentedReason,
+    InquiryNumber,
     LifestyleNote,
     MajorCategoryCode,
     MajorCategoryName,
+    MedicalInstitutionAddressLine,
+    MedicalInstitutionName,
+    MedicationHistoryReviewResult,
+    MedicationHistorySourceSystem,
+    MedicineName,
     MediumCategoryCode,
     MediumCategoryName,
+    PatientBirthDate,
     PhysicianName,
     PrescriberActionType,
+    PrescriptionIssuedDate,
     ResidualDrugQuantity,
     ResidualDrugReason,
     RetractionReason,
@@ -64,18 +72,114 @@ from app.domain.medication_history.primitives import (
     TracingReportResponseContent,
     TracingReportTimestamp,
 )
-from app.domain.medication_history.reference_primitives import (
-    InquiryNumber,
-    MedicalInstitutionAddressLine,
-    MedicalInstitutionName,
-    MedicineName,
-    PatientBirthDate,
-    PrescriptionIssuedDate,
-)
 from app.domain.patient.identifiers import PatientId
 from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.shared.person_name import PersonName, PersonNames
 from app.domain.staff.identifiers import StaffId
+from app.domain.store.identifiers import StoreId
+
+
+@dataclass(frozen=True, kw_only=True)
+class SubstitutionSource(ValueObject):
+    """記録された変更理由。不明はNoneのまま保持する。"""
+
+    reason: str | None
+
+
+@dataclass(frozen=True, kw_only=True)
+class MedicineSource(ValueObject):
+    """調剤した薬品の存在と変更記録。"""
+
+    substitution: SubstitutionSource | None
+
+
+@dataclass(frozen=True, kw_only=True)
+class RpSource(ValueObject):
+    """剤ごとの数量・薬品の存在と数量調整の有無。"""
+
+    quantity: int
+    medicines: tuple[MedicineSource, ...]
+    is_quantity_adjusted: bool
+
+    def validate(self) -> None:
+        """記録された調剤数量が正であることを保証する。"""
+        if self.quantity < 1:
+            raise DomainValidationError("調剤数量は1以上で指定してください。")
+
+
+@dataclass(frozen=True, kw_only=True)
+class DispensingSource(ValueObject):
+    """同じ対象の調剤事実を、元集約の実装型から独立して保持する。"""
+
+    dispensing_id: DispensingId
+    corporate_id: CorporateId
+    store_id: StoreId
+    patient_id: PatientId
+    prescription_id: PrescriptionId
+    dispenser_id: StaffId
+    status: DispensingProcessStatus
+    dispensed_date: date
+    dispensed_rps: tuple[RpSource, ...]
+
+    @property
+    def substituted_medicines(self) -> tuple[MedicineSource, ...]:
+        """変更記録を持つ薬品を列挙する。"""
+        return tuple(
+            medicine
+            for rp in self.dispensed_rps
+            for medicine in rp.medicines
+            if medicine.substitution is not None
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
+class FactElement:
+    """原本または訂正で追加された配列要素。"""
+
+    id: str
+    value: object
+
+
+@dataclass(frozen=True, kw_only=True)
+class MedicationHistoryFactCorrection:
+    """原本を変更せず積み上げる一件の訂正。"""
+
+    id: str
+    target: str
+    field_name: str
+    operation: str
+    before: object | None
+    after: object | None
+    reason: str
+    corrected_by: StaffId
+    recorded_at: FactCorrectionTimestamp
+    element_id: str | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class EffectiveMedicationHistoryFacts:
+    """原本と訂正列から再生した現在有効な薬歴事実。"""
+
+    counselor_id: StaffId | None
+    counseled_at: CounselingTimestamp | None
+    method: CounselingMethod | None
+    handbook_status: HandbookStatus | None
+    residual_drug: ResidualDrugRecord | None
+    information_sheet_provided: bool | None
+    profile_updates: ProfileUpdateIntents
+    additional_notes: tuple[CategorizedNote, ...]
+    billing_additions: tuple[BillingAddition, ...]
+    source_system: MedicationHistorySourceSystem | None
+    delay_reason: FinalizationDelayReason | None
+    review_result: MedicationHistoryReviewResult | None
+
+
+@dataclass(frozen=True, kw_only=True)
+class FinalizedMedicationHistorySource:
+    """別店舗のフォローアップに関連付けるための最小参照。"""
+
+    event_id: EventId
+    patient_id: PatientId
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -710,30 +814,6 @@ class MedicationHistoryAmendment(ValueObject):
     }
 
 
-class ExternalCorrectionKind(StrEnum):
-    """外部処方訂正の通知種別。"""
-
-    UPDATE = "update"
-    DELETE = "delete"
-
-
-class ExternalCorrectionStatus(StrEnum):
-    """外部処方訂正の確認状態。"""
-
-    PENDING = "pending"
-    INVESTIGATING = "investigating"
-    RESOLVED = "resolved"
-
-
-class ExternalCorrectionDecision(StrEnum):
-    """外部処方訂正への判断。"""
-
-    AMEND = "amend"
-    NO_ACTION = "no_action"
-    INVESTIGATING = "investigating"
-    MATCH_REREGISTERED_PRESCRIPTION = "match_reregistered_prescription"
-
-
 @dataclass(frozen=True, kw_only=True)
 class ExternalCorrectionReviewEvent(ValueObject):
     """外部訂正に対する判断の監査イベント。"""
@@ -984,3 +1064,34 @@ class PharmacistQualification(ValueObject):
     """スタッフ境界で確認された薬剤師資格の保有事実。"""
 
     has_pharmacist: bool
+
+
+FACT_FIELD_TYPES: Final[dict[str, type[object]]] = {
+    "counselor_id": StaffId,
+    "counseled_at": CounselingTimestamp,
+    "method": CounselingMethod,
+    "handbook_status": HandbookStatus,
+    "residual_drug": ResidualDrugRecord,
+    "information_sheet_provided": bool,
+    "source_system": MedicationHistorySourceSystem,
+    "delay_reason": FinalizationDelayReason,
+    "review_result": MedicationHistoryReviewResult,
+    "profile_updates.lifestyle_update": LifestyleUpdateIntent,
+    "profile_updates.generic_preference_update": GenericPreferenceIntent,
+    "profile_updates.family_pharmacist_update": FamilyPharmacistIntent,
+}
+
+
+FACT_ARRAY_TYPES: Final[dict[str, type[object]]] = {
+    "profile_updates.new_allergies": NewAllergyIntent,
+    "profile_updates.retracted_allergies": RetractAllergyIntent,
+    "profile_updates.new_adverse_reactions": NewAdverseReactionIntent,
+    "profile_updates.retracted_adverse_reactions": RetractAdverseReactionIntent,
+    "profile_updates.new_conditions": NewConditionIntent,
+    "profile_updates.updated_conditions": UpdateConditionStatusIntent,
+    "profile_updates.retracted_conditions": RetractConditionIntent,
+    "profile_updates.new_concurrent_medications": NewConcurrentMedicationIntent,
+    "profile_updates.stopped_concurrent_medications": StopConcurrentMedicationIntent,
+    "additional_notes": CategorizedNote,
+    "billing_additions": BillingAddition,
+}

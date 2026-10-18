@@ -13,9 +13,10 @@ from app.application.patient.get_patient_heading import PatientHeadingDto, _to_d
 from app.application.patient.support import load_patient_or_raise
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.patient.heading import PatientHeadingContent, PatientHeadingText
 from app.domain.patient.identifiers import PatientId
-from app.domain.patient.repository import PatientRepository
+from app.domain.patient.primitives import PatientHeadingText
+from app.domain.patient.repositories import PatientRepository
+from app.domain.patient.value_objects import PatientHeadingContent
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -1,14 +1,30 @@
-"""本人・アカウント・法人アクセス権の識別子。
+"""identityの単一値と列挙・検証規則。"""
 
-``AccountPersonId`` と ``UserAccountId`` は Shared Kernel の語彙である。
-店舗の状態変更履歴や監査も「誰が操作したか」を残すため、所有コンテキストを
-Identity に置くと Store と相互依存になる。利用側は定義元のShared Kernelから直接参照する。
-"""
+from __future__ import annotations
 
 from enum import StrEnum
 
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.foundation.primitives.primitives import BaseNormalizedString
+from app.domain.foundation.primitives.primitives import (
+    BaseEmailAddress,
+    BaseNormalizedString,
+)
+
+
+class InvitationStatus(StrEnum):
+    """招待の受諾状態。"""
+
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    CANCELLED = "cancelled"
+
+
+class InvitationDigest(BaseNormalizedString):
+    """招待秘密のダイジェスト。"""
+
+
+class InvitationAddressee(BaseEmailAddress):
+    """招待の宛先。本人確認の代用には使わない。"""
 
 
 class ExternalSubjectKey(BaseNormalizedString):

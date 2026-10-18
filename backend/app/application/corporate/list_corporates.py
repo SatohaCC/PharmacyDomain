@@ -10,7 +10,8 @@ from app.application.access_control.policy import AuthorizationService
 from app.application.corporate.get_corporate import CorporateResponseDto
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.corporate.primitives import CorporateName, CorporateStatus
-from app.domain.corporate.search import CorporateSearch, CorporateSearchRepository
+from app.domain.corporate.repositories import CorporateSearchRepository
+from app.domain.corporate.value_objects import CorporateSearch
 from app.domain.foundation.exceptions import DomainValidationError
 
 

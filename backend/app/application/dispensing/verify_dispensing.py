@@ -21,7 +21,7 @@ from app.domain.dispensing.primitives import (
     VerificationResult,
     VerificationTimestamp,
 )
-from app.domain.dispensing.repository import DispensingProcessRepository
+from app.domain.dispensing.repositories import DispensingProcessRepository
 from app.domain.dispensing.services import DispensingPharmacistService
 from app.domain.staff.identifiers import StaffId
 

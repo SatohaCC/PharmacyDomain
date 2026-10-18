@@ -14,17 +14,17 @@ from app.application.access_control.models import ActorRole, ResolvedActorContex
 from app.application.access_control.policy import AuthorizationService
 from app.application.patient.change_patient_heading import ChangePatientHeadingCommand
 from app.domain.foundation.exceptions import ConcurrentModificationError
-from app.domain.patient.heading import (
+from app.domain.patient.entities import Patient
+from app.domain.patient.identifiers import PatientId
+from app.domain.patient.primitives import (
+    PatientAddress,
+    PatientHeadingText,
+    PatientProfileChangeSource,
+)
+from app.domain.patient.value_objects import (
     PatientHeadingContent,
     PatientHeadingRevision,
-    PatientHeadingText,
-)
-from app.domain.patient.identifiers import PatientId
-from app.domain.patient.patient import Patient
-from app.domain.patient.primitives import PatientAddress
-from app.domain.patient.profile_history import (
     PatientProfileChange,
-    PatientProfileChangeSource,
 )
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.infrastructure.di.repositories import (

@@ -1,23 +1,22 @@
-"""Prescriptionコンテキストの複合 Value Object。
-
-処方箋の構成要素のうち、複数のプリミティブを束ねて1つの概念になるもの。
-集約とその子要素（``PrescriptionRp`` / ``PrescriptionMedicine`` /
-``PrescriptionInquiry``）は ``prescription.py`` にある。
-"""
+"""prescriptionの複合値と参照スナップショット。"""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
-from enum import StrEnum
 from typing import ClassVar
 
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.value_object import ValueObject
 from app.domain.prescription.exceptions import (
     ApplicationSiteCodeRequiredError,
     DepartmentCodeRequiredError,
     DosageSupplementCodeRequiredError,
+    DuplicatedDosageSupplementError,
+    DuplicatedMedicineSupplementError,
+    MedicineLineNumberSequenceError,
+    PrescriptionMedicineRequiredError,
     PrescriptionPeriodInvertedError,
     SplitIterationOutOfRangeError,
     UnequalDosageTotalMismatchError,
@@ -26,10 +25,17 @@ from app.domain.prescription.primitives import (
     ApplicationSiteCode,
     ClinicalInformationText,
     ConversionFactor,
+    DailyFrequency,
     DepartmentCode,
     DepartmentCodeType,
     DepartmentName,
+    DispensingQuantity,
     DosageAmount,
+    DosageCode,
+    DosageCodeType,
+    DosageFormCategory,
+    DosageFormName,
+    DosageName,
     DosageSupplementCode,
     DosageSupplementText,
     DosageSupplementType,
@@ -37,6 +43,7 @@ from app.domain.prescription.primitives import (
     InquiryResponseContent,
     InquiryResultType,
     InquiryTimestamp,
+    InteractionSeverity,
     LaboratoryDataText,
     MedicalInstitutionAddressLine,
     MedicalInstitutionCode,
@@ -46,8 +53,14 @@ from app.domain.prescription.primitives import (
     MedicalInstitutionPhoneNumber,
     MedicalInstitutionPostalCode,
     MedicalInstitutionPrefectureCode,
+    MedicineCode,
+    MedicineCodeType,
+    MedicineLineNumber,
+    MedicineName,
+    MedicineRestrictionFlag,
     MedicineSupplementText,
     MedicineSupplementType,
+    MedicineUnit,
     NarcoticLicenseNumber,
     PatientAddressLine,
     PatientPhoneNumber,
@@ -58,13 +71,240 @@ from app.domain.prescription.primitives import (
     PrescriptionValidTo,
     RefillCount,
     ResidualDrugInstruction,
+    RpNumber,
+    SingleDoseAmount,
     SplitCount,
     SplitIteration,
     SubstitutionRestrictionReason,
+    YjCode,
+    _ensure_consecutive_from_one,
 )
-from app.domain.prescription.reference_primitives import MedicineUnit
-from app.domain.prescription.reference_values import MedicineIdentifier
 from app.domain.shared.person_name import PersonName, PersonNameKana
+from app.domain.shared.public_expense import PublicExpenseBurden
+
+
+@dataclass(frozen=True, kw_only=True)
+class DosageInstruction(ValueObject):
+    """用法（JAHIS レコードNo.111 / 処方編 用法レコード）。
+
+    調剤側でも同じ値を持つ。減数調剤は「用法及び用量の変更は行わずに投与日数等を
+    減らす調剤」なので、調剤結果の用法は処方箋の用法と一致する。
+    """
+
+    code_type: DosageCodeType
+    name: DosageName
+    code: DosageCode | None = None
+    daily_frequency: DailyFrequency | None = None
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "code_type": "用法コード種別",
+        "name": "用法名称",
+        "code": "用法コード",
+        "daily_frequency": "1日回数",
+    }
+
+    def validate(self) -> None:
+        """コード種別とコードの有無の整合性を検証する。
+
+        ``MedicineIdentifier`` と同じ形の検証であり、コンテキスト固有の業務例外
+        ではなく ``DomainValidationError`` を送出する（Shared Kernel は各
+        コンテキストの例外型を知らない）。
+        """
+        if self.code_type is DosageCodeType.NONE:
+            if self.code is not None:
+                raise DomainValidationError(
+                    "用法コード種別が「コードなし」のときは用法コードを指定できません。"
+                )
+            return
+        if self.code is None:
+            raise DomainValidationError(
+                f"用法コード種別が「{self.code_type.label}」のときは"
+                "用法コードが必要です。"
+            )
+
+
+@dataclass(frozen=True, kw_only=True)
+class DrugInteractionPair(ValueObject):
+    """2剤間の相互作用（飲み合わせ）判定結果。"""
+
+    medicine_a: YjCode
+    medicine_b: YjCode
+    severity: InteractionSeverity
+    clinical_condition: str = ""
+    mechanism: str = ""
+    recommendation: str = ""
+
+
+@dataclass(frozen=True, kw_only=True)
+class DrugInteractionAuditResult(ValueObject):
+    """複数医薬品に対する相互作用鑑査結果の全体集約。"""
+
+    target_yj_codes: tuple[YjCode, ...]
+    pairs: tuple[DrugInteractionPair, ...]
+
+    @property
+    def total_combinations(self) -> int:
+        """生成された組み合わせ（ペア）の総数。"""
+        return len(self.pairs)
+
+    @property
+    def contraindicated_count(self) -> int:
+        """併用禁忌ペアの件数。"""
+        return sum(
+            1 for p in self.pairs if p.severity == InteractionSeverity.CONTRAINDICATED
+        )
+
+    @property
+    def precaution_count(self) -> int:
+        """併用注意ペアの件数。"""
+        return sum(
+            1 for p in self.pairs if p.severity == InteractionSeverity.PRECAUTION
+        )
+
+    @property
+    def has_contraindications(self) -> bool:
+        """併用禁忌ペアが存在するか。"""
+        return self.contraindicated_count > 0
+
+    @property
+    def has_precautions(self) -> bool:
+        """併用注意ペアが存在するか。"""
+        return self.precaution_count > 0
+
+    def contraindicated_pairs(self) -> tuple[DrugInteractionPair, ...]:
+        """併用禁忌のペア一覧を返す。"""
+        return tuple(
+            p for p in self.pairs if p.severity == InteractionSeverity.CONTRAINDICATED
+        )
+
+    def precaution_pairs(self) -> tuple[DrugInteractionPair, ...]:
+        """併用注意のペア一覧を返す。"""
+        return tuple(
+            p for p in self.pairs if p.severity == InteractionSeverity.PRECAUTION
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
+class PrescriptionMedicine(ValueObject):
+    """剤（Rp）に含まれる処方薬品の1明細。
+
+    JAHISデータ仕様における薬品レコード（No.201）および、それに付随する
+    単位変換・不均等用法・公費負担区分・1回服用量・薬品補足などの情報に対応します。
+    """
+
+    line_number: MedicineLineNumber
+    identifier: MedicineIdentifier
+    name: MedicineName
+    amount: DosageAmount
+    unit: MedicineUnit
+    unit_conversion: UnitConversion | None = None
+    unequal_dosage: UnequalDosageInstruction | None = None
+    single_dose: SingleDoseAmount | None = None
+    substitution_restriction: GenericSubstitutionRestriction | None = None
+    public_expense_burden: PublicExpenseBurden | None = None
+    supplements: tuple[MedicineSupplement, ...] = ()
+
+    def validate(self) -> None:
+        """薬品明細のうち、この明細だけで判定できる不変条件を検証する。"""
+        self._ensure_unequal_dosage_matches_amount()
+        self._ensure_supplements_are_unique()
+
+    def _ensure_unequal_dosage_matches_amount(self) -> None:
+        """不均等服用の各回合計が1日量と一致することを検証する。
+
+        用量は ``Decimal`` なので、実在する用量刻み（0.05刻み等）でも
+        合計が誤差なく一致する。``float`` だとここが正当な処方を弾く。
+        """
+        if self.unequal_dosage is None:
+            return
+        if not self.unequal_dosage.matches_daily_amount(self.amount):
+            raise UnequalDosageTotalMismatchError(
+                total=self.unequal_dosage.total.value,
+                daily_amount=self.amount.value,
+            )
+
+    def _ensure_supplements_are_unique(self) -> None:
+        """同じ薬品補足区分が重複していないことを検証する。"""
+        types = [supplement.supplement_type for supplement in self.supplements]
+        if len(types) != len(set(types)):
+            raise DuplicatedMedicineSupplementError()
+
+
+@dataclass(frozen=True, kw_only=True)
+class PrescriptionRp(ValueObject):
+    """剤（Rp）。同一の用法および調剤数量を共有する処方薬品明細のグループ。"""
+
+    rp_number: RpNumber
+    category: DosageFormCategory
+    quantity: DispensingQuantity
+    dosage_instruction: DosageInstruction
+    medicines: tuple[PrescriptionMedicine, ...]
+    custom_category_name: DosageFormName | None = None
+    dosage_supplements: tuple[DosageSupplement, ...] = ()
+
+    def validate(self) -> None:
+        """剤の構造的な不変条件を検証する。"""
+        self._ensure_has_medicine()
+        self._ensure_line_numbers_are_consecutive()
+        self._ensure_dosage_supplements_are_unique()
+
+    def _ensure_has_medicine(self) -> None:
+        """薬品明細が1件以上あることを検証する。"""
+        if not self.medicines:
+            raise PrescriptionMedicineRequiredError()
+
+    def _ensure_line_numbers_are_consecutive(self) -> None:
+        """RP内連番が1から連続した昇順であることを検証する。"""
+        numbers = tuple(medicine.line_number.value for medicine in self.medicines)
+        if not _ensure_consecutive_from_one(numbers):
+            raise MedicineLineNumberSequenceError(
+                rp_number=self.rp_number.value, actual=numbers
+            )
+
+    def _ensure_dosage_supplements_are_unique(self) -> None:
+        """同じ用法補足区分が重複していないことを検証する。"""
+        types = [supplement.supplement_type for supplement in self.dosage_supplements]
+        if len(types) != len(set(types)):
+            raise DuplicatedDosageSupplementError()
+
+    @property
+    def medicine_identifiers(self) -> tuple[MedicineIdentifier, ...]:
+        """この剤に含まれる薬品の識別子。"""
+        return tuple(medicine.identifier for medicine in self.medicines)
+
+
+@dataclass(frozen=True, kw_only=True)
+class MedicineIdentifier(ValueObject):
+    """薬品コード種別とコードを不可分に束ねる値オブジェクト。
+
+    桁数がコード種別に依存するため ``MedicineCode`` 単独では自己検証できない。
+    種別ごとに型を分けると、処方箋明細のフィールド型が動的になるため採らない。
+    コードなしの処方やマスタ未収載の持参薬も表せるため、医薬品マスタ行の存在を
+    意味しない。ここで所有するのは、外部データ間で薬品を照合するコード語彙である。
+    """
+
+    code_type: MedicineCodeType
+    code: MedicineCode | None = None
+
+    _FIELD_LABELS: ClassVar[dict[str, str]] = {
+        "code_type": "薬品コード種別",
+        "code": "薬品コード",
+    }
+
+    def validate(self) -> None:
+        """コード種別とコードの有無の整合性を検証する。"""
+        if self.code_type is MedicineCodeType.NONE:
+            if self.code is not None:
+                raise DomainValidationError(
+                    "薬品コード種別が「コードなし」のときは薬品コードを指定できません。"
+                )
+            return
+        if self.code is None:
+            raise DomainValidationError(
+                f"薬品コード種別が「{self.code_type.label}」のときは"
+                "薬品コードが必要です。"
+            )
+
 
 #: 使用期限の指定がない場合の実効日数。交付日を含めて4日間。
 #: 出典: 保険調剤の理解のために（令和8年度）「処方箋の使用期間は、交付の日を
@@ -302,39 +542,6 @@ class PrescriptionNotes(ValueObject):
 
 
 @dataclass(frozen=True, kw_only=True)
-class PrescriptionManagementInfo(ValueObject):
-    """処方箋の管理情報・特殊指示をまとめた Value Object。"""
-
-    refill: RefillInstruction | None = None
-    split: SplitInstruction | None = None
-    narcotic: NarcoticPrescriptionDetails | None = None
-    residual_drug: ResidualDrugConfirmation | None = None
-    notes: PrescriptionNotes = PrescriptionNotes()
-    clinical_info: tuple[ClinicalInformation, ...] = ()
-    lab_data: tuple[LaboratoryData, ...] = ()
-
-    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
-        "refill": "リフィル指示",
-        "split": "分割指示",
-        "narcotic": "麻薬処方箋情報",
-        "residual_drug": "残薬確認指示",
-        "notes": "備考",
-        "clinical_info": "臨床情報",
-        "lab_data": "検査値情報",
-    }
-
-    @property
-    def is_refill(self) -> bool:
-        """リフィル処方箋か。"""
-        return self.refill is not None
-
-    @property
-    def is_split(self) -> bool:
-        """医師の分割指示に係る処方箋か。"""
-        return self.split is not None
-
-
-@dataclass(frozen=True, kw_only=True)
 class DosageSupplement(ValueObject):
     """用法補足（JAHIS レコードNo.181 / 処方編 別表14）。
 
@@ -503,38 +710,6 @@ class PrescriberResponse(ValueObject):
         return self.result_type.blocks_dispensing
 
 
-# --------------------------------------------------------------------------
-# 医薬品マスタから受け取る事実
-# --------------------------------------------------------------------------
-
-
-class MedicineRestrictionFlag(StrEnum):
-    """医薬品の規制属性の有無。
-
-    ``UNKNOWN`` を**明示的に持つ**のが要点である。これらの属性は処方箋2次元
-    シンボルにも電子処方箋にも含まれず（流れてくるのは薬品コードと名称だけ）、
-    判定には医薬品マスタが要る。マスタに載っていない薬品を「該当しない」と
-    黙って扱うと、麻薬処方箋の必須項目チェックやリフィル適用除外の判定が
-    素通りする。分からないことを分からないと言える型にしておき、
-    判定側は ``UNKNOWN`` を拒否する（fail-closed）。
-    """
-
-    YES = "yes"
-    NO = "no"
-    UNKNOWN = "unknown"
-
-    @property
-    def is_unknown(self) -> bool:
-        """判定に必要な情報が得られていないか。"""
-        return self is MedicineRestrictionFlag.UNKNOWN
-
-    @property
-    def label(self) -> str:
-        """画面表示・帳票出力用の日本語名称。"""
-        labels = {self.YES: "該当", self.NO: "非該当", self.UNKNOWN: "不明"}
-        return labels[self]
-
-
 @dataclass(frozen=True, kw_only=True)
 class MedicineClassification(ValueObject):
     """医薬品マスタから受け取った、処方箋の判定に必要な事実。
@@ -602,3 +777,36 @@ class PharmacistQualification(ValueObject):
     """スタッフ境界で確認された薬剤師資格の保有事実。"""
 
     has_pharmacist: bool
+
+
+@dataclass(frozen=True, kw_only=True)
+class PrescriptionManagementInfo(ValueObject):
+    """処方箋の管理情報・特殊指示をまとめた Value Object。"""
+
+    refill: RefillInstruction | None = None
+    split: SplitInstruction | None = None
+    narcotic: NarcoticPrescriptionDetails | None = None
+    residual_drug: ResidualDrugConfirmation | None = None
+    notes: PrescriptionNotes = PrescriptionNotes()
+    clinical_info: tuple[ClinicalInformation, ...] = ()
+    lab_data: tuple[LaboratoryData, ...] = ()
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "refill": "リフィル指示",
+        "split": "分割指示",
+        "narcotic": "麻薬処方箋情報",
+        "residual_drug": "残薬確認指示",
+        "notes": "備考",
+        "clinical_info": "臨床情報",
+        "lab_data": "検査値情報",
+    }
+
+    @property
+    def is_refill(self) -> bool:
+        """リフィル処方箋か。"""
+        return self.refill is not None
+
+    @property
+    def is_split(self) -> bool:
+        """医師の分割指示に係る処方箋か。"""
+        return self.split is not None

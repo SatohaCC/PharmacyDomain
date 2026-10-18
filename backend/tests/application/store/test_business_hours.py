@@ -15,9 +15,8 @@ from app.application.store.business_hours import (
     WeekdayBusinessHoursInput,
 )
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.store.business_hours import BusinessWeekday, StoreOpeningState
-from app.domain.store.lifecycle import StoreStatus
-from app.domain.store.store import Store
+from app.domain.store.entities import Store
+from app.domain.store.primitives import BusinessWeekday, StoreOpeningState, StoreStatus
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.factories.store_factory import create_store
 from tests.fakes.fake_clock import FakeClock

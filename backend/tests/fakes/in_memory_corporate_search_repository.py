@@ -1,7 +1,8 @@
 """法人ページ検索のインメモリ実装。"""
 
-from app.domain.corporate.corporate import Corporate
-from app.domain.corporate.search import CorporateSearch, CorporateSearchRepository
+from app.domain.corporate.entities import Corporate
+from app.domain.corporate.repositories import CorporateSearchRepository
+from app.domain.corporate.value_objects import CorporateSearch
 
 
 class InMemoryCorporateSearchRepository(CorporateSearchRepository):

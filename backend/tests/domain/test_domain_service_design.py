@@ -21,24 +21,19 @@ from app.application.composition.organization_snapshot_mapping import (
     staff_store_source,
 )
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.entities import Patient
 from app.domain.patient.exceptions import PatientStateConflictError
-from app.domain.patient.lifecycle import PatientStatusReason
-from app.domain.patient.merge_service import PatientMergeService
-from app.domain.patient.patient import Patient
-from app.domain.patient.primitives import PatientNumber
+from app.domain.patient.primitives import PatientNumber, PatientStatusReason
+from app.domain.patient.services import PatientMergeService
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
+from app.domain.staff.entities import Staff
 from app.domain.staff.exceptions import InvalidCorporateAssignmentError
 from app.domain.staff.services import StaffStoreAssignmentService
-from app.domain.staff.staff import Staff
 from app.domain.staff.value_objects import StaffQualifications
+from app.domain.store.entities import Store, StoreManagerAssignment
+from app.domain.store.exceptions import ManagerAssignmentConflictError
 from app.domain.store.identifiers import StoreManagerAssignmentId
-from app.domain.store.manager_assignment import (
-    ManagerAssignmentPeriod,
-    StoreManagerAssignment,
-)
-from app.domain.store.manager_repository import ManagerAssignmentConflictError
-from app.domain.store.manager_service import StoreManagerAssignmentService
 from app.domain.store.primitives import (
     StoreAddressLine,
     StoreName,
@@ -46,8 +41,13 @@ from app.domain.store.primitives import (
     StorePhoneNumber,
     StorePostalCode,
 )
-from app.domain.store.store import Store
-from app.domain.store.value_objects import ContactInfo, StoreAddress, StoreNames
+from app.domain.store.services import StoreManagerAssignmentService
+from app.domain.store.value_objects import (
+    ContactInfo,
+    ManagerAssignmentPeriod,
+    StoreAddress,
+    StoreNames,
+)
 
 #: 承認された全ドメインサービスの一覧（25件）。
 EXPECTED_DOMAIN_SERVICES: frozenset[str] = frozenset(

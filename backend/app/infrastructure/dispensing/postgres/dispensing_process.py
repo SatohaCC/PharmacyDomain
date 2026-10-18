@@ -9,10 +9,10 @@ from __future__ import annotations
 from sqlalchemy import select
 
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.dispensing.dispensing_process import DispensingProcess
+from app.domain.dispensing.entities import DispensingProcess
 from app.domain.dispensing.exceptions import DispensingAlreadyExistsError
 from app.domain.dispensing.identifiers import DispensingId
-from app.domain.dispensing.repository import DispensingProcessRepository
+from app.domain.dispensing.repositories import DispensingProcessRepository
 from app.domain.prescription.identifiers import PrescriptionId
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,

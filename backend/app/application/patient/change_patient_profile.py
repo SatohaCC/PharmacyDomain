@@ -20,7 +20,7 @@ from app.domain.patient.primitives import (
     PatientPhoneNumber,
     PatientPostalCode,
 )
-from app.domain.patient.repository import PatientRepository
+from app.domain.patient.repositories import PatientRepository
 
 _PROFILE_FIELDS = (
     "gender",

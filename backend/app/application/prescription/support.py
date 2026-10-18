@@ -29,30 +29,23 @@ from app.application.prescription.inputs import (
 )
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.prescription.dosage import (
-    DailyFrequency,
-    DosageCode,
-    DosageCodeType,
-    DosageInstruction,
-    DosageName,
-)
+from app.domain.prescription.entities import Prescription
 from app.domain.prescription.identifiers import PrescriptionId
-from app.domain.prescription.prescription import (
-    Prescription,
-    PrescriptionMedicine,
-    PrescriptionRp,
-)
 from app.domain.prescription.primitives import (
     ApplicationSiteCode,
     ClinicalInformationText,
     ConversionFactor,
+    DailyFrequency,
     DepartmentCode,
     DepartmentCodeType,
     DepartmentName,
     DispensingQuantity,
     DosageAmount,
+    DosageCode,
+    DosageCodeType,
     DosageFormCategory,
     DosageFormName,
+    DosageName,
     DosageSupplementCode,
     DosageSupplementText,
     DosageSupplementType,
@@ -66,9 +59,13 @@ from app.domain.prescription.primitives import (
     MedicalInstitutionPhoneNumber,
     MedicalInstitutionPostalCode,
     MedicalInstitutionPrefectureCode,
+    MedicineCode,
+    MedicineCodeType,
     MedicineLineNumber,
+    MedicineName,
     MedicineSupplementText,
     MedicineSupplementType,
+    MedicineUnit,
     NarcoticLicenseNumber,
     PatientAddressLine,
     PatientPhoneNumber,
@@ -85,27 +82,24 @@ from app.domain.prescription.primitives import (
     SplitIteration,
     SubstitutionRestrictionReason,
 )
-from app.domain.prescription.reference_primitives import (
-    MedicineCode,
-    MedicineCodeType,
-    MedicineName,
-    MedicineUnit,
-)
-from app.domain.prescription.reference_values import MedicineIdentifier
-from app.domain.prescription.repository import PrescriptionRepository
+from app.domain.prescription.repositories import PrescriptionRepository
 from app.domain.prescription.value_objects import (
     ClinicalInformation,
     DepartmentInfo,
+    DosageInstruction,
     DosageSupplement,
     GenericSubstitutionRestriction,
     LaboratoryData,
     MedicalInstitutionInfo,
+    MedicineIdentifier,
     MedicineSupplement,
     NarcoticPrescriptionDetails,
     PrescriberInfo,
     PrescriptionManagementInfo,
+    PrescriptionMedicine,
     PrescriptionNotes,
     PrescriptionPeriod,
+    PrescriptionRp,
     RefillInstruction,
     ResidualDrugConfirmation,
     SplitInstruction,

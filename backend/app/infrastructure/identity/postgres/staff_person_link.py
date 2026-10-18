@@ -1,8 +1,8 @@
 """スタッフ本人対応の固定保存。"""
 
+from app.domain.identity.entities import StaffPersonLink
 from app.domain.identity.exceptions import IdentityConflictError
-from app.domain.identity.repository import StaffPersonLinkRepository
-from app.domain.identity.staff_person_link import StaffPersonLink
+from app.domain.identity.repositories import StaffPersonLinkRepository
 from app.domain.staff.identifiers import StaffId
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,

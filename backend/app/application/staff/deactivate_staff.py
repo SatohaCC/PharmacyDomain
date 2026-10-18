@@ -11,7 +11,7 @@ from app.application.staff.access_revocation import StaffAccessRevocationBoundar
 from app.application.staff.support import load_staff_or_raise
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.staff.identifiers import StaffId
-from app.domain.staff.repository import StaffRepository
+from app.domain.staff.repositories import StaffRepository
 
 
 @dataclass(frozen=True, kw_only=True)

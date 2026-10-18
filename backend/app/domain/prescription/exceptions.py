@@ -1,4 +1,4 @@
-"""Prescriptionドメインの業務例外。"""
+"""prescriptionの業務例外。"""
 
 from __future__ import annotations
 

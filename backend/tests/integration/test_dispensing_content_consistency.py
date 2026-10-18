@@ -24,12 +24,10 @@ from app.domain.dispensing.exceptions import (
     SubstitutionRequiredError,
 )
 from app.domain.dispensing.identifiers import DispensingId
-from app.domain.prescription.prescription import Prescription
+from app.domain.prescription.entities import Prescription
+from app.domain.store.entities import StoreManagerAssignment
 from app.domain.store.identifiers import StoreManagerAssignmentId
-from app.domain.store.manager_assignment import (
-    ManagerAssignmentPeriod,
-    StoreManagerAssignment,
-)
+from app.domain.store.value_objects import ManagerAssignmentPeriod
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )

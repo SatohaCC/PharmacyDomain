@@ -5,14 +5,14 @@ from __future__ import annotations
 from app.application.access_control.models import ActorContext
 from app.application.access_control.policy import AuthorizationService
 from app.application.corporate.corporate_access import CorporateAccessService
-from app.domain.corporate.corporate import Corporate
+from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.corporate.primitives import (
     CorporateName,
     CorporateRepresentativeName,
     CorporateStatus,
 )
-from app.domain.corporate.repository import CorporateRepository
+from app.domain.corporate.repositories import CorporateRepository
 
 
 class AutoProvisioningCorporateRepository(CorporateRepository):

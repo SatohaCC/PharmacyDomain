@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.domain.medicine_catalog.medicine import Medicine, MedicineEffectivePeriod
+from app.domain.medicine_catalog.entities import Medicine
 from app.domain.medicine_catalog.primitives import (
     GenericCategory,
     MedicineCatalogVersion,
@@ -17,7 +17,10 @@ from app.domain.medicine_catalog.primitives import (
     MedicineWithdrawnOn,
     NarcoticCategory,
 )
-from app.domain.medicine_catalog.value_objects import MedicineIdentifier
+from app.domain.medicine_catalog.value_objects import (
+    MedicineEffectivePeriod,
+    MedicineIdentifier,
+)
 
 LISTED_ON = date(2020, 4, 1)
 CATALOG_VERSION = date(2026, 4, 1)

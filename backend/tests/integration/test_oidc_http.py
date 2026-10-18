@@ -16,8 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.application.identity.invite_user import InviteUserCommand
 from app.bootstrap import create_app
+from app.domain.identity.entities import UserAccount
 from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole
-from app.domain.identity.user_account import UserAccount
 from app.domain.shared.actor import UserAccountId
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,

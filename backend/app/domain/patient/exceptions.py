@@ -1,4 +1,6 @@
-"""患者ドメインの業務例外。"""
+"""patientの業務例外。"""
+
+from __future__ import annotations
 
 from app.domain.foundation.exceptions import DomainError
 

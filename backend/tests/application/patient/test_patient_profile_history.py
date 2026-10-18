@@ -33,10 +33,10 @@ from app.domain.patient.primitives import (
     PatientGenderCode,
     PatientPhoneNumber,
     PatientPostalCode,
-)
-from app.domain.patient.profile_history import (
-    PatientProfileChange,
     PatientProfileChangeSource,
+)
+from app.domain.patient.value_objects import (
+    PatientProfileChange,
     PatientProfileSnapshot,
 )
 from app.domain.reception.identifiers import ReceptionId

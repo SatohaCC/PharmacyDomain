@@ -11,11 +11,8 @@ from app.application.prescription.audit_interactions import (
     AuditDrugInteractionsUseCase,
 )
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.prescription.interaction_audit import (
-    DrugInteractionPair,
-    InteractionSeverity,
-)
-from app.domain.prescription.reference_primitives import YjCode
+from app.domain.prescription.primitives import InteractionSeverity, YjCode
+from app.domain.prescription.value_objects import DrugInteractionPair
 from tests.application.access_helpers import create_vendor_authorization
 from tests.fakes.fake_drug_interaction import FakeDrugInteractionDataSource
 

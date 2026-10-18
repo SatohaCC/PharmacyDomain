@@ -17,8 +17,8 @@ from app.application.common.pagination import (
 )
 from app.application.medication_history.support import parse_enum
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.medication_history.repository import MedicationHistoryRepository
-from app.domain.medication_history.value_objects import ExternalCorrectionStatus
+from app.domain.medication_history.primitives import ExternalCorrectionStatus
+from app.domain.medication_history.repositories import MedicationHistoryRepository
 from app.domain.store.identifiers import StoreId
 
 

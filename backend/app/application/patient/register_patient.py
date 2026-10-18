@@ -9,8 +9,8 @@ from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.common.optional_conversion import build_optional
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.patient.entities import Patient
 from app.domain.patient.identifiers import PatientId
-from app.domain.patient.patient import Patient
 from app.domain.patient.primitives import (
     PatientAddress,
     PatientBirthDate,
@@ -18,7 +18,7 @@ from app.domain.patient.primitives import (
     PatientPhoneNumber,
     PatientPostalCode,
 )
-from app.domain.patient.repository import PatientRepository
+from app.domain.patient.repositories import PatientRepository
 from app.domain.shared.person_name import PersonNames
 
 

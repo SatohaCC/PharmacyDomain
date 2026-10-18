@@ -13,9 +13,7 @@ from app.application.medication_history.finalize_medication_history import (
     FinalizeMedicationHistoryUseCase,
 )
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.primitives import (
     FinalizedTimestamp,
     MedicationHistoryRecordedTimestamp,

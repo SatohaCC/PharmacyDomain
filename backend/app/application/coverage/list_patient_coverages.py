@@ -9,7 +9,7 @@ from app.application.access_control.models import Permission
 from app.application.coverage.get_patient_coverage import PatientCoverageDto
 from app.application.coverage.reference import PatientReferenceBoundary
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.coverage.repository import PatientCoverageRepository
+from app.domain.coverage.repositories import PatientCoverageRepository
 from app.domain.patient.identifiers import PatientId
 
 

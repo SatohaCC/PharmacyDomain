@@ -8,10 +8,10 @@ from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.exceptions import TenantBoundaryNotFoundError
 from app.application.access_control.models import Permission
 from app.application.common.optional_conversion import unwrap
-from app.domain.care_event.event_definition import EventDefinition
+from app.domain.care_event.entities import EventDefinition
 from app.domain.care_event.identifiers import EventTypeId
 from app.domain.care_event.primitives import EventTypeName
-from app.domain.care_event.repository import EventDefinitionRepository
+from app.domain.care_event.repositories import EventDefinitionRepository
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainError
 

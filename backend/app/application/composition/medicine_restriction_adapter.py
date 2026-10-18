@@ -14,17 +14,17 @@ from __future__ import annotations
 from datetime import date
 
 from app.application.prescription.reference import MedicineRestrictionBoundary
-from app.domain.medicine_catalog.medicine import Medicine
+from app.domain.medicine_catalog.entities import Medicine
 from app.domain.medicine_catalog.primitives import MedicineCode as CatalogCode
 from app.domain.medicine_catalog.primitives import MedicineCodeType as CatalogCodeType
-from app.domain.medicine_catalog.repository import MedicineCatalogRepository
+from app.domain.medicine_catalog.repositories import MedicineCatalogRepository
 from app.domain.medicine_catalog.value_objects import (
     MedicineIdentifier as CatalogIdentifier,
 )
-from app.domain.prescription.reference_values import MedicineIdentifier
+from app.domain.prescription.primitives import MedicineRestrictionFlag
 from app.domain.prescription.value_objects import (
     MedicineClassification,
-    MedicineRestrictionFlag,
+    MedicineIdentifier,
 )
 
 
@@ -87,10 +87,7 @@ def _flag(value: bool) -> MedicineRestrictionFlag:
 
 def prescription_identifier(value: CatalogIdentifier) -> MedicineIdentifier:
     """医薬品マスタの識別情報を処方記載時点の値へ固定する。"""
-    from app.domain.prescription.reference_primitives import (
-        MedicineCode,
-        MedicineCodeType,
-    )
+    from app.domain.prescription.primitives import MedicineCode, MedicineCodeType
 
     return MedicineIdentifier(
         code_type=MedicineCodeType(value.code_type.value),

@@ -1,3 +1,5 @@
+"""staffの単一値と列挙・検証規則。"""
+
 from __future__ import annotations
 
 import re
@@ -133,12 +135,3 @@ class InsurancePharmacistRegistrationNumber(BaseNormalizedString):
 
 class CertificationIssuingOrganizationName(BaseNormalizedString):
     """薬剤師認定を発行した機関名。"""
-
-
-# --- 資格プロファイル抽象基底クラス ---
-
-
-# --- 個別の資格プロファイル（抽象プロパティを具体的に実装） ---
-
-
-# --- ファーストクラスコレクション ---

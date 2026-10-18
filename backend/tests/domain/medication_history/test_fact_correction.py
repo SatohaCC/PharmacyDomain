@@ -8,10 +8,8 @@ from typing import Any, Protocol, cast
 
 import pytest
 
+from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.exceptions import MedicationHistoryDomainError
-from app.domain.medication_history.medication_history_record import (
-    MedicationHistoryRecord,
-)
 from app.domain.medication_history.primitives import (
     BillingAdditionCode,
     BillingAdditionName,

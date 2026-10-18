@@ -7,17 +7,15 @@ from sqlalchemy.dialects.postgresql import Range
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.staff.identifiers import StaffId
-from app.domain.store.identifiers import StoreId, StoreManagerAssignmentId
-from app.domain.store.manager_assignment import (
-    ManagerAssignmentStatus,
-    ManagerPersonUnresolvedError,
-    StoreManagerAssignment,
-)
-from app.domain.store.manager_repository import (
+from app.domain.store.entities import StoreManagerAssignment
+from app.domain.store.exceptions import (
     ManagerAssignmentConflictError,
     ManagerExclusiveDutyConflictError,
-    StoreManagerAssignmentRepository,
+    ManagerPersonUnresolvedError,
 )
+from app.domain.store.identifiers import StoreId, StoreManagerAssignmentId
+from app.domain.store.primitives import ManagerAssignmentStatus
+from app.domain.store.repositories import StoreManagerAssignmentRepository
 from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,

@@ -3,10 +3,10 @@
 from sqlalchemy import select
 
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.identity.entities import CorporateMembership
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.identifiers import CorporateMembershipId
-from app.domain.identity.membership import CorporateMembership
-from app.domain.identity.repository import CorporateMembershipRepository
+from app.domain.identity.repositories import CorporateMembershipRepository
 from app.domain.shared.actor import UserAccountId
 from app.domain.staff.identifiers import StaffId
 from app.infrastructure.postgres.repository_base import (

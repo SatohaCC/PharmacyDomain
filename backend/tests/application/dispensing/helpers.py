@@ -28,15 +28,13 @@ from app.application.dispensing.start_dispensing import (
 )
 from app.application.dispensing.verify_dispensing import VerifyDispensingUseCase
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.dispensing.reference_primitives import (
-    MedicineCodeType,
-)
+from app.domain.dispensing.primitives import MedicineCodeType
 from app.domain.dispensing.services import (
     DispensingConsistencyService,
     DispensingIterationUniquenessService,
     DispensingPharmacistService,
 )
-from app.domain.prescription.prescription import Prescription
+from app.domain.prescription.entities import Prescription
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import PharmacistLicenseNumber
 from app.domain.staff.value_objects import PharmacistProfile, StaffQualifications
