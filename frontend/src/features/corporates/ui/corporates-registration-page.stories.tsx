@@ -19,6 +19,21 @@ export const 失敗しても入力を保持する: StoryObj<typeof meta> = {
     await userEvent.type(c.getByLabelText(/法人名/), "テスト薬局");
     await userEvent.type(c.getByLabelText(/代表者の姓/), "テスト");
     await userEvent.type(c.getByLabelText(/代表者の名/), "太郎");
+    await userEvent.type(
+      c.getByLabelText(/^管理者の姓(?:必須| 必須)?$/),
+      "テスト",
+    );
+    await userEvent.type(
+      c.getByLabelText(/^管理者の名(?:必須| 必須)?$/),
+      "花子",
+    );
+    await userEvent.type(c.getByLabelText(/管理者の姓（カナ）/), "テスト");
+    await userEvent.type(c.getByLabelText(/管理者の名（カナ）/), "ハナコ");
+    await userEvent.type(c.getByLabelText(/ログインID/), "test-admin");
+    await userEvent.type(
+      c.getByLabelText(/初期パスワード/),
+      "test-initial-password-12345",
+    );
     await userEvent.click(c.getByRole("button", { name: "登録する" }));
     await expect(c.getByRole("alert")).toHaveTextContent(
       "登録できませんでした。",

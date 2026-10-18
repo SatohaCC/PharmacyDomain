@@ -1,15 +1,15 @@
 import { api, corporationParams } from "../../../shared/api/client";
 import { ApiError, result } from "../../../shared/api/errors";
-import type { InvitationInput } from "../model/invitation-input";
+import type { RegistrationInput } from "../model/registration-input";
 import {
-  prepareInvitation,
+  prepareRegistration,
   type RegistrationProgress,
-} from "../model/prepare-invitation";
+} from "../model/prepare-registration";
 import type { UserRole } from "../model/registration";
 
-export async function issueInvitation(
+export async function registerUser(
   corporateId: string,
-  input: InvitationInput,
+  input: RegistrationInput,
   personMode: string,
   role: UserRole,
   staffMode: string,
@@ -23,7 +23,7 @@ export async function issueInvitation(
     p.personId = input.personId;
     if (!p.personId) throw new Error("本人IDを指定してください。");
   }
-  const prepared = await prepareInvitation(
+  const prepared = await prepareRegistration(
     p,
     {
       isUncertain: (e) => e instanceof ApiError && e.uncertain,
@@ -86,15 +86,15 @@ export async function issueInvitation(
                 changed();
               }
             },
-      invite: (personId) =>
+      register: (personId) =>
         result(
-          api.POST("/corporates/{corporate_id}/user-invitations", {
+          api.POST("/corporates/{corporate_id}/local-users", {
             params,
             body: {
               person_id: personId,
-              addressee: input.addressee,
+              login_id: input.loginId,
+              initial_password: input.initialPassword,
               role,
-              expires_at: input.expiresAt,
               store_ids: storeIds,
               staff_id: role === "corporate_admin" ? null : p.staffId,
             },
@@ -105,12 +105,3 @@ export async function issueInvitation(
   );
   return prepared;
 }
-
-export const invitationStatus = (corporateId: string, invitationId: string) =>
-  result(
-    api.GET("/corporates/{corporate_id}/user-invitations/{invitation_id}", {
-      params: {
-        path: { corporate_id: corporateId, invitation_id: invitationId },
-      },
-    }),
-  );

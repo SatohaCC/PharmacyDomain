@@ -65,6 +65,14 @@ def test_宣言していないテーブルは_無条件で読ませない() -> N
         _scope().apply(unknown, select(1))
 
 
+@pytest.mark.parametrize("table", [schema.local_credentials, schema.local_sessions])
+def test_資格情報_店舗ロールの業務読取では常に空にする(table: Table) -> None:
+    # Arrange / Act
+    statement = _compiled(table, select(table))
+    # Assert
+    assert "WHERE false" in statement
+
+
 @pytest.mark.parametrize(
     "table_name",
     sorted(

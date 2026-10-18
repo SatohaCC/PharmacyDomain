@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 
+from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
-from app.application.corporate.corporate_access import CorporateAccessService
+from app.application.access_control.policy import AuthorizationService
 from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.corporate.primitives import CorporateName, CorporateRepresentativeName
@@ -25,14 +26,14 @@ class RegisterCorporateUseCase:
         self,
         repository: CorporateRepository,
         uniqueness_service: CorporateNameUniquenessService,
-        corporate_access: CorporateAccessService,
+        corporate_access: CorporateAccessBoundary,
     ) -> None:
         self._repository = repository
         self._uniqueness_service = uniqueness_service
         self._corporate_access = corporate_access
 
     async def execute(self, command: RegisterCorporateCommand) -> CorporateId:
-        self._corporate_access.require_vendor_system_admin(
+        AuthorizationService(self._corporate_access.actor).require_vendor_system_admin(
             permission=Permission.REGISTER_CORPORATE,
         )
         name = CorporateName(command.name)

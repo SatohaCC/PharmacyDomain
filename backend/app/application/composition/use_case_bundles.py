@@ -14,6 +14,7 @@ from app.application.care_event.get_event import GetEventUseCase
 from app.application.care_event.list_related_candidates import (
     ListRelatedEventCandidatesUseCase,
 )
+from app.application.composition.register_contract import RegisterContractUseCase
 from app.application.corporate.change_corporate_name import ChangeCorporateNameUseCase
 from app.application.corporate.change_corporate_status import (
     ChangeCorporateStatusUseCase,
@@ -62,6 +63,7 @@ from app.application.identity.get_user import GetUserUseCase
 from app.application.identity.invite_user import InviteUserUseCase
 from app.application.identity.link_staff import LinkStaffPersonUseCase
 from app.application.identity.list_users import ListUsersUseCase
+from app.application.identity.register_local_user import RegisterLocalUserUseCase
 from app.application.identity.register_person import RegisterPersonUseCase
 from app.application.identity.resolve_actor import ResolveActorUseCase
 from app.application.integration.nsips.ingest_nsips import IngestNsipsUseCase
@@ -258,6 +260,8 @@ class MedicationHistoryUseCases:
 class IdentityUseCases:
     """本人・アカウント管理と最新の権限解決。"""
 
+    register_local_user: RegisterLocalUserUseCase
+    register_contract: RegisterContractUseCase
     register_person: RegisterPersonUseCase
     link_staff: LinkStaffPersonUseCase
     invite: InviteUserUseCase

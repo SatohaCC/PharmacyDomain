@@ -12,6 +12,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.infrastructure.di.root import PostgresCompositionRoot
+from app.infrastructure.identity.postgres.local_authentication import (
+    PostgresLocalAuthentication,
+)
 from app.infrastructure.postgres.connection import PostgresSettings
 from app.presentational.access_logging import log_access
 from app.presentational.authentication import (
@@ -27,6 +30,7 @@ from app.presentational.routers import (
     coverage,
     dispensing,
     identity,
+    local_authentication,
     medication_history,
     medicine_catalog,
     nsips,
@@ -46,6 +50,7 @@ def create_app(
     *,
     actor_provider: ActorContextProvider | None = None,
     identity_provider: VerifiedSubjectProvider | None = None,
+    local_authentication_enabled: bool = False,
 ) -> FastAPI:
     """ルータ・例外翻訳・起動終了処理を結線したアプリケーションを返す。
 
@@ -74,6 +79,11 @@ def create_app(
                 actor_provider=provider,
                 composition_root=root,
                 identity_provider=identity_provider,
+                local_authentication=PostgresLocalAuthentication(
+                    root.session_factory, root.clock
+                )
+                if local_authentication_enabled
+                else None,
             ),
         )
         try:
@@ -92,6 +102,7 @@ def create_app(
     register_error_handlers(app)
     for router in (
         identity.router,
+        local_authentication.router,
         identity.acceptance_router,
         system.router,
         corporate.router,

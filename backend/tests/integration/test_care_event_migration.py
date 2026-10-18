@@ -23,7 +23,7 @@ from app.infrastructure.postgres import schema
 from app.infrastructure.postgres.connection import PostgresSettings, PostgresUnitOfWork
 from tests.factories.persistence_factory import create_patient
 from tests.factories.store_factory import create_store
-from tests.infrastructure.postgres.helpers import create_corporate
+from tests.infrastructure.postgres.helpers import create_corporate, ordered_migrations
 
 _ROOT = Path(__file__).resolve().parents[2]
 
@@ -127,7 +127,7 @@ async def test_tc45_56_Alembicの成功済みmigration再実行はデータを�
         await _run_alembic(postgres_settings.database_url, "upgrade", "head")
         await _run_alembic(postgres_settings.database_url, "upgrade", "head")
         current = await _run_alembic(postgres_settings.database_url, "current")
-        assert "20260927_0011" in current
+        assert str(ordered_migrations()[-1].revision) in current
         async with engine.connect() as connection:
             after = (
                 await connection.execute(

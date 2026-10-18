@@ -1,5 +1,5 @@
 import type { UserRole } from "./registration";
-export interface InvitationInput {
+export interface RegistrationInput {
   names: {
     last_name: string;
     first_name: string;
@@ -10,19 +10,15 @@ export interface InvitationInput {
   staffId: string;
   homeStore: string;
   startDate: string;
-  addressee: string;
-  expiresAt: string;
+  loginId: string;
+  initialPassword: string;
   storeIds: string[];
 }
-export function invitationInput(
+export function registrationInput(
   data: FormData,
   role: UserRole,
-  now: Date,
-): InvitationInput {
+): RegistrationInput {
   const text = (key: string) => String(data.get(key) || "").trim();
-  const expires = new Date(text("expires_at"));
-  if (!Number.isFinite(expires.valueOf()) || expires <= now)
-    throw new Error("招待期限は未来日時を指定してください。");
   const storeIds = data.getAll("store_ids").map(String);
   if (role !== "corporate_admin" && !storeIds.length)
     throw new Error("許可する店舗を選択してください。");
@@ -37,8 +33,8 @@ export function invitationInput(
     staffId: text("staff_id"),
     homeStore: text("home_store"),
     startDate: text("start_date"),
-    addressee: text("addressee"),
-    expiresAt: expires.toISOString(),
+    loginId: text("login_id"),
+    initialPassword: String(data.get("initial_password") || ""),
     storeIds,
   };
 }

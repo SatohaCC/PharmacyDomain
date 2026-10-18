@@ -7,7 +7,7 @@ from enum import StrEnum
 from typing import Any, Final
 from uuid import UUID
 
-from sqlalchemy import Select, Table, cast, exists, func, or_, select
+from sqlalchemy import Select, Table, cast, exists, false, func, or_, select
 from sqlalchemy.dialects.postgresql import JSONB
 
 
@@ -16,6 +16,8 @@ class ReadScopeKind(StrEnum):
 
     #: 非テナントの参照マスタ。誰が読んでも同じ内容になる。
     GLOBAL = "global"
+    #: 資格情報は業務Repositoryから一切読み取れない。
+    DENIED = "denied"
     #: 自法人の行だけ。
     CORPORATE = "corporate"
     #: 非テナント標準行と自法人の行を同じ一覧で読む。
@@ -41,6 +43,8 @@ class ReadScopeKind(StrEnum):
 #: 店舗ロールに全件が見える状態になり、しかもそれを知らせるものが何も無かった。
 #: 判断を保留できる欄を作らず、追加したら必ずここへ1行書かせる。
 READ_SCOPE_KINDS: Final[Mapping[str, ReadScopeKind]] = {
+    "local_credentials": ReadScopeKind.DENIED,
+    "local_sessions": ReadScopeKind.DENIED,
     # 薬価基準は国が定めるので法人ごとに内容が違わない。
     "medicines": ReadScopeKind.GLOBAL,
     "corporates": ReadScopeKind.CORPORATE_ITSELF,
@@ -103,6 +107,8 @@ class RepositoryReadScope:
             )
         if kind is ReadScopeKind.GLOBAL:
             return statement
+        if kind is ReadScopeKind.DENIED:
+            return statement.where(false())
         if kind is ReadScopeKind.CORPORATE_ITSELF:
             return statement.where(table.c.id == self.corporate_id)
         if kind is ReadScopeKind.CORPORATE_OR_GLOBAL:

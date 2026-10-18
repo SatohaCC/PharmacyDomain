@@ -35,10 +35,10 @@ export function UserListView({
           href={`/admin/corporates/${encodeURIComponent(corporateId)}/users/new`}
           appearance="action"
         >
-          ユーザーを招待
+          ユーザーを登録
         </Link>
       </Title>
-      <Paragraph>招待を受諾したユーザーを表示します。</Paragraph>
+      <Paragraph>登録済みユーザーと法人の利用権限を表示します。</Paragraph>
       {data.items.length ? (
         <Table>
           <thead>

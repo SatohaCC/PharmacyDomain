@@ -8,11 +8,13 @@ const meta = {
   args: {
     loginSubmission: { submit: fn(), pending: false, blocked: false },
     tokenSubmission: { submit: fn(), pending: false, blocked: false },
-    oidcAvailable: true,
+    passwordChangeRequired: false,
     authenticated: false,
   },
 } satisfies Meta<typeof LoginView>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const 通常: Story = {};
-export const 接続先未設定: Story = { args: { oidcAvailable: false } };
+export const 初回パスワード変更: Story = {
+  args: { passwordChangeRequired: true },
+};

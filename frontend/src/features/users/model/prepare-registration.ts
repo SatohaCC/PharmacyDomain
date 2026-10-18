@@ -8,9 +8,9 @@ interface Operations {
   createPerson: () => Promise<string>;
   prepareStaff?: (personId: string) => Promise<void>;
   isUncertain?: (error: unknown) => boolean;
-  invite: (personId: string) => Promise<{ id: string; secret: string }>;
+  register: (personId: string) => Promise<{ id: string; login_id: string }>;
 }
-export async function prepareInvitation(
+export async function prepareRegistration(
   progress: RegistrationProgress,
   ops: Operations,
   changed: () => void,
@@ -25,7 +25,7 @@ export async function prepareInvitation(
       changed();
     }
     if (ops.prepareStaff) await ops.prepareStaff(progress.personId);
-    return await ops.invite(progress.personId);
+    return await ops.register(progress.personId);
   } catch (error) {
     if (error instanceof TypeError || ops.isUncertain?.(error))
       progress.uncertain = true;

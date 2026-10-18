@@ -190,11 +190,41 @@ store_manager_assignments = Table(
 #: 増やすときは tests/infrastructure/postgres の表と揃える。
 NON_AGGREGATE_TABLES = frozenset(
     {
+        "local_credentials",
+        "local_sessions",
         "patient_number_sequences",
         "operation_audits",
         "medication_history_legacy_archives",
         "legacy_tracing_report_links",
     }
+)
+
+# 認証の技術状態は業務集約と分離し、秘密はハッシュだけを保持する。
+local_credentials = Table(
+    "local_credentials",
+    metadata,
+    Column("login_id", String(64), primary_key=True),
+    Column(
+        "subject",
+        String(1000),
+        ForeignKey("user_accounts.external_subject"),
+        nullable=False,
+        unique=True,
+    ),
+    Column("password_hash", String(256), nullable=False),
+    Column("must_change", Boolean, nullable=False),
+    Column("failed_attempts", Integer, nullable=False),
+    Column("locked_until", DateTime(timezone=True), nullable=True),
+)
+local_sessions = Table(
+    "local_sessions",
+    metadata,
+    Column("digest", String(64), primary_key=True),
+    Column(
+        "subject", String(1000), ForeignKey("local_credentials.subject"), nullable=False
+    ),
+    Column("restricted", Boolean, nullable=False),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
 )
 
 # 集約は payload（JSONB）を正とし、検索・一意性制約に要る値だけを列へ複製する。

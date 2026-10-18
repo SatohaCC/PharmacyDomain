@@ -5,9 +5,14 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import Field
 
 from app.application.access_control.models import ResolvedActorContext
 from app.application.common.pagination import Page
+from app.application.composition.register_contract import (
+    RegisterContractCommand,
+    RegisteredContract,
+)
 from app.application.composition.runtime import CompositionRoot
 from app.application.identity.dto import (
     CurrentActorDto,
@@ -20,6 +25,10 @@ from app.application.identity.input_models import (
     PersonNamesInput,
 )
 from app.application.identity.invite_user import InviteUserCommand, IssuedInvitation
+from app.application.identity.register_local_user import (
+    RegisteredLocalUser,
+    RegisterLocalUserCommand,
+)
 from app.application.identity.resolve_actor import VerifiedSubject
 from app.presentational.dependencies import (
     Actor,
@@ -78,6 +87,59 @@ class InviteUserRequest(RequestModel):
     expires_at: datetime
     store_ids: tuple[str, ...] = ()
     staff_id: str | None = None
+
+
+class RegisterLocalUserRequest(RequestModel):
+    """本人のログイン資格情報と法人権限を確定する入力。"""
+
+    person_id: str
+    login_id: str = Field(max_length=64)
+    initial_password: str = Field(repr=False, min_length=15, max_length=128)
+    role: MembershipRole
+    store_ids: tuple[str, ...] = ()
+    staff_id: str | None = None
+
+
+class RegisterContractRequest(RequestModel):
+    """新規契約の法人と初期管理者を一括登録する入力。"""
+
+    name: str
+    representative_last_name: str
+    representative_first_name: str
+    administrator: PersonNamesInput
+    login_id: str = Field(max_length=64)
+    initial_password: str = Field(repr=False, min_length=15, max_length=128)
+
+
+@router.post("/contracts", status_code=201, response_model=RegisteredContract)
+async def register_contract(
+    body: RegisterContractRequest, use_cases: IdentityUseCasesDep
+) -> RegisteredContract:
+    """ベンダーが法人・初期管理者・資格情報を一括登録する。"""
+    return await use_cases.register_contract.execute(
+        RegisterContractCommand(
+            name=body.name,
+            representative_last_name=body.representative_last_name,
+            representative_first_name=body.representative_first_name,
+            administrator=body.administrator,
+            login_id=body.login_id,
+            initial_password=body.initial_password,
+        )
+    )
+
+
+@router.post(
+    "/corporates/{corporate_id}/local-users",
+    status_code=201,
+    response_model=RegisteredLocalUser,
+)
+async def register_local_user(
+    corporate_id: str, body: RegisterLocalUserRequest, use_cases: IdentityUseCasesDep
+) -> RegisteredLocalUser:
+    """招待受諾を待たず、対象法人の利用者登録を完了する。"""
+    return await use_cases.register_local_user.execute(
+        RegisterLocalUserCommand(corporate_id=corporate_id, **body.model_dump())
+    )
 
 
 class AcceptInvitationRequest(RequestModel):

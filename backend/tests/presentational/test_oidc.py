@@ -275,7 +275,7 @@ def test_設定が不完全なら起動を止める(label: str, environment: dic
         build_verified_subject_provider(environment)
 
 
-def test_本番の起動点が読む変数は_env_exampleに載っている() -> None:
+def test_互換用の外部認証アダプタが読む変数は_env_exampleに載っている() -> None:
     """設定する側が、何を埋めればよいか一覧から分かる状態を保つ。
 
     一覧を手で持つと、変数を足したときに一覧だけが古くなる。読む側の本文から

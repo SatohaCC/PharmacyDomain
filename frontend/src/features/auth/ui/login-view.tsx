@@ -4,7 +4,6 @@ import {
   Eyebrow,
   Heading,
   Paragraph,
-  Notice,
   Subheading,
 } from "../../../shared/ui/layout/elements";
 import type { Submission } from "../../../shared/forms/submission";
@@ -13,30 +12,54 @@ import { TextField as Field } from "../../../shared/ui/controls/text-field";
 export interface LoginViewProps {
   loginSubmission: Submission;
   tokenSubmission: Submission;
-  oidcAvailable: boolean;
+  passwordChangeRequired: boolean;
   authenticated: boolean;
 }
 export function LoginView({
   loginSubmission,
   tokenSubmission,
-  oidcAvailable,
+  passwordChangeRequired,
 }: LoginViewProps) {
   return (
     <Entry>
       <Eyebrow>PHARMACY DOMAIN</Eyebrow>
-      <Heading>管理画面にログイン</Heading>
-      <Paragraph>法人・店舗・ユーザーを管理します。</Paragraph>
-      {oidcAvailable ? (
-        <Form
-          label="ログイン"
-          {...loginSubmission}
-          onSubmit={loginSubmission.submit}
+      <Heading>
+        {passwordChangeRequired ? "初回パスワード変更" : "管理画面にログイン"}
+      </Heading>
+      <Paragraph>
+        {passwordChangeRequired
+          ? "ご自身の新しいパスワードに変更すると利用を開始できます。"
+          : "発行されたログインIDとパスワードを入力してください。"}
+      </Paragraph>
+      <Form
+        key={passwordChangeRequired ? "change" : "login"}
+        label={
+          passwordChangeRequired ? "パスワードを変更して利用開始" : "ログイン"
+        }
+        {...loginSubmission}
+        onSubmit={loginSubmission.submit}
+      >
+        {!passwordChangeRequired && (
+          <Field name="login_id" label="ログインID" required />
+        )}
+        <Field
+          name="password"
+          label={passwordChangeRequired ? "新しいパスワード" : "パスワード"}
+          type="password"
+          required
+          description={
+            passwordChangeRequired ? "15文字以上128文字以下" : undefined
+          }
         />
-      ) : (
-        <Notice>
-          認証接続先が未設定です。OIDCの環境変数を設定してください。
-        </Notice>
-      )}
+        {passwordChangeRequired && (
+          <Field
+            name="confirmation"
+            label="新しいパスワード（確認）"
+            type="password"
+            required
+          />
+        )}
+      </Form>
       {import.meta.env.DEV && (
         <Panel>
           <Subheading>開発用の接続</Subheading>

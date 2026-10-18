@@ -1,32 +1,32 @@
 import { expect, it, vi } from "vitest";
 import {
-  prepareInvitation,
+  prepareRegistration,
   type RegistrationProgress,
-} from "../src/features/users/model/prepare-invitation";
-it("招待失敗後は本人を重複登録せず再試行する", async () => {
+} from "../src/features/users/model/prepare-registration";
+it("登録失敗後は本人を重複登録せず再試行する", async () => {
   const createPerson = vi.fn().mockResolvedValue("person-1");
-  const invite = vi
+  const register = vi
     .fn()
     .mockRejectedValueOnce(new Error("競合"))
-    .mockResolvedValue({ id: "invite-1", secret: "secret" });
+    .mockResolvedValue({ id: "register-1", login_id: "test-admin" });
   const progress: RegistrationProgress = {};
   await expect(
-    prepareInvitation(progress, { createPerson, invite }, () => {}),
+    prepareRegistration(progress, { createPerson, register }, () => {}),
   ).rejects.toThrow("競合");
   expect(progress.personId).toBe("person-1");
-  await prepareInvitation(progress, { createPerson, invite }, () => {});
+  await prepareRegistration(progress, { createPerson, register }, () => {});
   expect(createPerson).toHaveBeenCalledTimes(1);
-  expect(invite).toHaveBeenCalledTimes(2);
+  expect(register).toHaveBeenCalledTimes(2);
 });
 it("通信結果不明時は再送を止める", async () => {
   const progress: RegistrationProgress = {};
   const createPerson = vi.fn().mockRejectedValue(new TypeError("通信切断"));
-  const invite = vi.fn();
+  const register = vi.fn();
   await expect(
-    prepareInvitation(progress, { createPerson, invite }, () => {}),
+    prepareRegistration(progress, { createPerson, register }, () => {}),
   ).rejects.toThrow();
   await expect(
-    prepareInvitation(progress, { createPerson, invite }, () => {}),
+    prepareRegistration(progress, { createPerson, register }, () => {}),
   ).rejects.toThrow("結果を確認");
   expect(createPerson).toHaveBeenCalledTimes(1);
 });

@@ -1,8 +1,7 @@
 """開発用のASGI起動点。**本番では使わない。**
 
-認証基盤が未実装の間、`app.main:app` は全ての業務操作を401で拒否する。設計として
-正しいが、`/docs` から動きを確かめられない。そこで「1つの固定トークンを、1人の
-固定した操作主体として通す」だけの起動点を分けて置く。
+ローカル認証に加えて、開発DBの固定した操作主体を固定トークンで利用できる。
+本番の `app.main:app` はこのトークンを受け付けない。
 
 本番と分ける理由は、環境変数の付け忘れよりも**起動点の取り違え**のほうが起きにくい
 からである。`Dockerfile` の `CMD` は `app.main:app` のまま変えず、この起動点は
@@ -229,7 +228,9 @@ def create_dev_app() -> FastAPI:
     uvicorn の ``--factory`` から呼ぶ。モジュール読み込み時に環境変数を読まないので、
     静的チェッカやテストがこのモジュールを import しても、設定の有無で落ちない。
     """
-    app = create_app(actor_provider=build_actor_provider())
+    app = create_app(
+        actor_provider=build_actor_provider(), local_authentication_enabled=True
+    )
     # 開いている `/docs` がどちらの起動点かを、画面上で見分けられるようにする。
     app.title = f"{app.title}{_TITLE_SUFFIX}"
     app.description = _DESCRIPTION

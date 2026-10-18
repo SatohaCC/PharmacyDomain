@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 import { UserRegistrationView } from "./user-registration-view";
 const meta = {
-  title: "画面/ユーザー登録と招待",
+  title: "画面/ユーザー登録",
   component: UserRegistrationView,
   args: {
     corporateId: "example",
@@ -15,12 +15,8 @@ const meta = {
     staffMode: "existing",
     setStaffMode: fn(),
     snapshot: {},
-    status: "",
-    copied: false,
     frozen: false,
-    statusSubmission: { submit: fn(), pending: false, blocked: false },
-    invitationSubmission: { submit: fn(), pending: false, blocked: false },
-    copyInvitation: fn().mockResolvedValue(undefined),
+    registrationSubmission: { submit: fn(), pending: false, blocked: false },
   },
 } satisfies Meta<typeof UserRegistrationView>;
 export default meta;
@@ -31,12 +27,11 @@ export const 部分成功: Story = {
   args: {
     snapshot: { personId: "example-person" },
     frozen: true,
-    invitationSubmission: {
+    registrationSubmission: {
       submit: fn(),
       pending: false,
       blocked: false,
-      error:
-        "招待を発行できませんでした。入力内容を確認して再試行してください。",
+      error: "登録できませんでした。入力内容を確認して再試行してください。",
     },
   },
 };
@@ -44,7 +39,7 @@ export const 応答不明: Story = {
   args: {
     snapshot: { personId: "example-person", uncertain: true },
     frozen: true,
-    invitationSubmission: {
+    registrationSubmission: {
       submit: fn(),
       pending: false,
       blocked: true,
@@ -52,10 +47,6 @@ export const 応答不明: Story = {
     },
   },
 };
-export const 発行済み: Story = {
-  args: {
-    invitationUrl:
-      "https://example.invalid/invitations/accept#secret=invalid-story-sample",
-    issued: { id: "example-invitation", secret: "invalid-story-sample" },
-  },
+export const 登録完了: Story = {
+  args: { issued: { id: "test-account", login_id: "test-admin" } },
 };
