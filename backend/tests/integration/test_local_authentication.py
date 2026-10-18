@@ -8,9 +8,18 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.application.access_control.models import ResolvedActorContext
+from app.application.identity.input_models import AccountStatus
 from app.bootstrap import create_app
 from app.dev_main import StaticTokenActorContextProvider
-from app.infrastructure.identity.local_authentication import PostgresLocalAuthentication
+from app.infrastructure.identity.postgres.local_authentication import (
+    PostgresCredentialWriter,
+    PostgresLocalAuthentication,
+)
+from app.infrastructure.identity.postgres.user_account import (
+    PostgresUserAccountRepository,
+)
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.schema import (
     corporates,
     local_credentials,
@@ -22,6 +31,122 @@ from tests.integration.organization_helpers import Organization, setup_organizat
 
 INITIAL = "test-initial-password-12345"
 CHANGED = "test-personal-password-67890"
+
+
+@pytest.mark.asyncio
+async def test_ローカル認証_法人所属のない有効なベンダーは利用開始できる(
+    engine: AsyncEngine, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    # Arrange
+    fixture = await setup_organization(engine, session_factory)
+    actor = fixture.authorization.actor
+    assert isinstance(actor, ResolvedActorContext)
+    async with PostgresUnitOfWork(session_factory) as work:
+        account = await PostgresUserAccountRepository(work).get(actor.account_id)
+        assert account is not None and account.external_subject is not None
+        await PostgresCredentialWriter(work).issue(
+            "test-vendor", INITIAL, account.external_subject.value
+        )
+        await work.commit()
+    async with httpx.AsyncClient(
+        transport=local_app(fixture), base_url="http://test"
+    ) as client:
+        # Act
+        login = await client.post(
+            "/auth/login", json={"login_id": "test-vendor", "password": INITIAL}
+        )
+        assert login.status_code == 200, login.text
+        changed = await client.post(
+            "/auth/password",
+            json={"password": CHANGED},
+            headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+        )
+        # Assert
+        assert changed.status_code == 200, changed.text
+        me = await client.get(
+            "/me", headers={"Authorization": f"Bearer {changed.json()['access_token']}"}
+        )
+        assert me.status_code == 200, me.text
+        assert me.json()["roles"] == ["vendor_system_admin"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("suspension", ["account", "membership"])
+@pytest.mark.parametrize("changed", [False, True])
+async def test_ローカル認証_停止後は正しいパスワードでもログインと初回変更を拒否する(
+    engine: AsyncEngine,
+    session_factory: async_sessionmaker[AsyncSession],
+    suspension: str,
+    changed: bool,
+) -> None:
+    # Arrange
+    fixture = await setup_organization(engine, session_factory)
+    subject = fixture.accounts[0].external_subject
+    assert subject is not None
+    async with PostgresUnitOfWork(session_factory) as work:
+        await PostgresCredentialWriter(work).issue("test-admin", INITIAL, subject.value)
+        await work.commit()
+    async with httpx.AsyncClient(
+        transport=local_app(fixture), base_url="http://test"
+    ) as client:
+        login = await client.post(
+            "/auth/login", json={"login_id": "test-admin", "password": INITIAL}
+        )
+        assert login.status_code == 200, login.text
+        initial_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+        if changed:
+            response = await client.post(
+                "/auth/password", json={"password": CHANGED}, headers=initial_headers
+            )
+            assert response.status_code == 200, response.text
+        async with fixture.root.request_scope(
+            authorization=fixture.authorization
+        ) as scope:
+            if suspension == "account":
+                await scope.use_cases.identity.suspend_account.execute(
+                    str(fixture.accounts[0].id.value)
+                )
+            else:
+                await scope.use_cases.identity.change_membership.execute(
+                    str(fixture.corporate.id.value),
+                    str(fixture.memberships[0].id.value),
+                    status=AccountStatus.SUSPENDED,
+                )
+        async with session_factory() as session:
+            previous_hash = await session.scalar(
+                select(local_credentials.c.password_hash)
+            )
+            previous_sessions = await session.scalar(
+                select(func.count()).select_from(local_sessions)
+            )
+        # Act
+        correct = await client.post(
+            "/auth/login",
+            json={
+                "login_id": "test-admin",
+                "password": CHANGED if changed else INITIAL,
+            },
+        )
+        incorrect = await client.post(
+            "/auth/login", json={"login_id": "test-admin", "password": "wrong"}
+        )
+        reset = await client.post(
+            "/auth/password",
+            json={"password": "test-another-password-13579"},
+            headers=initial_headers,
+        )
+        # Assert
+        assert correct.status_code == incorrect.status_code == reset.status_code == 401
+        assert correct.json() == incorrect.json() == reset.json()
+        async with session_factory() as session:
+            assert (
+                await session.scalar(select(local_credentials.c.password_hash))
+                == previous_hash
+            )
+            assert (
+                await session.scalar(select(func.count()).select_from(local_sessions))
+                == previous_sessions
+            )
 
 
 def contract_body(

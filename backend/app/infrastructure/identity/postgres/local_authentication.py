@@ -17,12 +17,26 @@ from app.application.identity.local_authentication import (
     LoginFailedError,
     LoginSession,
 )
+from app.application.identity.resolve_actor import (
+    ResolveActorUseCase,
+    UnavailableIdentityError,
+    VerifiedSubject,
+)
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.identity.exceptions import IdentityConflictError
 from app.infrastructure.identity.passwords import (
     hash_password,
     validate_password,
     verify_password,
+)
+from app.infrastructure.identity.postgres.account_person import (
+    PostgresAccountPersonRepository,
+)
+from app.infrastructure.identity.postgres.corporate_membership import (
+    PostgresCorporateMembershipRepository,
+)
+from app.infrastructure.identity.postgres.user_account import (
+    PostgresUserAccountRepository,
 )
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.schema import local_credentials, local_sessions
@@ -75,6 +89,20 @@ class PostgresLocalAuthentication(LocalAuthentication):
         self._dummy_hash: str | None = None
         self._hash_limit = asyncio.Semaphore(2)
 
+    async def _is_available(self, subject: str) -> bool:
+        """業務要求と同じ本人解決で、現在のアカウントと法人権限を確認する。"""
+        async with PostgresUnitOfWork(self._sessions) as work:
+            resolver = ResolveActorUseCase(
+                PostgresAccountPersonRepository(work),
+                PostgresUserAccountRepository(work),
+                PostgresCorporateMembershipRepository(work),
+            )
+            try:
+                await resolver.execute(VerifiedSubject(principal_id=subject))
+            except UnavailableIdentityError:
+                return False
+            return True
+
     async def login(self, login_id: str, password: str) -> LoginSession:
         """失敗回数をDBで共有し、5回失敗したIDを15分間ロックする。"""
         try:
@@ -102,6 +130,7 @@ class PostgresLocalAuthentication(LocalAuthentication):
             valid = await asyncio.to_thread(verify_password, password, encoded)
             if (
                 row is None
+                or not await self._is_available(str(row["subject"]))
                 or row["locked_until"] is not None
                 and row["locked_until"] > now
             ):
@@ -209,7 +238,7 @@ class PostgresLocalAuthentication(LocalAuthentication):
                 .mappings()
                 .one_or_none()
             )
-            if row is None:
+            if row is None or not await self._is_available(str(row["subject"])):
                 raise LoginFailedError()
             # ロック待機中に別の変更で失効したセッションを再利用させない。
             active_session = await session.scalar(

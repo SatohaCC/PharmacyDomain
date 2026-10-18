@@ -9,7 +9,9 @@ from app.domain.identity.primitives import ExternalSubjectKey
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
 from app.infrastructure.di.repositories import PostgresRepositorySet
-from app.infrastructure.identity.local_authentication import PostgresCredentialWriter
+from app.infrastructure.identity.postgres.local_authentication import (
+    PostgresCredentialWriter,
+)
 from app.infrastructure.postgres.connection import (
     PostgresSettings,
     PostgresUnitOfWork,

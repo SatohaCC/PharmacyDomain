@@ -25,7 +25,9 @@ from app.domain.corporate.services import CorporateNameUniquenessService
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
-from app.infrastructure.identity.local_authentication import PostgresCredentialWriter
+from app.infrastructure.identity.postgres.local_authentication import (
+    PostgresCredentialWriter,
+)
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.organization_lock import PostgresOrganizationLock
 

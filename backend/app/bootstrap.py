@@ -12,7 +12,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.infrastructure.di.root import PostgresCompositionRoot
-from app.infrastructure.identity.local_authentication import PostgresLocalAuthentication
+from app.infrastructure.identity.postgres.local_authentication import (
+    PostgresLocalAuthentication,
+)
 from app.infrastructure.postgres.connection import PostgresSettings
 from app.presentational.access_logging import log_access
 from app.presentational.authentication import (
