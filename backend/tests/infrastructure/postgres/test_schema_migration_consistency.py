@@ -815,6 +815,8 @@ def test_集約でないテーブルの一覧が_明示的に宣言されてい�
 
     # Assert
     assert declared == {
+        "local_credentials",
+        "local_sessions",
         "patient_number_sequences",
         "operation_audits",
         "medication_history_legacy_archives",

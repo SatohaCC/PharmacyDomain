@@ -36,6 +36,10 @@ from app.application.composition.use_case_bundles import (
     StoreUseCases,
 )
 from app.application.failure_mapping import execution_scope
+from app.application.identity.local_authentication import (
+    LocalAuthentication,
+    LoginFailedError,
+)
 from app.application.identity.resolve_actor import VerifiedSubject
 from app.presentational.authentication import (
     ActorContextProvider,
@@ -69,6 +73,7 @@ class PresentationState:
     actor_provider: ActorContextProvider
     composition_root: CompositionRoot | None = None
     identity_provider: VerifiedSubjectProvider | None = None
+    local_authentication: LocalAuthentication | None = None
 
 
 def get_state(request: Request) -> PresentationState:
@@ -109,7 +114,18 @@ async def get_actor_context(
     """
     credential = credentials.credentials if credentials is not None else None
     actor: ActorContext
-    if state.identity_provider is not None:
+    if state.local_authentication is not None:
+        try:
+            subject = VerifiedSubject(
+                principal_id=await state.local_authentication.authenticate(credential)
+            )
+        except LoginFailedError:
+            actor = await state.actor_provider.authenticate(credential)
+        else:
+            if state.composition_root is None:
+                raise RuntimeError("本人解決の保存境界が初期化されていません。")
+            actor = await state.composition_root.resolve_identity(subject)
+    elif state.identity_provider is not None:
         subject = await state.identity_provider.authenticate(credential)
         if state.composition_root is None:
             raise RuntimeError("本人解決の保存境界が初期化されていません。")

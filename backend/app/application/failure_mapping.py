@@ -24,6 +24,7 @@ from app.application.dispensing.exceptions import (
     DispensingStaffNotFoundError,
     DispensingStoreNotFoundError,
 )
+from app.application.identity.local_authentication import LoginFailedError
 from app.application.identity.resolve_actor import UnavailableIdentityError
 from app.application.integration.nsips.exceptions import (
     NsipsPatientIdentityConflictError,
@@ -136,6 +137,7 @@ _KIND_BY_EXCEPTION: Final[Mapping[type[BaseException], FailureKind]] = {
     ApplicationError: FailureKind.INVALID_STATE,
     # --- 401: 主体がまだ決まっていない ---
     UnavailableIdentityError: FailureKind.UNAUTHENTICATED,
+    LoginFailedError: FailureKind.UNAUTHENTICATED,
     IdentityConflictError: FailureKind.CONFLICT,
     NsipsPatientIdentityConflictError: FailureKind.CONFLICT,
     ManagerAbsenceConflictError: FailureKind.CONFLICT,

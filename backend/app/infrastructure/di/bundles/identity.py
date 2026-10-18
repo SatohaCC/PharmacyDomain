@@ -2,7 +2,9 @@
 
 from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.common.clock import Clock
+from app.application.composition.register_contract import RegisterContractUseCase
 from app.application.composition.use_case_bundles import IdentityUseCases
+from app.application.corporate.register_corporate import RegisterCorporateUseCase
 from app.application.identity.accept_invitation import AcceptInvitationUseCase
 from app.application.identity.cancel_invitation import CancelInvitationUseCase
 from app.application.identity.change_account_status import (
@@ -15,12 +17,15 @@ from app.application.identity.get_user import GetUserUseCase
 from app.application.identity.invite_user import InviteUserUseCase
 from app.application.identity.link_staff import LinkStaffPersonUseCase
 from app.application.identity.list_users import ListUsersUseCase
+from app.application.identity.register_local_user import RegisterLocalUserUseCase
 from app.application.identity.register_person import RegisterPersonUseCase
 from app.application.identity.resolve_actor import ResolveActorUseCase
 from app.application.identity.support import IdentityRepositories
+from app.domain.corporate.services import CorporateNameUniquenessService
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.identity.local_authentication import PostgresCredentialWriter
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.organization_lock import PostgresOrganizationLock
 
@@ -40,7 +45,29 @@ def build_identity_use_cases(
         repositories.invitation,
     )
     lock = PostgresOrganizationLock(unit_of_work)
+    person = RegisterPersonUseCase(identity.people, access, unit_of_work)
+    local_user = RegisterLocalUserUseCase(
+        identity,
+        repositories.staff,
+        repositories.store,
+        access,
+        unit_of_work,
+        lock,
+        PostgresCredentialWriter(unit_of_work),
+    )
+    contract = RegisterContractUseCase(
+        RegisterCorporateUseCase(
+            repositories.corporate,
+            CorporateNameUniquenessService(repositories.corporate),
+            access,
+        ),
+        person,
+        local_user,
+        unit_of_work,
+    )
     return IdentityUseCases(
+        register_local_user=local_user,
+        register_contract=contract,
         register_person=RegisterPersonUseCase(identity.people, access, unit_of_work),
         link_staff=LinkStaffPersonUseCase(
             identity.people,

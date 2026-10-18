@@ -25,7 +25,7 @@ async function mock(page: Page, roles = actor.roles) {
   let people = 0;
   let invites = 0;
   await page.route(
-    /\/api\/(?:me|corporates|user-invitations)(?:[/?]|$)/,
+    /\/api\/(?:me|corporates|contracts|user-invitations)(?:[/?]|$)/,
     async (route) => {
       const req = route.request();
       const path = new URL(req.url()).pathname.slice(4);
@@ -37,7 +37,10 @@ async function mock(page: Page, roles = actor.roles) {
           roles,
           corporate_id: roles.includes("corporate_admin") ? "corp-1" : null,
         };
-      else if (path === "/corporates" && method === "POST")
+      else if (
+        (path === "/corporates" || path === "/contracts") &&
+        method === "POST"
+      )
         value = { id: corp.id };
       else if (path === "/corporates")
         value = { items: [corp], next_cursor: null };
@@ -57,20 +60,20 @@ async function mock(page: Page, roles = actor.roles) {
       else if (path.endsWith("/people")) {
         people++;
         value = { id: "person-1" };
-      } else if (path.endsWith("/user-invitations")) {
+      } else if (path.endsWith("/local-users")) {
         invites++;
         if (invites === 1) {
           await route.fulfill({
             status: 409,
             json: {
               code: "CONFLICT",
-              message: "招待が競合しました。",
+              message: "登録が競合しました。",
               errors: [],
             },
           });
           return;
         }
-        value = { id: "invite-1", secret: "test-secret" };
+        value = { id: "account-1", login_id: "test-admin" };
       } else if (path === "/user-invitations/acceptance")
         value = { id: "account-1" };
       else if (path.endsWith("/users"))
@@ -91,11 +94,17 @@ test("法人と店舗を登録できる", async ({ page }) => {
   await connect(page);
   await page.getByRole("link", { name: "法人を登録", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "法人登録", exact: true }),
+    page.getByRole("heading", { name: "新規契約登録", exact: true }),
   ).toBeVisible();
   await page.getByLabel("法人名").fill(corp.name);
   await page.getByLabel("代表者の姓").fill("テスト");
   await page.getByLabel("代表者の名").fill("太郎");
+  await page.getByLabel(/^管理者の姓(?:必須| 必須)?$/).fill("テスト");
+  await page.getByLabel(/^管理者の名(?:必須| 必須)?$/).fill("花子");
+  await page.getByLabel("管理者の姓（カナ）").fill("テスト");
+  await page.getByLabel("管理者の名（カナ）").fill("ハナコ");
+  await page.getByLabel("ログインID").fill("test-admin");
+  await page.getByLabel("初期パスワード").fill("test-initial-password-12345");
   await page.getByRole("button", { name: "登録する" }).click();
   await expect(page.getByRole("heading", { name: corp.name })).toBeVisible();
   await page.getByRole("link", { name: /店舗を登録/ }).click();
@@ -116,7 +125,7 @@ test("法人と店舗を登録できる", async ({ page }) => {
     fullPage: true,
   });
 });
-test("招待失敗から本人の再登録なしに再試行できる", async ({ page }) => {
+test("登録失敗から本人の再登録なしに再試行できる", async ({ page }) => {
   const state = await mock(page);
   await connect(page, "/admin/corporates/corp-1/users/new");
   for (const [label, value] of [
@@ -130,13 +139,13 @@ test("招待失敗から本人の再登録なしに再試行できる", async ({
       .filter({ visible: true })
       .first()
       .fill(value);
-  await page.getByLabel("宛先メールアドレス").fill("hanako@example.test");
-  await page.getByLabel("招待期限").fill("2030-01-01T12:00");
-  await page.getByRole("button", { name: "招待を発行する" }).click();
-  await expect(page.getByRole("alert")).toContainText("招待が競合");
-  await page.getByRole("button", { name: "招待を発行する" }).click();
+  await page.getByLabel("ログインID").fill("test-admin");
+  await page.getByLabel("初期パスワード").fill("test-initial-password-12345");
+  await page.getByRole("button", { name: "ユーザーを登録する" }).click();
+  await expect(page.getByRole("alert")).toContainText("登録が競合");
+  await page.getByRole("button", { name: "ユーザーを登録する" }).click();
   await expect(
-    page.getByRole("heading", { name: "招待を発行しました" }),
+    page.getByRole("heading", { name: "ユーザー登録が完了しました" }),
   ).toBeVisible();
   expect(state.people()).toBe(1);
   expect(state.invites()).toBe(2);
@@ -145,15 +154,6 @@ test("招待失敗から本人の再登録なしに再試行できる", async ({
       JSON.stringify({ ...localStorage, ...sessionStorage }),
     ),
   ).not.toContain("test-secret");
-  page.once("dialog", async (dialog) => {
-    expect(dialog.message()).toContain("再表示");
-    await dialog.dismiss();
-  });
-  await page.getByRole("link", { name: "ユーザー一覧へ" }).click();
-  await expect(
-    page.getByRole("heading", { name: "招待を発行しました" }),
-  ).toBeVisible();
-  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("link", { name: "ユーザー一覧へ" }).click();
   await expect(
     page.getByRole("heading", { name: "ユーザー一覧" }),
@@ -180,7 +180,9 @@ test("未登録の人も招待画面へ到達でき秘密をURLから除去す�
   await page.reload();
   await expect(page.getByLabel("招待の秘密")).toHaveValue("");
 });
-test("招待画面から開発ログイン後に秘密を保存せず招待画面へ戻る", async ({ page }) => {
+test("招待画面から開発ログイン後に秘密を保存せず招待画面へ戻る", async ({
+  page,
+}) => {
   await mock(page);
   await page.goto("/invitations/accept#secret=invitation-test");
   await expect(page.getByLabel("招待の秘密")).toHaveValue("invitation-test");
@@ -189,7 +191,9 @@ test("招待画面から開発ログイン後に秘密を保存せず招待画�
   await page.getByLabel("Bearerトークン").fill("test-token");
   await page.getByRole("button", { name: "接続する" }).click();
   await expect(page).toHaveURL(/\/invitations\/accept$/);
-  await expect(page.getByRole("heading", { name: "法人への招待" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "法人への招待" }),
+  ).toBeVisible();
   await expect(page.getByLabel("招待の秘密")).toHaveValue("");
 });
 test("店舗ロールは受諾完了後に管理画面へ飛ばされない", async ({ page }) => {
@@ -223,7 +227,7 @@ for (const [status, message] of [
 ] as const) {
   test(`法人登録の${status}を成功として扱わない`, async ({ page }) => {
     await mock(page);
-    await page.route("**/api/corporates", async (route) => {
+    await page.route("**/api/contracts", async (route) => {
       if (route.request().method() === "POST")
         await route.fulfill({
           status,
@@ -235,11 +239,17 @@ for (const [status, message] of [
     await page.getByLabel("法人名").fill("失敗検証法人");
     await page.getByLabel("代表者の姓").fill("テスト");
     await page.getByLabel("代表者の名").fill("太郎");
+    await page.getByLabel(/^管理者の姓(?:必須| 必須)?$/).fill("テスト");
+    await page.getByLabel(/^管理者の名(?:必須| 必須)?$/).fill("花子");
+    await page.getByLabel("管理者の姓（カナ）").fill("テスト");
+    await page.getByLabel("管理者の名（カナ）").fill("ハナコ");
+    await page.getByLabel("ログインID").fill("test-admin");
+    await page.getByLabel("初期パスワード").fill("test-initial-password-12345");
     await page.getByRole("button", { name: "登録する" }).click();
     await expect(page.getByRole("alert")).toContainText(message);
     await expect(page.getByLabel("法人名")).toHaveValue("失敗検証法人");
     await expect(
-      page.getByRole("heading", { name: "法人登録", exact: true }),
+      page.getByRole("heading", { name: "新規契約登録", exact: true }),
     ).toBeVisible();
     if (status === 500)
       await expect(
@@ -306,7 +316,7 @@ test("狭い画面でも管理操作が表示される", async ({ page }) => {
     fullPage: true,
   });
 });
-test("店舗ロールの招待はスタッフ紐付け後に発行する", async ({ page }) => {
+test("店舗ロールの登録はスタッフ紐付け後に完了する", async ({ page }) => {
   const state = await mock(page);
   await page.route("**/api/corporates/corp-1/stores", (r) =>
     r.fulfill({
@@ -361,13 +371,13 @@ test("店舗ロールの招待はスタッフ紐付け後に発行する", async
   ).toBeChecked();
   await page.getByRole("button", { name: / スタッフ(?:必須| 必須)?$/ }).click();
   await page.getByRole("option", { name: "テスト 太郎", exact: true }).click();
-  await page.getByLabel("宛先メールアドレス").fill("staff@example.test");
-  await page.getByLabel("招待期限").fill("2030-01-01T12:00");
-  await page.getByRole("button", { name: "招待を発行する" }).click();
+  await page.getByLabel("ログインID").fill("test-admin");
+  await page.getByLabel("初期パスワード").fill("test-initial-password-12345");
+  await page.getByRole("button", { name: "ユーザーを登録する" }).click();
   await expect(page.getByRole("alert")).toContainText("競合");
-  await page.getByRole("button", { name: "招待を発行する" }).click();
+  await page.getByRole("button", { name: "ユーザーを登録する" }).click();
   await expect(
-    page.getByRole("heading", { name: "招待を発行しました" }),
+    page.getByRole("heading", { name: "ユーザー登録が完了しました" }),
   ).toBeVisible();
   expect(linkCalls).toBe(1);
   expect(state.people()).toBe(1);
@@ -441,7 +451,7 @@ test("法人を切り替えた後に前法人の遅い店舗応答を表示し�
   await expect(page.getByRole("cell", { name: "前法人の店舗" })).toHaveCount(0);
 });
 
-test("既存本人IDの招待では本人登録を繰り返さない", async ({ page }) => {
+test("既存本人IDの登録では本人登録を繰り返さない", async ({ page }) => {
   const state = await mock(page);
   await connect(page, "/admin/corporates/corp-1/users/new");
   await page.getByRole("button", { name: / 本人の指定$/ }).click();
@@ -449,17 +459,19 @@ test("既存本人IDの招待では本人登録を繰り返さない", async ({ 
     .getByRole("option", { name: "登録済みの本人IDを指定", exact: true })
     .click();
   await page.getByRole("textbox", { name: /^本人ID/ }).fill("existing-person");
-  await page.getByLabel("宛先メールアドレス").fill("existing@example.test");
-  await page.getByLabel("招待期限").fill("2030-01-01T12:00");
-  await page.getByRole("button", { name: "招待を発行する" }).click();
+  await page.getByLabel("ログインID").fill("test-admin");
+  await page.getByLabel("初期パスワード").fill("test-initial-password-12345");
+  await page.getByRole("button", { name: "ユーザーを登録する" }).click();
   await expect(page.getByRole("alert")).toContainText("競合");
-  await page.getByRole("button", { name: "招待を発行する" }).click();
+  await page.getByRole("button", { name: "ユーザーを登録する" }).click();
   await expect(
-    page.getByRole("heading", { name: "招待を発行しました" }),
+    page.getByRole("heading", { name: "ユーザー登録が完了しました" }),
   ).toBeVisible();
   expect(state.people()).toBe(0);
 });
-test("店舗ユーザーのスタッフを新規登録して招待できる", async ({ page }) => {
+test("店舗ユーザーのスタッフを新規登録して利用権限を確定できる", async ({
+  page,
+}) => {
   await mock(page);
   await page.route("**/api/corporates/corp-1/stores", (r) =>
     r.fulfill({
@@ -503,16 +515,18 @@ test("店舗ユーザーのスタッフを新規登録して招待できる", as
   await page
     .getByRole("option", { name: "スタッフを新規登録", exact: true })
     .click();
-  await page.getByRole("button", { name: / 主所属店舗(?:必須| 必須)?$/ }).click();
+  await page
+    .getByRole("button", { name: / 主所属店舗(?:必須| 必須)?$/ })
+    .click();
   await page.getByRole("option", { name: "テスト店舗", exact: true }).click();
   await page.getByLabel("所属開始日").fill("2026-10-01");
-  await page.getByLabel("宛先メールアドレス").fill("newstaff@example.test");
-  await page.getByLabel("招待期限").fill("2030-01-01T12:00");
-  await page.getByRole("button", { name: "招待を発行する" }).click();
+  await page.getByLabel("ログインID").fill("test-admin");
+  await page.getByLabel("初期パスワード").fill("test-initial-password-12345");
+  await page.getByRole("button", { name: "ユーザーを登録する" }).click();
   await expect(page.getByRole("alert")).toContainText("競合");
-  await page.getByRole("button", { name: "招待を発行する" }).click();
+  await page.getByRole("button", { name: "ユーザーを登録する" }).click();
   await expect(
-    page.getByRole("heading", { name: "招待を発行しました" }),
+    page.getByRole("heading", { name: "ユーザー登録が完了しました" }),
   ).toBeVisible();
   expect(created).toBe(1);
 });

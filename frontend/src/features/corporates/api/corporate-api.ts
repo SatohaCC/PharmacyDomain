@@ -34,3 +34,17 @@ export const listCorporates = (
       signal,
     }),
   );
+
+export const registerContract = (body: {
+  name: string;
+  representative_last_name: string;
+  representative_first_name: string;
+  administrator: {
+    last_name: string;
+    first_name: string;
+    last_name_kana: string;
+    first_name_kana: string;
+  };
+  login_id: string;
+  initial_password: string;
+}) => result(api.POST("/contracts", { body }));

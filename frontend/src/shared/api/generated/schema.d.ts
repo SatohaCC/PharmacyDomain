@@ -1,4 +1,44 @@
 export interface paths {
+  "/contracts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Register Contract
+     * @description ベンダーが法人・初期管理者・資格情報を一括登録する。
+     */
+    post: operations["register_contract_contracts_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/corporates/{corporate_id}/local-users": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Register Local User
+     * @description 招待受諾を待たず、対象法人の利用者登録を完了する。
+     */
+    post: operations["register_local_user_corporates__corporate_id__local_users_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/corporates/{corporate_id}/user-invitations": {
     parameters: {
       query?: never;
@@ -237,6 +277,66 @@ export interface paths {
      * @description 個人アカウント全体をベンダーが再開する。
      */
     post: operations["reactivate_account_accounts__account_id__reactivation_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/auth/login": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Login
+     * @description 初期パスワードでは変更専用セッションを返す。
+     */
+    post: operations["login_auth_login_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/auth/password": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Change Password
+     * @description 既存セッションを失効して変更後のセッションを返す。
+     */
+    post: operations["change_password_auth_password_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/auth/logout": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Logout
+     * @description サーバー上のセッションを削除する。
+     */
+    post: operations["logout_auth_logout_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2610,6 +2710,14 @@ export interface components {
       store_ids?: string[] | null;
     };
     /**
+     * ChangePasswordRequest
+     * @description 変更専用セッションでも使えるパスワード変更入力。
+     */
+    ChangePasswordRequest: {
+      /** Password */
+      password: string;
+    };
+    /**
      * ChangePatientBirthDateRequest
      * @description 生年月日変更の入力。``None`` は解除を意味する。
      */
@@ -3686,6 +3794,26 @@ export interface components {
       person_id: string;
     };
     /**
+     * LoginRequest
+     * @description ログイン入力。秘密をモデルの文字列表現へ含めない。
+     */
+    LoginRequest: {
+      /** Login Id */
+      login_id: string;
+      /** Password */
+      password: string;
+    };
+    /**
+     * LoginSession
+     * @description 秘密は応答時だけ渡し、通常の文字列表現には含めない。
+     */
+    LoginSession: {
+      /** Access Token */
+      access_token: string;
+      /** Password Change Required */
+      password_change_required: boolean;
+    };
+    /**
      * MajorCategoryDto
      * @description 大区分の出力DTO。
      */
@@ -4642,6 +4770,20 @@ export interface components {
       }[];
     };
     /**
+     * PersonNamesInput
+     * @description 本人登録時に受け取る氏名の文字列。
+     */
+    PersonNamesInput: {
+      /** Last Name */
+      last_name: string;
+      /** First Name */
+      first_name: string;
+      /** Last Name Kana */
+      last_name_kana: string;
+      /** First Name Kana */
+      first_name_kana: string;
+    };
+    /**
      * PrescriberDto
      * @description 処方医の出力DTO。
      */
@@ -5095,6 +5237,23 @@ export interface components {
       acknowledged_physician_name?: string | null;
     };
     /**
+     * RegisterContractRequest
+     * @description 新規契約の法人と初期管理者を一括登録する入力。
+     */
+    RegisterContractRequest: {
+      /** Name */
+      name: string;
+      /** Representative Last Name */
+      representative_last_name: string;
+      /** Representative First Name */
+      representative_first_name: string;
+      administrator: components["schemas"]["PersonNamesInput"];
+      /** Login Id */
+      login_id: string;
+      /** Initial Password */
+      initial_password: string;
+    };
+    /**
      * RegisterCorporateRequest
      * @description 法人登録の入力。
      */
@@ -5161,6 +5320,26 @@ export interface components {
       external_patient_id: string;
       /** Store Id */
       store_id?: string | null;
+    };
+    /**
+     * RegisterLocalUserRequest
+     * @description 本人のログイン資格情報と法人権限を確定する入力。
+     */
+    RegisterLocalUserRequest: {
+      /** Person Id */
+      person_id: string;
+      /** Login Id */
+      login_id: string;
+      /** Initial Password */
+      initial_password: string;
+      role: components["schemas"]["MembershipRole-Input"];
+      /**
+       * Store Ids
+       * @default []
+       */
+      store_ids: string[];
+      /** Staff Id */
+      staff_id?: string | null;
     };
     /**
      * RegisterMedicineRequest
@@ -5343,12 +5522,34 @@ export interface components {
       insurance_pharmacy_number?: string | null;
     };
     /**
+     * RegisteredContract
+     * @description 登録を完了した契約の識別子。
+     */
+    RegisteredContract: {
+      /** Id */
+      id: string;
+      /** Account Id */
+      account_id: string;
+      /** Login Id */
+      login_id: string;
+    };
+    /**
      * RegisteredIdResponse
      * @description 新規登録で採番されたIDだけを返す応答。
      */
     RegisteredIdResponse: {
       /** Id */
       id: string;
+    };
+    /**
+     * RegisteredLocalUser
+     * @description 登録完了したアカウント。パスワードは再表示しない。
+     */
+    RegisteredLocalUser: {
+      /** Id */
+      id: string;
+      /** Login Id */
+      login_id: string;
     };
     /**
      * RelatedEventCandidateDto
@@ -6077,6 +6278,146 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  register_contract_contracts_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RegisterContractRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RegisteredContract"];
+        };
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  register_local_user_corporates__corporate_id__local_users_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RegisterLocalUserRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RegisteredLocalUser"];
+        };
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
   invite_user_corporates__corporate_id__user_invitations_post: {
     parameters: {
       query?: never;
@@ -6945,6 +7286,153 @@ export interface operations {
       };
       /** @description 対象が存在しない、または他テナントのため隠されている。 */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  login_auth_login_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["LoginRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LoginSession"];
+        };
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  change_password_auth_password_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ChangePasswordRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LoginSession"];
+        };
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  logout_auth_logout_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
         headers: {
           [name: string]: unknown;
         };

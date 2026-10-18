@@ -146,7 +146,7 @@ Event参照へ移行し、推測できない発生日時と独立した確定監
 ## 未解決事項
 
 - 全コンテキストの本番Repository、DB制約、楽観ロック、テナント境界は実装済み。実PostgreSQL結合テストで確認済み
-- 外部IdPのJWTから `ActorContext` を作る認証基盤は実装済み。`OIDC_*` 未設定なら既定実装が常に401を返す。ログイン画面・リフレッシュ・失効（ログアウト）と、実IdP製品への接続確認は残る
+- ローカル認証でログインID・初期パスワードを発行し、初回変更後に現在の法人権限を解決する。新規契約では法人と初期管理者を一括登録する。セッションはサーバー側で期限・失効を管理し、ブラウザではメモリだけに保持する。運用手順は [ローカル認証](local-authentication.md) を参照
 - 厚生労働省薬価基準収載医薬品コード（YJコード）CSVからのMedicineCatalog実データ取り込みは実装済み（HOTコード等の追加形式取り込みは将来拡張）
 - Prescriptionの公費枠とCoverage台帳を接続するComposition Adapterは実装済み
 - Dispensing完了とPrescription更新、MedicationHistory確定と頭書き保存は PostgreSQL の同一 Unit of Work で一体化した。HTTPルートへも接続済みで、HTTP経由でも1トランザクションであること（失敗時に両集約が巻き戻ること）を実PostgreSQLの結合テストで確認済み

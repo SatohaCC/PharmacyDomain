@@ -3,6 +3,7 @@ import {
   UserManager,
   WebStorageStateStore,
 } from "oidc-client-ts";
+import { endLocalSession } from "./local-authentication";
 let token = "";
 export const accessToken = () => token;
 export const setAccessToken = (value: string) => {
@@ -31,9 +32,10 @@ export async function login(returnTo: string) {
   await manager.signinRedirect({ state: { returnTo } });
 }
 export async function logout() {
-  token = "";
-  const manager = oidc();
-  if (manager) {
-    await manager.signoutRedirect();
-  } else location.assign("/login");
+  try {
+    await endLocalSession();
+  } finally {
+    token = "";
+    location.assign("/login");
+  }
 }

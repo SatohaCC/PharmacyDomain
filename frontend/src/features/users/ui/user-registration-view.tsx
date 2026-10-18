@@ -1,13 +1,9 @@
 import { Checkbox } from "../../../shared/ui/controls/checkbox";
-import { Alert } from "../../../shared/ui/feedback/alert";
 import { SelectField } from "../../../shared/ui/controls/select-field";
-import { Button } from "../../../shared/ui/controls/button";
 import { Panel } from "../../../shared/ui/layout/panel";
 import {
   Subheading,
   Paragraph,
-  FieldLabel,
-  TextArea,
   Notice,
   SectionHeading,
   Row,
@@ -18,8 +14,6 @@ import { Form } from "../../../shared/ui/controls/form";
 import { TextField as Field } from "../../../shared/ui/controls/text-field";
 import type { RegistrationViewProps } from "../model/registration";
 export function UserRegistrationView({
-  copyError,
-  invitationUrl,
   corporateId,
   stores,
   staffs,
@@ -31,45 +25,19 @@ export function UserRegistrationView({
   setStaffMode,
   snapshot,
   issued,
-  status,
-  copied,
   frozen,
-  statusSubmission,
-  invitationSubmission,
-  copyInvitation,
+  registrationSubmission,
 }: RegistrationViewProps) {
   if (issued)
     return (
       <Panel>
-        <Subheading>招待を発行しました</Subheading>
+        <Subheading>ユーザー登録が完了しました</Subheading>
         <Paragraph>
-          本人の受諾後にユーザー登録が完了します。メールは自動送信されません。
+          ログインID: <code>{issued.login_id}</code>
         </Paragraph>
         <Paragraph>
-          招待ID: <code>{issued.id}</code>
+          初期パスワードを本人へお渡しください。初回ログイン時にパスワードの変更が必要です。
         </Paragraph>
-        <FieldLabel>
-          招待URL（この画面を離れると再表示できません）
-          <TextArea readOnly value={invitationUrl || ""} />
-        </FieldLabel>
-        <Button onAction={() => void copyInvitation()}>招待URLをコピー</Button>
-        {copied && <Paragraph role="status">コピーしました。</Paragraph>}
-        {copyError && <Alert>{copyError}</Alert>}
-        <Form
-          label="受諾状態を確認"
-          {...statusSubmission}
-          onSubmit={statusSubmission.submit}
-        />
-        {status && (
-          <Paragraph role="status">
-            招待状態:{" "}
-            {status === "accepted"
-              ? "受諾済み"
-              : status === "cancelled"
-                ? "取消済み"
-                : "未受諾"}
-          </Paragraph>
-        )}
         <Link
           href={`/admin/corporates/${encodeURIComponent(corporateId)}/users`}
         >
@@ -79,9 +47,9 @@ export function UserRegistrationView({
     );
   return (
     <Panel>
-      <Subheading>ユーザー登録・招待</Subheading>
+      <Subheading>ユーザー登録</Subheading>
       <Paragraph>
-        本人を登録し、法人の利用権限を招待します。パスワードは設定しません。
+        本人・ログインID・初期パスワードを登録し、法人の利用権限を確定します。
       </Paragraph>
       {snapshot.personId && (
         <Notice>
@@ -93,7 +61,7 @@ export function UserRegistrationView({
             </>
           )}
           {snapshot.linked && " ／本人紐付け済み"}
-          。この段階から招待を再試行します。
+          。この段階からアカウント登録を再試行します。
         </Notice>
       )}
       {snapshot.uncertain && (
@@ -102,9 +70,9 @@ export function UserRegistrationView({
         </Paragraph>
       )}
       <Form
-        label="招待を発行する"
-        {...invitationSubmission}
-        onSubmit={invitationSubmission.submit}
+        label="ユーザーを登録する"
+        {...registrationSubmission}
+        onSubmit={registrationSubmission.submit}
       >
         <SectionHeading>1. 本人情報</SectionHeading>
         <SelectField
@@ -213,18 +181,19 @@ export function UserRegistrationView({
             )}
           </>
         )}
-        <SectionHeading>3. 招待</SectionHeading>
+        <SectionHeading>3. ログイン情報</SectionHeading>
         <Field
-          name="addressee"
-          label="宛先メールアドレス"
-          type="email"
+          name="login_id"
+          label="ログインID"
           required
+          description="3～64文字の半角英数字・ピリオド・ハイフン・下線"
         />
         <Field
-          name="expires_at"
-          label="招待期限（端末の現地時刻）"
-          type="datetime-local"
+          name="initial_password"
+          label="初期パスワード"
+          type="password"
           required
+          description="15文字以上128文字以下。本人に安全な方法でお渡しください。"
         />
         <Paragraph>
           登録は段階ごとに保存されます。途中で閉じた場合、作成済みの本人をこの画面から検索・復元することはできません。

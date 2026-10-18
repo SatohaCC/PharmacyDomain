@@ -1,5 +1,5 @@
 import type { Submission } from "../../../shared/forms/submission";
-import type { RegistrationProgress } from "./prepare-invitation";
+import type { RegistrationProgress } from "./prepare-registration";
 export type UserRole = "corporate_admin" | "store_operator" | "store_viewer";
 export interface RegistrationOptions {
   stores: { id: string; name: string }[];
@@ -19,13 +19,7 @@ export interface RegistrationViewProps extends RegistrationOptions {
   staffMode: string;
   setStaffMode: (mode: string) => void;
   snapshot: RegistrationProgress;
-  issued?: { id: string; secret: string };
-  status: string;
-  copyError?: string;
-  invitationUrl?: string;
-  copied: boolean;
+  issued?: { id: string; login_id: string };
   frozen: boolean;
-  statusSubmission: Submission;
-  invitationSubmission: Submission;
-  copyInvitation: () => Promise<void>;
+  registrationSubmission: Submission;
 }

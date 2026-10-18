@@ -23,8 +23,8 @@ export function CorporateOverviewView({
         />
         <ActionCard
           href={`/admin/corporates/${encodeURIComponent(corporateId)}/users/new`}
-          title="ユーザーを招待"
-          description="本人登録・権限・招待発行"
+          title="ユーザーを登録"
+          description="本人登録・ログイン情報・権限"
         />
       </Cards>
     </Panel>
