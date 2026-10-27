@@ -11,7 +11,13 @@ from app.domain.identity.entities import AccountPerson, UserAccount
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.primitives import AccountStatus
 from app.domain.shared.actor import AccountPersonId, UserAccountId
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 from app.infrastructure.identity.postgres.account_person import (
     PostgresAccountPersonRepository,
 )
@@ -24,11 +30,14 @@ from app.infrastructure.postgres.connection import PostgresUnitOfWork
 def _person() -> AccountPerson:
     return AccountPerson(
         id=AccountPersonId.generate(),
-        names=PersonNames.create(
-            last_name="山田",
-            first_name="太郎",
-            last_name_kana="ヤマダ",
-            first_name_kana="タロウ",
+        names=PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart("山田"), first_name=PersonNamePart("太郎")
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart("ヤマダ"),
+                first_name=PersonNameKanaPart("タロウ"),
+            ),
         ),
     )
 

@@ -28,7 +28,7 @@ def convert_fact_value(
             (
                 name
                 for name in FACT_ARRAY_TYPES
-                if any(item.id == target for item in record.fact_elements(name))
+                if any(item.id.value == target for item in record.fact_elements(name))
             ),
             "",
         )

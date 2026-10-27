@@ -149,3 +149,8 @@ def find_priority_violation(
     if sorted(priorities) != list(range(1, len(priorities) + 1)):
         return PriorityViolation.NOT_CONSECUTIVE
     return None
+
+
+def public_expenses_are_ordered(priorities: Sequence[int]) -> bool:
+    """公費枠が適用順位の昇順で明示されているかを判定する。"""
+    return list(priorities) == sorted(priorities)

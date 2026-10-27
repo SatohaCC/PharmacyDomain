@@ -5,33 +5,9 @@ from pathlib import Path
 
 import pytest
 
+from tools.check_domain_architecture import role_violations as _role_violations
+
 _DOMAIN = Path(__file__).resolve().parents[2] / "app" / "domain"
-
-
-def _role_violations(role: str, source: str) -> list[str]:
-    """明示した継承とサービス名から配置の逆転を検出する。"""
-    violations = []
-    for node in ast.parse(source).body:
-        if not isinstance(node, ast.ClassDef):
-            continue
-        bases = {
-            ast.unparse(base.value if isinstance(base, ast.Subscript) else base).rsplit(
-                ".", 1
-            )[-1]
-            for base in node.bases
-        }
-        expected = None
-        if bases & {"Entity", "AggregateRoot"}:
-            expected = "entities"
-        elif bases & {"ValueObject", "BaseQualificationProfile"}:
-            expected = "value_objects"
-        elif "Protocol" in bases:
-            expected = "repositories"
-        elif node.name.endswith("Service"):
-            expected = "services"
-        if expected is not None and role != expected:
-            violations.append(node.name)
-    return violations
 
 
 def test_Domainの役割別モジュール_定義の責務が_配置と一致する() -> None:

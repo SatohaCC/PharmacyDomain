@@ -23,17 +23,25 @@ from app.application.composition.organization_snapshot_mapping import (
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.entities import Patient
 from app.domain.patient.exceptions import PatientStateConflictError
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.primitives import PatientNumber, PatientStatusReason
 from app.domain.patient.services import PatientMergeService
 from app.domain.shared.actor import AccountPersonId, UserAccountId
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 from app.domain.staff.entities import Staff
 from app.domain.staff.exceptions import InvalidCorporateAssignmentError
+from app.domain.staff.identifiers import StaffId
 from app.domain.staff.services import StaffStoreAssignmentService
 from app.domain.staff.value_objects import StaffQualifications
 from app.domain.store.entities import Store, StoreManagerAssignment
 from app.domain.store.exceptions import ManagerAssignmentConflictError
-from app.domain.store.identifiers import StoreManagerAssignmentId
+from app.domain.store.identifiers import StoreId, StoreManagerAssignmentId
 from app.domain.store.primitives import (
     StoreAddressLine,
     StoreName,
@@ -247,18 +255,30 @@ def test_複数集約ドメインサービスが法人境界を保護する() ->
     corp_b = CorporateId.generate()
 
     # 1. StaffStoreAssignmentService による別法人店舗配属の拒否
-    staff_a = Staff.create(
+    staff_a = Staff(
+        id=StaffId.generate(),
         corporate_id=corp_a,
-        names=PersonNames.create(
-            last_name="山田",
-            first_name="太郎",
-            last_name_kana="ヤマダ",
-            first_name_kana="タロウ",
+        names=PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart("山田"), first_name=PersonNamePart("太郎")
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart("ヤマダ"),
+                first_name=PersonNameKanaPart("タロウ"),
+            ),
         ),
-        qualifications=StaffQualifications.empty(),
+        qualifications=StaffQualifications.empty() or StaffQualifications.empty(),
+        affiliations=(),
+        job_title=None,
+        code=None,
+        phone_number=None,
+        email=None,
+        is_active=True,
     )
-    store_b = Store.create(
+    store_b = Store(
+        id=StoreId.generate(),
         corporate_id=corp_b,
+        code=None,
         names=StoreNames(
             name=StoreName("別法人店舗"), kana=StoreNameKana("ベツホウジンテンポ")
         ),
@@ -266,7 +286,10 @@ def test_複数集約ドメインサービスが法人境界を保護する() ->
             postal_code=StorePostalCode("100-0001"),
             address=StoreAddressLine("東京都千代田区1-1"),
         ),
-        contact_info=ContactInfo.create(phone_number=StorePhoneNumber("03-1234-5678")),
+        contact_info=ContactInfo(
+            phone_number=StorePhoneNumber("03-1234-5678"),
+        ),
+        insurance_pharmacy_number=None,
     )
 
     assignment_service = StaffStoreAssignmentService()
@@ -277,8 +300,10 @@ def test_複数集約ドメインサービスが法人境界を保護する() ->
         )
 
     # 2. StoreManagerAssignmentService による別法人スタッフ任命の拒否
-    store_a = Store.create(
+    store_a = Store(
+        id=StoreId.generate(),
         corporate_id=corp_a,
+        code=None,
         names=StoreNames(
             name=StoreName("自法人店舗"), kana=StoreNameKana("ジホウジンテンポ")
         ),
@@ -286,17 +311,30 @@ def test_複数集約ドメインサービスが法人境界を保護する() ->
             postal_code=StorePostalCode("100-0001"),
             address=StoreAddressLine("東京都千代田区1-1"),
         ),
-        contact_info=ContactInfo.create(phone_number=StorePhoneNumber("03-1234-5678")),
-    )
-    staff_b = Staff.create(
-        corporate_id=corp_b,
-        names=PersonNames.create(
-            last_name="鈴木",
-            first_name="一郎",
-            last_name_kana="スズキ",
-            first_name_kana="イチロウ",
+        contact_info=ContactInfo(
+            phone_number=StorePhoneNumber("03-1234-5678"),
         ),
-        qualifications=StaffQualifications.empty(),
+        insurance_pharmacy_number=None,
+    )
+    staff_b = Staff(
+        id=StaffId.generate(),
+        corporate_id=corp_b,
+        names=PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart("鈴木"), first_name=PersonNamePart("一郎")
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart("スズキ"),
+                first_name=PersonNameKanaPart("イチロウ"),
+            ),
+        ),
+        qualifications=StaffQualifications.empty() or StaffQualifications.empty(),
+        affiliations=(),
+        job_title=None,
+        code=None,
+        phone_number=None,
+        email=None,
+        is_active=True,
     )
     assignment = StoreManagerAssignment(
         id=StoreManagerAssignmentId.generate(),
@@ -313,25 +351,43 @@ def test_複数集約ドメインサービスが法人境界を保護する() ->
         )
 
     # 3. PatientMergeService による別法人患者統合の拒否
-    patient_a = Patient.create(
+    patient_a = Patient(
+        id=PatientId.generate(),
         corporate_id=corp_a,
-        names=PersonNames.create(
-            last_name="佐藤",
-            first_name="花子",
-            last_name_kana="サトウ",
-            first_name_kana="ハナコ",
+        names=PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart("佐藤"), first_name=PersonNamePart("花子")
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart("サトウ"),
+                first_name=PersonNameKanaPart("ハナコ"),
+            ),
         ),
         patient_number=PatientNumber(1),
+        birth_date=None,
+        gender=None,
+        postal_code=None,
+        address=None,
+        phone_number=None,
     )
-    patient_b = Patient.create(
+    patient_b = Patient(
+        id=PatientId.generate(),
         corporate_id=corp_b,
-        names=PersonNames.create(
-            last_name="佐藤",
-            first_name="花子",
-            last_name_kana="サトウ",
-            first_name_kana="ハナコ",
+        names=PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart("佐藤"), first_name=PersonNamePart("花子")
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart("サトウ"),
+                first_name=PersonNameKanaPart("ハナコ"),
+            ),
         ),
         patient_number=PatientNumber(2),
+        birth_date=None,
+        gender=None,
+        postal_code=None,
+        address=None,
+        phone_number=None,
     )
     merge_service = PatientMergeService()
     with pytest.raises(PatientStateConflictError):

@@ -31,6 +31,7 @@ from app.domain.coverage.primitives import (
     PublicPayerNumber,
     PublicRecipientNumber,
     find_priority_violation,
+    public_expenses_are_ordered,
 )
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.value_object import ValueObject
@@ -123,20 +124,12 @@ class CoverageCombination(ValueObject):
         "public_expenses": "公費資格",
     }
 
-    def _normalize_fields(self) -> None:
-        """公費を適用順位順へ正規化する。"""
-        if not isinstance(self.public_expenses, tuple) or not all(
-            isinstance(item, SelectedPublicExpenseCoverage)
-            for item in self.public_expenses
-        ):
-            return
-        ordered = tuple(
-            sorted(self.public_expenses, key=lambda item: item.priority.value)
-        )
-        object.__setattr__(self, "public_expenses", ordered)
-
     def validate(self) -> None:
         """件数・順位・テナント・患者・適用日の一貫性を検証する。"""
+        if not public_expenses_are_ordered(
+            [item.priority.value for item in self.public_expenses]
+        ):
+            raise CoverageCombinationError("公費は適用順位順に指定してください。")
         selected = self._all_selected()
         if not selected:
             raise CoverageCombinationError("適用資格を1件以上指定してください。")
@@ -242,22 +235,6 @@ class CoverageSelection(ValueObject):
             ),
         )
 
-    def _normalize_fields(self) -> None:
-        """公費枠を適用順位順へ正規化する。
-
-        順位は値側にあるので、並べ替えてもIDとの対応は動かない。どんな入力順で
-        渡しても同一の ``CoverageSelection`` になり、並び順という自由度が消える。
-        """
-        if not isinstance(self.public_expenses, tuple) or not all(
-            isinstance(item, SelectedPublicExpenseSource)
-            for item in self.public_expenses
-        ):
-            return
-        ordered = tuple(
-            sorted(self.public_expenses, key=lambda item: item.priority.value)
-        )
-        object.__setattr__(self, "public_expenses", ordered)
-
     def validate(self) -> None:
         """元資格IDの重複を拒否し、値側の組み合わせ規則も凍結時に走らせる。
 
@@ -270,6 +247,10 @@ class CoverageSelection(ValueObject):
                 ある、公費順位が重複または第一公費から連続していない場合。
                 値側の規則なので Coverage の例外をそのまま返す。
         """
+        if not public_expenses_are_ordered(
+            [item.priority.value for item in self.public_expenses]
+        ):
+            raise CoverageSelectionInvalidError("公費は適用順位順に指定してください。")
         source_ids = self.source_coverage_ids
         if len(source_ids) != len(set(source_ids)):
             raise CoverageSelectionInvalidError(
@@ -282,7 +263,12 @@ class CoverageSelection(ValueObject):
         """枠から適用固定スナップショットを組み立てる。"""
         return CoverageSnapshot(
             insurance=self.insurance.values if self.insurance is not None else None,
-            public_expenses=tuple(item.values for item in self.public_expenses),
+            public_expenses=tuple(
+                sorted(
+                    (item.values for item in self.public_expenses),
+                    key=lambda item: item.priority.value,
+                )
+            ),
         )
 
     @property
@@ -357,19 +343,14 @@ class CoverageSnapshot(ValueObject):
         "public_expenses": "公費スナップショット",
     }
 
-    def _normalize_fields(self) -> None:
-        """公費スナップショットを順位順へ正規化する。"""
-        if not isinstance(self.public_expenses, tuple) or not all(
-            isinstance(item, PublicExpenseCoverageSnapshot)
-            for item in self.public_expenses
-        ):
-            return
-        public_expenses = self.public_expenses
-        ordered = tuple(sorted(public_expenses, key=lambda item: item.priority.value))
-        object.__setattr__(self, "public_expenses", ordered)
-
     def validate(self) -> None:
         """健康保険および公費の指定件数（1件以上必須）と公費の適用順位（第一〜第四公費の連続性）を検証する。"""
+        if not public_expenses_are_ordered(
+            [item.priority.value for item in self.public_expenses]
+        ):
+            raise CoverageCombinationInvalidError(
+                "公費は適用順位順に指定してください。"
+            )
         public_expenses = self.public_expenses
         if self.insurance is None and not public_expenses:
             raise CoverageCombinationInvalidError(

@@ -13,7 +13,13 @@ from app.application.patient.support import load_patient_or_raise
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.identifiers import PatientId
 from app.domain.patient.repositories import PatientRepository
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -54,11 +60,15 @@ class ChangePatientNamesUseCase:
             corporate_id=corporate_id,
             patient_id=patient_id,
         )
-        names = PersonNames.create(
-            last_name=command.last_name,
-            first_name=command.first_name,
-            last_name_kana=command.last_name_kana,
-            first_name_kana=command.first_name_kana,
+        names = PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart(command.last_name),
+                first_name=PersonNamePart(command.first_name),
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart(command.last_name_kana),
+                first_name=PersonNameKanaPart(command.first_name_kana),
+            ),
         )
         updated = patient.change_names(names)
         changed_fields = tuple(

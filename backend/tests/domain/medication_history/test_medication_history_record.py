@@ -32,6 +32,8 @@ from app.domain.medication_history.primitives import (
     AmendmentTimestamp,
     BillingAdditionCode,
     BillingAdditionName,
+    BillingPoints,
+    BillingQuantity,
     CounselingMethod,
     CounselingNote,
     CounselingTimestamp,
@@ -812,15 +814,23 @@ class Test確定真正性と遅延理由:
         addition = BillingAddition(
             code=BillingAdditionCode("140000110"),
             name=BillingAdditionName("特定薬剤管理指導加算２"),
-            points=100,
-            quantity=2,
+            points=BillingPoints(100),
+            quantity=BillingQuantity(2),
         )
         record = create_record(billing_additions=(addition,))
         assert len(record.billing_additions) == 1
         assert record.billing_additions[0].code.value == "140000110"
         assert record.billing_additions[0].name.value == "特定薬剤管理指導加算２"
-        assert record.billing_additions[0].points == 100
-        assert record.billing_additions[0].quantity == 2
+        assert (
+            record.billing_additions[0].points.value
+            if record.billing_additions[0].points is not None
+            else None
+        ) == 100
+        assert (
+            record.billing_additions[0].quantity.value
+            if record.billing_additions[0].quantity is not None
+            else None
+        ) == 2
 
         default_record = create_record()
         assert default_record.billing_additions == ()
@@ -830,14 +840,14 @@ class Test確定真正性と遅延理由:
         original = BillingAddition(
             code=BillingAdditionCode("140000110"),
             name=BillingAdditionName("加算A"),
-            points=100,
-            quantity=1,
+            points=BillingPoints(100),
+            quantity=BillingQuantity(1),
         )
         corrected = BillingAddition(
             code=BillingAdditionCode("140000210"),
             name=BillingAdditionName("加算B"),
-            points=200,
-            quantity=2,
+            points=BillingPoints(200),
+            quantity=BillingQuantity(2),
         )
         updated = create_record(billing_additions=(original,)).update_draft(
             billing_additions=(corrected,)

@@ -22,11 +22,14 @@ def test_create_generates_uuid7_and_keeps_optional_fields_unset() -> None:
     corporate_id = CorporateId.generate()
 
     # Act
-    store = Store.create(
+    store = Store(
+        id=StoreId.generate(),
         corporate_id=corporate_id,
+        code=None,
         names=create_store_names(),
         address=create_store_address(),
         contact_info=create_contact_info(),
+        insurance_pharmacy_number=None,
     )
 
     # Assert

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from app.domain.foundation.primitives.identifiers import EntityUUID
+from app.domain.foundation.primitives.identifiers import EntityStringId, EntityUUID
 
 
 class MedicationHistoryRecordId(EntityUUID):
@@ -40,3 +40,15 @@ class TracingReportId(EntityUUID):
     """トレーシングレポートの一意識別子。"""
 
     identifier_name: ClassVar[str] = "トレーシングレポートID"
+
+
+class AmendmentId(EntityStringId):
+    """AmendmentIdの型付き値。"""
+
+
+class ExternalCorrectionId(EntityStringId):
+    """ExternalCorrectionIdの型付き値。"""
+
+
+class FactRecordId(EntityStringId):
+    """訂正または配列要素を一意に参照する識別子。"""

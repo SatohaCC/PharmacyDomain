@@ -52,6 +52,8 @@ from app.domain.medication_history.exceptions import (
 from app.domain.medication_history.primitives import (
     BillingAdditionCode,
     BillingAdditionName,
+    BillingPoints,
+    BillingQuantity,
     CounselingMethod,
     CounselingTimestamp,
     MedicationHistoryImportTimestamp,
@@ -327,8 +329,14 @@ class StartMedicationHistoryUseCase:
             BillingAddition(
                 code=BillingAdditionCode(item.code),
                 name=BillingAdditionName(item.name),
-                points=item.points,
-                quantity=item.quantity,
+                points=(
+                    BillingPoints(item.points) if (item.points) is not None else None
+                ),
+                quantity=(
+                    BillingQuantity(item.quantity)
+                    if (item.quantity) is not None
+                    else None
+                ),
             )
             for item in addition_inputs
         )

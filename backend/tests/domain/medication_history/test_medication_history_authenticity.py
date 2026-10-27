@@ -2,10 +2,14 @@
 
 from datetime import UTC, date, datetime
 
+from app.domain.medication_history.identifiers import ExternalCorrectionId
 from app.domain.medication_history.primitives import (
     AmendmentReason,
     AmendmentTimestamp,
+    CorrectionDocumentNumber,
+    ExternalCorrectionDetails,
     ExternalCorrectionKind,
+    ExternalCorrectionReason,
     ExternalCorrectionStatus,
     ExternalCorrectionTimestamp,
     FinalizationDelayReason,
@@ -58,13 +62,15 @@ def test_record_external_correction_preserves_original() -> None:
     )
 
     correction = ExternalPrescriptionCorrection(
-        correction_id="corr-001",
+        correction_id=ExternalCorrectionId("corr-001"),
         corrected_at=ExternalCorrectionTimestamp(
             datetime(2026, 8, 24, 7, 0, tzinfo=UTC)
         ),
-        source_document_number="RX-20260824-001",
-        reason="レセコンUファイル受信: 疑義照会に伴う日数短縮（7日->5日）",
-        details="Rp1 ロキソプロフェン 7日分 -> 5日分に変更",
+        source_document_number=CorrectionDocumentNumber("RX-20260824-001"),
+        reason=ExternalCorrectionReason(
+            "レセコンUファイル受信: 疑義照会に伴う日数短縮（7日->5日）"
+        ),
+        details=ExternalCorrectionDetails("Rp1 ロキソプロフェン 7日分 -> 5日分に変更"),
     )
 
     # 外部訂正を記録
@@ -80,7 +86,7 @@ def test_record_external_correction_preserves_original() -> None:
 
     # 2. 外部訂正が追記され、未確認フラグが立っていること
     assert len(updated.external_corrections) == 1
-    assert updated.external_corrections[0].correction_id == "corr-001"
+    assert updated.external_corrections[0].correction_id.value == "corr-001"
     assert updated.external_corrections[0].kind is ExternalCorrectionKind.UPDATE
     assert updated.external_corrections[0].status is ExternalCorrectionStatus.PENDING
     assert updated.has_pending_correction_review is True
@@ -90,12 +96,12 @@ def test_acknowledge_external_correction() -> None:
     """TC-15: 薬剤師による外部処方訂正の確認により要確認フラグが解消される。"""
     record = finalize_record_with_review(create_record(counseled_at=COUNSELED_AT))
     correction = ExternalPrescriptionCorrection(
-        correction_id="corr-001",
+        correction_id=ExternalCorrectionId("corr-001"),
         corrected_at=ExternalCorrectionTimestamp(
             datetime(2026, 8, 24, 7, 0, tzinfo=UTC)
         ),
-        source_document_number="RX-20260824-001",
-        reason="レセコンUファイル受信: 用法変更",
+        source_document_number=CorrectionDocumentNumber("RX-20260824-001"),
+        reason=ExternalCorrectionReason("レセコンUファイル受信: 用法変更"),
     )
     updated = record.record_external_correction(correction)
     assert updated.has_pending_correction_review is True
@@ -119,12 +125,12 @@ def test_amend_after_external_correction() -> None:
     """TC-16: 外部訂正を受けた後に薬剤師が指導追補（amend）を行った場合、新旧記録が保全される。"""
     record = finalize_record_with_review(create_record(counseled_at=COUNSELED_AT))
     correction = ExternalPrescriptionCorrection(
-        correction_id="corr-001",
+        correction_id=ExternalCorrectionId("corr-001"),
         corrected_at=ExternalCorrectionTimestamp(
             datetime(2026, 8, 24, 7, 0, tzinfo=UTC)
         ),
-        source_document_number="RX-20260824-001",
-        reason="日数変更",
+        source_document_number=CorrectionDocumentNumber("RX-20260824-001"),
+        reason=ExternalCorrectionReason("日数変更"),
     )
     with_corr = record.record_external_correction(correction)
 

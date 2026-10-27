@@ -7,12 +7,10 @@ from app.application.access_control.policy import AuthorizationService
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.corporate.primitives import (
-    CorporateName,
-    CorporateRepresentativeName,
-    CorporateStatus,
-)
+from app.domain.corporate.primitives import CorporateName, CorporateStatus
 from app.domain.corporate.repositories import CorporateRepository
+from app.domain.corporate.value_objects import CorporateRepresentativeName
+from app.domain.shared.person_name import PersonNamePart
 
 
 class AutoProvisioningCorporateRepository(CorporateRepository):
@@ -34,9 +32,8 @@ class AutoProvisioningCorporateRepository(CorporateRepository):
         return Corporate(
             id=corporate_id,
             name=CorporateName(f"テスト法人-{corporate_id.value}"),
-            representative_name=CorporateRepresentativeName.create(
-                last_name="山田",
-                first_name="太郎",
+            representative_name=CorporateRepresentativeName(
+                last_name=PersonNamePart("山田"), first_name=PersonNamePart("太郎")
             ),
             status=status,
         )

@@ -437,18 +437,24 @@ def _record_with_priorities(
     selection = CoverageSelection(
         insurance=None,
         public_expenses=tuple(
-            SelectedPublicExpenseSource(
-                source_coverage_id=PatientCoverageId.generate(),
-                values=PublicExpenseCoverageSnapshot(
-                    priority=CoveragePriority(priority),
-                    payer_number=PublicPayerNumber(f"1234567{priority}"),
-                    recipient_number=PublicRecipientNumber(f"123456{priority}"),
+            sorted(
+                (
+                    SelectedPublicExpenseSource(
+                        source_coverage_id=PatientCoverageId.generate(),
+                        values=PublicExpenseCoverageSnapshot(
+                            priority=CoveragePriority(priority),
+                            payer_number=PublicPayerNumber(f"1234567{priority}"),
+                            recipient_number=PublicRecipientNumber(f"123456{priority}"),
+                        ),
+                    )
+                    for priority in priorities
                 ),
+                key=lambda item: item.priority.value,
             )
-            for priority in priorities
         ),
     )
-    return CoverageSelectionRecord.create(
+    return CoverageSelectionRecord(
+        id=CoverageSelectionRecordId.generate(),
         corporate_id=corporate_id,
         store_id=StoreId.generate(),
         patient_id=patient_id,

@@ -140,32 +140,6 @@ class Staff(AggregateRoot[StaffId]):
 
     # --- ファクトリメソッド ---
 
-    @classmethod
-    def create(
-        cls,
-        *,
-        corporate_id: CorporateId,
-        names: PersonNames,
-        qualifications: StaffQualifications | None = None,
-        job_title: JobTitle | None = None,
-        code: StaffCode | None = None,
-        phone_number: StaffPhoneNumber | None = None,
-        email: StaffEmailAddress | None = None,
-    ) -> Self:
-        """新規スタッフを生成するファクトリメソッド"""
-        return cls(
-            id=StaffId.generate(),
-            corporate_id=corporate_id,
-            names=names,
-            qualifications=qualifications or StaffQualifications.empty(),
-            affiliations=(),
-            job_title=job_title,
-            code=code,
-            phone_number=phone_number,
-            email=email,
-            is_active=True,
-        )
-
     # --- その他のドメインメソッド（状態変更） ---
 
     def change_names(self, names: PersonNames) -> Self:

@@ -16,14 +16,9 @@ class ValueObject:
     _FIELD_LABELS: ClassVar[Mapping[str, str]] = {}
 
     def __post_init__(self) -> None:
-        """正規化、宣言型の照合、業務ルール検証を順に実行する。"""
-        self._normalize_fields()
+        """宣言型の照合と業務ルール検証を順に実行する。"""
         ensure_declared_field_types(self, labels=self._FIELD_LABELS)
         self.validate()
-
-    def _normalize_fields(self) -> None:
-        """派生クラスが複合フィールドを正規化するためのフック。"""
-        return None
 
     def validate(self) -> None:
         """派生クラスが値オブジェクト固有の不変条件を検証するためのフック。"""

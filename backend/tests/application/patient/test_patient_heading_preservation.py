@@ -53,7 +53,7 @@ from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
 from app.domain.patient.entities import Patient
 from app.domain.patient.identifiers import PatientId
-from app.domain.patient.primitives import PatientHeadingText
+from app.domain.patient.primitives import PatientHeadingText, PatientHeadingTimestamp
 from app.domain.patient.value_objects import (
     PatientHeadingContent,
     PatientHeadingRevision,
@@ -90,7 +90,7 @@ def _revision(summary: str, notes: str | None = None) -> PatientHeadingRevision:
         ),
         person_id=AccountPersonId.generate(),
         account_id=UserAccountId.generate(),
-        recorded_at=_NOW,
+        recorded_at=PatientHeadingTimestamp(_NOW),
     )
 
 

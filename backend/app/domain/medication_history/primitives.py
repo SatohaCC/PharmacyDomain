@@ -11,6 +11,7 @@ from app.domain.foundation.primitives.primitives import (
     BaseAwareTimestamp,
     BaseDate,
     BaseFreeText,
+    BaseNonNegativeInt,
     BaseNormalizedString,
     BasePositiveInt,
 )
@@ -695,3 +696,101 @@ class ExternalCorrectionDecision(StrEnum):
 
 
 FollowUpRecordedTimestamp = MedicationHistoryRecordedTimestamp
+
+
+class SourceSubstitutionReason(BaseFreeText):
+    """調剤記録から固定した薬品変更理由。"""
+
+
+class SourceDispensingQuantity(BasePositiveInt):
+    """調剤記録から固定した正の数量。"""
+
+
+class CategoryDisplayOrder(BaseNonNegativeInt):
+    """薬歴区分の表示順。"""
+
+
+class ExternalCorrectionReason(BaseFreeText):
+    """外部処方訂正に記録する理由。"""
+
+
+class CorrectionDocumentNumber(BaseNormalizedString):
+    """訂正元の処方箋番号。"""
+
+    def validate(self) -> None:
+        if not self.value:
+            raise DomainValidationError("値は空にできません。")
+
+
+class ExternalCorrectionDetails(BaseFreeText):
+    """外部処方訂正の詳細。"""
+
+
+class BillingPoints(BaseNonNegativeInt):
+    """レセコンから受信した算定点数。"""
+
+
+class BillingQuantity(BaseNonNegativeInt):
+    """レセコンから受信した算定数量。"""
+
+
+class FactTarget(BaseNormalizedString):
+    """項目名または配列要素IDによる訂正先。"""
+
+    def validate(self) -> None:
+        if not self.value:
+            raise DomainValidationError("訂正対象は空にできません。")
+
+
+class FactCorrectionReason(BaseFreeText):
+    """監査に残す訂正理由。"""
+
+    def validate(self) -> None:
+        if not self.value:
+            raise DomainValidationError("訂正理由は空にできません。")
+
+
+class FactCorrectionOperation(StrEnum):
+    """事実訂正で許可する操作。"""
+
+    REPLACE = "replace"
+    RETRACT = "retract"
+    APPEND = "append"
+
+
+class FactFieldName(StrEnum):
+    """訂正可能な事実項目。"""
+
+    COUNSELOR_ID = "counselor_id"
+    COUNSELED_AT = "counseled_at"
+    METHOD = "method"
+    HANDBOOK_STATUS = "handbook_status"
+    RESIDUAL_DRUG = "residual_drug"
+    INFORMATION_SHEET_PROVIDED = "information_sheet_provided"
+    SOURCE_SYSTEM = "source_system"
+    DELAY_REASON = "delay_reason"
+    REVIEW_RESULT = "review_result"
+    PROFILE_UPDATES_LIFESTYLE_UPDATE = "profile_updates.lifestyle_update"
+    PROFILE_UPDATES_GENERIC_PREFERENCE_UPDATE = (
+        "profile_updates.generic_preference_update"
+    )
+    PROFILE_UPDATES_FAMILY_PHARMACIST_UPDATE = (
+        "profile_updates.family_pharmacist_update"
+    )
+    PROFILE_UPDATES_NEW_ALLERGIES = "profile_updates.new_allergies"
+    PROFILE_UPDATES_RETRACTED_ALLERGIES = "profile_updates.retracted_allergies"
+    PROFILE_UPDATES_NEW_ADVERSE_REACTIONS = "profile_updates.new_adverse_reactions"
+    PROFILE_UPDATES_RETRACTED_ADVERSE_REACTIONS = (
+        "profile_updates.retracted_adverse_reactions"
+    )
+    PROFILE_UPDATES_NEW_CONDITIONS = "profile_updates.new_conditions"
+    PROFILE_UPDATES_UPDATED_CONDITIONS = "profile_updates.updated_conditions"
+    PROFILE_UPDATES_RETRACTED_CONDITIONS = "profile_updates.retracted_conditions"
+    PROFILE_UPDATES_NEW_CONCURRENT_MEDICATIONS = (
+        "profile_updates.new_concurrent_medications"
+    )
+    PROFILE_UPDATES_STOPPED_CONCURRENT_MEDICATIONS = (
+        "profile_updates.stopped_concurrent_medications"
+    )
+    ADDITIONAL_NOTES = "additional_notes"
+    BILLING_ADDITIONS = "billing_additions"

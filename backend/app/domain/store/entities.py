@@ -181,28 +181,6 @@ class Store(AggregateRoot[StoreId]):
             status_history=(*self.status_history, change),
         )
 
-    @classmethod
-    def create(
-        cls,
-        *,
-        corporate_id: CorporateId,
-        names: StoreNames,
-        address: StoreAddress,
-        contact_info: ContactInfo,
-        code: StoreCode | None = None,
-        insurance_pharmacy_number: InsurancePharmacyNumber | None = None,
-    ) -> Self:
-        """新規店舗のファクトリメソッド"""
-        return cls(
-            id=StoreId.generate(),
-            corporate_id=corporate_id,
-            code=code,
-            names=names,
-            address=address,
-            contact_info=contact_info,
-            insurance_pharmacy_number=insurance_pharmacy_number,
-        )
-
     # ------------------------------------------------------------------
     # ドメインメソッド（状態変更）
     #

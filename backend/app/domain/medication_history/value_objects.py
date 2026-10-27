@@ -21,7 +21,11 @@ from app.domain.medication_history.exceptions import (
     StatutoryItemAssessedTwiceError,
     StatutoryItemNotAssessedError,
 )
-from app.domain.medication_history.identifiers import MedicationHistoryRecordId
+from app.domain.medication_history.identifiers import (
+    AmendmentId,
+    ExternalCorrectionId,
+    MedicationHistoryRecordId,
+)
 from app.domain.medication_history.primitives import (
     AdverseReactionSymptom,
     AllergenName,
@@ -31,18 +35,23 @@ from app.domain.medication_history.primitives import (
     AmendmentTimestamp,
     BillingAdditionCode,
     BillingAdditionName,
+    BillingPoints,
+    BillingQuantity,
+    CategoryDisplayOrder,
     ConcurrentCategory,
     ConditionName,
     ConditionStatus,
+    CorrectionDocumentNumber,
     CounselingMethod,
     CounselingNote,
     CounselingTimestamp,
     DispensingProcessStatus,
     ExternalCorrectionDecision,
+    ExternalCorrectionDetails,
     ExternalCorrectionKind,
+    ExternalCorrectionReason,
     ExternalCorrectionStatus,
     ExternalCorrectionTimestamp,
-    FactCorrectionTimestamp,
     FinalizationDelayReason,
     GenericPreferenceType,
     HandbookConsolidationReason,
@@ -65,6 +74,8 @@ from app.domain.medication_history.primitives import (
     ResidualDrugQuantity,
     ResidualDrugReason,
     RetractionReason,
+    SourceDispensingQuantity,
+    SourceSubstitutionReason,
     StatutoryCategory,
     StatutoryDispensingRecordItem,
     StatutoryItemState,
@@ -83,7 +94,7 @@ from app.domain.store.identifiers import StoreId
 class SubstitutionSource(ValueObject):
     """記録された変更理由。不明はNoneのまま保持する。"""
 
-    reason: str | None
+    reason: SourceSubstitutionReason | None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -97,13 +108,13 @@ class MedicineSource(ValueObject):
 class RpSource(ValueObject):
     """剤ごとの数量・薬品の存在と数量調整の有無。"""
 
-    quantity: int
+    quantity: SourceDispensingQuantity
     medicines: tuple[MedicineSource, ...]
     is_quantity_adjusted: bool
 
     def validate(self) -> None:
         """記録された調剤数量が正であることを保証する。"""
-        if self.quantity < 1:
+        if self.quantity.value < 1:
             raise DomainValidationError("調剤数量は1以上で指定してください。")
 
 
@@ -130,30 +141,6 @@ class DispensingSource(ValueObject):
             for medicine in rp.medicines
             if medicine.substitution is not None
         )
-
-
-@dataclass(frozen=True, kw_only=True)
-class FactElement:
-    """原本または訂正で追加された配列要素。"""
-
-    id: str
-    value: object
-
-
-@dataclass(frozen=True, kw_only=True)
-class MedicationHistoryFactCorrection:
-    """原本を変更せず積み上げる一件の訂正。"""
-
-    id: str
-    target: str
-    field_name: str
-    operation: str
-    before: object | None
-    after: object | None
-    reason: str
-    corrected_by: StaffId
-    recorded_at: FactCorrectionTimestamp
-    element_id: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -212,7 +199,7 @@ class MajorCategoryDefinition(ValueObject):
 
     code: MajorCategoryCode
     name: MajorCategoryName
-    display_order: int
+    display_order: CategoryDisplayOrder
     is_enabled: bool = True
 
     _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
@@ -230,7 +217,7 @@ class MediumCategoryDefinition(ValueObject):
     code: MediumCategoryCode
     major_category_code: MajorCategoryCode
     name: MediumCategoryName
-    display_order: int
+    display_order: CategoryDisplayOrder
     is_required: bool = False
     is_enabled: bool = True
 
@@ -803,7 +790,7 @@ class MedicationHistoryAmendment(ValueObject):
     reason: AmendmentReason
     amended_by: StaffId
     amended_at: AmendmentTimestamp
-    amendment_id: str | None = None
+    amendment_id: AmendmentId | None = None
 
     _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
         "amended_soap": "修正後のSOAP",
@@ -819,10 +806,10 @@ class ExternalCorrectionReviewEvent(ValueObject):
     """外部訂正に対する判断の監査イベント。"""
 
     decision: ExternalCorrectionDecision
-    reason: str
+    reason: ExternalCorrectionReason
     reviewed_by: StaffId
     reviewed_at: ExternalCorrectionTimestamp
-    amendment_id: str | None = None
+    amendment_id: AmendmentId | None = None
     matched_prescription_id: PrescriptionId | None = None
 
 
@@ -834,11 +821,11 @@ class ExternalPrescriptionCorrection(ValueObject):
     外部から発生した処方変更・調剤訂正の事実を本証跡として記録する。
     """
 
-    correction_id: str
+    correction_id: ExternalCorrectionId
     corrected_at: ExternalCorrectionTimestamp
-    source_document_number: str
-    reason: str
-    details: str | None = None
+    source_document_number: CorrectionDocumentNumber
+    reason: ExternalCorrectionReason
+    details: ExternalCorrectionDetails | None = None
     acknowledged_at: ExternalCorrectionTimestamp | None = None
     acknowledged_by: StaffId | None = None
     kind: ExternalCorrectionKind = ExternalCorrectionKind.UPDATE
@@ -1048,8 +1035,8 @@ class BillingAddition(ValueObject):
 
     code: BillingAdditionCode
     name: BillingAdditionName
-    points: int | None = None
-    quantity: int | None = None
+    points: BillingPoints | None = None
+    quantity: BillingQuantity | None = None
 
     _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
         "code": "算定加算コード",
@@ -1095,3 +1082,43 @@ FACT_ARRAY_TYPES: Final[dict[str, type[object]]] = {
     "additional_notes": CategorizedNote,
     "billing_additions": BillingAddition,
 }
+
+
+type FactArrayValue = (
+    BillingAddition
+    | CategorizedNote
+    | NewAdverseReactionIntent
+    | NewAllergyIntent
+    | NewConcurrentMedicationIntent
+    | NewConditionIntent
+    | RetractAdverseReactionIntent
+    | RetractAllergyIntent
+    | RetractConditionIntent
+    | StopConcurrentMedicationIntent
+    | UpdateConditionStatusIntent
+)
+type FactValue = (
+    BillingAddition
+    | CategorizedNote
+    | CounselingMethod
+    | CounselingTimestamp
+    | FamilyPharmacistIntent
+    | FinalizationDelayReason
+    | GenericPreferenceIntent
+    | HandbookStatus
+    | LifestyleUpdateIntent
+    | MedicationHistoryReviewResult
+    | MedicationHistorySourceSystem
+    | NewAdverseReactionIntent
+    | NewAllergyIntent
+    | NewConcurrentMedicationIntent
+    | NewConditionIntent
+    | ResidualDrugRecord
+    | RetractAdverseReactionIntent
+    | RetractAllergyIntent
+    | RetractConditionIntent
+    | StaffId
+    | StopConcurrentMedicationIntent
+    | UpdateConditionStatusIntent
+    | bool
+)

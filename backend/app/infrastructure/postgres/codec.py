@@ -14,6 +14,7 @@ from typing import (
     Any,
     Final,
     Literal,
+    TypeAliasType,
     TypeVar,
     Union,
     cast,
@@ -190,6 +191,8 @@ def _encode(value: object) -> object:
 
 
 def _decode(value: object, annotation: object, *, context: str) -> object:
+    if isinstance(annotation, TypeAliasType):
+        return _decode(value, annotation.__value__, context=context)
     origin = get_origin(annotation)
 
     if origin is Annotated:
@@ -290,6 +293,8 @@ def _decode_union(
     for choice in choices:
         if choice is type(None):
             continue
+        if type(value) is choice:
+            return value
         try:
             return _decode(value, choice, context=context)
         except PersistenceMappingError as error:

@@ -18,8 +18,8 @@ class InMemoryCorporateSearchRepository(CorporateSearchRepository):
         matching = (
             item
             for item in self.items
-            if (query.name is None or query.name in item.name.value)
+            if (query.name is None or query.name.value in item.name.value)
             and (query.status is None or item.status == query.status)
             and (query.after_id is None or item.id.value > query.after_id.value)
         )
-        return sorted(matching, key=lambda item: item.id.value)[: query.limit]
+        return sorted(matching, key=lambda item: item.id.value)[: query.limit.value]

@@ -10,7 +10,7 @@ from datetime import UTC, date, datetime
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.entities import CoverageSelectionRecord, PatientCoverage
-from app.domain.coverage.identifiers import PatientCoverageId
+from app.domain.coverage.identifiers import CoverageSelectionRecordId, PatientCoverageId
 from app.domain.coverage.primitives import (
     CoverageActivatedOn,
     CoverageAppliedOn,
@@ -41,7 +41,7 @@ from app.domain.coverage.value_objects import (
 )
 from app.domain.medication_history.entities import PatientMedicalProfile
 from app.domain.patient.entities import Patient, PatientExternalIdentifier
-from app.domain.patient.identifiers import PatientId
+from app.domain.patient.identifiers import PatientExternalIdentifierId, PatientId
 from app.domain.patient.primitives import (
     ExternalPatientId,
     ExternalSystemName,
@@ -64,7 +64,8 @@ def create_patient(
     first_name: str = "花子",
 ) -> Patient:
     """テスト用の患者を作る。"""
-    return Patient.create(
+    return Patient(
+        id=PatientId.generate(),
         corporate_id=corporate_id
         if corporate_id is not None
         else CorporateId.generate(),
@@ -75,6 +76,11 @@ def create_patient(
             first_name_kana="ハナコ",
         ),
         patient_number=PatientNumber(patient_number),
+        birth_date=None,
+        gender=None,
+        postal_code=None,
+        address=None,
+        phone_number=None,
     )
 
 
@@ -86,13 +92,15 @@ def create_external_identifier(
     external_patient_id: str = "EXT-001",
 ) -> PatientExternalIdentifier:
     """テスト用の外部患者ID対応付けを作る。"""
-    return PatientExternalIdentifier.create(
+    return PatientExternalIdentifier(
+        id=PatientExternalIdentifierId.generate(),
         corporate_id=corporate_id
         if corporate_id is not None
         else CorporateId.generate(),
         patient_id=patient_id if patient_id is not None else PatientId.generate(),
         system_name=ExternalSystemName(system_name),
         external_patient_id=ExternalPatientId(external_patient_id),
+        store_id=None,
     )
 
 
@@ -106,7 +114,8 @@ def create_coverage(
     deactivated_on: date | None = None,
 ) -> PatientCoverage:
     """テスト用の公費資格を作る。"""
-    return PatientCoverage.create(
+    return PatientCoverage(
+        id=PatientCoverageId.generate(),
         corporate_id=corporate_id
         if corporate_id is not None
         else CorporateId.generate(),
@@ -118,13 +127,12 @@ def create_coverage(
         ),
         activation=CoverageActivation(
             activated_on=CoverageActivatedOn(valid_from),
-            deactivated_on=(
-                CoverageDeactivatedOn(deactivated_on)
-                if deactivated_on is not None
-                else None
-            ),
+            deactivated_on=CoverageDeactivatedOn(deactivated_on)
+            if deactivated_on is not None
+            else None,
         ),
         priority=CoveragePriority(priority),
+        insurance_details=None,
         public_expense_details=PublicExpenseCoverageDetails(
             payer_number=PublicPayerNumber(f"1234567{priority}"),
             recipient_number=PublicRecipientNumber(f"123456{priority}"),
@@ -145,15 +153,20 @@ def create_selection() -> CoverageSelection:
                 benefit_ratio=CoverageBenefitRatio(70),
             ),
         ),
-        public_expenses=(
-            SelectedPublicExpenseSource(
-                source_coverage_id=PatientCoverageId.generate(),
-                values=PublicExpenseCoverageSnapshot(
-                    priority=CoveragePriority(1),
-                    payer_number=PublicPayerNumber("12345671"),
-                    recipient_number=PublicRecipientNumber("1234561"),
+        public_expenses=tuple(
+            sorted(
+                (
+                    SelectedPublicExpenseSource(
+                        source_coverage_id=PatientCoverageId.generate(),
+                        values=PublicExpenseCoverageSnapshot(
+                            priority=CoveragePriority(1),
+                            payer_number=PublicPayerNumber("12345671"),
+                            recipient_number=PublicRecipientNumber("1234561"),
+                        ),
+                    ),
                 ),
-            ),
+                key=lambda item: item.priority.value,
+            )
         ),
     )
 
@@ -167,7 +180,8 @@ def create_selection_record(
     recorded_at: datetime = RECORDED_AT,
 ) -> CoverageSelectionRecord:
     """テスト用の適用資格選択履歴を作る。"""
-    return CoverageSelectionRecord.create(
+    return CoverageSelectionRecord(
+        id=CoverageSelectionRecordId.generate(),
         corporate_id=corporate_id
         if corporate_id is not None
         else CorporateId.generate(),

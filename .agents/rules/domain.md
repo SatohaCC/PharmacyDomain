@@ -50,3 +50,23 @@ Domain層は業務上の事実、不変条件、状態遷移を所有する最�
 - **参照マスタは時点で引く**: `find_effective()` と `classify()` は **`as_of` を必ず取る**。処方箋の判定に渡すのは**交付日**であって処理実行日ではない。
 - **調剤録の記載事項は号の表で持ち、他コンテキストの事実はスナップショットで運ぶ**: 薬剤師法第28条の調剤録代替は施行規則第16条第1項の記載事項が揃っているかで決まる。`StatutoryDispensingRecordItem` を号の列挙とし、判定関数の表と一致させる。処方箋・患者・薬剤師の事実は `StatutoryRecordSource` で運び、既定値を置かない。充足は3値で答え、記載不足の薬歴確定は止めない（報告であって強制ではない）。
 - **臨床プロファイル投影に直接編集を許さない**: `PatientMedicalProfile` は薬歴からの臨床情報の投影であり、状態変更は `apply(record)` だけ。保存順序は `save(record)` → `save(profile)` で固定し同じ UnitOfWork で確定する。頭書きは `Patient` が所有する。
+
+
+## Domainハーネス
+
+`backend/tools/check_domain_architecture.py` が対象ソースを実行せずASTで検査する。通常のbackend lintとpytestに含め、ファイル単位の抑制や違反baselineは設けない。
+
+- DOM000〜DOM004: 構文、役割別配置、空initializer、外層・他コンテキスト内部への依存禁止、役割間の依存方向。
+- DOM005: 公開IDは所有コンテキストのidentifiers.pyへ定義し、foundationのID基底を継承する。複数集約の公開IDを許可する。
+- DOM006: 標準ライブラリの純粋な値操作だけを許可し、通信・ファイルI/O・プロセス実行・動的実行を禁止する。宣言型を解決するinspectはfoundationで使用する。
+- DOM007〜DOM009: frozen dataclass、不変コレクション、Primitive・VOで型付けしたフィールド。bool状態フラグは許可し、生のstr/int/float/bytes/Any/objectを業務モデルへ保持しない。
+- DOM010〜DOM012: createラッパー禁止、構築時や検証メソッドのフィールド置換禁止、Primitive・列挙型・Entity・VO・Repositoryの役割と継承の検査。不変のRepository検索結果も許可する。
+- DOM013: Domainモジュール間の循環依存を禁止する。
+
+Entity・VOには型付き値を直接渡す。単一値の正規化・検証はPrimitiveが所有する。公費の並べ替えなどの入力変換は利用側で明示し、Entity・VOの構築後にフィールドを書き換えない。共通基底の宣言型ガードと業務モデルの複合不変条件は維持する。
+
+Shared Kernelは現行の語彙別配置を維持する。共有語彙の基底継承を解決し、共有VOもフィールドの型と暗黙変換を検査する。foundation/sharedから業務コンテキストへの依存は禁止する。
+
+実行はリポジトリルートから `pnpm --filter pharmacydomain-api lint:domain` と `pnpm --filter pharmacydomain-api lint:domain:harness`。診断はリポジトリ相対パス・1始まりの行番号・規則IDを返す。`--json` は機械可読出力、`--root` は合成リポジトリ指定、`--context` は診断の絞り込みに使用する。全体ゲートでは絞り込まない。終了コードは正常0・違反1・入力不正2。
+
+ハーネス自身は正常例・違反注入・新設コンテキスト・別名・型別名・CLIで検証する。集約境界の妥当性、Primitiveが業務上の不正値を拒否すること、状態遷移と深い不変性は個別業務テストで検証する。

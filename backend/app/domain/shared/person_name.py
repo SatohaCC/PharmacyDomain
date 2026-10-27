@@ -6,7 +6,7 @@ import re
 import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import ClassVar, Self
+from typing import ClassVar
 
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.primitives.primitives import BaseNormalizedString
@@ -74,14 +74,6 @@ class PersonName(ValueObject):
         """フルネームをスペース区切りで返す。"""
         return f"{self.last_name.value} {self.first_name.value}"
 
-    @classmethod
-    def create(cls, *, last_name: str, first_name: str) -> Self:
-        """未加工文字列から生成する。"""
-        return cls(
-            last_name=PersonNamePart(last_name),
-            first_name=PersonNamePart(first_name),
-        )
-
 
 @dataclass(frozen=True, kw_only=True)
 class PersonNameKana(ValueObject):
@@ -99,14 +91,6 @@ class PersonNameKana(ValueObject):
     def full_name(self) -> str:
         """フルネームカナをスペース区切りで返す。"""
         return f"{self.last_name.value} {self.first_name.value}"
-
-    @classmethod
-    def create(cls, *, last_name: str, first_name: str) -> Self:
-        """未加工文字列から生成する。"""
-        return cls(
-            last_name=PersonNameKanaPart(last_name),
-            first_name=PersonNameKanaPart(first_name),
-        )
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -128,21 +112,3 @@ class PersonNames(ValueObject):
     @property
     def full_name_kana(self) -> str:
         return self.kana.full_name
-
-    @classmethod
-    def create(
-        cls,
-        *,
-        last_name: str,
-        first_name: str,
-        last_name_kana: str,
-        first_name_kana: str,
-    ) -> Self:
-        """文字列から一括生成する。"""
-        return cls(
-            kanji=PersonName.create(last_name=last_name, first_name=first_name),
-            kana=PersonNameKana.create(
-                last_name=last_name_kana,
-                first_name=first_name_kana,
-            ),
-        )

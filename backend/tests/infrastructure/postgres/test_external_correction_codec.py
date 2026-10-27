@@ -4,9 +4,12 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 from app.domain.medication_history.entities import MedicationHistoryRecord
+from app.domain.medication_history.identifiers import ExternalCorrectionId
 from app.domain.medication_history.primitives import (
+    CorrectionDocumentNumber,
     ExternalCorrectionDecision,
     ExternalCorrectionKind,
+    ExternalCorrectionReason,
     ExternalCorrectionStatus,
     ExternalCorrectionTimestamp,
     FinalizedTimestamp,
@@ -41,22 +44,22 @@ def test_TC24_レビュー済み削除訂正の全履歴をcodecで往復する(
     reviewer = StaffId.generate()
     matched_id = PrescriptionId.generate()
     correction = ExternalPrescriptionCorrection(
-        correction_id="corr-codec-001",
+        correction_id=ExternalCorrectionId("corr-codec-001"),
         corrected_at=_RECEIVED_AT,
-        source_document_number="RX-CODEC-001",
-        reason="NSIPS削除通知",
+        source_document_number=CorrectionDocumentNumber("RX-CODEC-001"),
+        reason=ExternalCorrectionReason("NSIPS削除通知"),
         kind=ExternalCorrectionKind.DELETE,
         status=ExternalCorrectionStatus.RESOLVED,
         review_events=(
             ExternalCorrectionReviewEvent(
                 decision=ExternalCorrectionDecision.INVESTIGATING,
-                reason="再登録の有無を確認中。",
+                reason=ExternalCorrectionReason("再登録の有無を確認中。"),
                 reviewed_by=reviewer,
                 reviewed_at=_REVIEWED_AT,
             ),
             ExternalCorrectionReviewEvent(
                 decision=ExternalCorrectionDecision.MATCH_REREGISTERED_PRESCRIPTION,
-                reason="再登録処方との一致を確認した。",
+                reason=ExternalCorrectionReason("再登録処方との一致を確認した。"),
                 reviewed_by=reviewer,
                 reviewed_at=_REVIEWED_AT,
                 matched_prescription_id=matched_id,
@@ -78,14 +81,14 @@ def test_TC24_レビュー済み削除訂正の全履歴をcodecで往復する(
 def test_TC25_旧訂正payloadの未確認と確認済み状態を保つ() -> None:
     reviewer = StaffId.generate()
     pending = ExternalPrescriptionCorrection(
-        correction_id="corr-legacy-pending",
+        correction_id=ExternalCorrectionId("corr-legacy-pending"),
         corrected_at=_RECEIVED_AT,
-        source_document_number="RX-LEGACY-001",
-        reason="旧形式の外部訂正",
+        source_document_number=CorrectionDocumentNumber("RX-LEGACY-001"),
+        reason=ExternalCorrectionReason("旧形式の外部訂正"),
     )
     acknowledged = replace(
         pending,
-        correction_id="corr-legacy-acknowledged",
+        correction_id=ExternalCorrectionId("corr-legacy-acknowledged"),
         acknowledged_at=_REVIEWED_AT,
         acknowledged_by=reviewer,
     )

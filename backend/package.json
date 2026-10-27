@@ -5,11 +5,13 @@
     "dev": "docker compose --project-directory .. up api",
     "dev:local": "uv run --env-file ../.env uvicorn app.dev_main:create_dev_app --factory --port 8000 --reload",
     "sync": "uv sync --locked",
-    "lint": "uv run ruff check .",
+    "lint": "uv run ruff check . && pnpm run lint:domain && pnpm run lint:domain:harness",
     "format:check": "uv run ruff format --check .",
     "typecheck": "uv run mypy app tests tools",
     "imports": "uv run lint-imports",
     "test": "uv run pytest -q",
-    "test:integration": "uv run pytest -m integration -q"
+    "test:integration": "uv run pytest -m integration -q",
+    "lint:domain": "uv run python -m tools.check_domain_architecture",
+    "lint:domain:harness": "uv run pytest tests/tools/test_domain_harness.py -q"
   }
 }

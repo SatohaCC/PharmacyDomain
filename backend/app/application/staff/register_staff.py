@@ -10,7 +10,13 @@ from app.application.access_control.models import Permission
 from app.application.staff.reference import StaffStoreReference
 from app.application.staff.support import load_store_or_raise, to_optional_text
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 from app.domain.staff.entities import Staff
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import (
@@ -152,11 +158,15 @@ class RegisterStaffUseCase:
                 code=code,
             )
 
-        names = PersonNames.create(
-            last_name=command.last_name,
-            first_name=command.first_name,
-            last_name_kana=command.last_name_kana,
-            first_name_kana=command.first_name_kana,
+        names = PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart(command.last_name),
+                first_name=PersonNamePart(command.first_name),
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart(command.last_name_kana),
+                first_name=PersonNameKanaPart(command.first_name_kana),
+            ),
         )
 
         raw_phone = to_optional_text(command.phone_number)
@@ -170,7 +180,8 @@ class RegisterStaffUseCase:
 
         qualifications = self._build_qualifications(command)
 
-        staff = Staff.create(
+        staff = Staff(
+            id=StaffId.generate(),
             corporate_id=corporate_id,
             names=names,
             qualifications=qualifications,
@@ -178,6 +189,8 @@ class RegisterStaffUseCase:
             code=code,
             phone_number=phone_number,
             email=email,
+            affiliations=(),
+            is_active=True,
         )
 
         if command.initial_home_store_id and command.initial_start_date:

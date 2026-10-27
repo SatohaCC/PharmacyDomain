@@ -84,9 +84,9 @@ class AuditDrugInteractionsUseCase:
                 medicine_b=p.medicine_b.value,
                 severity=p.severity.value,
                 severity_label=p.severity.label,
-                clinical_condition=p.clinical_condition,
-                mechanism=p.mechanism,
-                recommendation=p.recommendation,
+                clinical_condition=p.clinical_condition.value,
+                mechanism=p.mechanism.value,
+                recommendation=p.recommendation.value,
             )
             for p in result.pairs
         ]

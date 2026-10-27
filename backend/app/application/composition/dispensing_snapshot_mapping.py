@@ -14,6 +14,8 @@ from app.domain.dispensing.primitives import (
     MedicineName,
     PrescriptionStatus,
     RpNumber,
+    SourceRefillCount,
+    SourceSplitCount,
 )
 from app.domain.dispensing.value_objects import (
     DosageInstruction,
@@ -52,12 +54,16 @@ def prescription_source(value: Prescription) -> PrescriptionSource:
         status=PrescriptionStatus(value.status.value),
         issued_on=value.period.issued_date.value,
         valid_to=value.period.valid_to.value,
-        split_count=value.management_info.split.total_split_count.value
-        if value.management_info.split is not None
-        else None,
-        refill_count=value.management_info.refill.total_refill_count.value
-        if value.management_info.refill is not None
-        else None,
+        split_count=(
+            SourceSplitCount(value.management_info.split.total_split_count.value)
+            if value.management_info.split is not None
+            else None
+        ),
+        refill_count=(
+            SourceRefillCount(value.management_info.refill.total_refill_count.value)
+            if value.management_info.refill is not None
+            else None
+        ),
         rps=tuple(
             PrescriptionRp(
                 rp_number=RpNumber(rp.rp_number.value),

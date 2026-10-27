@@ -19,7 +19,13 @@ from app.domain.patient.primitives import (
     PatientPostalCode,
 )
 from app.domain.patient.repositories import PatientRepository
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -57,17 +63,22 @@ class RegisterPatientUseCase:
             permission=Permission.MANAGE_PATIENT,
         )
 
-        names = PersonNames.create(
-            last_name=command.last_name,
-            first_name=command.first_name,
-            last_name_kana=command.last_name_kana,
-            first_name_kana=command.first_name_kana,
+        names = PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart(command.last_name),
+                first_name=PersonNamePart(command.first_name),
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart(command.last_name_kana),
+                first_name=PersonNameKanaPart(command.first_name_kana),
+            ),
         )
         birth_date = (
             PatientBirthDate(command.birth_date) if command.birth_date else None
         )
         patient_number = await self._repository.allocate_patient_number(corporate_id)
-        patient = Patient.create(
+        patient = Patient(
+            id=PatientId.generate(),
             corporate_id=corporate_id,
             names=names,
             patient_number=patient_number,

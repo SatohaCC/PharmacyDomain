@@ -1028,3 +1028,15 @@ class MedicineRestrictionFlag(StrEnum):
 def _ensure_consecutive_from_one(numbers: tuple[int, ...]) -> bool:
     """1から連続した昇順に並んでいるかを返す。"""
     return list(numbers) == list(range(1, len(numbers) + 1))
+
+
+class InteractionClinicalCondition(BaseFreeText):
+    """相互作用により生じる臨床症状。"""
+
+
+class InteractionMechanism(BaseFreeText):
+    """相互作用の機序。"""
+
+
+class InteractionRecommendation(BaseFreeText):
+    """相互作用に対する対応内容。"""

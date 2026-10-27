@@ -14,6 +14,7 @@ from app.application.coverage.exceptions import CoverageSelectionError
 from app.application.coverage.selection import CoverageSelectionBuilder
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.entities import PatientCoverage
+from app.domain.coverage.identifiers import PatientCoverageId
 from app.domain.coverage.primitives import (
     CoverageActivatedOn,
     CoverageAppliedOn,
@@ -74,7 +75,8 @@ def _create_insurance(
     benefit_ratio: int = 70,
 ) -> PatientCoverage:
     """テスト用の医療保険資格を生成する。"""
-    return PatientCoverage.create(
+    return PatientCoverage(
+        id=PatientCoverageId.generate(),
         corporate_id=corporate_id,
         patient_id=patient_id,
         coverage_type=CoverageType.INSURANCE,
@@ -88,6 +90,7 @@ def _create_insurance(
             insured_type=CoverageInsuredType.SELF,
             benefit_ratio=CoverageBenefitRatio(benefit_ratio),
         ),
+        public_expense_details=None,
     )
 
 
@@ -98,13 +101,15 @@ def _create_public(
     priority: int,
 ) -> PatientCoverage:
     """テスト用の公費資格を生成する。"""
-    return PatientCoverage.create(
+    return PatientCoverage(
+        id=PatientCoverageId.generate(),
         corporate_id=corporate_id,
         patient_id=patient_id,
         coverage_type=CoverageType.PUBLIC_EXPENSE,
         period=_create_period(),
         activation=_create_activation(),
         priority=CoveragePriority(priority),
+        insurance_details=None,
         public_expense_details=PublicExpenseCoverageDetails(
             payer_number=PublicPayerNumber(f"1234567{priority}"),
             recipient_number=PublicRecipientNumber(f"123456{priority}"),

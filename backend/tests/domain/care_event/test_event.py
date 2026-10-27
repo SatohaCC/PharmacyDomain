@@ -20,14 +20,21 @@ from app.domain.store.identifiers import StoreId
 
 
 def _event(*, occurred_at: datetime) -> Event:
-    return Event.create(
+    return Event(
+        id=EventId.generate(),
         event_type_id=EventTypeId.generate(),
+        event_definition_corporate_id=None,
+        event_type_standard_code=None,
         event_type_name=EventTypeName("来局相談"),
         corporate_id=CorporateId.generate(),
         store_id=StoreId.generate(),
         patient_id=PatientId.generate(),
         occurred_at=EventOccurredTimestamp(occurred_at),
         created_at=EventCreatedTimestamp(datetime(2026, 9, 26, 3, 0, tzinfo=UTC)),
+        related_event_id=None,
+        reception_id=None,
+        prescription_id=None,
+        dispensing_id=None,
     )
 
 

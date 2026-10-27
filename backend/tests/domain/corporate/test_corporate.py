@@ -7,21 +7,22 @@ import pytest
 from app.domain.corporate.entities import Corporate
 from app.domain.corporate.exceptions import CorporateNameAlreadyExistsError
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.corporate.primitives import CorporateName, CorporateRepresentativeName
+from app.domain.corporate.primitives import CorporateName
 from app.domain.corporate.repositories import (
     CorporateCatalogRepository,
     CorporateRepository,
 )
+from app.domain.corporate.value_objects import CorporateRepresentativeName
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.shared.person_name import PersonNamePart
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository
 
 
 def representative(
     last_name: str = "山田", first_name: str = "太郎"
 ) -> CorporateRepresentativeName:
-    return CorporateRepresentativeName.create(
-        last_name=last_name,
-        first_name=first_name,
+    return CorporateRepresentativeName(
+        last_name=PersonNamePart(last_name), first_name=PersonNamePart(first_name)
     )
 
 
@@ -31,9 +32,8 @@ def test_create_generates_uuid7_and_normalizes_name() -> None:
     representative_name = representative()
 
     # Act
-    corporate = Corporate.create(
-        name=name,
-        representative_name=representative_name,
+    corporate = Corporate(
+        id=CorporateId.generate(), name=name, representative_name=representative_name
     )
 
     # Assert
@@ -76,7 +76,8 @@ def test_representative_name_rejects_empty_parts(
 
 def test_change_name_updates_name() -> None:
     # Arrange
-    corporate = Corporate.create(
+    corporate = Corporate(
+        id=CorporateId.generate(),
         name=CorporateName("旧法人"),
         representative_name=representative(),
     )
@@ -90,7 +91,8 @@ def test_change_name_updates_name() -> None:
 
 def test_change_representative_updates_representative() -> None:
     # Arrange
-    corporate = Corporate.create(
+    corporate = Corporate(
+        id=CorporateId.generate(),
         name=CorporateName("法人"),
         representative_name=representative(),
     )
@@ -105,7 +107,8 @@ def test_change_representative_updates_representative() -> None:
 def test_法人名変更_同じ名称を指定_戻り値と元の法人の状態を維持する() -> None:
     # Arrange
     original_name = CorporateName("法人")
-    corporate = Corporate.create(
+    corporate = Corporate(
+        id=CorporateId.generate(),
         name=original_name,
         representative_name=representative(),
     )
@@ -146,7 +149,8 @@ async def test_repository_save_and_get() -> None:
     # Arrange
     implementation = InMemoryCorporateRepository()
     repository: CorporateRepository = implementation
-    corporate = Corporate.create(
+    corporate = Corporate(
+        id=CorporateId.generate(),
         name=CorporateName("テスト法人"),
         representative_name=representative(),
     )
@@ -163,11 +167,13 @@ async def test_repository_save_and_get() -> None:
 async def test_repository_save_rejects_duplicate_name() -> None:
     # Arrange
     repository = InMemoryCorporateRepository()
-    first = Corporate.create(
+    first = Corporate(
+        id=CorporateId.generate(),
         name=CorporateName("テスト法人"),
         representative_name=representative(),
     )
-    second = Corporate.create(
+    second = Corporate(
+        id=CorporateId.generate(),
         name=CorporateName("テスト法人"),
         representative_name=representative("佐藤", "花子"),
     )
@@ -186,7 +192,8 @@ async def test_catalog_repository_lists_all_corporates() -> None:
     # Arrange
     implementation = InMemoryCorporateRepository()
     catalog: CorporateCatalogRepository = implementation
-    corporate = Corporate.create(
+    corporate = Corporate(
+        id=CorporateId.generate(),
         name=CorporateName("テスト法人"),
         representative_name=representative(),
     )
@@ -203,7 +210,8 @@ async def test_catalog_repository_lists_all_corporates() -> None:
 async def test_repository_save_allows_updating_the_same_corporate() -> None:
     # Arrange
     repository = InMemoryCorporateRepository()
-    corporate = Corporate.create(
+    corporate = Corporate(
+        id=CorporateId.generate(),
         name=CorporateName("テスト法人"),
         representative_name=representative(),
     )

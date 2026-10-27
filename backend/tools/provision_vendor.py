@@ -7,7 +7,13 @@ from getpass import getpass
 from app.domain.identity.entities import AccountPerson, UserAccount
 from app.domain.identity.primitives import ExternalSubjectKey
 from app.domain.shared.actor import AccountPersonId, UserAccountId
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 from app.infrastructure.di.repositories import PostgresRepositorySet
 from app.infrastructure.identity.postgres.local_authentication import (
     PostgresCredentialWriter,
@@ -59,11 +65,15 @@ def main() -> None:
     password = getpass("初期パスワード（15～128文字）: ")
     if password != getpass("初期パスワード（確認）: "):
         parser.error("確認用パスワードが一致しません。")
-    names = PersonNames.create(
-        last_name=args.last_name,
-        first_name=args.first_name,
-        last_name_kana=args.last_name_kana,
-        first_name_kana=args.first_name_kana,
+    names = PersonNames(
+        kanji=PersonName(
+            last_name=PersonNamePart(args.last_name),
+            first_name=PersonNamePart(args.first_name),
+        ),
+        kana=PersonNameKana(
+            last_name=PersonNameKanaPart(args.last_name_kana),
+            first_name=PersonNameKanaPart(args.first_name_kana),
+        ),
     )
     asyncio.run(provision(args.login_id, password, names))
     print("登録が完了しました。初回ログイン時にパスワードを変更してください。")

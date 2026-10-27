@@ -38,6 +38,8 @@ from app.domain.dispensing.primitives import (
     PrescriptionStatus,
     QuantityAdjustmentReason,
     RpNumber,
+    SourceRefillCount,
+    SourceSplitCount,
     SubstitutionCategory,
     SubstitutionReason,
     VerificationNotes,
@@ -199,8 +201,8 @@ class PrescriptionSource(ValueObject):
     inquiries: tuple[PrescriptionInquiry, ...]
     issued_on: date
     valid_to: date
-    split_count: int | None
-    refill_count: int | None
+    split_count: SourceSplitCount | None
+    refill_count: SourceRefillCount | None
 
     def validate(self) -> None:
         """期間と使用回数が判定可能な値であることを保証する。"""
@@ -208,7 +210,10 @@ class PrescriptionSource(ValueObject):
             raise DomainValidationError("原本の使用期限が交付日より前です。")
         if any(
             count is not None and count < 1
-            for count in (self.split_count, self.refill_count)
+            for count in (
+                (self.split_count.value if self.split_count is not None else None),
+                (self.refill_count.value if self.refill_count is not None else None),
+            )
         ):
             raise DomainValidationError("原本の使用回数は1以上で指定してください。")
 

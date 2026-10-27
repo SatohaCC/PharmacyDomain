@@ -12,6 +12,7 @@ from app.domain.coverage.exceptions import (
     CoveragePeriodConflictError,
     InsuranceCoveragePriorityError,
 )
+from app.domain.coverage.identifiers import PatientCoverageId
 from app.domain.coverage.primitives import (
     CoverageActivatedOn,
     CoverageBenefitRatio,
@@ -109,7 +110,8 @@ def _create_coverage(
     """
     activation = _create_activation(activated_on, deactivated_on)
     if coverage_type is CoverageType.INSURANCE:
-        return PatientCoverage.create(
+        return PatientCoverage(
+            id=PatientCoverageId.generate(),
             corporate_id=corporate_id,
             patient_id=patient_id,
             coverage_type=coverage_type,
@@ -117,14 +119,17 @@ def _create_coverage(
             activation=activation,
             priority=CoveragePriority(priority),
             insurance_details=_create_insurance_details(),
+            public_expense_details=None,
         )
-    return PatientCoverage.create(
+    return PatientCoverage(
+        id=PatientCoverageId.generate(),
         corporate_id=corporate_id,
         patient_id=patient_id,
         coverage_type=coverage_type,
         period=period if period is not None else _create_period(),
         activation=activation,
         priority=CoveragePriority(priority),
+        insurance_details=None,
         public_expense_details=_create_public_details(priority),
     )
 

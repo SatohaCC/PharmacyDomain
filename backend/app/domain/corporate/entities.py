@@ -6,11 +6,8 @@ from dataclasses import dataclass, replace
 from typing import Self
 
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.corporate.primitives import (
-    CorporateName,
-    CorporateRepresentativeName,
-    CorporateStatus,
-)
+from app.domain.corporate.primitives import CorporateName, CorporateStatus
+from app.domain.corporate.value_objects import CorporateRepresentativeName
 from app.domain.foundation.entity import AggregateRoot
 
 
@@ -22,21 +19,6 @@ class Corporate(AggregateRoot[CorporateId]):
     name: CorporateName
     representative_name: CorporateRepresentativeName
     status: CorporateStatus = CorporateStatus.ACTIVE
-
-    @classmethod
-    def create(
-        cls,
-        *,
-        name: CorporateName,
-        representative_name: CorporateRepresentativeName,
-    ) -> Self:
-        """ファクトリメソッド：新規法人の開設（契約開始）"""
-        corporate = cls(
-            id=CorporateId.generate(),
-            name=name,
-            representative_name=representative_name,
-        )
-        return corporate
 
     def change_name(self, new_name: CorporateName) -> Self:
         """法人名を変更する"""

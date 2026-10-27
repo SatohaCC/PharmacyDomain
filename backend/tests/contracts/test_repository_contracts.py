@@ -22,6 +22,7 @@ from app.domain.care_event.identifiers import EventId
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.entities import PatientCoverage
 from app.domain.coverage.exceptions import CoveragePeriodConflictError
+from app.domain.coverage.identifiers import PatientCoverageId
 from app.domain.coverage.primitives import (
     CoverageActivatedOn,
     CoverageDeactivatedOn,
@@ -56,7 +57,7 @@ from app.domain.medicine_catalog.exceptions import MedicineEffectivePeriodConfli
 from app.domain.medicine_catalog.repositories import MedicineCatalogRepository
 from app.domain.patient.entities import PatientExternalIdentifier
 from app.domain.patient.exceptions import PatientExternalIdentifierAlreadyExistsError
-from app.domain.patient.identifiers import PatientId
+from app.domain.patient.identifiers import PatientExternalIdentifierId, PatientId
 from app.domain.patient.primitives import ExternalPatientId, ExternalSystemName
 from app.domain.patient.repositories import PatientExternalIdentifierRepository
 from app.domain.prescription.exceptions import (
@@ -137,11 +138,13 @@ def _create_identifier(
     external_patient_id: str = "EXT-001",
 ) -> PatientExternalIdentifier:
     """テスト用の外部患者ID対応付けを生成する。"""
-    return PatientExternalIdentifier.create(
+    return PatientExternalIdentifier(
+        id=PatientExternalIdentifierId.generate(),
         corporate_id=corporate_id,
         patient_id=patient_id if patient_id is not None else PatientId.generate(),
         system_name=ExternalSystemName("レセコンA"),
         external_patient_id=ExternalPatientId(external_patient_id),
+        store_id=None,
     )
 
 
@@ -155,7 +158,8 @@ def _create_coverage(
     deactivated_on: date | None = None,
 ) -> PatientCoverage:
     """テスト用の公費資格を生成する。"""
-    return PatientCoverage.create(
+    return PatientCoverage(
+        id=PatientCoverageId.generate(),
         corporate_id=corporate_id,
         patient_id=patient_id,
         coverage_type=CoverageType.PUBLIC_EXPENSE,
@@ -165,13 +169,12 @@ def _create_coverage(
         ),
         activation=CoverageActivation(
             activated_on=CoverageActivatedOn(valid_from),
-            deactivated_on=(
-                CoverageDeactivatedOn(deactivated_on)
-                if deactivated_on is not None
-                else None
-            ),
+            deactivated_on=CoverageDeactivatedOn(deactivated_on)
+            if deactivated_on is not None
+            else None,
         ),
         priority=CoveragePriority(priority),
+        insurance_details=None,
         public_expense_details=PublicExpenseCoverageDetails(
             payer_number=PublicPayerNumber(f"1234567{priority}"),
             recipient_number=PublicRecipientNumber(f"123456{priority}"),

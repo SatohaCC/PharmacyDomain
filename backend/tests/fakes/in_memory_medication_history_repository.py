@@ -192,7 +192,7 @@ class InMemoryMedicationHistoryRepository(MedicationHistoryRepository):
                     if correction.is_acknowledged
                     else correction.status
                 )
-                key = (str(record.id.value), correction.correction_id)
+                key = (str(record.id.value), correction.correction_id.value)
                 if effective_status not in statuses or (after and key <= after):
                     continue
                 matches.append(
@@ -203,7 +203,7 @@ class InMemoryMedicationHistoryRepository(MedicationHistoryRepository):
         matches.sort(
             key=lambda item: (
                 str(item.record.id.value),
-                item.correction.correction_id,
+                item.correction.correction_id.value,
             )
         )
         return matches[:limit]

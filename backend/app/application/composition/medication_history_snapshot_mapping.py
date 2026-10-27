@@ -1,8 +1,11 @@
 """調剤の事実を薬歴が必要とする不変情報へ変換する。"""
 
-from app.application.common.optional_conversion import unwrap
 from app.domain.dispensing.entities import DispensingProcess
-from app.domain.medication_history.primitives import DispensingProcessStatus
+from app.domain.medication_history.primitives import (
+    DispensingProcessStatus,
+    SourceDispensingQuantity,
+    SourceSubstitutionReason,
+)
 from app.domain.medication_history.value_objects import (
     DispensingSource,
     MedicineSource,
@@ -24,12 +27,18 @@ def dispensing_source(value: DispensingProcess) -> DispensingSource:
         dispensed_date=value.dispensed_date.value,
         dispensed_rps=tuple(
             RpSource(
-                quantity=rp.quantity.value,
+                quantity=SourceDispensingQuantity(rp.quantity.value),
                 is_quantity_adjusted=rp.is_quantity_adjusted,
                 medicines=tuple(
                     MedicineSource(
                         substitution=SubstitutionSource(
-                            reason=unwrap(medicine.substitution.reason)
+                            reason=(
+                                SourceSubstitutionReason(
+                                    medicine.substitution.reason.value
+                                )
+                                if medicine.substitution.reason is not None
+                                else None
+                            )
                         )
                         if medicine.substitution is not None
                         else None

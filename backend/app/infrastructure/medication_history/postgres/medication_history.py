@@ -354,7 +354,7 @@ class PostgresMedicationHistoryRepository(
                 (
                     item
                     for item in record.external_corrections
-                    if item.correction_id == correction_id
+                    if item.correction_id.value == correction_id
                 ),
                 None,
             )

@@ -5,9 +5,11 @@ from app.application.access_control.models import Permission
 from app.application.access_control.policy import AuthorizationService
 from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.corporate.primitives import CorporateName, CorporateRepresentativeName
+from app.domain.corporate.primitives import CorporateName
 from app.domain.corporate.repositories import CorporateRepository
 from app.domain.corporate.services import CorporateNameUniquenessService
+from app.domain.corporate.value_objects import CorporateRepresentativeName
+from app.domain.shared.person_name import PersonNamePart
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -37,14 +39,16 @@ class RegisterCorporateUseCase:
             permission=Permission.REGISTER_CORPORATE,
         )
         name = CorporateName(command.name)
-        rep_name = CorporateRepresentativeName.create(
-            last_name=command.representative_last_name,
-            first_name=command.representative_first_name,
+        rep_name = CorporateRepresentativeName(
+            last_name=PersonNamePart(command.representative_last_name),
+            first_name=PersonNamePart(command.representative_first_name),
         )
 
         await self._uniqueness_service.ensure_name_is_unique(name=name)
 
-        corporate = Corporate.create(name=name, representative_name=rep_name)
+        corporate = Corporate(
+            id=CorporateId.generate(), name=name, representative_name=rep_name
+        )
 
         await self._repository.save(corporate)
 

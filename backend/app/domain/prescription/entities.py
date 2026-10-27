@@ -220,45 +220,6 @@ class Prescription(AggregateRoot[PrescriptionId]):
     # ファクトリ
     # ------------------------------------------------------------------
 
-    @classmethod
-    def create(
-        cls,
-        *,
-        corporate_id: CorporateId,
-        store_id: StoreId,
-        patient_id: PatientId,
-        source_type: PrescriptionSourceType,
-        document_number: PrescriptionDocumentNumber,
-        medical_institution: MedicalInstitutionInfo,
-        department: DepartmentInfo,
-        prescriber: PrescriberInfo,
-        period: PrescriptionPeriod,
-        rps: tuple[PrescriptionRp, ...],
-        management_info: PrescriptionManagementInfo | None = None,
-        coverage_selection_record_id: CoverageSelectionRecordId | None = None,
-    ) -> Self:
-        """受け付けた処方箋を新規に登録する。"""
-        return cls(
-            id=PrescriptionId.generate(),
-            corporate_id=corporate_id,
-            store_id=store_id,
-            patient_id=patient_id,
-            source_type=source_type,
-            document_number=document_number,
-            medical_institution=medical_institution,
-            department=department,
-            prescriber=prescriber,
-            period=period,
-            rps=rps,
-            status=PrescriptionStatus.RECEIVED,
-            management_info=(
-                management_info
-                if management_info is not None
-                else PrescriptionManagementInfo()
-            ),
-            coverage_selection_record_id=coverage_selection_record_id,
-        )
-
     def replace_rps(self, rps: tuple[PrescriptionRp, ...]) -> Self:
         """調剤可能な処方内容を差し替える。
 

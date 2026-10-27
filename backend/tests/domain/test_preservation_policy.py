@@ -9,6 +9,7 @@ from app.domain.shared.preservation import (
     OverlappingPreservationPolicyError,
     PreservationPolicy,
     PreservationPolicyCatalog,
+    PreservationPolicyName,
     PreservationPolicyNotFoundError,
     PreservationPolicyPeriodInvertedError,
     PreservationPolicyRecordKindMismatchError,
@@ -44,7 +45,7 @@ def test_retention_years_invalid_type_rejected(invalid_type: object) -> None:
 def test_preservation_policy_is_effective_at() -> None:
     """TC-04: 指定日付がポリシー有効期間内かを正しく判定できる。"""
     policy = PreservationPolicy(
-        name="改正前3年保存",
+        name=PreservationPolicyName("改正前3年保存"),
         retention_years=RetentionYears(3),
         effective_from=date(2020, 4, 1),
         effective_to=date(2026, 3, 31),
@@ -60,7 +61,7 @@ def test_preservation_policy_is_effective_at() -> None:
 def test_preservation_policy_open_ended() -> None:
     """TC-05: effective_to=Noneの無期限ポリシーは開始日以降すべてで有効。"""
     policy = PreservationPolicy(
-        name="改正後5年保存",
+        name=PreservationPolicyName("改正後5年保存"),
         retention_years=RetentionYears(5),
         effective_from=date(2026, 4, 1),
         effective_to=None,
@@ -74,7 +75,7 @@ def test_preservation_policy_inverted_period_rejected() -> None:
     """TC-06: 開始日が終了日より後のポリシーは作成できない。"""
     with pytest.raises((PreservationPolicyPeriodInvertedError, DomainValidationError)):
         PreservationPolicy(
-            name="不正期間ポリシー",
+            name=PreservationPolicyName("不正期間ポリシー"),
             retention_years=RetentionYears(3),
             effective_from=date(2026, 4, 1),
             effective_to=date(2026, 3, 31),
@@ -84,12 +85,12 @@ def test_preservation_policy_inverted_period_rejected() -> None:
 def test_calculate_expiry_date_standard() -> None:
     """TC-07: 民法第140条（初日不算入）・第143条（暦日計算）に基づく満了日計算。"""
     policy3 = PreservationPolicy(
-        name="3年ポリシー",
+        name=PreservationPolicyName("3年ポリシー"),
         retention_years=RetentionYears(3),
         effective_from=date(2020, 1, 1),
     )
     policy5 = PreservationPolicy(
-        name="5年ポリシー",
+        name=PreservationPolicyName("5年ポリシー"),
         retention_years=RetentionYears(5),
         effective_from=date(2026, 1, 1),
     )
@@ -102,12 +103,12 @@ def test_calculate_expiry_date_standard() -> None:
 def test_calculate_expiry_date_leap_year() -> None:
     """TC-08: うるう年2/29起算の満了日計算（平年の場合は2/28満了）。"""
     policy3 = PreservationPolicy(
-        name="3年ポリシー",
+        name=PreservationPolicyName("3年ポリシー"),
         retention_years=RetentionYears(3),
         effective_from=date(2020, 1, 1),
     )
     policy4 = PreservationPolicy(
-        name="4年ポリシー",
+        name=PreservationPolicyName("4年ポリシー"),
         retention_years=RetentionYears(4),
         effective_from=date(2020, 1, 1),
     )
@@ -120,13 +121,13 @@ def test_calculate_expiry_date_leap_year() -> None:
 def test_policy_catalog_resolution() -> None:
     """TC-09: カタログから基準日に応じたポリシーが解決される。"""
     policy_old = PreservationPolicy(
-        name="現行3年",
+        name=PreservationPolicyName("現行3年"),
         retention_years=RetentionYears(3),
         effective_from=date(2020, 4, 1),
         effective_to=date(2026, 3, 31),
     )
     policy_new = PreservationPolicy(
-        name="改正5年",
+        name=PreservationPolicyName("改正5年"),
         retention_years=RetentionYears(5),
         effective_from=date(2026, 4, 1),
         effective_to=None,
@@ -140,14 +141,14 @@ def test_policy_catalog_resolution() -> None:
         date(2025, 10, 1),
         expected_record_kind=PreservationRecordKind.DISPENSING_RECORD,
     )
-    assert resolved_old.name == "現行3年"
+    assert resolved_old.name.value == "現行3年"
     assert resolved_old.retention_years.value == 3
 
     resolved_new = catalog.get_policy_for(
         date(2026, 4, 1),
         expected_record_kind=PreservationRecordKind.DISPENSING_RECORD,
     )
-    assert resolved_new.name == "改正5年"
+    assert resolved_new.name.value == "改正5年"
     assert resolved_new.retention_years.value == 5
 
 
@@ -221,7 +222,7 @@ def test_latest_expiry_date_satisfies_all_applicable_obligations() -> None:
         record_kind=PreservationRecordKind.PRESCRIPTION,
         policies=(
             PreservationPolicy(
-                name="療担規則の現行3年保存",
+                name=PreservationPolicyName("療担規則の現行3年保存"),
                 retention_years=RetentionYears(3),
                 effective_from=date.min,
             ),
@@ -269,13 +270,13 @@ def test_latest_expiry_date_satisfies_all_applicable_obligations() -> None:
 def test_policy_catalog_overlapping_rejected() -> None:
     """TC-11: 期間が重複するポリシーを持つカタログは拒否される。"""
     policy1 = PreservationPolicy(
-        name="ポリシー1",
+        name=PreservationPolicyName("ポリシー1"),
         retention_years=RetentionYears(3),
         effective_from=date(2026, 1, 1),
         effective_to=date(2026, 12, 31),
     )
     policy2 = PreservationPolicy(
-        name="ポリシー2",
+        name=PreservationPolicyName("ポリシー2"),
         retention_years=RetentionYears(5),
         effective_from=date(2026, 6, 1),
         effective_to=date(2027, 5, 31),
@@ -290,7 +291,7 @@ def test_policy_catalog_overlapping_rejected() -> None:
 def test_policy_catalog_out_of_range_rejected() -> None:
     """TC-12: 定義期間外の日付を指定した場合はポリシー未定義エラー。"""
     policy = PreservationPolicy(
-        name="特定期間ポリシー",
+        name=PreservationPolicyName("特定期間ポリシー"),
         retention_years=RetentionYears(3),
         effective_from=date(2026, 4, 1),
         effective_to=date(2030, 3, 31),

@@ -6,10 +6,12 @@ from datetime import UTC, date, datetime
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.entities import Patient
+from app.domain.patient.identifiers import PatientId
 from app.domain.patient.primitives import (
     ExternalPatientId,
     PatientBirthDate,
     PatientNumber,
+    PatientProfileField,
     PatientStatus,
 )
 from app.domain.patient.value_objects import (
@@ -17,21 +19,35 @@ from app.domain.patient.value_objects import (
     PatientProfileSnapshot,
 )
 from app.domain.reception.identifiers import ReceptionId
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 from app.domain.store.identifiers import StoreId
 
 
 def _create_patient() -> Patient:
-    return Patient.create(
+    return Patient(
+        id=PatientId.generate(),
         corporate_id=CorporateId.generate(),
-        names=PersonNames.create(
-            last_name="山田",
-            first_name="太郎",
-            last_name_kana="ヤマダ",
-            first_name_kana="タロウ",
+        names=PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart("山田"), first_name=PersonNamePart("太郎")
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart("ヤマダ"),
+                first_name=PersonNameKanaPart("タロウ"),
+            ),
         ),
         patient_number=PatientNumber(1),
         birth_date=PatientBirthDate(date(1990, 1, 1)),
+        gender=None,
+        postal_code=None,
+        address=None,
+        phone_number=None,
     )
 
 
@@ -66,7 +82,9 @@ def test_tc67_同じ受付IDでも店舗ごとにプロフィール履歴を保�
         store_id=StoreId.generate(),
         external_patient_id=ExternalPatientId("POS-A"),
         recorded_at=recorded_at,
-        changed_fields=("patient.address",),
+        changed_fields=tuple(
+            PatientProfileField(item) for item in ("patient.address",)
+        ),
         received_profile=profile,
     )
     second_store = PatientProfileChange(
@@ -74,7 +92,9 @@ def test_tc67_同じ受付IDでも店舗ごとにプロフィール履歴を保�
         store_id=StoreId.generate(),
         external_patient_id=ExternalPatientId("POS-B"),
         recorded_at=recorded_at,
-        changed_fields=("patient.address",),
+        changed_fields=tuple(
+            PatientProfileField(item) for item in ("patient.address",)
+        ),
         received_profile=profile,
     )
 

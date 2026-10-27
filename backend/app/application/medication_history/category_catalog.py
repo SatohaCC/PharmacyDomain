@@ -11,6 +11,7 @@ from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.entities import MedicationHistoryCategoryCatalog
 from app.domain.medication_history.identifiers import CategoryCatalogId
 from app.domain.medication_history.primitives import (
+    CategoryDisplayOrder,
     MajorCategoryCode,
     MajorCategoryName,
     MediumCategoryCode,
@@ -39,7 +40,7 @@ class MajorCategoryDto:
         return cls(
             code=value.code.value,
             name=value.name.value,
-            display_order=value.display_order,
+            display_order=value.display_order.value,
             is_enabled=value.is_enabled,
         )
 
@@ -61,7 +62,7 @@ class MediumCategoryDto:
             code=value.code.value,
             major_category_code=value.major_category_code.value,
             name=value.name.value,
-            display_order=value.display_order,
+            display_order=value.display_order.value,
             is_required=value.is_required,
             is_enabled=value.is_enabled,
         )
@@ -147,7 +148,7 @@ class UpdateCategoryCatalogUseCase:
             MajorCategoryDefinition(
                 code=MajorCategoryCode(m.code),
                 name=MajorCategoryName(m.name),
-                display_order=m.display_order,
+                display_order=CategoryDisplayOrder(m.display_order),
                 is_enabled=m.is_enabled,
             )
             for m in command.major_categories
@@ -157,7 +158,7 @@ class UpdateCategoryCatalogUseCase:
                 code=MediumCategoryCode(m.code),
                 major_category_code=MajorCategoryCode(m.major_category_code),
                 name=MediumCategoryName(m.name),
-                display_order=m.display_order,
+                display_order=CategoryDisplayOrder(m.display_order),
                 is_required=m.is_required,
                 is_enabled=m.is_enabled,
             )

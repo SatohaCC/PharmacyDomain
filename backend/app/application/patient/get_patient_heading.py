@@ -85,7 +85,7 @@ def _to_dto(
             notes=unwrap(revision.content.notes),
             person_id=str(revision.person_id.value),
             account_id=str(revision.account_id.value),
-            recorded_at=revision.recorded_at.isoformat(),
+            recorded_at=revision.recorded_at.value.isoformat(),
         )
         for index, revision in enumerate(revisions, start=1)
     )
@@ -101,6 +101,6 @@ def _to_dto(
         updated_by_account_id=(
             str(latest.account_id.value) if latest is not None else None
         ),
-        updated_at=latest.recorded_at.isoformat() if latest is not None else None,
+        updated_at=latest.recorded_at.value.isoformat() if latest is not None else None,
         history=history,
     )

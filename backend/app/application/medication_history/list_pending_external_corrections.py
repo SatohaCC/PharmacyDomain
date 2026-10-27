@@ -10,6 +10,7 @@ from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import ActorRole, Permission
 from app.application.access_control.policy import AuthorizationService
 from app.application.common.exceptions import AuthorizationError
+from app.application.common.optional_conversion import unwrap
 from app.application.common.pagination import (
     DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE,
@@ -117,7 +118,7 @@ class ListPendingExternalCorrectionsUseCase:
         next_cursor = (
             _encode_cursor(
                 str(page_candidates[-1].record.id.value),
-                page_candidates[-1].correction.correction_id,
+                page_candidates[-1].correction.correction_id.value,
             )
             if has_next and page_candidates
             else None
@@ -128,21 +129,21 @@ class ListPendingExternalCorrectionsUseCase:
                 corporate_id=str(match.record.corporate_id.value),
                 store_id=str(match.record.store_id.value),
                 patient_id=str(match.record.patient_id.value),
-                correction_id=match.correction.correction_id,
+                correction_id=match.correction.correction_id.value,
                 correction_kind=match.correction.kind.value,
                 correction_status=(
                     ExternalCorrectionStatus.RESOLVED.value
                     if match.correction.is_acknowledged
                     else match.correction.status.value
                 ),
-                source_document_number=match.correction.source_document_number,
-                reason=match.correction.reason,
-                details=match.correction.details,
+                source_document_number=match.correction.source_document_number.value,
+                reason=match.correction.reason.value,
+                details=(unwrap(match.correction.details)),
                 corrected_at=match.correction.corrected_at.value.isoformat(),
                 review_events=tuple(
                     {
                         "decision": event.decision.value,
-                        "reason": event.reason,
+                        "reason": event.reason.value,
                         "reviewed_by": str(event.reviewed_by.value),
                         "reviewed_at": event.reviewed_at.value.isoformat(),
                         "matched_prescription_id": (

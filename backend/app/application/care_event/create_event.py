@@ -240,7 +240,8 @@ class CreateEventUseCase:
                 dispensing_id=dispensing_id,
             )
 
-        event = Event.create(
+        event = Event(
+            id=EventId.generate(),
             event_type_id=definition.id,
             event_definition_corporate_id=definition.corporate_id,
             event_type_standard_code=definition.standard_code,

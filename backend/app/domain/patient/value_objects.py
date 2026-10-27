@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.value_object import ValueObject
@@ -14,9 +14,11 @@ from app.domain.patient.primitives import (
     PatientBirthDate,
     PatientGenderCode,
     PatientHeadingText,
+    PatientHeadingTimestamp,
     PatientPhoneNumber,
     PatientPostalCode,
     PatientProfileChangeSource,
+    PatientProfileField,
     PatientStatus,
     PatientStatusReason,
 )
@@ -41,21 +43,7 @@ class PatientHeadingRevision(ValueObject):
     content: PatientHeadingContent
     person_id: AccountPersonId
     account_id: UserAccountId
-    recorded_at: datetime
-
-    def _normalize_fields(self) -> None:
-        if (
-            isinstance(self.recorded_at, datetime)
-            and self.recorded_at.utcoffset() is not None
-        ):
-            object.__setattr__(self, "recorded_at", self.recorded_at.astimezone(UTC))
-
-    def validate(self) -> None:
-        if (
-            not isinstance(self.recorded_at, datetime)
-            or self.recorded_at.utcoffset() is None
-        ):
-            raise DomainValidationError("頭書きの記録日時にはタイムゾーンが必要です。")
+    recorded_at: PatientHeadingTimestamp
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -96,7 +84,7 @@ class PatientProfileChange:
     """受付受信または手動更新で生じたプロフィール変更の証跡。"""
 
     recorded_at: datetime
-    changed_fields: tuple[str, ...]
+    changed_fields: tuple[PatientProfileField, ...]
     source: PatientProfileChangeSource = PatientProfileChangeSource.NSIPS
     reception_id: ReceptionId | None = None
     store_id: StoreId | None = None

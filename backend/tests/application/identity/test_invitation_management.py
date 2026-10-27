@@ -20,7 +20,13 @@ from app.domain.identity.primitives import (
     MembershipRole,
 )
 from app.domain.shared.actor import AccountPersonId, UserAccountId
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 from tests.application.identity.helpers import (
     IdentityUseCaseSet,
     create_identity_use_cases,
@@ -45,11 +51,14 @@ class Fixture:
 def _person(last_name: str = "山田") -> AccountPerson:
     return AccountPerson(
         id=AccountPersonId.generate(),
-        names=PersonNames.create(
-            last_name=last_name,
-            first_name="太郎",
-            last_name_kana="ヤマダ",
-            first_name_kana="タロウ",
+        names=PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart(last_name), first_name=PersonNamePart("太郎")
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart("ヤマダ"),
+                first_name=PersonNameKanaPart("タロウ"),
+            ),
         ),
     )
 

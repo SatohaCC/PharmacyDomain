@@ -6,7 +6,10 @@ from datetime import datetime
 
 from app.application.access_control.models import ResolvedActorContext
 from app.domain.patient.entities import Patient
-from app.domain.patient.primitives import PatientProfileChangeSource
+from app.domain.patient.primitives import (
+    PatientProfileChangeSource,
+    PatientProfileField,
+)
 from app.domain.patient.value_objects import PatientProfileChange
 
 
@@ -22,7 +25,7 @@ def record_manual_profile_change(
     change = PatientProfileChange(
         source=PatientProfileChangeSource.MANUAL,
         recorded_at=recorded_at,
-        changed_fields=changed_fields,
+        changed_fields=tuple(PatientProfileField(item) for item in changed_fields),
         before_profile=before.profile_snapshot(),
         applied_profile=after.profile_snapshot(),
         person_id=actor.person_id,

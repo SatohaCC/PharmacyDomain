@@ -106,7 +106,12 @@ from app.domain.prescription.value_objects import (
     UnequalDosageInstruction,
     UnitConversion,
 )
-from app.domain.shared.person_name import PersonName, PersonNameKana
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+)
 from app.domain.shared.public_expense import PublicExpenseBurden
 
 __all__ = [
@@ -194,14 +199,14 @@ def build_department(source: DepartmentInput) -> DepartmentInfo:
 def build_prescriber(source: PrescriberInput) -> PrescriberInfo:
     """処方医情報を構成する。"""
     return PrescriberInfo(
-        names=PersonName.create(
-            last_name=required_text(source.last_name, "処方医の姓"),
-            first_name=required_text(source.first_name, "処方医の名"),
+        names=PersonName(
+            last_name=PersonNamePart(required_text(source.last_name, "処方医の姓")),
+            first_name=PersonNamePart(required_text(source.first_name, "処方医の名")),
         ),
         names_kana=(
-            PersonNameKana.create(
-                last_name=source.last_name_kana,
-                first_name=source.first_name_kana,
+            PersonNameKana(
+                last_name=PersonNameKanaPart(source.last_name_kana),
+                first_name=PersonNameKanaPart(source.first_name_kana),
             )
             if source.last_name_kana is not None and source.first_name_kana is not None
             else None

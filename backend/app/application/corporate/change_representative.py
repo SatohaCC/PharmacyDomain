@@ -3,8 +3,9 @@ from dataclasses import dataclass
 from app.application.access_control.models import Permission
 from app.application.corporate.corporate_access import CorporateAccessService
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.corporate.primitives import CorporateRepresentativeName
 from app.domain.corporate.repositories import CorporateRepository
+from app.domain.corporate.value_objects import CorporateRepresentativeName
+from app.domain.shared.person_name import PersonNamePart
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -29,9 +30,9 @@ class ChangeRepresentativeUseCase:
 
     async def execute(self, command: ChangeRepresentativeCommand) -> None:
         corporate_id = CorporateId.parse(command.corporate_id)
-        new_representative_name = CorporateRepresentativeName.create(
-            last_name=command.new_last_name,
-            first_name=command.new_first_name,
+        new_representative_name = CorporateRepresentativeName(
+            last_name=PersonNamePart(command.new_last_name),
+            first_name=PersonNamePart(command.new_first_name),
         )
 
         corporate = await self._corporate_access.require_active(

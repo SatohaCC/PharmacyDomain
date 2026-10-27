@@ -79,7 +79,14 @@ from app.domain.patient.identifiers import PatientId
 from app.domain.prescription.primitives import InquiryNumber, InquiryResultType
 from app.domain.reception.entities import Reception
 from app.domain.reception.identifiers import ReceptionId
-from app.domain.reception.primitives import ReceptionFingerprint
+from app.domain.reception.primitives import (
+    ReceptionBillingCode,
+    ReceptionBillingName,
+    ReceptionBillingPoints,
+    ReceptionBillingQuantity,
+    ReceptionFingerprint,
+    ReceptionOriginalJson,
+)
 from app.domain.reception.value_objects import (
     ReceptionBillingAddition,
     ReceptionSourceData,
@@ -1145,14 +1152,14 @@ def test_HTTP初回保存は受付由来情報を引き継ぎSOAP本文を薬剤
         prescription_id=history_fixture.dispensing.prescription_id,
         dispensing_id=history_fixture.dispensing.id,
         source_data=ReceptionSourceData(
-            bundle_json="{}",
+            bundle_json=ReceptionOriginalJson("{}"),
             imported_at=imported_at,
             billing_additions=(
                 ReceptionBillingAddition(
-                    code="140000110",
-                    name="特定薬剤管理指導加算２",
-                    points=100,
-                    quantity=1,
+                    code=ReceptionBillingCode("140000110"),
+                    name=ReceptionBillingName("特定薬剤管理指導加算２"),
+                    points=ReceptionBillingPoints(100),
+                    quantity=ReceptionBillingQuantity(1),
                 ),
             ),
         ),

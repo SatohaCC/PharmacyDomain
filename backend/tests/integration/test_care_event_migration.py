@@ -12,6 +12,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.domain.care_event.entities import Event
+from app.domain.care_event.identifiers import EventId
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
     EventOccurredTimestamp,
@@ -96,8 +97,10 @@ async def test_tc45_56_Alembicの成功済みmigration再実行はデータを�
             corporate_id=corporate.id
         )
         standard = next(item for item in definitions if item.corporate_id is None)
-        event = Event.create(
+        event = Event(
+            id=EventId.generate(),
             event_type_id=standard.id,
+            event_definition_corporate_id=None,
             event_type_standard_code=standard.standard_code,
             event_type_name=standard.name,
             corporate_id=corporate.id,
@@ -105,6 +108,10 @@ async def test_tc45_56_Alembicの成功済みmigration再実行はデータを�
             patient_id=patient.id,
             occurred_at=EventOccurredTimestamp(occurred_at),
             created_at=EventCreatedTimestamp(occurred_at),
+            related_event_id=None,
+            reception_id=None,
+            prescription_id=None,
+            dispensing_id=None,
         )
         await repositories.event.save(event)
         await work.commit()

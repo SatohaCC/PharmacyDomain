@@ -11,6 +11,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.domain.care_event.entities import Event
+from app.domain.care_event.identifiers import EventId
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
     EventOccurredTimestamp,
@@ -53,8 +54,10 @@ async def test_tc45_48_同時確定は競合応答または完全な頭書き投
             and item.standard_code is not None
             and item.standard_code.value == "in_person_consultation"
         )
-        event = Event.create(
+        event = Event(
+            id=EventId.generate(),
             event_type_id=definition.id,
+            event_definition_corporate_id=None,
             event_type_standard_code=definition.standard_code,
             event_type_name=definition.name,
             corporate_id=fixture.corporate_id,
@@ -62,6 +65,10 @@ async def test_tc45_48_同時確定は競合応答または完全な頭書き投
             patient_id=fixture.record.patient_id,
             occurred_at=EventOccurredTimestamp(occurred_at),
             created_at=EventCreatedTimestamp(occurred_at),
+            related_event_id=None,
+            reception_id=None,
+            prescription_id=None,
+            dispensing_id=None,
         )
         second_record = replace(
             fixture.record,

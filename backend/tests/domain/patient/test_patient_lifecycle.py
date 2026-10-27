@@ -21,7 +21,13 @@ from app.domain.patient.primitives import (
 from app.domain.patient.services import PatientMergeService
 from app.domain.patient.value_objects import PatientStatusChange
 from app.domain.shared.actor import AccountPersonId, UserAccountId
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 
 
 def _create_patient(
@@ -29,16 +35,24 @@ def _create_patient(
     corporate_id: CorporateId | None = None,
     patient_number: int = 1,
 ) -> Patient:
-    return Patient.create(
+    return Patient(
+        id=PatientId.generate(),
         corporate_id=corporate_id or CorporateId.generate(),
-        names=PersonNames.create(
-            last_name="山田",
-            first_name="太郎",
-            last_name_kana="ヤマダ",
-            first_name_kana="タロウ",
+        names=PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart("山田"), first_name=PersonNamePart("太郎")
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart("ヤマダ"),
+                first_name=PersonNameKanaPart("タロウ"),
+            ),
         ),
         patient_number=PatientNumber(patient_number),
         birth_date=PatientBirthDate(date(1990, 1, 1)),
+        gender=None,
+        postal_code=None,
+        address=None,
+        phone_number=None,
     )
 
 
@@ -353,11 +367,14 @@ def test_TC18_統合済み患者の属性変更は拒否される() -> None:
         recorded_at=recorded_at,
     )
 
-    new_names = PersonNames.create(
-        last_name="佐藤",
-        first_name="次郎",
-        last_name_kana="サトウ",
-        first_name_kana="ジロウ",
+    new_names = PersonNames(
+        kanji=PersonName(
+            last_name=PersonNamePart("佐藤"), first_name=PersonNamePart("次郎")
+        ),
+        kana=PersonNameKana(
+            last_name=PersonNameKanaPart("サトウ"),
+            first_name=PersonNameKanaPart("ジロウ"),
+        ),
     )
     with pytest.raises(
         PatientStateConflictError, match="統合済みの患者の情報は変更できません"

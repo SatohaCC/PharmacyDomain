@@ -139,5 +139,7 @@ class CoverageSelectionService:
             raise CoverageCombinationError("医療保険は1件だけ選択できます。")
         return CoverageCombination(
             insurance=insurance[0] if insurance else None,
-            public_expenses=tuple(public_expenses),
+            public_expenses=tuple(
+                sorted(public_expenses, key=lambda item: item.priority.value)
+            ),
         )

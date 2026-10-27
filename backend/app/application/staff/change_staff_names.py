@@ -8,7 +8,13 @@ from app.application.access_control.boundary import CorporateAccessBoundary
 from app.application.access_control.models import Permission
 from app.application.staff.support import load_staff_or_raise
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.repositories import StaffRepository
 
@@ -50,11 +56,15 @@ class ChangeStaffNamesUseCase:
             staff_id=staff_id,
         )
 
-        names = PersonNames.create(
-            last_name=command.last_name,
-            first_name=command.first_name,
-            last_name_kana=command.last_name_kana,
-            first_name_kana=command.first_name_kana,
+        names = PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart(command.last_name),
+                first_name=PersonNamePart(command.first_name),
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart(command.last_name_kana),
+                first_name=PersonNameKanaPart(command.first_name_kana),
+            ),
         )
 
         updated_staff = staff.change_names(names)

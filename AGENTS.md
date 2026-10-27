@@ -117,3 +117,15 @@ pnpm build:storybook
 - Storybookは必須。storyを部品・主要viewに併置し、実API・認証なしで状態を確認できるようにする。操作とアクセシビリティはVitest addonの実ブラウザテストで検証し、画像比較とは区別する。
 - Storybookとフロントエンドテストの表示用データは、「テスト薬局」「テスト薬局グループ」「テスト 太郎」等、「テスト」を含む名前にしてテスト用と明示する。
 - `pnpm storybook`で部品・画面・デザイントークンを確認する。画像比較は静的ビルド後に`pnpm test:visual`で実行し、基準画像は内容を確認して更新する。
+
+
+## Domain構造検査
+
+Domainの静的検査と検査器自身のテストは `pnpm lint:backend` と `pnpm test:backend` に組み込む。個別実行はルートから次を使用する。
+
+```bash
+pnpm --filter pharmacydomain-api lint:domain
+pnpm --filter pharmacydomain-api lint:domain:harness
+```
+
+Domainの型付き直接生成・不変性・依存方向・公開IDなどをDOM000〜DOM013で検査する。詳細は `.agents/rules/domain.md` に従う。Application層のハーネス移植は別の作業範囲とする。

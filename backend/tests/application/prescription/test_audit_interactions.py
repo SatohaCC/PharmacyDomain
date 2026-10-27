@@ -11,7 +11,13 @@ from app.application.prescription.audit_interactions import (
     AuditDrugInteractionsUseCase,
 )
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.prescription.primitives import InteractionSeverity, YjCode
+from app.domain.prescription.primitives import (
+    InteractionClinicalCondition,
+    InteractionMechanism,
+    InteractionRecommendation,
+    InteractionSeverity,
+    YjCode,
+)
 from app.domain.prescription.value_objects import DrugInteractionPair
 from tests.application.access_helpers import create_vendor_authorization
 from tests.fakes.fake_drug_interaction import FakeDrugInteractionDataSource
@@ -43,9 +49,11 @@ async def test_ユースケース正常系(
             medicine_a=YjCode(c2),
             medicine_b=YjCode(c3),
             severity=InteractionSeverity.PRECAUTION,
-            clinical_condition="出血傾向の増大",
-            mechanism="抗凝固作用の増強",
-            recommendation="用量調整と出血症状のモニタリング",
+            clinical_condition=InteractionClinicalCondition("出血傾向の増大"),
+            mechanism=InteractionMechanism("抗凝固作用の増強"),
+            recommendation=InteractionRecommendation(
+                "用量調整と出血症状のモニタリング"
+            ),
         )
     )
 

@@ -41,7 +41,11 @@ from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.identifiers import CoverageSelectionRecordId
 from app.domain.patient.identifiers import PatientId
 from app.domain.prescription.entities import Prescription
-from app.domain.prescription.primitives import PrescriptionDocumentNumber
+from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.prescription.primitives import (
+    PrescriptionDocumentNumber,
+    PrescriptionStatus,
+)
 from app.domain.prescription.repositories import PrescriptionRepository
 from app.domain.prescription.services import (
     NarcoticPrescriptionService,
@@ -117,7 +121,8 @@ class RegisterPrescriptionUseCase:
             patient_id=patient_id,
         )
         record_id = self._parse_record_id(command.coverage_selection_record_id)
-        prescription = Prescription.create(
+        prescription = Prescription(
+            id=PrescriptionId.generate(),
             corporate_id=corporate_id,
             store_id=store_id,
             patient_id=patient_id,
@@ -130,6 +135,7 @@ class RegisterPrescriptionUseCase:
                 issued_date=command.issued_date, valid_to=command.valid_to
             ),
             rps=build_rps(command.rps),
+            status=PrescriptionStatus.RECEIVED,
             management_info=build_management_info(command.management_info),
             coverage_selection_record_id=record_id,
         )

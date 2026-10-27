@@ -18,8 +18,11 @@ from app.application.medication_history.review_external_prescription_correction 
 )
 from app.bootstrap import create_app
 from app.domain.medication_history.entities import MedicationHistoryRecord
+from app.domain.medication_history.identifiers import ExternalCorrectionId
 from app.domain.medication_history.primitives import (
+    CorrectionDocumentNumber,
     ExternalCorrectionKind,
+    ExternalCorrectionReason,
     ExternalCorrectionTimestamp,
     FinalizedTimestamp,
 )
@@ -124,12 +127,12 @@ async def _store_pending_record(
         finalized_by=fixture.counselor_id,
     ).record_external_correction(
         ExternalPrescriptionCorrection(
-            correction_id="corr-http-001",
+            correction_id=ExternalCorrectionId("corr-http-001"),
             corrected_at=ExternalCorrectionTimestamp(
                 datetime(2026, 8, 24, 7, 0, tzinfo=UTC)
             ),
-            source_document_number="RX-HTTP-001",
-            reason="NSIPS外部処方訂正",
+            source_document_number=CorrectionDocumentNumber("RX-HTTP-001"),
+            reason=ExternalCorrectionReason("NSIPS外部処方訂正"),
             kind=correction_kind,
         )
     )
