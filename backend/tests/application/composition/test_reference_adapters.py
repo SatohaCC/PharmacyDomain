@@ -16,41 +16,41 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from app.application.composition.coverage_references import (
+from app.application.composition.adapters.coverage_references import (
     CoveragePatientReferenceAdapter,
     CoverageStoreReferenceAdapter,
 )
-from app.application.composition.dispensing_references import (
+from app.application.composition.adapters.dispensing_references import (
     DispensingStaffQualificationAdapter,
     DispensingStoreReferenceAdapter,
     PrescriptionSourceAdapter,
 )
-from app.application.composition.medication_history_references import (
+from app.application.composition.adapters.medication_history_references import (
     CounselorQualificationAdapter,
     DispensingSourceAdapter,
     MedicationHistoryStoreReferenceAdapter,
 )
-from app.application.composition.prescription_references import (
+from app.application.composition.adapters.prescription_references import (
     CoverageSelectionPublicExpenseAdapter,
     PrescriptionPatientReferenceAdapter,
     PrescriptionStaffQualificationAdapter,
     PrescriptionStoreReferenceAdapter,
 )
-from app.application.coverage.exceptions import (
+from app.application.coverage.errors import (
     CoveragePatientNotFoundError,
     CoverageStoreNotFoundError,
 )
-from app.application.dispensing.exceptions import (
+from app.application.dispensing.errors import (
     DispensingPrescriptionNotFoundError,
     DispensingStaffNotFoundError,
     DispensingStoreNotFoundError,
 )
-from app.application.medication_history.exceptions import (
+from app.application.medication_history.errors import (
     MedicationHistoryDispensingNotFoundError,
     MedicationHistoryStaffNotFoundError,
     MedicationHistoryStoreNotFoundError,
 )
-from app.application.prescription.exceptions import (
+from app.application.prescription.errors import (
     PrescriptionCoverageSelectionNotFoundError,
     PrescriptionPatientNotFoundError,
     PrescriptionPharmacistNotFoundError,

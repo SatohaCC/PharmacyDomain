@@ -1,6 +1,6 @@
 """テストで事前に登録された外部主体だけを返す本人確認境界。"""
 
-from app.application.identity.resolve_actor import VerifiedSubject
+from app.application.identity.boundary_models import VerifiedSubject
 from app.presentational.authentication import VerifiedSubjectProvider
 from app.presentational.exceptions import AuthenticationError
 

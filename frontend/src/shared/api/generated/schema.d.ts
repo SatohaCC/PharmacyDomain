@@ -3559,8 +3559,6 @@ export interface components {
     ImportYjCatalogRequest: {
       /** Csv Text */
       csv_text?: string | null;
-      /** File Path */
-      file_path?: string | null;
       /** Catalog Version */
       catalog_version?: string | null;
     };

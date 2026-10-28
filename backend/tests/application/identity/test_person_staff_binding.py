@@ -5,7 +5,7 @@ from dataclasses import replace
 import pytest
 
 from app.application.common.exceptions import NotFoundError
-from app.application.identity.input_models import PersonNamesInput
+from app.application.identity.commands.models import PersonNamesInput
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.primitives import MembershipRole

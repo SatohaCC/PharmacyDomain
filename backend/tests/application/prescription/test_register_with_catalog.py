@@ -15,12 +15,14 @@ from datetime import date
 
 import pytest
 
-from app.application.composition.medicine_restriction_adapter import (
+from app.application.composition.adapters.medicine_restriction_adapter import (
     MedicineCatalogRestrictionAdapter,
 )
-from app.application.prescription.inputs import PrescriptionManagementInput
-from app.application.prescription.register_prescription import (
+from app.application.prescription.commands.models import (
+    PrescriptionManagementInput,
     RegisterPrescriptionCommand,
+)
+from app.application.prescription.commands.register_prescription import (
     RegisterPrescriptionUseCase,
 )
 from app.domain.medicine_catalog.entities import Medicine

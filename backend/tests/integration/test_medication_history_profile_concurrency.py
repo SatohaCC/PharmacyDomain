@@ -11,17 +11,22 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.access_control.models import ActorRole, ResolvedActorContext
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.boundary_models import (
+    ActorRole,
+    ResolvedActorContext,
+)
+from app.application.access_control.policies import AuthorizationService
 from app.application.common.clock import Clock
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.medication_history.correct_medication_history_fact import (
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.medication_history.commands.correct_medication_history_fact import (
     CorrectMedicationHistoryFactCommand,
 )
-from app.application.medication_history.finalize_medication_history import (
+from app.application.medication_history.commands.finalize_medication_history import (
     FinalizeMedicationHistoryCommand,
 )
-from app.application.medication_history.get_patient_medical_profile import (
+from app.application.medication_history.commands.rebuild_patient_medical_profile import (
     RebuildPatientMedicalProfileCommand,
 )
 from app.domain.corporate.identifiers import CorporateId

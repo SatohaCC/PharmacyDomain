@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.store.change_store_code import (
+from app.application.store.commands.change_store_code import (
     ChangeStoreCodeCommand,
     ChangeStoreCodeUseCase,
 )
-from app.application.store.exceptions import StoreNotFoundError
+from app.application.store.errors import StoreNotFoundError
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.store.exceptions import StoreCodeAlreadyExistsError
 from app.domain.store.services import StoreCodeUniquenessService

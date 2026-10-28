@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.staff.change_staff_names import (
+from app.application.staff.commands.change_staff_names import (
     ChangeStaffNamesCommand,
     ChangeStaffNamesUseCase,
 )

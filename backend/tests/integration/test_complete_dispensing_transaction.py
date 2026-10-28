@@ -19,12 +19,15 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.access_control.models import ActorRole, ResolvedActorContext
-from app.application.access_control.policy import AuthorizationService
-from app.application.dispensing.complete_dispensing import CompleteDispensingCommand
-from app.application.dispensing.exceptions import (
-    DispensingPrescriptionNotFoundError,
+from app.application.access_control.boundary_models import (
+    ActorRole,
+    ResolvedActorContext,
 )
+from app.application.access_control.policies import AuthorizationService
+from app.application.dispensing.commands.complete_dispensing import (
+    CompleteDispensingCommand,
+)
+from app.application.dispensing.errors import DispensingPrescriptionNotFoundError
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.entities import DispensingProcess
 from app.domain.dispensing.primitives import (

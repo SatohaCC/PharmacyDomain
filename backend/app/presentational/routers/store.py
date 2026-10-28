@@ -13,41 +13,54 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response
 
 from app.application.common.pagination import Page
-from app.application.store.business_hours import (
-    BusinessDayExceptionInput,
-    BusinessHoursDto,
-    ChangeStoreBusinessHoursCommand,
-    StoreOpeningStatusDto,
-    StoreOpeningStatusQuery,
-    WeekdayBusinessHoursInput,
-)
-from app.application.store.change_insurance_pharmacy_number import (
+from app.application.store.commands.change_insurance_pharmacy_number import (
     ChangeInsurancePharmacyNumberCommand,
 )
-from app.application.store.change_store_address import ChangeStoreAddressCommand
-from app.application.store.change_store_code import ChangeStoreCodeCommand
-from app.application.store.change_store_contact_info import (
+from app.application.store.commands.change_store_address import (
+    ChangeStoreAddressCommand,
+)
+from app.application.store.commands.change_store_code import ChangeStoreCodeCommand
+from app.application.store.commands.change_store_contact_info import (
     ChangeStoreContactInfoCommand,
 )
-from app.application.store.change_store_name import ChangeStoreNamesCommand
-from app.application.store.get_store import (
-    GetStoreQuery,
-    StoreDto,
-    StoreStatusChangeDto,
-)
-from app.application.store.list_stores import (
-    ListStoresQuery,
-    StoreSummaryDto,
-)
-from app.application.store.management import (
-    ChangeStoreStatusCommand,
-    ManagerAction,
-    ManagerAssignmentDto,
+from app.application.store.commands.change_store_names import ChangeStoreNamesCommand
+from app.application.store.commands.change_store_status import ChangeStoreStatusCommand
+from app.application.store.commands.dtos.business_hours import BusinessHoursDto
+from app.application.store.commands.dtos.get_store import StoreDto, StoreStatusChangeDto
+from app.application.store.commands.dtos.management import ManagerAssignmentDto
+from app.application.store.commands.manage_store_manager import (
     ManageStoreManagerCommand,
+)
+from app.application.store.commands.models import (
+    BusinessDayExceptionInput,
+    ChangeStoreBusinessHoursCommand,
+    ManagerAction,
+    WeekdayBusinessHoursInput,
+)
+from app.application.store.commands.register_store import RegisterStoreCommand
+from app.application.store.commands.revoke_store_closure import (
     RevokeStoreClosureCommand,
 )
-from app.application.store.register_store import RegisterStoreCommand
+from app.application.store.queries.dtos.business_hours import (
+    BusinessHoursDto as QueryBusinessHoursDto,
+)
+from app.application.store.queries.dtos.business_hours import StoreOpeningStatusDto
+from app.application.store.queries.dtos.get_store import StoreDto as QueryStoreDto
+from app.application.store.queries.dtos.get_store import (
+    StoreStatusChangeDto as QueryStoreStatusChangeDto,
+)
+from app.application.store.queries.dtos.list_stores import StoreSummaryDto
+from app.application.store.queries.models import (
+    GetStoreQuery,
+    ListStoresQuery,
+    StoreOpeningStatusQuery,
+)
 from app.presentational.dependencies import StoreUseCasesDep, get_actor_context
+from app.presentational.dto_mapping import (
+    to_http_store_business_hours__business_hours_dto,
+    to_http_store_get_store__store_dto,
+    to_http_store_get_store__store_status_change_dto,
+)
 from app.presentational.errors import error_responses
 from app.presentational.routing import ApplicationRoute
 from app.presentational.schemas import RegisteredIdResponse, RequestModel
@@ -167,10 +180,12 @@ async def get_store(
     corporate_id: str,
     store_id: str,
     use_cases: StoreUseCasesDep,
-) -> StoreDto:
+) -> StoreDto | QueryStoreDto:
     """店舗を1件取得する。"""
-    return await use_cases.get.execute(
-        GetStoreQuery(corporate_id=corporate_id, store_id=store_id)
+    return to_http_store_get_store__store_dto(
+        await use_cases.get.execute(
+            GetStoreQuery(corporate_id=corporate_id, store_id=store_id)
+        )
     )
 
 
@@ -305,14 +320,16 @@ async def suspend_store(
     store_id: str,
     body: ChangeStoreStatusRequest,
     use_cases: StoreUseCasesDep,
-) -> StoreDto:
+) -> StoreDto | QueryStoreDto:
     """店舗を休止する。"""
-    return await use_cases.change_status.execute(
-        ChangeStoreStatusCommand(
-            corporate_id=corporate_id,
-            store_id=store_id,
-            status="suspended",
-            reason=body.reason,
+    return to_http_store_get_store__store_dto(
+        await use_cases.change_status.execute(
+            ChangeStoreStatusCommand(
+                corporate_id=corporate_id,
+                store_id=store_id,
+                status="suspended",
+                reason=body.reason,
+            )
         )
     )
 
@@ -327,14 +344,16 @@ async def resume_store(
     store_id: str,
     body: ChangeStoreStatusRequest,
     use_cases: StoreUseCasesDep,
-) -> StoreDto:
+) -> StoreDto | QueryStoreDto:
     """休止した店舗を再開する。"""
-    return await use_cases.change_status.execute(
-        ChangeStoreStatusCommand(
-            corporate_id=corporate_id,
-            store_id=store_id,
-            status="active",
-            reason=body.reason,
+    return to_http_store_get_store__store_dto(
+        await use_cases.change_status.execute(
+            ChangeStoreStatusCommand(
+                corporate_id=corporate_id,
+                store_id=store_id,
+                status="active",
+                reason=body.reason,
+            )
         )
     )
 
@@ -349,14 +368,16 @@ async def close_store(
     store_id: str,
     body: ChangeStoreStatusRequest,
     use_cases: StoreUseCasesDep,
-) -> StoreDto:
+) -> StoreDto | QueryStoreDto:
     """残業務を確認して店舗を閉局する。"""
-    return await use_cases.change_status.execute(
-        ChangeStoreStatusCommand(
-            corporate_id=corporate_id,
-            store_id=store_id,
-            status="closed",
-            reason=body.reason,
+    return to_http_store_get_store__store_dto(
+        await use_cases.change_status.execute(
+            ChangeStoreStatusCommand(
+                corporate_id=corporate_id,
+                store_id=store_id,
+                status="closed",
+                reason=body.reason,
+            )
         )
     )
 
@@ -371,17 +392,17 @@ async def revoke_store_closure(
     store_id: str,
     body: ChangeStoreStatusRequest,
     use_cases: StoreUseCasesDep,
-) -> StoreDto:
+) -> StoreDto | QueryStoreDto:
     """誤って登録された閉局を取り消し、休止へ戻す（ベンダー専用）。
 
     閉局と対称な「再開」にはしない。閉局で管理薬剤師の任命は終了しているので、
     有効へ戻すと管理薬剤師のいない店舗が業務を受けられる状態になる。
     """
-    return await use_cases.revoke_closure.execute(
-        RevokeStoreClosureCommand(
-            corporate_id=corporate_id,
-            store_id=store_id,
-            reason=body.reason,
+    return to_http_store_get_store__store_dto(
+        await use_cases.revoke_closure.execute(
+            RevokeStoreClosureCommand(
+                corporate_id=corporate_id, store_id=store_id, reason=body.reason
+            )
         )
     )
 
@@ -407,18 +428,20 @@ async def change_business_hours(
     store_id: str,
     body: ChangeBusinessHoursRequest,
     use_cases: StoreUseCasesDep,
-) -> BusinessHoursDto:
+) -> BusinessHoursDto | QueryBusinessHoursDto:
     """開局時間をまとめて置き換える。
 
     部分更新にしない。週次の予定は全曜日が揃って初めて意味を持つので、曜日を
     1つだけ差し替えられると、残りの曜日がいつ登録されたものか分からなくなる。
     """
-    return await use_cases.change_business_hours.execute(
-        ChangeStoreBusinessHoursCommand(
-            corporate_id=corporate_id,
-            store_id=store_id,
-            weekly=body.weekly,
-            exceptions=body.exceptions,
+    return to_http_store_business_hours__business_hours_dto(
+        await use_cases.change_business_hours.execute(
+            ChangeStoreBusinessHoursCommand(
+                corporate_id=corporate_id,
+                store_id=store_id,
+                weekly=body.weekly,
+                exceptions=body.exceptions,
+            )
         )
     )
 
@@ -445,12 +468,15 @@ async def get_opening_status(
 @router.get("/{store_id}/status-history", response_model=list[StoreStatusChangeDto])
 async def get_status_history(
     corporate_id: str, store_id: str, use_cases: StoreUseCasesDep
-) -> list[StoreStatusChangeDto]:
+) -> list[StoreStatusChangeDto] | list[QueryStoreStatusChangeDto]:
     """店舗状態の履歴を取得する。"""
     store = await use_cases.get.execute(
         GetStoreQuery(corporate_id=corporate_id, store_id=store_id)
     )
-    return list(store.status_history)
+    return [
+        to_http_store_get_store__store_status_change_dto(item)
+        for item in (list(store.status_history))
+    ]
 
 
 class ManageManagerRequest(RequestModel):

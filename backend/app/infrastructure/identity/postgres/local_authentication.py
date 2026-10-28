@@ -11,17 +11,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.application.common.clock import Clock
-from app.application.identity.local_authentication import (
+from app.application.identity.boundary_interfaces.local_authentication import (
     CredentialWriter,
     LocalAuthentication,
-    LoginFailedError,
-    LoginSession,
 )
-from app.application.identity.resolve_actor import (
-    ResolveActorUseCase,
-    UnavailableIdentityError,
-    VerifiedSubject,
-)
+from app.application.identity.boundary_models import LoginSession, VerifiedSubject
+from app.application.identity.errors import LoginFailedError, UnavailableIdentityError
+from app.application.identity.queries.resolve_actor import ResolveActorUseCase
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.identity.exceptions import IdentityConflictError
 from app.infrastructure.identity.passwords import (
@@ -40,6 +36,7 @@ from app.infrastructure.identity.postgres.user_account import (
 )
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.schema import local_credentials, local_sessions
+from app.infrastructure.readers.identity_resolve_actor import ResolveActorProjection
 
 
 def normalize_login_id(login_id: str) -> str:
@@ -93,9 +90,11 @@ class PostgresLocalAuthentication(LocalAuthentication):
         """業務要求と同じ本人解決で、現在のアカウントと法人権限を確認する。"""
         async with PostgresUnitOfWork(self._sessions) as work:
             resolver = ResolveActorUseCase(
-                PostgresAccountPersonRepository(work),
-                PostgresUserAccountRepository(work),
-                PostgresCorporateMembershipRepository(work),
+                reader=ResolveActorProjection(
+                    PostgresAccountPersonRepository(work),
+                    PostgresUserAccountRepository(work),
+                    PostgresCorporateMembershipRepository(work),
+                )
             )
             try:
                 await resolver.execute(VerifiedSubject(principal_id=subject))

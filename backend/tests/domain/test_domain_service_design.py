@@ -16,7 +16,7 @@ from typing import Any
 import pytest
 
 import app.domain
-from app.application.composition.organization_snapshot_mapping import (
+from app.application.composition.adapters.organization_snapshot_mapping import (
     manager_staff_source,
     staff_store_source,
 )

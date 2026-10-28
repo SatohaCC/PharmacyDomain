@@ -20,8 +20,8 @@ from fastapi import FastAPI
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.access_control.models import ActorRole
-from app.application.identity.resolve_actor import VerifiedSubject
+from app.application.access_control.boundary_models import ActorRole
+from app.application.identity.boundary_models import VerifiedSubject
 from app.bootstrap import create_app
 from app.dev_main import build_actor_provider
 from app.domain.store.primitives import StoreStatus, StoreStatusReason

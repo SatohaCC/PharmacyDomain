@@ -6,18 +6,18 @@ from datetime import date
 
 import pytest
 
-from app.application.composition.organization_snapshot_mapping import (
+from app.application.composition.adapters.organization_snapshot_mapping import (
     StaffStoreAdapter,
 )
-from app.application.staff.activate_staff import (
+from app.application.staff.commands.activate_staff import (
     ActivateStaffCommand,
     ActivateStaffUseCase,
 )
-from app.application.staff.deactivate_staff import (
+from app.application.staff.commands.deactivate_staff import (
     DeactivateStaffCommand,
     DeactivateStaffUseCase,
 )
-from app.application.staff.transfer_home_store import (
+from app.application.staff.commands.transfer_staff_home_store import (
     TransferStaffHomeStoreCommand,
     TransferStaffHomeStoreUseCase,
 )

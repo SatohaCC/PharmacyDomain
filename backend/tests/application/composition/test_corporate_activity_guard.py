@@ -2,10 +2,10 @@
 
 import pytest
 
-from app.application.composition.corporate_activity_guard import (
+from app.application.composition.adapters.corporate_activity_guard import (
     CorporateActivityWriteGuard,
 )
-from app.application.corporate.exceptions import (
+from app.application.corporate.errors import (
     CorporateInactiveError,
     CorporateNotFoundError,
 )

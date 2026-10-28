@@ -6,11 +6,11 @@ from datetime import date
 
 import pytest
 
-from app.application.composition.organization_snapshot_mapping import (
+from app.application.composition.adapters.organization_snapshot_mapping import (
     StaffStoreAdapter,
 )
-from app.application.corporate.exceptions import CorporateInactiveError
-from app.application.staff.register_staff import (
+from app.application.corporate.errors import CorporateInactiveError
+from app.application.staff.commands.register_staff import (
     RegisterStaffCommand,
     RegisterStaffUseCase,
 )

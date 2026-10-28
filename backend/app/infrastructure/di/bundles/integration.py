@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from app.application.common.clock import Clock
-from app.application.composition.use_case_bundles import (
+from app.application.composition.registry import (
     DispensingUseCases,
     IntegrationUseCases,
     PatientUseCases,
     PrescriptionUseCases,
 )
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.integration.nsips.ingest_nsips import IngestNsipsUseCase
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.integration.commands.ingest_nsips import IngestNsipsUseCase
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )

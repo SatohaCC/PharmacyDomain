@@ -1,9 +1,4 @@
-"""Application層で共通に使う基底例外定義。
-
-ユースケースの実行時に発生するエラー（リソース不在、権限不足など）を扱う。
-ドメイン層（業務ルール違反）とは責務を分離し、プレゼンテーション層（Web API）
-において HTTP 404 や 403 などのステータスコードへ対応付ける。
-"""
+"""Applicationのexceptionsを定義する。"""
 
 from __future__ import annotations
 
@@ -14,12 +9,7 @@ class ApplicationError(Exception):
     default_message: str = "アプリケーションエラーが発生しました。"
     default_code: str = "APPLICATION_ERROR"
 
-    def __init__(
-        self,
-        message: str | None = None,
-        *,
-        code: str | None = None,
-    ) -> None:
+    def __init__(self, message: str | None = None, *, code: str | None = None) -> None:
         """カスタムメッセージやエラーコードを指定して例外を初期化する。"""
         resolved_message = message if message is not None else self.default_message
         super().__init__(resolved_message)

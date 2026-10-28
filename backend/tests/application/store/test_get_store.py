@@ -4,15 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.store.exceptions import StoreNotFoundError
-from app.application.store.get_store import (
-    GetStoreQuery,
-    GetStoreUseCase,
-    StoreDto,
-)
+from app.application.store.errors import StoreNotFoundError
+from app.application.store.queries.dtos.get_store import StoreDto
+from app.application.store.queries.get_store import GetStoreUseCase
+from app.application.store.queries.models import GetStoreQuery
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.store.identifiers import StoreId
+from app.infrastructure.readers.store_get_store import GetStoreProjection
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.application.store.helpers import save_store
 from tests.factories.store_factory import VALID_INSURANCE_NUMBER
@@ -29,7 +28,10 @@ async def test_get_store_returns_dto() -> None:
         code="ST-001",
         insurance_pharmacy_number=VALID_INSURANCE_NUMBER,
     )
-    use_case = GetStoreUseCase(repository, create_vendor_corporate_access())
+    use_case = GetStoreUseCase(
+        reader=GetStoreProjection(repository),
+        corporate_access=create_vendor_corporate_access(),
+    )
 
     # Act
     actual = await use_case.execute(
@@ -63,7 +65,10 @@ async def test_get_store_hides_store_of_another_corporate() -> None:
     # Arrange: 他法人の店舗は「存在しない」と同じ扱いにし、存在の推測を許さない
     repository = InMemoryStoreRepository()
     store = await save_store(repository, corporate_id=CorporateId.generate())
-    use_case = GetStoreUseCase(repository, create_vendor_corporate_access())
+    use_case = GetStoreUseCase(
+        reader=GetStoreProjection(repository),
+        corporate_access=create_vendor_corporate_access(),
+    )
 
     # Act / Assert
     with pytest.raises(StoreNotFoundError):
@@ -78,7 +83,10 @@ async def test_get_store_hides_store_of_another_corporate() -> None:
 async def test_get_store_raises_when_store_does_not_exist() -> None:
     # Arrange
     repository = InMemoryStoreRepository()
-    use_case = GetStoreUseCase(repository, create_vendor_corporate_access())
+    use_case = GetStoreUseCase(
+        reader=GetStoreProjection(repository),
+        corporate_access=create_vendor_corporate_access(),
+    )
 
     # Act / Assert
     with pytest.raises(StoreNotFoundError):
@@ -93,7 +101,10 @@ async def test_get_store_raises_when_store_does_not_exist() -> None:
 async def test_get_store_raises_validation_error_for_malformed_id() -> None:
     # Arrange: 未検出（404相当）と入力値エラー（400相当）が区別されること
     repository = InMemoryStoreRepository()
-    use_case = GetStoreUseCase(repository, create_vendor_corporate_access())
+    use_case = GetStoreUseCase(
+        reader=GetStoreProjection(repository),
+        corporate_access=create_vendor_corporate_access(),
+    )
 
     # Act / Assert
     with pytest.raises(DomainValidationError):

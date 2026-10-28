@@ -5,18 +5,25 @@ from datetime import UTC, date, datetime, time, timedelta, timezone
 
 import pytest
 
-from app.application.store.business_hours import (
+from app.application.store.commands.change_store_business_hours import (
+    ChangeStoreBusinessHoursUseCase,
+)
+from app.application.store.commands.models import (
     BusinessDayExceptionInput,
     BusinessHourSlotInput,
     ChangeStoreBusinessHoursCommand,
-    ChangeStoreBusinessHoursUseCase,
-    GetStoreOpeningStatusUseCase,
-    StoreOpeningStatusQuery,
     WeekdayBusinessHoursInput,
 )
+from app.application.store.queries.get_store_opening_status import (
+    GetStoreOpeningStatusUseCase,
+)
+from app.application.store.queries.models import StoreOpeningStatusQuery
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.store.entities import Store
 from app.domain.store.primitives import BusinessWeekday, StoreOpeningState, StoreStatus
+from app.infrastructure.readers.store_get_store_opening_status import (
+    GetStoreOpeningStatusProjection,
+)
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.factories.store_factory import create_store
 from tests.fakes.fake_clock import FakeClock
@@ -68,7 +75,8 @@ def _status_use_case(
     stores: InMemoryStoreRepository, now: datetime
 ) -> GetStoreOpeningStatusUseCase:
     return GetStoreOpeningStatusUseCase(
-        stores, create_vendor_corporate_access(), FakeClock(now)
+        reader=GetStoreOpeningStatusProjection(stores, FakeClock(now)),
+        corporate_access=create_vendor_corporate_access(),
     )
 
 

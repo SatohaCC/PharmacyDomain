@@ -12,13 +12,13 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.application.prescription.exceptions import (
+from app.application.prescription.errors import (
     PrescriptionCoverageSelectionNotFoundError,
     PrescriptionPatientNotFoundError,
     PrescriptionPharmacistNotFoundError,
     PrescriptionStoreNotFoundError,
 )
-from app.application.prescription.reference import (
+from app.application.prescription.interfaces.references import (
     MedicineRestrictionBoundary,
     PatientReferenceBoundary,
     PublicExpenseAvailabilityBoundary,

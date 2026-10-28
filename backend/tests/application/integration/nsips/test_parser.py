@@ -7,8 +7,8 @@ from decimal import Decimal
 
 import pytest
 
-from app.application.integration.nsips.exceptions import NsipsParseError
-from app.application.integration.nsips.parser import NsipsParser
+from app.application.integration.commands.services.parser import NsipsParser
+from app.application.integration.errors import NsipsParseError
 
 _SYNTHETIC_NSIPS_INPUT = """
 1,20260921,DOC-001,1310001,中央診療所,01,内科,佐藤医師

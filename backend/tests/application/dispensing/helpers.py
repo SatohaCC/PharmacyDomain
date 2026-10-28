@@ -5,28 +5,32 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from app.application.access_control.models import ActorContext
-from app.application.access_control.policy import AuthorizationService
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.dispensing.complete_dispensing import CompleteDispensingUseCase
-from app.application.dispensing.get_dispensing import GetDispensingUseCase
-from app.application.dispensing.inputs import (
+from app.application.access_control.boundary_models import ActorContext
+from app.application.access_control.policies import AuthorizationService
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.dispensing.commands.complete_dispensing import (
+    CompleteDispensingUseCase,
+)
+from app.application.dispensing.commands.models import (
     DispensedMedicineInput,
     DispensedRpInput,
+    StartDispensingCommand,
     SubstitutionInput,
 )
-from app.application.dispensing.list_dispensings_by_prescription import (
-    ListDispensingsByPrescriptionUseCase,
-)
-from app.application.dispensing.record_audit import RecordAuditUseCase
-from app.application.dispensing.record_dispensed_content import (
+from app.application.dispensing.commands.record_audit import RecordAuditUseCase
+from app.application.dispensing.commands.record_dispensed_content import (
     RecordDispensedContentUseCase,
 )
-from app.application.dispensing.start_dispensing import (
-    StartDispensingCommand,
-    StartDispensingUseCase,
+from app.application.dispensing.commands.start_dispensing import StartDispensingUseCase
+from app.application.dispensing.commands.verify_dispensing import (
+    VerifyDispensingUseCase,
 )
-from app.application.dispensing.verify_dispensing import VerifyDispensingUseCase
+from app.application.dispensing.queries.get_dispensing import GetDispensingUseCase
+from app.application.dispensing.queries.list_dispensings_by_prescription import (
+    ListDispensingsByPrescriptionUseCase,
+)
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.primitives import MedicineCodeType
 from app.domain.dispensing.services import (
@@ -39,6 +43,10 @@ from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import PharmacistLicenseNumber
 from app.domain.staff.value_objects import PharmacistProfile, StaffQualifications
 from app.domain.store.identifiers import StoreId
+from app.infrastructure.readers.dispensing_get_dispensing import GetDispensingProjection
+from app.infrastructure.readers.dispensing_list_dispensings_by_prescription import (
+    ListDispensingsByPrescriptionProjection,
+)
 from tests.application.access_helpers import (
     AutoProvisioningCorporateRepository,
     create_vendor_corporate_access_for,
@@ -250,9 +258,13 @@ def create_fixture(*, prescription: Prescription | None = None) -> DispensingFix
         complete=CompleteDispensingUseCase(
             repository, corporate_access, prescription_source, NullUnitOfWork(), clock
         ),
-        get=GetDispensingUseCase(repository, corporate_access),
+        get=GetDispensingUseCase(
+            reader=GetDispensingProjection(repository),
+            corporate_access=corporate_access,
+        ),
         list_by_prescription=ListDispensingsByPrescriptionUseCase(
-            repository, corporate_access
+            reader=ListDispensingsByPrescriptionProjection(repository),
+            corporate_access=corporate_access,
         ),
         repository=repository,
         corporate_repository=corporate_repository,

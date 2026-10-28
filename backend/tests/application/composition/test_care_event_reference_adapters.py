@@ -6,8 +6,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.application.access_control.exceptions import TenantBoundaryNotFoundError
-from app.application.composition.care_event_references import (
+from app.application.access_control.errors import TenantBoundaryNotFoundError
+from app.application.composition.adapters.care_event_references import (
     EventMedicationHistoryReferenceAdapter,
     EventPatientReferenceAdapter,
     EventReceptionReferenceAdapter,

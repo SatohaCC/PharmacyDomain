@@ -4,24 +4,27 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.access_control.models import (
+from app.application.access_control.boundary_models import (
     ActorContext,
     ActorRole,
     ResolvedActorContext,
 )
-from app.application.access_control.policy import AuthorizationService
-from app.application.care_event.event_definition import (
+from app.application.access_control.policies import AuthorizationService
+from app.application.care_event.commands.create_event_definition import (
     CreateEventDefinitionCommand,
     CreateEventDefinitionUseCase,
-    ListEventDefinitionsUseCase,
+)
+from app.application.care_event.commands.update_event_definition import (
     UpdateEventDefinitionCommand,
     UpdateEventDefinitionUseCase,
 )
-from app.application.common.exceptions import (
-    ApplicationError,
-    AuthorizationError,
+from app.application.care_event.queries.list_event_definitions import (
+    ListEventDefinitionsUseCase,
 )
-from app.application.corporate.corporate_access import CorporateAccessService
+from app.application.common.exceptions import ApplicationError, AuthorizationError
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
 from app.domain.care_event.entities import EventDefinition
 from app.domain.care_event.identifiers import EventTypeId
 from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
@@ -30,6 +33,9 @@ from app.domain.foundation.exceptions import DomainError
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.identifiers import StaffId
 from app.domain.store.identifiers import StoreId
+from app.infrastructure.readers.care_event_list_event_definitions import (
+    ListEventDefinitionsProjection,
+)
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.fakes.in_memory_event_definition_repository import (
     InMemoryEventDefinitionRepository,
@@ -184,8 +190,10 @@ async def test_tc45_07_店舗閲覧者には標準と自法人種別だけを返
     for definition in definitions:
         await repository.save(definition)
     use_case = ListEventDefinitionsUseCase(
-        repository,
-        _access(_store_actor(corporate_id=corporate_id, role=ActorRole.STORE_VIEWER)),
+        reader=ListEventDefinitionsProjection(repository),
+        corporate_access=_access(
+            _store_actor(corporate_id=corporate_id, role=ActorRole.STORE_VIEWER)
+        ),
     )
 
     actual = await use_case.execute(str(corporate_id.value))

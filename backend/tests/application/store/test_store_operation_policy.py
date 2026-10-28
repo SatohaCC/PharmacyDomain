@@ -11,13 +11,15 @@ from dataclasses import replace
 
 import pytest
 
-from app.application.access_control.store_access import (
+from app.application.access_control.interfaces.store_operations import (
     MANAGER_REQUIRED_BY_KIND,
     STORE_OPERATION_KINDS,
     StoreOperation,
     StoreOperationKind,
 )
-from app.application.composition.store_operation_adapter import StoreOperationAdapter
+from app.application.composition.adapters.store_operation_adapter import (
+    StoreOperationAdapter,
+)
 from app.domain.store.exceptions import (
     ManagerAbsenceConflictError,
     StoreStateConflictError,

@@ -4,13 +4,17 @@ from dataclasses import replace
 
 import pytest
 
-from app.application.access_control.models import ActorContext
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.boundary_models import ActorContext
+from app.application.access_control.policies import AuthorizationService
 from app.application.common.exceptions import NotFoundError
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.identity.local_authentication import CredentialWriter
-from app.application.identity.register_local_user import (
-    RegisterLocalUserCommand,
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.identity.boundary_interfaces.local_authentication import (
+    CredentialWriter,
+)
+from app.application.identity.commands.models import RegisterLocalUserCommand
+from app.application.identity.commands.register_local_user import (
     RegisterLocalUserUseCase,
 )
 from app.domain.corporate.identifiers import CorporateId

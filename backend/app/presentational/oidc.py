@@ -18,7 +18,7 @@ from typing import Any, Protocol
 
 import jwt
 
-from app.application.identity.resolve_actor import VerifiedSubject
+from app.application.identity.boundary_models import VerifiedSubject
 from app.presentational.authentication import VerifiedSubjectProvider
 from app.presentational.exceptions import AuthenticationError
 

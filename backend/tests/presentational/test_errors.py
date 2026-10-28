@@ -20,10 +20,8 @@ import pytest
 import app.application
 import app.domain
 from app.application.common.exceptions import ApplicationError, AuthorizationError
-from app.application.integration.nsips.exceptions import (
-    NsipsPatientIdentityConflictError,
-)
-from app.application.store.exceptions import StoreNotFoundError
+from app.application.integration.errors import NsipsPatientIdentityConflictError
+from app.application.store.errors import StoreNotFoundError
 from app.bootstrap import create_app
 from app.domain.foundation.exceptions import DomainError, DomainValidationError
 from app.domain.store.exceptions import StoreNameAlreadyExistsError

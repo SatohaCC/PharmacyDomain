@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
-from app.application.access_control.policy import AuthorizationService
-from app.application.composition.use_case_bundles import MedicineCatalogUseCases
-from app.application.medicine_catalog.get_medicine import GetEffectiveMedicineUseCase
-from app.application.medicine_catalog.import_yj_catalog import ImportYjCatalogUseCase
-from app.application.medicine_catalog.register_medicine import RegisterMedicineUseCase
+from app.application.access_control.policies import AuthorizationService
+from app.application.composition.registry import MedicineCatalogUseCases
+from app.application.medicine_catalog.commands.import_yj_catalog import (
+    ImportYjCatalogUseCase,
+)
+from app.application.medicine_catalog.commands.register_medicine import (
+    RegisterMedicineUseCase,
+)
+from app.application.medicine_catalog.queries.get_effective_medicine import (
+    GetEffectiveMedicineUseCase,
+)
 from app.domain.medicine_catalog.services import MedicineEffectivePeriodConflictService
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
+)
+from app.infrastructure.readers.medicine_catalog_get_effective_medicine import (
+    GetEffectiveMedicineProjection,
 )
 
 
@@ -28,7 +37,10 @@ def build_medicine_catalog_use_cases(
         register=RegisterMedicineUseCase(
             repository, authorization, MedicineEffectivePeriodConflictService()
         ),
-        get_effective=GetEffectiveMedicineUseCase(repository, authorization),
+        get_effective=GetEffectiveMedicineUseCase(
+            reader=GetEffectiveMedicineProjection(repository),
+            authorization=authorization,
+        ),
         import_yj=ImportYjCatalogUseCase(repository, authorization),
     )
 

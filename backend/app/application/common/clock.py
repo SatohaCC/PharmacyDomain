@@ -1,14 +1,11 @@
-"""現在時刻を外側から供給するためのApplication境界。"""
+"""Applicationのclockを定義する。"""
+
+from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Final, Protocol
 from zoneinfo import ZoneInfo
 
-#: 業務日を決めるタイムゾーン。
-#:
-#: 調剤も受付も日本国内の営業日で数えるため、UTCの日付では日をまたぐ前後で
-#: 別の業務日になる。各所で ``ZoneInfo("Asia/Tokyo")`` と書くと、片方だけを
-#: 直したときに「同じ今日」が経路ごとにずれる。
 BUSINESS_TIMEZONE: Final = ZoneInfo("Asia/Tokyo")
 
 
@@ -37,6 +34,3 @@ def business_date(clock: Clock) -> date:
     後から変えるときに直す場所が1つで済む。
     """
     return business_now(clock).date()
-
-
-__all__ = ["BUSINESS_TIMEZONE", "Clock", "business_date", "business_now"]

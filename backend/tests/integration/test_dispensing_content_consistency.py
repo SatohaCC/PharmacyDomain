@@ -8,17 +8,19 @@ from datetime import date
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.access_control.models import ResolvedActorContext
-from app.application.access_control.policy import AuthorizationService
-from app.application.dispensing.get_dispensing import GetDispensingQuery
-from app.application.dispensing.inputs import SubstitutionInput
-from app.application.dispensing.list_dispensings_by_prescription import (
-    ListDispensingsByPrescriptionQuery,
+from app.application.access_control.boundary_models import ResolvedActorContext
+from app.application.access_control.policies import AuthorizationService
+from app.application.dispensing.commands.models import (
+    StartDispensingCommand,
+    SubstitutionInput,
 )
-from app.application.dispensing.record_dispensed_content import (
+from app.application.dispensing.commands.record_dispensed_content import (
     RecordDispensedContentCommand,
 )
-from app.application.dispensing.start_dispensing import StartDispensingCommand
+from app.application.dispensing.queries.models import (
+    GetDispensingQuery,
+    ListDispensingsByPrescriptionQuery,
+)
 from app.domain.dispensing.exceptions import (
     SubstitutionOriginalMismatchError,
     SubstitutionRequiredError,

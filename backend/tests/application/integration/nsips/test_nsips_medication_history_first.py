@@ -8,22 +8,20 @@ from decimal import Decimal
 
 import pytest
 
-from app.application.access_control.policy import AuthorizationService
-from app.application.composition.care_event_references import (
+from app.application.access_control.policies import AuthorizationService
+from app.application.composition.adapters.care_event_references import (
     MedicationHistoryEventReferenceAdapter,
 )
-from app.application.composition.medication_history_references import (
+from app.application.composition.adapters.medication_history_references import (
     CounselorQualificationAdapter,
     DispensingSourceAdapter,
     MedicationHistoryStoreReferenceAdapter,
     ReceptionMedicationHistorySourceAdapter,
 )
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.integration.nsips.ingest_nsips import (
-    IngestNsipsCommand,
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
 )
-from app.application.integration.nsips.mapper import NsipsDataMapper
-from app.application.integration.nsips.models import (
+from app.application.integration.boundary_models import (
     NsipsAdditionInfo,
     NsipsBundle,
     NsipsInsuranceInfo,
@@ -32,14 +30,20 @@ from app.application.integration.nsips.models import (
     NsipsPrescriptionInfo,
     NsipsRpInfo,
 )
-from app.application.integration.nsips.parser import NsipsParser
-from app.application.medication_history.inputs import LabeledNoteInput, SoapInput
-from app.application.medication_history.start_medication_history import (
+from app.application.integration.commands.ingest_nsips import IngestNsipsCommand
+from app.application.integration.commands.services.mapper import NsipsDataMapper
+from app.application.integration.commands.services.parser import NsipsParser
+from app.application.medication_history.commands.models import (
+    LabeledNoteInput,
+    SoapInput,
+)
+from app.application.medication_history.commands.start_medication_history import (
     StartMedicationHistoryCommand,
     StartMedicationHistoryUseCase,
 )
-from app.application.patient.get_patient import GetPatientQuery, GetPatientUseCase
-from app.application.patient.register_patient import RegisterPatientUseCase
+from app.application.patient.commands.register_patient import RegisterPatientUseCase
+from app.application.patient.queries.get_patient import GetPatientUseCase
+from app.application.patient.queries.models import GetPatientQuery
 from app.domain.care_event.entities import Event
 from app.domain.care_event.identifiers import EventId, EventTypeId
 from app.domain.care_event.primitives import (
@@ -55,6 +59,7 @@ from app.domain.medication_history.services import CounselorQualificationService
 from app.domain.patient.identifiers import PatientId
 from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.reception.identifiers import ReceptionId
+from app.infrastructure.readers.patient_get_patient import GetPatientProjection
 from tests.application.access_helpers import create_vendor_corporate_access_for
 from tests.application.integration.nsips.helpers import (
     create_fixture,
@@ -522,7 +527,10 @@ async def test_tc25_患者属性がPatient登録と取得DTOまで保持され�
         and patient.phone_number.value == "03-1234-5678"
     )
 
-    query = GetPatientUseCase(fixture.patient_repo, access)
+    query = GetPatientUseCase(
+        reader=GetPatientProjection(fixture.patient_repo),
+        corporate_access=access,
+    )
     dto = await query.execute(
         GetPatientQuery(
             corporate_id=str(fixture.corporate_id.value),

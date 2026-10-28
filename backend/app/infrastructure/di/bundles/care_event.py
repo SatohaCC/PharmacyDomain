@@ -2,27 +2,42 @@
 
 from __future__ import annotations
 
-from app.application.care_event.create_event import CreateEventUseCase
-from app.application.care_event.event_definition import (
+from app.application.care_event.commands.create_event import CreateEventUseCase
+from app.application.care_event.commands.create_event_definition import (
     CreateEventDefinitionUseCase,
-    ListEventDefinitionsUseCase,
+)
+from app.application.care_event.commands.update_event_definition import (
     UpdateEventDefinitionUseCase,
 )
-from app.application.care_event.get_event import GetEventUseCase
-from app.application.care_event.list_related_candidates import (
+from app.application.care_event.queries.get_event import GetEventUseCase
+from app.application.care_event.queries.list_event_definitions import (
+    ListEventDefinitionsUseCase,
+)
+from app.application.care_event.queries.list_related_event_candidates import (
     ListRelatedEventCandidatesUseCase,
 )
 from app.application.common.clock import Clock
-from app.application.composition.care_event_references import (
+from app.application.composition.adapters.care_event_references import (
     EventMedicationHistoryReferenceAdapter,
     EventPatientReferenceAdapter,
     EventReceptionReferenceAdapter,
 )
-from app.application.composition.store_operation_adapter import StoreOperationAdapter
-from app.application.composition.use_case_bundles import CareEventUseCases
-from app.application.corporate.corporate_access import CorporateAccessService
+from app.application.composition.adapters.store_operation_adapter import (
+    StoreOperationAdapter,
+)
+from app.application.composition.registry import CareEventUseCases
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
+)
+from app.infrastructure.readers.care_event_get_event import GetEventProjection
+from app.infrastructure.readers.care_event_list_event_definitions import (
+    ListEventDefinitionsProjection,
+)
+from app.infrastructure.readers.care_event_list_related_event_candidates import (
+    ListRelatedEventCandidatesProjection,
 )
 
 
@@ -54,7 +69,7 @@ def build_care_event_use_cases(
             medication_history=event_medication_history,
         ),
         get=GetEventUseCase(
-            event_repository=repositories.event,
+            reader=GetEventProjection(event_repository=repositories.event),
             medication_history=event_medication_history,
             corporate_access=corporate_access,
             store_operations=store_operations,
@@ -64,15 +79,17 @@ def build_care_event_use_cases(
             corporate_access,
         ),
         list_definitions=ListEventDefinitionsUseCase(
-            repositories.event_definition,
-            corporate_access,
+            reader=ListEventDefinitionsProjection(repositories.event_definition),
+            corporate_access=corporate_access,
         ),
         update_definition=UpdateEventDefinitionUseCase(
             repositories.event_definition,
             corporate_access,
         ),
         list_related_candidates=ListRelatedEventCandidatesUseCase(
-            event_repository=repositories.event,
+            reader=ListRelatedEventCandidatesProjection(
+                event_repository=repositories.event
+            ),
             patient_boundary=event_patient,
             corporate_access=corporate_access,
             store_operations=store_operations,

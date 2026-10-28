@@ -7,7 +7,10 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.application.access_control.models import ActorRole, ResolvedActorContext
+from app.application.access_control.boundary_models import (
+    ActorRole,
+    ResolvedActorContext,
+)
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.presentational.dependencies import (

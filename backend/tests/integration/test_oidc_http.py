@@ -14,7 +14,7 @@ import pytest
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.identity.invite_user import InviteUserCommand
+from app.application.identity.commands.invite_user import InviteUserCommand
 from app.bootstrap import create_app
 from app.domain.identity.entities import UserAccount
 from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole

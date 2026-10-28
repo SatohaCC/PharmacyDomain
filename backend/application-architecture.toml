@@ -1,0 +1,62 @@
+enforced_features = ["access_control", "care_event", "composition", "corporate", "coverage", "dispensing", "identity", "integration", "medication_history", "medicine_catalog", "patient", "prescription", "reception", "staff", "store"]
+common_public_modules = ["clock", "exceptions", "input_normalization", "optional_conversion", "organization_lock", "pagination", "unit_of_work"]
+
+[features.access_control]
+depends_on = []
+public_modules = ["boundary_models", "errors", "interfaces.corporate_access", "interfaces.store_operations", "policies"]
+
+[features.care_event]
+depends_on = ["access_control"]
+public_modules = ["commands.create_event", "commands.create_event_definition", "commands.dtos.create_event", "commands.dtos.event_definition", "commands.update_event_definition", "interfaces.get_event_query_reader", "interfaces.list_event_definitions_query_reader", "interfaces.list_related_event_candidates_query_reader", "interfaces.references", "queries.dtos.create_event", "queries.dtos.event_definition", "queries.dtos.list_related_candidates", "queries.get_event", "queries.list_event_definitions", "queries.list_related_event_candidates", "queries.models"]
+
+[features.composition]
+depends_on = ["access_control", "care_event", "corporate", "coverage", "dispensing", "identity", "integration", "medication_history", "medicine_catalog", "patient", "prescription", "reception", "staff", "store"]
+public_modules = ["adapters.care_event_references", "adapters.clinical_store_guard", "adapters.corporate_activity_guard", "adapters.coverage_references", "adapters.dispensing_references", "adapters.medication_history_patient_profile", "adapters.medication_history_references", "adapters.medicine_restriction_adapter", "adapters.organization_snapshot_mapping", "adapters.patient_references", "adapters.prescription_references", "adapters.reception_medication_history", "adapters.resolved_actor_guard", "adapters.staff_integrity", "adapters.staff_person_adapter", "adapters.store_operation_adapter", "commands.register_contract", "errors", "registry", "runtime"]
+
+[features.corporate]
+depends_on = ["access_control"]
+public_modules = ["commands.change_corporate_name", "commands.change_corporate_status", "commands.change_representative", "commands.models", "commands.register_corporate", "commands.services.corporate_access", "commands.services.support", "interfaces.list_corporates_query_reader", "queries.dtos.get_corporate", "queries.dtos.list_corporates", "queries.get_corporate", "queries.list_corporates", "queries.models"]
+
+[features.coverage]
+depends_on = ["access_control"]
+public_modules = ["commands.change_patient_coverage_period", "commands.deactivate_patient_coverage", "commands.dtos.get_coverage_selection", "commands.dtos.get_patient_coverage", "commands.record_coverage_selection", "commands.register_patient_coverage", "commands.services.selection", "errors", "interfaces.get_last_coverage_selection_query_reader", "interfaces.get_patient_coverage_query_reader", "interfaces.list_patient_coverages_query_reader", "interfaces.references", "queries.dtos.get_coverage_selection", "queries.dtos.get_last_coverage_selection", "queries.dtos.get_patient_coverage", "queries.get_last_coverage_selection", "queries.get_patient_coverage", "queries.list_patient_coverages", "queries.models"]
+
+[features.dispensing]
+depends_on = ["access_control"]
+public_modules = ["commands.complete_dispensing", "commands.dtos.get_dispensing", "commands.models", "commands.record_audit", "commands.record_dispensed_content", "commands.services.source_mapping", "commands.services.support", "commands.start_dispensing", "commands.verify_dispensing", "errors", "interfaces.get_dispensing_query_reader", "interfaces.list_dispensings_by_prescription_query_reader", "interfaces.references", "queries.dtos.get_dispensing", "queries.get_dispensing", "queries.list_dispensings_by_prescription", "queries.models"]
+
+[features.identity]
+depends_on = ["access_control"]
+public_modules = ["boundary_interfaces.local_authentication", "boundary_models", "commands.accept_invitation", "commands.cancel_invitation", "commands.change_membership", "commands.dtos.identity_views", "commands.dtos.registration_results", "commands.invite_user", "commands.link_staff_person", "commands.models", "commands.reactivate_account", "commands.register_local_user", "commands.register_person", "commands.services.invitation_access", "commands.services.repositories", "commands.suspend_account", "errors", "interfaces.get_invitation_query_reader", "interfaces.get_user_query_reader", "interfaces.list_users_query_reader", "interfaces.resolve_actor_query_reader", "queries.dtos.identity_views", "queries.get_invitation", "queries.get_user", "queries.list_users", "queries.resolve_actor"]
+
+[features.integration]
+depends_on = ["access_control", "dispensing", "patient", "prescription"]
+public_modules = ["boundary_models", "commands.dtos.ingest_nsips", "commands.ingest_nsips", "errors"]
+
+[features.medication_history]
+depends_on = ["access_control"]
+public_modules = ["commands.amend_medication_history", "commands.correct_medication_history_fact", "commands.dtos.category_catalog", "commands.dtos.get_medication_history", "commands.dtos.get_patient_medical_profile", "commands.dtos.reference", "commands.ensure_category_catalog", "commands.finalize_medication_history", "commands.models", "commands.rebuild_patient_medical_profile", "commands.record_tracing_report", "commands.record_tracing_report_response", "commands.review_external_prescription_correction", "commands.services.profile_projection_service", "commands.start_medication_history", "commands.update_category_catalog", "commands.update_medication_history_draft", "errors", "interfaces.get_follow_up_source_query_reader", "interfaces.get_medication_history_query_reader", "interfaces.get_medication_history_view_query_reader", "interfaces.get_medication_history_view_reader", "interfaces.get_patient_medical_profile_query_reader", "interfaces.list_medication_histories_by_patient_query_reader", "interfaces.list_pending_external_corrections_query_reader", "interfaces.references", "interfaces.verify_statutory_record_query_reader", "queries.dtos.get_medication_history", "queries.dtos.get_medication_history_view", "queries.dtos.get_patient_medical_profile", "queries.dtos.list_pending_external_corrections", "queries.dtos.verify_statutory_record", "queries.get_follow_up_source", "queries.get_medication_history", "queries.get_medication_history_view", "queries.get_patient_medical_profile", "queries.list_medication_histories_by_patient", "queries.list_pending_external_corrections", "queries.models", "queries.services.list_pending_external_corrections", "queries.services.statutory_projection", "queries.verify_statutory_record", "values"]
+
+[features.medicine_catalog]
+depends_on = ["access_control"]
+public_modules = ["commands.dtos.get_medicine", "commands.dtos.import_yj_catalog", "commands.import_yj_catalog", "commands.register_medicine", "errors", "interfaces.get_effective_medicine_query_reader", "queries.dtos.get_medicine", "queries.get_effective_medicine", "queries.models", "values"]
+
+[features.patient]
+depends_on = ["access_control"]
+public_modules = ["commands.change_patient_birth_date", "commands.change_patient_heading", "commands.change_patient_names", "commands.change_patient_profile", "commands.deactivate_patient", "commands.deactivate_patient_external_identifier", "commands.dtos.get_patient_heading", "commands.dtos.merge_patients", "commands.dtos.register_patient_external_identifier", "commands.merge_patients", "commands.models", "commands.reactivate_patient", "commands.register_patient", "commands.register_patient_external_identifier", "commands.services.support", "errors", "interfaces.get_patient_external_identifier_query_reader", "interfaces.get_patient_heading_query_reader", "interfaces.get_patient_query_reader", "interfaces.list_patient_external_identifiers_query_reader", "interfaces.references", "queries.dtos.get_patient", "queries.dtos.get_patient_heading", "queries.dtos.register_patient_external_identifier", "queries.get_patient", "queries.get_patient_external_identifier", "queries.get_patient_heading", "queries.list_patient_external_identifiers", "queries.models", "queries.services.get_patient_heading"]
+
+[features.prescription]
+depends_on = ["access_control"]
+public_modules = ["commands.audit_drug_interactions", "commands.cancel_prescription", "commands.dtos.audit_interactions", "commands.dtos.get_prescription", "commands.models", "commands.ready_for_dispensing", "commands.register_prescription", "commands.resolve_inquiry", "commands.services.support", "commands.start_inquiry", "errors", "interfaces.get_prescription_query_reader", "interfaces.references", "queries.dtos.get_prescription", "queries.get_prescription", "queries.models"]
+
+[features.reception]
+depends_on = ["access_control"]
+public_modules = ["commands.associate_reception_medication_history", "interfaces.references", "values"]
+
+[features.staff]
+depends_on = ["access_control", "store"]
+public_modules = ["commands.activate_staff", "commands.assign_staff_concurrent_store", "commands.change_staff_job_title", "commands.change_staff_names", "commands.deactivate_staff", "commands.register_staff", "commands.remove_staff_concurrent_store", "commands.transfer_staff_home_store", "commands.update_staff_qualifications", "errors", "interfaces.access_revocation", "interfaces.get_staff_query_reader", "interfaces.list_staffs_query_reader", "interfaces.references", "queries.dtos.get_staff", "queries.dtos.list_staffs", "queries.get_staff", "queries.list_staffs", "queries.models"]
+
+[features.store]
+depends_on = ["access_control"]
+public_modules = ["commands.change_insurance_pharmacy_number", "commands.change_store_address", "commands.change_store_business_hours", "commands.change_store_code", "commands.change_store_contact_info", "commands.change_store_names", "commands.change_store_status", "commands.dtos.business_hours", "commands.dtos.get_store", "commands.dtos.management", "commands.manage_store_manager", "commands.models", "commands.register_store", "commands.revoke_store_closure", "errors", "interfaces.get_store_opening_status_query_reader", "interfaces.get_store_query_reader", "interfaces.list_stores_query_reader", "interfaces.management", "interfaces.references", "queries.dtos.business_hours", "queries.dtos.get_store", "queries.dtos.list_stores", "queries.get_store", "queries.get_store_opening_status", "queries.list_stores", "queries.models", "queries.services.business_hours"]

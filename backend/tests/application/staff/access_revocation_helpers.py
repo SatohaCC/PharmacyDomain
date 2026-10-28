@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from app.application.composition.staff_integrity import StaffAccessRevocationService
+from app.application.composition.adapters.staff_integrity import (
+    StaffAccessRevocationService,
+)
 from tests.fakes.fake_organization_management import FakeOrganizationLock
 from tests.fakes.in_memory_identity_repositories import (
     InMemoryCorporateMembershipRepository,

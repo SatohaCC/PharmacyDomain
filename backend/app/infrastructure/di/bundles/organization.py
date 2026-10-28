@@ -5,66 +5,86 @@
 
 from __future__ import annotations
 
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.policies import AuthorizationService
 from app.application.common.clock import Clock
-from app.application.composition.organization_snapshot_mapping import (
+from app.application.composition.adapters.organization_snapshot_mapping import (
     ManagerStaffAdapter,
     StaffStoreAdapter,
 )
-from app.application.composition.staff_integrity import (
+from app.application.composition.adapters.staff_integrity import (
     StaffAccessRevocationService,
 )
-from app.application.composition.staff_person_adapter import StaffPersonAdapter
-from app.application.composition.use_case_bundles import (
+from app.application.composition.adapters.staff_person_adapter import StaffPersonAdapter
+from app.application.composition.registry import (
     CorporateUseCases,
     StaffUseCases,
     StoreUseCases,
 )
-from app.application.corporate.change_corporate_name import ChangeCorporateNameUseCase
-from app.application.corporate.change_corporate_status import (
+from app.application.corporate.commands.change_corporate_name import (
+    ChangeCorporateNameUseCase,
+)
+from app.application.corporate.commands.change_corporate_status import (
     ChangeCorporateStatusUseCase,
 )
-from app.application.corporate.change_representative import ChangeRepresentativeUseCase
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.corporate.get_corporate import GetCorporateUseCase
-from app.application.corporate.list_corporates import ListCorporatesUseCase
-from app.application.corporate.register_corporate import RegisterCorporateUseCase
-from app.application.staff.activate_staff import ActivateStaffUseCase
-from app.application.staff.assign_concurrent_store import (
+from app.application.corporate.commands.change_representative import (
+    ChangeRepresentativeUseCase,
+)
+from app.application.corporate.commands.register_corporate import (
+    RegisterCorporateUseCase,
+)
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.corporate.queries.get_corporate import GetCorporateUseCase
+from app.application.corporate.queries.list_corporates import ListCorporatesUseCase
+from app.application.staff.commands.activate_staff import ActivateStaffUseCase
+from app.application.staff.commands.assign_staff_concurrent_store import (
     AssignStaffConcurrentStoreUseCase,
 )
-from app.application.staff.change_staff_job_title import ChangeStaffJobTitleUseCase
-from app.application.staff.change_staff_names import ChangeStaffNamesUseCase
-from app.application.staff.deactivate_staff import DeactivateStaffUseCase
-from app.application.staff.get_staff import GetStaffUseCase
-from app.application.staff.list_staffs import ListStaffsUseCase
-from app.application.staff.register_staff import RegisterStaffUseCase
-from app.application.staff.remove_concurrent_store import (
+from app.application.staff.commands.change_staff_job_title import (
+    ChangeStaffJobTitleUseCase,
+)
+from app.application.staff.commands.change_staff_names import ChangeStaffNamesUseCase
+from app.application.staff.commands.deactivate_staff import DeactivateStaffUseCase
+from app.application.staff.commands.register_staff import RegisterStaffUseCase
+from app.application.staff.commands.remove_staff_concurrent_store import (
     RemoveStaffConcurrentStoreUseCase,
 )
-from app.application.staff.transfer_home_store import TransferStaffHomeStoreUseCase
-from app.application.staff.update_qualifications import UpdateStaffQualificationsUseCase
-from app.application.store.business_hours import (
-    ChangeStoreBusinessHoursUseCase,
-    GetStoreOpeningStatusUseCase,
+from app.application.staff.commands.transfer_staff_home_store import (
+    TransferStaffHomeStoreUseCase,
 )
-from app.application.store.change_insurance_pharmacy_number import (
+from app.application.staff.commands.update_staff_qualifications import (
+    UpdateStaffQualificationsUseCase,
+)
+from app.application.staff.queries.get_staff import GetStaffUseCase
+from app.application.staff.queries.list_staffs import ListStaffsUseCase
+from app.application.store.commands.change_insurance_pharmacy_number import (
     ChangeInsurancePharmacyNumberUseCase,
 )
-from app.application.store.change_store_address import ChangeStoreAddressUseCase
-from app.application.store.change_store_code import ChangeStoreCodeUseCase
-from app.application.store.change_store_contact_info import (
+from app.application.store.commands.change_store_address import (
+    ChangeStoreAddressUseCase,
+)
+from app.application.store.commands.change_store_business_hours import (
+    ChangeStoreBusinessHoursUseCase,
+)
+from app.application.store.commands.change_store_code import ChangeStoreCodeUseCase
+from app.application.store.commands.change_store_contact_info import (
     ChangeStoreContactInfoUseCase,
 )
-from app.application.store.change_store_name import ChangeStoreNamesUseCase
-from app.application.store.get_store import GetStoreUseCase
-from app.application.store.list_stores import ListStoresUseCase
-from app.application.store.management import (
-    ChangeStoreStatusUseCase,
+from app.application.store.commands.change_store_names import ChangeStoreNamesUseCase
+from app.application.store.commands.change_store_status import ChangeStoreStatusUseCase
+from app.application.store.commands.manage_store_manager import (
     ManageStoreManagerUseCase,
+)
+from app.application.store.commands.register_store import RegisterStoreUseCase
+from app.application.store.commands.revoke_store_closure import (
     RevokeStoreClosureUseCase,
 )
-from app.application.store.register_store import RegisterStoreUseCase
+from app.application.store.queries.get_store import GetStoreUseCase
+from app.application.store.queries.get_store_opening_status import (
+    GetStoreOpeningStatusUseCase,
+)
+from app.application.store.queries.list_stores import ListStoresUseCase
 from app.domain.corporate.services import CorporateNameUniquenessService
 from app.domain.staff.services import (
     StaffCodeUniquenessService,
@@ -80,6 +100,16 @@ from app.infrastructure.di.repositories import (
 )
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.organization_lock import PostgresOrganizationLock
+from app.infrastructure.readers.corporate_list_corporates import (
+    ListCorporatesProjection,
+)
+from app.infrastructure.readers.staff_get_staff import GetStaffProjection
+from app.infrastructure.readers.staff_list_staffs import ListStaffsProjection
+from app.infrastructure.readers.store_get_store import GetStoreProjection
+from app.infrastructure.readers.store_get_store_opening_status import (
+    GetStoreOpeningStatusProjection,
+)
+from app.infrastructure.readers.store_list_stores import ListStoresProjection
 from app.infrastructure.store.postgres.work_boundary import PostgresStoreWorkBoundary
 
 # --------------------------------------------------------------------------
@@ -97,7 +127,8 @@ def build_corporate_use_cases(
     uniqueness = CorporateNameUniquenessService(repository)
     return CorporateUseCases(
         list=ListCorporatesUseCase(
-            repository, AuthorizationService(corporate_access.actor)
+            reader=ListCorporatesProjection(repository),
+            authorization=AuthorizationService(corporate_access.actor),
         ),
         register=RegisterCorporateUseCase(repository, uniqueness, corporate_access),
         get=GetCorporateUseCase(corporate_access),
@@ -161,8 +192,14 @@ def build_store_use_cases(
             number_uniqueness,
             corporate_access,
         ),
-        get=GetStoreUseCase(repository, corporate_access),
-        list_by_corporate=ListStoresUseCase(repository, corporate_access),
+        get=GetStoreUseCase(
+            reader=GetStoreProjection(repository),
+            corporate_access=corporate_access,
+        ),
+        list_by_corporate=ListStoresUseCase(
+            reader=ListStoresProjection(repository),
+            corporate_access=corporate_access,
+        ),
         change_names=ChangeStoreNamesUseCase(
             repository, name_uniqueness, corporate_access
         ),
@@ -178,7 +215,8 @@ def build_store_use_cases(
             repository, corporate_access
         ),
         opening_status=GetStoreOpeningStatusUseCase(
-            repository, corporate_access, clock
+            reader=GetStoreOpeningStatusProjection(repository, clock),
+            corporate_access=corporate_access,
         ),
     )
 
@@ -215,8 +253,15 @@ def build_staff_use_cases(
             assignment,
             corporate_access,
         ),
-        get=GetStaffUseCase(staff_repository, corporate_access, clock),
-        list_by_corporate=ListStaffsUseCase(repositories.staff, corporate_access),
+        get=GetStaffUseCase(
+            reader=GetStaffProjection(staff_repository),
+            corporate_access=corporate_access,
+            clock=clock,
+        ),
+        list_by_corporate=ListStaffsUseCase(
+            reader=ListStaffsProjection(repositories.staff),
+            corporate_access=corporate_access,
+        ),
         change_names=ChangeStaffNamesUseCase(staff_repository, corporate_access),
         change_job_title=ChangeStaffJobTitleUseCase(staff_repository, corporate_access),
         update_qualifications=UpdateStaffQualificationsUseCase(

@@ -6,12 +6,12 @@ AGENTS.md「Boundaryの例外契約」が求める「定義だけで raise さ�
 
 from __future__ import annotations
 
-from app.application.coverage.exceptions import (
+from app.application.coverage.errors import (
     CoveragePatientNotFoundError,
     CoverageSelectionError,
     CoverageStoreNotFoundError,
 )
-from app.application.coverage.reference import (
+from app.application.coverage.interfaces.references import (
     CoverageSelectionBoundary,
     CoverageValidityBoundary,
     PatientReferenceBoundary,

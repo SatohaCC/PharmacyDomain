@@ -12,21 +12,29 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Depends
 
-from app.application.coverage.change_patient_coverage_period import (
+from app.application.coverage.commands.change_patient_coverage_period import (
     ChangePatientCoveragePeriodCommand,
 )
-from app.application.coverage.deactivate_patient_coverage import (
+from app.application.coverage.commands.deactivate_patient_coverage import (
     DeactivatePatientCoverageCommand,
 )
-from app.application.coverage.get_patient_coverage import (
-    GetPatientCoverageQuery,
+from app.application.coverage.commands.dtos.get_patient_coverage import (
     PatientCoverageDto,
 )
-from app.application.coverage.list_patient_coverages import ListPatientCoveragesQuery
-from app.application.coverage.register_patient_coverage import (
+from app.application.coverage.commands.register_patient_coverage import (
     RegisterPatientCoverageCommand,
 )
+from app.application.coverage.queries.dtos.get_patient_coverage import (
+    PatientCoverageDto as QueryPatientCoverageDto,
+)
+from app.application.coverage.queries.models import (
+    GetPatientCoverageQuery,
+    ListPatientCoveragesQuery,
+)
 from app.presentational.dependencies import CoverageUseCasesDep, get_actor_context
+from app.presentational.dto_mapping import (
+    to_http_coverage_get_patient_coverage__patient_coverage_dto,
+)
 from app.presentational.errors import error_responses
 from app.presentational.routing import ApplicationRoute
 from app.presentational.schemas import RequestModel
@@ -91,25 +99,27 @@ async def register_coverage(
     patient_id: str,
     body: RegisterCoverageRequest,
     use_cases: CoverageUseCasesDep,
-) -> PatientCoverageDto:
+) -> PatientCoverageDto | QueryPatientCoverageDto:
     """患者の資格を登録する。"""
-    return await use_cases.register.execute(
-        RegisterPatientCoverageCommand(
-            corporate_id=corporate_id,
-            patient_id=patient_id,
-            coverage_type=body.coverage_type,
-            valid_from=body.valid_from,
-            activated_on=body.activated_on,
-            valid_to=body.valid_to,
-            priority=body.priority,
-            insurer_number=body.insurer_number,
-            insured_symbol=body.insured_symbol,
-            insured_number=body.insured_number,
-            branch_number=body.branch_number,
-            insured_type=body.insured_type,
-            benefit_ratio=body.benefit_ratio,
-            payer_number=body.payer_number,
-            recipient_number=body.recipient_number,
+    return to_http_coverage_get_patient_coverage__patient_coverage_dto(
+        await use_cases.register.execute(
+            RegisterPatientCoverageCommand(
+                corporate_id=corporate_id,
+                patient_id=patient_id,
+                coverage_type=body.coverage_type,
+                valid_from=body.valid_from,
+                activated_on=body.activated_on,
+                valid_to=body.valid_to,
+                priority=body.priority,
+                insurer_number=body.insurer_number,
+                insured_symbol=body.insured_symbol,
+                insured_number=body.insured_number,
+                branch_number=body.branch_number,
+                insured_type=body.insured_type,
+                benefit_ratio=body.benefit_ratio,
+                payer_number=body.payer_number,
+                recipient_number=body.recipient_number,
+            )
         )
     )
 
@@ -122,11 +132,18 @@ async def list_coverages(
     corporate_id: str,
     patient_id: str,
     use_cases: CoverageUseCasesDep,
-) -> list[PatientCoverageDto]:
+) -> list[PatientCoverageDto] | list[QueryPatientCoverageDto]:
     """患者の資格を一覧する。"""
-    return await use_cases.list_by_patient.execute(
-        ListPatientCoveragesQuery(corporate_id=corporate_id, patient_id=patient_id)
-    )
+    return [
+        to_http_coverage_get_patient_coverage__patient_coverage_dto(item)
+        for item in (
+            await use_cases.list_by_patient.execute(
+                ListPatientCoveragesQuery(
+                    corporate_id=corporate_id, patient_id=patient_id
+                )
+            )
+        )
+    ]
 
 
 @router.get("/coverages/{coverage_id}", response_model=PatientCoverageDto)
@@ -134,10 +151,12 @@ async def get_coverage(
     corporate_id: str,
     coverage_id: str,
     use_cases: CoverageUseCasesDep,
-) -> PatientCoverageDto:
+) -> PatientCoverageDto | QueryPatientCoverageDto:
     """資格を1件取得する。"""
-    return await use_cases.get.execute(
-        GetPatientCoverageQuery(corporate_id=corporate_id, coverage_id=coverage_id)
+    return to_http_coverage_get_patient_coverage__patient_coverage_dto(
+        await use_cases.get.execute(
+            GetPatientCoverageQuery(corporate_id=corporate_id, coverage_id=coverage_id)
+        )
     )
 
 
@@ -151,14 +170,16 @@ async def change_coverage_period(
     coverage_id: str,
     body: ChangeCoveragePeriodRequest,
     use_cases: CoverageUseCasesDep,
-) -> PatientCoverageDto:
+) -> PatientCoverageDto | QueryPatientCoverageDto:
     """資格の有効期間を変更する。"""
-    return await use_cases.change_period.execute(
-        ChangePatientCoveragePeriodCommand(
-            corporate_id=corporate_id,
-            coverage_id=coverage_id,
-            valid_from=body.valid_from,
-            valid_to=body.valid_to,
+    return to_http_coverage_get_patient_coverage__patient_coverage_dto(
+        await use_cases.change_period.execute(
+            ChangePatientCoveragePeriodCommand(
+                corporate_id=corporate_id,
+                coverage_id=coverage_id,
+                valid_from=body.valid_from,
+                valid_to=body.valid_to,
+            )
         )
     )
 
@@ -173,13 +194,15 @@ async def deactivate_coverage(
     coverage_id: str,
     body: DeactivateCoverageRequest,
     use_cases: CoverageUseCasesDep,
-) -> PatientCoverageDto:
+) -> PatientCoverageDto | QueryPatientCoverageDto:
     """資格を無効化する。同じ発効日の再無効化だけを冪等として許す。"""
-    return await use_cases.deactivate.execute(
-        DeactivatePatientCoverageCommand(
-            corporate_id=corporate_id,
-            coverage_id=coverage_id,
-            effective_on=body.effective_on,
+    return to_http_coverage_get_patient_coverage__patient_coverage_dto(
+        await use_cases.deactivate.execute(
+            DeactivatePatientCoverageCommand(
+                corporate_id=corporate_id,
+                coverage_id=coverage_id,
+                effective_on=body.effective_on,
+            )
         )
     )
 

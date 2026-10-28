@@ -5,38 +5,31 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import datetime
 
-from app.application.access_control.models import (
+from app.application.access_control.boundary_models import (
     ActorContext,
     ActorRole,
     ResolvedActorContext,
 )
-from app.application.access_control.policy import AuthorizationService
-from app.application.composition.care_event_references import (
+from app.application.access_control.policies import AuthorizationService
+from app.application.composition.adapters.care_event_references import (
     MedicationHistoryEventReferenceAdapter,
 )
-from app.application.composition.medication_history_references import (
+from app.application.composition.adapters.medication_history_references import (
     ReceptionMedicationHistorySourceAdapter,
 )
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.medication_history.amend_medication_history import (
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.medication_history.commands.amend_medication_history import (
     AmendMedicationHistoryUseCase,
 )
-from app.application.medication_history.category_catalog import (
-    GetCategoryCatalogUseCase,
-    UpdateCategoryCatalogUseCase,
+from app.application.medication_history.commands.ensure_category_catalog import (
+    EnsureCategoryCatalogUseCase,
 )
-from app.application.medication_history.finalize_medication_history import (
+from app.application.medication_history.commands.finalize_medication_history import (
     FinalizeMedicationHistoryUseCase,
 )
-from app.application.medication_history.get_medication_history import (
-    GetMedicationHistoryUseCase,
-    ListMedicationHistoriesByPatientUseCase,
-)
-from app.application.medication_history.get_patient_medical_profile import (
-    GetPatientMedicalProfileUseCase,
-    RebuildPatientMedicalProfileUseCase,
-)
-from app.application.medication_history.inputs import (
+from app.application.medication_history.commands.models import (
     BillingAdditionInput,
     HandbookStatusInput,
     LabeledNoteInput,
@@ -44,20 +37,38 @@ from app.application.medication_history.inputs import (
     ResidualDrugInput,
     SoapInput,
 )
-from app.application.medication_history.record_tracing_report import (
+from app.application.medication_history.commands.rebuild_patient_medical_profile import (
+    RebuildPatientMedicalProfileUseCase,
+)
+from app.application.medication_history.commands.record_tracing_report import (
     RecordTracingReportUseCase,
 )
-from app.application.medication_history.record_tracing_report_response import (
+from app.application.medication_history.commands.record_tracing_report_response import (
     RecordTracingReportResponseUseCase,
 )
-from app.application.medication_history.start_medication_history import (
+from app.application.medication_history.commands.start_medication_history import (
     StartMedicationHistoryCommand,
     StartMedicationHistoryUseCase,
 )
-from app.application.medication_history.update_medication_history_draft import (
+from app.application.medication_history.commands.update_category_catalog import (
+    UpdateCategoryCatalogUseCase,
+)
+from app.application.medication_history.commands.update_medication_history_draft import (
     UpdateMedicationHistoryDraftUseCase,
 )
-from app.application.medication_history.verify_statutory_record import (
+from app.application.medication_history.queries.get_medication_history import (
+    GetMedicationHistoryUseCase,
+)
+from app.application.medication_history.queries.get_patient_medical_profile import (
+    GetPatientMedicalProfileUseCase,
+)
+from app.application.medication_history.queries.list_medication_histories_by_patient import (
+    ListMedicationHistoriesByPatientUseCase,
+)
+from app.application.medication_history.queries.services.statutory_projection import (
+    StatutoryProjectionService,
+)
+from app.application.medication_history.queries.verify_statutory_record import (
     VerifyStatutoryRecordUseCase,
 )
 from app.domain.care_event.entities import Event
@@ -84,6 +95,18 @@ from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import PharmacistLicenseNumber
 from app.domain.staff.value_objects import PharmacistProfile, StaffQualifications
 from app.domain.store.identifiers import StoreId
+from app.infrastructure.readers.medication_history_get_medication_history import (
+    GetMedicationHistoryProjection,
+)
+from app.infrastructure.readers.medication_history_get_patient_medical_profile import (
+    GetPatientMedicalProfileProjection,
+)
+from app.infrastructure.readers.medication_history_list_medication_histories_by_patient import (
+    ListMedicationHistoriesByPatientProjection,
+)
+from app.infrastructure.readers.medication_history_verify_statutory_record import (
+    VerifyStatutoryRecordProjection,
+)
 from tests.application.access_helpers import (
     AutoProvisioningCorporateRepository,
 )
@@ -150,7 +173,7 @@ class MedicationHistoryFixture:
     get_profile: GetPatientMedicalProfileUseCase
     rebuild_profile: RebuildPatientMedicalProfileUseCase
     verify_statutory_record: VerifyStatutoryRecordUseCase
-    get_category_catalog: GetCategoryCatalogUseCase
+    get_category_catalog: EnsureCategoryCatalogUseCase
     update_category_catalog: UpdateCategoryCatalogUseCase
     store_operations: FakeMedicationHistoryStoreOperations
     record_tracing_report: RecordTracingReportUseCase
@@ -291,12 +314,17 @@ def create_fixture(
             CounselorQualificationService(),
             clock,
         ),
-        get=GetMedicationHistoryUseCase(record_repository, corporate_access),
+        get=GetMedicationHistoryUseCase(
+            reader=GetMedicationHistoryProjection(record_repository),
+            corporate_access=corporate_access,
+        ),
         list_by_patient=ListMedicationHistoriesByPatientUseCase(
-            record_repository, corporate_access
+            reader=ListMedicationHistoriesByPatientProjection(record_repository),
+            corporate_access=corporate_access,
         ),
         get_profile=GetPatientMedicalProfileUseCase(
-            profile_repository, corporate_access
+            reader=GetPatientMedicalProfileProjection(profile_repository),
+            corporate_access=corporate_access,
         ),
         rebuild_profile=RebuildPatientMedicalProfileUseCase(
             record_repository,
@@ -306,13 +334,15 @@ def create_fixture(
             organization_lock=FakeOrganizationLock(),
         ),
         verify_statutory_record=VerifyStatutoryRecordUseCase(
-            record_repository,
-            corporate_access,
-            dispensing_source,
-            statutory_source,
-            StatutoryDispensingRecordService(),
+            reader=VerifyStatutoryRecordProjection(
+                record_repository,
+                dispensing_source,
+                statutory_source,
+                StatutoryProjectionService(StatutoryDispensingRecordService()),
+            ),
+            corporate_access=corporate_access,
         ),
-        get_category_catalog=GetCategoryCatalogUseCase(
+        get_category_catalog=EnsureCategoryCatalogUseCase(
             category_catalog_repository, corporate_access
         ),
         update_category_catalog=UpdateCategoryCatalogUseCase(

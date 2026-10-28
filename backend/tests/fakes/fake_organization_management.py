@@ -1,7 +1,7 @@
 """管理UseCaseの業務検証用境界。原子性や並行実行は証明しない。"""
 
 from app.application.common.organization_lock import OrganizationLock
-from app.application.store.management import StoreWorkBoundary
+from app.application.store.interfaces.management import StoreWorkBoundary
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.store.identifiers import StoreId
 

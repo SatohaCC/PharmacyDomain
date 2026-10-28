@@ -14,13 +14,8 @@ from typing import Annotated, Final
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.application.access_control.models import ActorContext
-from app.application.access_control.policy import AuthorizationService
-from app.application.composition.runtime import (
-    CompositionRoot,
-    RequestScope,
-)
-from app.application.composition.use_case_bundles import (
+from app.application.access_control.boundary_models import ActorContext
+from app.application.composition.registry import (
     CareEventUseCases,
     CorporateUseCases,
     CoverageUseCases,
@@ -35,12 +30,16 @@ from app.application.composition.use_case_bundles import (
     StaffUseCases,
     StoreUseCases,
 )
-from app.application.failure_mapping import execution_scope
-from app.application.identity.local_authentication import (
-    LocalAuthentication,
-    LoginFailedError,
+from app.application.composition.runtime import (
+    CompositionRoot,
+    RequestScope,
+    authorized_request_scope,
 )
-from app.application.identity.resolve_actor import VerifiedSubject
+from app.application.identity.boundary_interfaces.local_authentication import (
+    LocalAuthentication,
+)
+from app.application.identity.boundary_models import VerifiedSubject
+from app.application.identity.errors import LoginFailedError
 from app.presentational.authentication import (
     ActorContextProvider,
     UnconfiguredVerifiedSubjectProvider,
@@ -145,9 +144,7 @@ async def get_request_scope(
     ルータで例外が起きた場合はこの ``async with`` へ伝播し、``RequestScope``
     が破棄する。正常終了時だけ確定する。
     """
-    async with execution_scope(
-        root.request_scope(authorization=AuthorizationService(actor))
-    ) as scope:
+    async with authorized_request_scope(root, actor) as scope:
         yield scope
 
 

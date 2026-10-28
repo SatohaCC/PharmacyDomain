@@ -4,12 +4,10 @@ from dataclasses import replace
 
 import pytest
 
-from app.application.access_control.models import ActorRole
-from app.application.identity.resolve_actor import (
-    ResolveActorUseCase,
-    UnavailableIdentityError,
-    VerifiedSubject,
-)
+from app.application.access_control.boundary_models import ActorRole
+from app.application.identity.boundary_models import VerifiedSubject
+from app.application.identity.errors import UnavailableIdentityError
+from app.application.identity.queries.resolve_actor import ResolveActorUseCase
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.entities import AccountPerson, CorporateMembership, UserAccount
 from app.domain.identity.identifiers import CorporateMembershipId
@@ -28,6 +26,7 @@ from app.domain.shared.person_name import (
 )
 from app.domain.staff.identifiers import StaffId
 from app.domain.store.identifiers import StoreId
+from app.infrastructure.readers.identity_resolve_actor import ResolveActorProjection
 from tests.fakes.in_memory_identity_repositories import (
     InMemoryAccountPersonRepository,
     InMemoryCorporateMembershipRepository,
@@ -79,7 +78,9 @@ async def _setup() -> tuple[
     await accounts.save(account)
     await memberships.save(membership)
     return (
-        ResolveActorUseCase(people, accounts, memberships),
+        ResolveActorUseCase(
+            reader=ResolveActorProjection(people, accounts, memberships)
+        ),
         VerifiedSubject(principal_id=_PRINCIPAL_ID),
         people,
         accounts,

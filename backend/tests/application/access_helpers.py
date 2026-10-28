@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from app.application.access_control.models import ActorContext
-from app.application.access_control.policy import AuthorizationService
-from app.application.corporate.corporate_access import CorporateAccessService
+from app.application.access_control.boundary_models import ActorContext
+from app.application.access_control.policies import AuthorizationService
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
 from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.corporate.primitives import CorporateName, CorporateStatus

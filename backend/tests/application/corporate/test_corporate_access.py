@@ -2,16 +2,17 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.access_control.boundary import CorporateAccessBoundary
-from app.application.access_control.exceptions import TenantBoundaryNotFoundError
-from app.application.access_control.models import (
-    ActorContext,
-    Permission,
+from app.application.access_control.boundary_models import ActorContext, Permission
+from app.application.access_control.errors import TenantBoundaryNotFoundError
+from app.application.access_control.interfaces.corporate_access import (
+    CorporateAccessBoundary,
 )
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.policies import AuthorizationService
 from app.application.common.exceptions import AuthorizationError, NotFoundError
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.corporate.exceptions import (
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.corporate.errors import (
     CorporateApplicationError,
     CorporateInactiveError,
     CorporateNotFoundError,

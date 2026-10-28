@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.access_control.models import ActorContext
-from app.application.access_control.policy import AuthorizationService
-from app.application.prescription.audit_interactions import (
+from app.application.access_control.boundary_models import ActorContext
+from app.application.access_control.policies import AuthorizationService
+from app.application.prescription.commands.audit_drug_interactions import (
     AuditDrugInteractionsCommand,
     AuditDrugInteractionsUseCase,
 )

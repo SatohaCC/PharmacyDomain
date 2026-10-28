@@ -7,8 +7,13 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.staff.update_qualifications import UpdateStaffQualificationsCommand
-from app.application.store.management import ManagerAction, ManageStoreManagerCommand
+from app.application.staff.commands.update_staff_qualifications import (
+    UpdateStaffQualificationsCommand,
+)
+from app.application.store.commands.manage_store_manager import (
+    ManageStoreManagerCommand,
+)
+from app.application.store.commands.models import ManagerAction
 from app.domain.foundation.exceptions import DomainError
 from app.domain.identity.entities import StaffPersonLink
 from app.domain.store.entities import StoreManagerAssignment

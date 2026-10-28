@@ -12,14 +12,10 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.coverage.register_patient_coverage import (
+from app.application.coverage.commands.register_patient_coverage import (
     RegisterPatientCoverageCommand,
 )
-from app.application.integration.nsips.exceptions import (
-    NsipsPatientIdentityConflictError,
-)
-from app.application.integration.nsips.ingest_nsips import IngestNsipsCommand
-from app.application.integration.nsips.models import (
+from app.application.integration.boundary_models import (
     NsipsBundle,
     NsipsInsuranceInfo,
     NsipsMedicineInfo,
@@ -27,6 +23,8 @@ from app.application.integration.nsips.models import (
     NsipsPrescriptionInfo,
     NsipsRpInfo,
 )
+from app.application.integration.commands.ingest_nsips import IngestNsipsCommand
+from app.application.integration.errors import NsipsPatientIdentityConflictError
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.identifiers import PatientCoverageId
 from app.domain.dispensing.identifiers import DispensingId

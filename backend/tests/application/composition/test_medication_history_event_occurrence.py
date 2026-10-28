@@ -7,10 +7,10 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.application.composition.medication_history_references import (
+from app.application.composition.adapters.medication_history_references import (
     MedicationHistoryEventOccurrenceAdapter,
 )
-from app.application.medication_history.finalize_medication_history import (
+from app.application.medication_history.commands.finalize_medication_history import (
     FinalizeMedicationHistoryCommand,
 )
 from app.domain.care_event.entities import Event

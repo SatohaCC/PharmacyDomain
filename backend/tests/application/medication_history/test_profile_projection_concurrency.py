@@ -8,19 +8,19 @@ import pytest
 
 from app.application.common.exceptions import ApplicationError
 from app.application.common.organization_lock import OrganizationLock
-from app.application.medication_history.correct_medication_history_fact import (
+from app.application.medication_history.commands.correct_medication_history_fact import (
     CorrectMedicationHistoryFactCommand,
     CorrectMedicationHistoryFactUseCase,
 )
-from app.application.medication_history.finalize_medication_history import (
+from app.application.medication_history.commands.finalize_medication_history import (
     FinalizeMedicationHistoryCommand,
     FinalizeMedicationHistoryUseCase,
 )
-from app.application.medication_history.get_patient_medical_profile import (
+from app.application.medication_history.commands.rebuild_patient_medical_profile import (
     RebuildPatientMedicalProfileCommand,
     RebuildPatientMedicalProfileUseCase,
 )
-from app.application.medication_history.profile_projection_service import (
+from app.application.medication_history.commands.services.profile_projection_service import (
     PatientMedicalProfileProjectionService,
 )
 from app.domain.corporate.identifiers import CorporateId

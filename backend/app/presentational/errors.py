@@ -16,7 +16,11 @@ from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.application.common.exceptions import ApplicationError
-from app.application.failure_mapping import FailureKind, describe_failure, kind_for_type
+from app.application.composition.errors import (
+    FailureKind,
+    describe_failure,
+    kind_for_type,
+)
 from app.presentational.exceptions import AuthenticationError, PresentationError
 
 #: 応答本文へ翻訳できる例外。これ以外は隠さず500として扱う。

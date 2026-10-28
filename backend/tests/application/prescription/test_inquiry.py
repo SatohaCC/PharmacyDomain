@@ -13,14 +13,14 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from app.application.prescription.exceptions import (
+from app.application.prescription.commands.dtos.get_prescription import PrescriptionDto
+from app.application.prescription.commands.models import ReadyForDispensingCommand
+from app.application.prescription.commands.resolve_inquiry import ResolveInquiryCommand
+from app.application.prescription.commands.start_inquiry import StartInquiryCommand
+from app.application.prescription.errors import (
     PrescriptionNotFoundError,
     PrescriptionPharmacistNotFoundError,
 )
-from app.application.prescription.get_prescription import PrescriptionDto
-from app.application.prescription.ready_for_dispensing import ReadyForDispensingCommand
-from app.application.prescription.resolve_inquiry import ResolveInquiryCommand
-from app.application.prescription.start_inquiry import StartInquiryCommand
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.prescription.exceptions import (
     InquiryAlreadyResolvedError,

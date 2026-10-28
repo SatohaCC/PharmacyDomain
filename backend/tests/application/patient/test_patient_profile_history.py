@@ -7,24 +7,27 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from app.application.access_control.exceptions import TenantBoundaryNotFoundError
-from app.application.access_control.models import (
+from app.application.access_control.boundary_models import (
     ActorContext,
     ActorRole,
     ResolvedActorContext,
 )
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.errors import TenantBoundaryNotFoundError
+from app.application.access_control.policies import AuthorizationService
 from app.application.common.exceptions import AuthorizationError
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.patient.change_patient_birth_date import (
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.patient.commands.change_patient_birth_date import (
     ChangePatientBirthDateCommand,
     ChangePatientBirthDateUseCase,
 )
-from app.application.patient.change_patient_names import (
+from app.application.patient.commands.change_patient_names import (
     ChangePatientNamesCommand,
     ChangePatientNamesUseCase,
 )
-from app.application.patient.get_patient import GetPatientQuery, GetPatientUseCase
+from app.application.patient.queries.get_patient import GetPatientUseCase
+from app.application.patient.queries.models import GetPatientQuery
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.primitives import (
     ExternalPatientId,
@@ -43,6 +46,7 @@ from app.domain.patient.value_objects import (
 from app.domain.reception.identifiers import ReceptionId
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.store.identifiers import StoreId
+from app.infrastructure.readers.patient_get_patient import GetPatientProjection
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.factories.persistence_factory import create_patient
 from tests.fakes.fake_clock import FakeClock
@@ -106,8 +110,10 @@ async def test_tc70_認可された患者詳細DTOにプロフィール受信履
         patient_id=str(patient.id.value),
     )
     authorized = GetPatientUseCase(
-        repository,
-        _corporate_access(ActorContext.vendor_system_admin(principal_id="authorized")),
+        reader=GetPatientProjection(repository),
+        corporate_access=_corporate_access(
+            ActorContext.vendor_system_admin(principal_id="authorized")
+        ),
     )
 
     dto = await authorized.execute(query)
@@ -150,7 +156,10 @@ async def test_tc70_患者プロフィール履歴は閲覧権限と法人境界
         store_ids=frozenset({StoreId.generate()}),
     )
     with pytest.raises(AuthorizationError):
-        await GetPatientUseCase(repository, _corporate_access(viewer)).execute(query)
+        await GetPatientUseCase(
+            reader=GetPatientProjection(repository),
+            corporate_access=_corporate_access(viewer),
+        ).execute(query)
 
     other_corporate = CorporateId.generate()
     other_admin = ActorContext(
@@ -160,8 +169,8 @@ async def test_tc70_患者プロフィール履歴は閲覧権限と法人境界
     )
     with pytest.raises(TenantBoundaryNotFoundError):
         await GetPatientUseCase(
-            repository,
-            _corporate_access(other_admin),
+            reader=GetPatientProjection(repository),
+            corporate_access=_corporate_access(other_admin),
         ).execute(query)
 
 

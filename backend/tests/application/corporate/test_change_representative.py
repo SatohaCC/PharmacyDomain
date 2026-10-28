@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.corporate.change_representative import (
+from app.application.corporate.commands.change_representative import (
     ChangeRepresentativeCommand,
     ChangeRepresentativeUseCase,
 )

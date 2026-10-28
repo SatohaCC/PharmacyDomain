@@ -5,9 +5,9 @@ from datetime import timedelta
 
 import pytest
 
-from app.application.identity.invite_user import InviteUserCommand
-from app.application.identity.resolve_actor import VerifiedSubject
-from app.application.identity.support import IdentityRepositories
+from app.application.identity.boundary_models import VerifiedSubject
+from app.application.identity.commands.invite_user import InviteUserCommand
+from app.application.identity.commands.services.repositories import IdentityRepositories
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainError
 from app.domain.identity.entities import AccountPerson, UserAccount

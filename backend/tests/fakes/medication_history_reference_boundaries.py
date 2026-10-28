@@ -8,17 +8,17 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from app.application.composition.medication_history_snapshot_mapping import (
+from app.application.composition.adapters.medication_history_snapshot_mapping import (
     dispensing_source,
 )
-from app.application.medication_history.exceptions import (
+from app.application.medication_history.errors import (
     MedicationHistoryDispensingNotFoundError,
     MedicationHistoryPatientNotFoundError,
     MedicationHistoryPrescriptionNotFoundError,
     MedicationHistoryStaffNotFoundError,
     MedicationHistoryStoreNotFoundError,
 )
-from app.application.medication_history.reference import (
+from app.application.medication_history.interfaces.references import (
     DispensingReferenceBoundary,
     StaffQualificationBoundary,
     StatutoryRecordSourceBoundary,

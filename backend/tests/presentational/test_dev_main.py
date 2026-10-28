@@ -14,7 +14,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.application.access_control.models import ActorRole, ResolvedActorContext
+from app.application.access_control.boundary_models import (
+    ActorRole,
+    ResolvedActorContext,
+)
 from app.bootstrap import create_app
 from app.dev_main import (
     DevActorConfigurationError,

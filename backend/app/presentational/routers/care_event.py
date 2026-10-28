@@ -8,21 +8,33 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
-from app.application.care_event.create_event import (
-    CreateEventCommand,
-    EventDto,
-)
-from app.application.care_event.event_definition import (
+from app.application.care_event.commands.create_event import CreateEventCommand
+from app.application.care_event.commands.create_event_definition import (
     CreateEventDefinitionCommand,
-    EventDefinitionDto,
+)
+from app.application.care_event.commands.dtos.create_event import EventDto
+from app.application.care_event.commands.dtos.event_definition import EventDefinitionDto
+from app.application.care_event.commands.update_event_definition import (
     UpdateEventDefinitionCommand,
 )
-from app.application.care_event.get_event import GetEventQuery
-from app.application.care_event.list_related_candidates import (
-    ListRelatedEventCandidatesQuery,
+from app.application.care_event.queries.dtos.create_event import (
+    EventDto as QueryEventDto,
+)
+from app.application.care_event.queries.dtos.event_definition import (
+    EventDefinitionDto as QueryEventDefinitionDto,
+)
+from app.application.care_event.queries.dtos.list_related_candidates import (
     RelatedEventCandidateDto,
 )
+from app.application.care_event.queries.models import (
+    GetEventQuery,
+    ListRelatedEventCandidatesQuery,
+)
 from app.presentational.dependencies import CareEventUseCasesDep, get_actor_context
+from app.presentational.dto_mapping import (
+    to_http_care_event_create_event__event_dto,
+    to_http_care_event_event_definition__event_definition_dto,
+)
 from app.presentational.errors import error_responses
 from app.presentational.routing import ApplicationRoute
 from app.presentational.schemas import RequestModel
@@ -72,9 +84,13 @@ class CreateEventRequest(RequestModel):
 async def list_event_definitions(
     corporate_id: str,
     use_cases: CareEventUseCasesDep,
-) -> tuple[EventDefinitionDto, ...]:
+) -> tuple[EventDefinitionDto, ...] | tuple[QueryEventDefinitionDto, ...]:
     """標準種別と自法人の種別を返す。"""
-    return await use_cases.list_definitions.execute(corporate_id)
+    definitions = await use_cases.list_definitions.execute(corporate_id)
+    return tuple(
+        to_http_care_event_event_definition__event_definition_dto(item)
+        for item in definitions
+    )
 
 
 @router.post(
@@ -87,10 +103,12 @@ async def create_event_definition(
     corporate_id: str,
     body: CreateEventDefinitionRequest,
     use_cases: CareEventUseCasesDep,
-) -> EventDefinitionDto:
+) -> EventDefinitionDto | QueryEventDefinitionDto:
     """法人独自のイベント種別を作成する。"""
-    return await use_cases.create_definition.execute(
-        CreateEventDefinitionCommand(corporate_id=corporate_id, name=body.name)
+    return to_http_care_event_event_definition__event_definition_dto(
+        await use_cases.create_definition.execute(
+            CreateEventDefinitionCommand(corporate_id=corporate_id, name=body.name)
+        )
     )
 
 
@@ -104,14 +122,16 @@ async def update_event_definition(
     event_type_id: str,
     body: UpdateEventDefinitionRequest,
     use_cases: CareEventUseCasesDep,
-) -> EventDefinitionDto:
+) -> EventDefinitionDto | QueryEventDefinitionDto:
     """法人独自のイベント種別を改名または無効化する。"""
-    return await use_cases.update_definition.execute(
-        UpdateEventDefinitionCommand(
-            corporate_id=corporate_id,
-            event_type_id=event_type_id,
-            name=body.name,
-            is_active=body.is_active,
+    return to_http_care_event_event_definition__event_definition_dto(
+        await use_cases.update_definition.execute(
+            UpdateEventDefinitionCommand(
+                corporate_id=corporate_id,
+                event_type_id=event_type_id,
+                name=body.name,
+                is_active=body.is_active,
+            )
         )
     )
 
@@ -126,19 +146,21 @@ async def create_event(
     corporate_id: str,
     body: CreateEventRequest,
     use_cases: CareEventUseCasesDep,
-) -> EventDto:
+) -> EventDto | QueryEventDto:
     """許可店舗で患者対応Eventを記録する。"""
-    return await use_cases.create.execute(
-        CreateEventCommand(
-            corporate_id=corporate_id,
-            store_id=body.store_id,
-            patient_id=body.patient_id,
-            event_type_id=body.event_type_id,
-            occurred_at=body.occurred_at,
-            related_event_id=body.related_event_id,
-            reception_id=body.reception_id,
-            prescription_id=body.prescription_id,
-            dispensing_id=body.dispensing_id,
+    return to_http_care_event_create_event__event_dto(
+        await use_cases.create.execute(
+            CreateEventCommand(
+                corporate_id=corporate_id,
+                store_id=body.store_id,
+                patient_id=body.patient_id,
+                event_type_id=body.event_type_id,
+                occurred_at=body.occurred_at,
+                related_event_id=body.related_event_id,
+                reception_id=body.reception_id,
+                prescription_id=body.prescription_id,
+                dispensing_id=body.dispensing_id,
+            )
         )
     )
 
@@ -148,10 +170,12 @@ async def get_event(
     corporate_id: str,
     event_id: str,
     use_cases: CareEventUseCasesDep,
-) -> EventDto:
+) -> EventDto | QueryEventDto:
     """Eventのメタデータと関連薬歴IDを返す。"""
-    return await use_cases.get.execute(
-        GetEventQuery(corporate_id=corporate_id, event_id=event_id)
+    return to_http_care_event_create_event__event_dto(
+        await use_cases.get.execute(
+            GetEventQuery(corporate_id=corporate_id, event_id=event_id)
+        )
     )
 
 

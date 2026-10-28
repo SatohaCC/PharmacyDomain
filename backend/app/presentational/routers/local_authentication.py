@@ -7,10 +7,10 @@ from fastapi import APIRouter, Depends, Response
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import Field
 
-from app.application.identity.local_authentication import (
+from app.application.identity.boundary_interfaces.local_authentication import (
     LocalAuthentication,
-    LoginSession,
 )
+from app.application.identity.boundary_models import LoginSession
 from app.presentational.dependencies import PresentationState, bearer_scheme, get_state
 from app.presentational.errors import error_responses
 from app.presentational.exceptions import AuthenticationError

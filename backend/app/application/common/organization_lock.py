@@ -1,4 +1,6 @@
-"""複数集約の管理変更を直列化するトランザクション内の境界。"""
+"""Applicationのorganization_lockを定義する。"""
+
+from __future__ import annotations
 
 from typing import Protocol
 

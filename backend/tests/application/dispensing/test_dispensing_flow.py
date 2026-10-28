@@ -17,34 +17,38 @@ from unittest.mock import patch
 
 import pytest
 
-from app.application.access_control.exceptions import TenantBoundaryNotFoundError
-from app.application.composition.dispensing_references import PrescriptionSourceAdapter
-from app.application.corporate.exceptions import CorporateInactiveError
-from app.application.dispensing.complete_dispensing import CompleteDispensingCommand
-from app.application.dispensing.exceptions import (
+from app.application.access_control.errors import TenantBoundaryNotFoundError
+from app.application.composition.adapters.dispensing_references import (
+    PrescriptionSourceAdapter,
+)
+from app.application.corporate.errors import CorporateInactiveError
+from app.application.dispensing.commands.complete_dispensing import (
+    CompleteDispensingCommand,
+)
+from app.application.dispensing.commands.models import SubstitutionInput
+from app.application.dispensing.commands.record_audit import RecordAuditCommand
+from app.application.dispensing.commands.record_dispensed_content import (
+    RecordDispensedContentCommand,
+)
+from app.application.dispensing.commands.start_dispensing import StartDispensingUseCase
+from app.application.dispensing.commands.verify_dispensing import (
+    VerifyDispensingCommand,
+)
+from app.application.dispensing.errors import (
     DispensingNotFoundError,
     DispensingPrescriptionNotFoundError,
     DispensingStaffNotFoundError,
     DispensingStoreNotFoundError,
     PrescriptionNotReadyForDispensingError,
 )
-from app.application.dispensing.get_dispensing import (
+from app.application.dispensing.queries.get_dispensing import GetDispensingUseCase
+from app.application.dispensing.queries.models import (
     GetDispensingQuery,
-    GetDispensingUseCase,
-)
-from app.application.dispensing.inputs import SubstitutionInput
-from app.application.dispensing.list_dispensings_by_prescription import (
     ListDispensingsByPrescriptionQuery,
 )
-from app.application.dispensing.record_audit import RecordAuditCommand
-from app.application.dispensing.record_dispensed_content import (
-    RecordDispensedContentCommand,
-)
-from app.application.dispensing.start_dispensing import StartDispensingUseCase
-from app.application.dispensing.verify_dispensing import VerifyDispensingCommand
-from app.application.prescription.ready_for_dispensing import ReadyForDispensingCommand
-from app.application.prescription.resolve_inquiry import ResolveInquiryCommand
-from app.application.prescription.start_inquiry import StartInquiryCommand
+from app.application.prescription.commands.models import ReadyForDispensingCommand
+from app.application.prescription.commands.resolve_inquiry import ResolveInquiryCommand
+from app.application.prescription.commands.start_inquiry import StartInquiryCommand
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.exceptions import (
     DispensedRpNotInPrescriptionError,
@@ -88,6 +92,7 @@ from app.domain.shared.preservation import (
 )
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.value_objects import StaffQualifications
+from app.infrastructure.readers.dispensing_get_dispensing import GetDispensingProjection
 from tests.application.access_helpers import create_vendor_corporate_access_for
 from tests.application.dispensing.helpers import (
     DispensingFixture,
@@ -1338,8 +1343,10 @@ class Test一覧と取得:
         fixture = create_fixture()
         dispensing_id = await _start(fixture)
         use_case = GetDispensingUseCase(
-            fixture.repository,
-            create_actor_access(fixture.corporate_repository, fixture.corporate_id),
+            reader=GetDispensingProjection(fixture.repository),
+            corporate_access=create_actor_access(
+                fixture.corporate_repository, fixture.corporate_id
+            ),
         )
 
         # Act / Assert
@@ -1357,8 +1364,10 @@ class Test一覧と取得:
         fixture = create_fixture()
         dispensing_id = await _start(fixture)
         use_case = GetDispensingUseCase(
-            fixture.repository,
-            create_actor_access(fixture.corporate_repository, fixture.corporate_id),
+            reader=GetDispensingProjection(fixture.repository),
+            corporate_access=create_actor_access(
+                fixture.corporate_repository, fixture.corporate_id
+            ),
         )
 
         # Act

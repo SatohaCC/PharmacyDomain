@@ -1,0 +1,81 @@
+"""Applicationのrecord_auditを定義する。"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from app.application.access_control.boundary_models import Permission
+from app.application.access_control.interfaces.corporate_access import (
+    CorporateAccessBoundary,
+)
+from app.application.common.clock import Clock
+from app.application.common.optional_conversion import build_optional
+from app.application.dispensing.commands.dtos.get_dispensing import DispensingProcessDto
+from app.application.dispensing.commands.services.support import (
+    load_dispensing_or_raise,
+)
+from app.application.dispensing.interfaces.references import StaffQualificationBoundary
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.identifiers import DispensingId
+from app.domain.dispensing.primitives import AuditNotes, AuditTimestamp
+from app.domain.dispensing.repositories import DispensingProcessRepository
+from app.domain.dispensing.services import DispensingPharmacistService
+from app.domain.staff.identifiers import StaffId
+
+
+@dataclass(frozen=True, kw_only=True)
+class RecordAuditCommand:
+    """処方鑑査記録の入力データ。鑑査日時は含めない。"""
+
+    corporate_id: str
+    dispensing_id: str
+    auditor_id: str
+    has_issues: bool
+    notes: str | None = None
+
+
+class RecordAuditUseCase:
+    """調剤調製の前に行う処方鑑査（相互作用・重複投薬・用量）を記録する。
+
+    調製された薬剤を確認する最終鑑査（``VerifyDispensingUseCase``）とは
+    対象もタイミングも異なる。
+    """
+
+    def __init__(
+        self,
+        repository: DispensingProcessRepository,
+        corporate_access: CorporateAccessBoundary,
+        staff_qualification: StaffQualificationBoundary,
+        pharmacist_service: DispensingPharmacistService,
+        clock: Clock,
+    ) -> None:
+        self._repository = repository
+        self._corporate_access = corporate_access
+        self._staff_qualification = staff_qualification
+        self._pharmacist_service = pharmacist_service
+        self._clock = clock
+
+    async def execute(self, command: RecordAuditCommand) -> DispensingProcessDto:
+        """鑑査者の薬剤師資格を確認し、注入Clock由来の日時で記録する。"""
+        corporate_id = CorporateId.parse(command.corporate_id)
+        await self._corporate_access.require_active(
+            corporate_id=corporate_id, permission=Permission.MANAGE_DISPENSING
+        )
+        process = await load_dispensing_or_raise(
+            self._repository,
+            corporate_id=corporate_id,
+            dispensing_id=DispensingId.parse(command.dispensing_id),
+        )
+        auditor_id = StaffId.parse(command.auditor_id)
+        qualifications = await self._staff_qualification.get_qualifications(
+            corporate_id=corporate_id, staff_id=auditor_id
+        )
+        self._pharmacist_service.ensure_auditor(qualifications)
+        process = process.record_audit(
+            auditor_id=auditor_id,
+            audited_at=AuditTimestamp(self._clock.now()),
+            has_issues=command.has_issues,
+            notes=build_optional(command.notes, AuditNotes),
+        )
+        await self._repository.save(process)
+        return DispensingProcessDto.from_entity(process)

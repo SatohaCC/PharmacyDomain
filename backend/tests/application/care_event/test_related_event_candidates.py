@@ -5,11 +5,11 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from app.application.access_control.store_access import StoreOperation
-from app.application.care_event.list_related_candidates import (
-    ListRelatedEventCandidatesQuery,
+from app.application.access_control.interfaces.store_operations import StoreOperation
+from app.application.care_event.queries.dtos.list_related_candidates import (
     RelatedEventCandidateDto,
 )
+from app.application.care_event.queries.models import ListRelatedEventCandidatesQuery
 from app.domain.care_event.entities import Event
 from app.domain.care_event.identifiers import EventId, EventTypeId
 from app.domain.care_event.primitives import (

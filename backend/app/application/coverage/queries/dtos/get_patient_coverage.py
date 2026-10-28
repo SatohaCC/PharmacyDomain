@@ -1,0 +1,67 @@
+"""Applicationのget_patient_coverageを定義する。"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from app.domain.coverage.entities import PatientCoverage
+
+
+@dataclass(frozen=True, kw_only=True)
+class PatientCoverageDto:
+    """患者資格の出力データ（DTO）。"""
+
+    id: str
+    corporate_id: str
+    patient_id: str
+    coverage_type: str
+    valid_from: str
+    valid_to: str | None
+    activated_on: str
+    deactivated_on: str | None
+    priority: int
+    insurer_number: str | None
+    insured_symbol: str | None
+    insured_number: str | None
+    branch_number: str | None
+    insured_type: str | None
+    benefit_ratio: int | None
+    payer_number: str | None
+    recipient_number: str | None
+
+    @classmethod
+    def from_entity(cls, coverage: PatientCoverage) -> PatientCoverageDto:
+        """患者資格集約からDTOを生成する。"""
+        insurance = coverage.insurance_details
+        public_expense = coverage.public_expense_details
+        return cls(
+            id=str(coverage.id.value),
+            corporate_id=str(coverage.corporate_id.value),
+            patient_id=str(coverage.patient_id.value),
+            coverage_type=coverage.coverage_type.value,
+            valid_from=coverage.period.valid_from.value.isoformat(),
+            valid_to=coverage.period.valid_to.value.isoformat()
+            if coverage.period.valid_to is not None
+            else None,
+            activated_on=coverage.activation.activated_on.value.isoformat(),
+            deactivated_on=coverage.activation.deactivated_on.value.isoformat()
+            if coverage.activation.deactivated_on is not None
+            else None,
+            priority=coverage.priority.value,
+            insurer_number=insurance.insurer_number.value if insurance else None,
+            insured_symbol=insurance.insured_symbol.value if insurance else None,
+            insured_number=insurance.insured_number.value if insurance else None,
+            branch_number=insurance.branch_number.value
+            if insurance and insurance.branch_number
+            else None,
+            insured_type=insurance.insured_type.value
+            if insurance and insurance.insured_type is not None
+            else None,
+            benefit_ratio=insurance.benefit_ratio.value
+            if insurance and insurance.benefit_ratio is not None
+            else None,
+            payer_number=public_expense.payer_number.value if public_expense else None,
+            recipient_number=public_expense.recipient_number.value
+            if public_expense
+            else None,
+        )

@@ -1,6 +1,6 @@
 """店舗横断薬歴テスト用の店舗操作Boundary Fake。"""
 
-from app.application.access_control.store_access import (
+from app.application.access_control.interfaces.store_operations import (
     StoreOperation,
     StoreOperationBoundary,
 )

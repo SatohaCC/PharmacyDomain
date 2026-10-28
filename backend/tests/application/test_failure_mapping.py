@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 import pytest
 
-from app.application.failure_mapping import (
+from app.application.composition.errors import (
     ApplicationFailure,
     FailureKind,
     execution_scope,

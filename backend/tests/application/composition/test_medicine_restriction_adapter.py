@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.application.composition.medicine_restriction_adapter import (
+from app.application.composition.adapters.medicine_restriction_adapter import (
     MedicineCatalogRestrictionAdapter,
     prescription_identifier,
 )

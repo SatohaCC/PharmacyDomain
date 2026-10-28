@@ -6,14 +6,14 @@ from datetime import date
 
 import pytest
 
-from app.application.composition.organization_snapshot_mapping import (
+from app.application.composition.adapters.organization_snapshot_mapping import (
     StaffStoreAdapter,
 )
-from app.application.staff.exceptions import StaffNotFoundError
-from app.application.staff.transfer_home_store import (
+from app.application.staff.commands.transfer_staff_home_store import (
     TransferStaffHomeStoreCommand,
     TransferStaffHomeStoreUseCase,
 )
+from app.application.staff.errors import StaffNotFoundError
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.staff.services import StaffStoreAssignmentService
 from tests.application.access_helpers import create_vendor_corporate_access

@@ -1,0 +1,28 @@
+"""Applicationのvaluesを定義する。"""
+
+from __future__ import annotations
+
+from enum import StrEnum
+
+from app.application.common.input_normalization import to_optional_text
+from app.domain.foundation.exceptions import DomainValidationError
+
+
+def required_text(raw: str | None, field_name: str) -> str:
+    """必須文字列を正規化し、未入力ならドメイン例外を送出する。"""
+    value = to_optional_text(raw)
+    if value is None:
+        raise DomainValidationError(f"{field_name}は必須です。")
+    return value
+
+
+def parse_enum[E: StrEnum](enum_type: type[E], raw: str, field_name: str) -> E:
+    """入力文字列を指定の列挙へ変換する。
+
+    列挙ごとに同じ ``try/except`` を書き写すと、区分が増えるたびに変換漏れの
+    余地が増えるため1箇所に閉じる。
+    """
+    try:
+        return enum_type(raw)
+    except ValueError as exc:
+        raise DomainValidationError(f"{field_name}が不正です。") from exc

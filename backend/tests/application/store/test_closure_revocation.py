@@ -5,15 +5,17 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.application.access_control.models import (
+from app.application.access_control.boundary_models import (
     ActorContext,
     ActorRole,
     ResolvedActorContext,
 )
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.policies import AuthorizationService
 from app.application.common.exceptions import AuthorizationError
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.store.management import (
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.store.commands.revoke_store_closure import (
     RevokeStoreClosureCommand,
     RevokeStoreClosureUseCase,
 )

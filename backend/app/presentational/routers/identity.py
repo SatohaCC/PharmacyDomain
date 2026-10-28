@@ -7,29 +7,30 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from pydantic import Field
 
-from app.application.access_control.models import ResolvedActorContext
+from app.application.access_control.boundary_models import ResolvedActorContext
 from app.application.common.pagination import Page
-from app.application.composition.register_contract import (
+from app.application.composition.commands.register_contract import (
     RegisterContractCommand,
     RegisteredContract,
 )
 from app.application.composition.runtime import CompositionRoot
-from app.application.identity.dto import (
-    CurrentActorDto,
-    InvitationViewDto,
-    MembershipViewDto,
+from app.application.identity.boundary_models import VerifiedSubject
+from app.application.identity.commands.dtos.identity_views import CurrentActorDto
+from app.application.identity.commands.dtos.registration_results import (
+    IssuedInvitation,
+    RegisteredLocalUser,
 )
-from app.application.identity.input_models import (
+from app.application.identity.commands.invite_user import InviteUserCommand
+from app.application.identity.commands.models import (
     AccountStatus,
     MembershipRole,
     PersonNamesInput,
-)
-from app.application.identity.invite_user import InviteUserCommand, IssuedInvitation
-from app.application.identity.register_local_user import (
-    RegisteredLocalUser,
     RegisterLocalUserCommand,
 )
-from app.application.identity.resolve_actor import VerifiedSubject
+from app.application.identity.queries.dtos.identity_views import (
+    InvitationViewDto,
+    MembershipViewDto,
+)
 from app.presentational.dependencies import (
     Actor,
     IdentityUseCasesDep,

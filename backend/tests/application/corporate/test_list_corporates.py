@@ -2,19 +2,20 @@
 
 import pytest
 
-from app.application.access_control.models import ActorContext
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.boundary_models import ActorContext
+from app.application.access_control.policies import AuthorizationService
 from app.application.common.exceptions import AuthorizationError
-from app.application.corporate.list_corporates import (
-    ListCorporatesQuery,
-    ListCorporatesUseCase,
-)
+from app.application.corporate.queries.list_corporates import ListCorporatesUseCase
+from app.application.corporate.queries.models import ListCorporatesQuery
 from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.corporate.primitives import CorporateName
 from app.domain.corporate.value_objects import CorporateRepresentativeName
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.shared.person_name import PersonNamePart
+from app.infrastructure.readers.corporate_list_corporates import (
+    ListCorporatesProjection,
+)
 from tests.fakes.in_memory_corporate_search_repository import (
     InMemoryCorporateSearchRepository,
 )
@@ -32,8 +33,10 @@ def _corporate(index: int) -> Corporate:
 
 def _use_case(repository: InMemoryCorporateSearchRepository) -> ListCorporatesUseCase:
     return ListCorporatesUseCase(
-        repository,
-        AuthorizationService(ActorContext.vendor_system_admin(principal_id="担当者")),
+        reader=ListCorporatesProjection(repository),
+        authorization=AuthorizationService(
+            ActorContext.vendor_system_admin(principal_id="担当者")
+        ),
     )
 
 
@@ -126,8 +129,8 @@ async def test_一致する法人がなければ_空ページを返す() -> None
 async def test_法人管理者は_全法人の一覧を取得できない() -> None:
     repository = InMemoryCorporateSearchRepository([_corporate(1)])
     use_case = ListCorporatesUseCase(
-        repository,
-        AuthorizationService(
+        reader=ListCorporatesProjection(repository),
+        authorization=AuthorizationService(
             ActorContext.corporate_admin(
                 principal_id="管理者", corporate_id=CorporateId.generate()
             )

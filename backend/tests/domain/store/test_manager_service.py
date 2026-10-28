@@ -5,7 +5,7 @@ from datetime import date
 
 import pytest
 
-from app.application.composition.organization_snapshot_mapping import (
+from app.application.composition.adapters.organization_snapshot_mapping import (
     manager_staff_source,
 )
 from app.domain.foundation.exceptions import DomainError

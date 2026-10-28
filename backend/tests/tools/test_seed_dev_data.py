@@ -15,7 +15,7 @@ from datetime import timedelta
 
 import pytest
 
-from app.application.access_control.models import ResolvedActorContext
+from app.application.access_control.boundary_models import ResolvedActorContext
 from app.dev_main import build_actor_provider
 from app.domain.corporate.primitives import CorporateStatus
 from app.domain.identity.primitives import AccountStatus

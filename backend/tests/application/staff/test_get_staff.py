@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.staff.exceptions import StaffNotFoundError
-from app.application.staff.get_staff import (
-    GetStaffQuery,
-    GetStaffUseCase,
-)
+from app.application.staff.errors import StaffNotFoundError
+from app.application.staff.queries.get_staff import GetStaffUseCase
+from app.application.staff.queries.models import GetStaffQuery
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.staff.identifiers import StaffId
+from app.infrastructure.readers.staff_get_staff import GetStaffProjection
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.factories.staff_factory import create_staff
 from tests.fakes.fake_clock import FakeClock
@@ -22,7 +21,7 @@ async def test_get_staff_success() -> None:
     # Arrange
     staff_repo = InMemoryStaffRepository()
     use_case = GetStaffUseCase(
-        repository=staff_repo,
+        reader=GetStaffProjection(repository=staff_repo),
         corporate_access=create_vendor_corporate_access(),
         clock=FakeClock(),
     )
@@ -51,7 +50,7 @@ async def test_get_staff_raises_error_when_staff_not_found() -> None:
     # Arrange
     staff_repo = InMemoryStaffRepository()
     use_case = GetStaffUseCase(
-        repository=staff_repo,
+        reader=GetStaffProjection(repository=staff_repo),
         corporate_access=create_vendor_corporate_access(),
         clock=FakeClock(),
     )

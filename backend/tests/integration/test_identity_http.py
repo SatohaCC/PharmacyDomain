@@ -5,7 +5,7 @@ import pytest
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.identity.resolve_actor import VerifiedSubject
+from app.application.identity.boundary_models import VerifiedSubject
 from app.bootstrap import create_app
 from app.domain.identity.primitives import AccountStatus, MembershipRole
 from app.presentational.authentication import UnconfiguredActorContextProvider

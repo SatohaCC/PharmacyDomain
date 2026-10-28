@@ -5,33 +5,33 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.application.access_control.exceptions import TenantBoundaryNotFoundError
-from app.application.access_control.models import (
+from app.application.access_control.boundary_models import (
     ActorContext,
     ActorRole,
     ResolvedActorContext,
 )
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.errors import TenantBoundaryNotFoundError
+from app.application.access_control.policies import AuthorizationService
 from app.application.common.exceptions import AuthorizationError
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.corporate.exceptions import CorporateInactiveError
-from app.application.patient.change_patient_heading import (
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.corporate.errors import CorporateInactiveError
+from app.application.patient.commands.change_patient_heading import (
     ChangePatientHeadingCommand,
     ChangePatientHeadingUseCase,
 )
-from app.application.patient.change_patient_names import (
+from app.application.patient.commands.change_patient_names import (
     ChangePatientNamesCommand,
     ChangePatientNamesUseCase,
 )
-from app.application.patient.change_patient_profile import (
+from app.application.patient.commands.change_patient_profile import (
     ChangePatientProfileCommand,
     ChangePatientProfileUseCase,
 )
-from app.application.patient.exceptions import PatientNotFoundError
-from app.application.patient.get_patient_heading import (
-    GetPatientHeadingQuery,
-    GetPatientHeadingUseCase,
-)
+from app.application.patient.errors import PatientNotFoundError
+from app.application.patient.queries.get_patient_heading import GetPatientHeadingUseCase
+from app.application.patient.queries.models import GetPatientHeadingQuery
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.patient.exceptions import (
@@ -49,6 +49,9 @@ from app.domain.patient.value_objects import (
     PatientHeadingRevision,
 )
 from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.infrastructure.readers.patient_get_patient_heading import (
+    GetPatientHeadingProjection,
+)
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.factories.persistence_factory import create_patient
 from tests.fakes.fake_clock import FakeClock
@@ -100,7 +103,10 @@ async def test_tc43_13_未登録患者頭書きは空の参照DTOを返す() -> 
     patient = create_patient(corporate_id=corporate_id)
     await repository.save(patient)
     save_calls = repository.save_calls
-    use_case = GetPatientHeadingUseCase(repository, _access(_actor(corporate_id)))
+    use_case = GetPatientHeadingUseCase(
+        reader=GetPatientHeadingProjection(repository),
+        corporate_access=_access(_actor(corporate_id)),
+    )
 
     dto = await use_case.execute(
         GetPatientHeadingQuery(
@@ -132,7 +138,8 @@ async def test_tc43_14_参照DTOは履歴末尾と改訂者を返す() -> None:
     await repository.save(patient)
 
     dto = await GetPatientHeadingUseCase(
-        repository, _access(_actor(corporate_id))
+        reader=GetPatientHeadingProjection(repository),
+        corporate_access=_access(_actor(corporate_id)),
     ).execute(
         GetPatientHeadingQuery(
             corporate_id=str(corporate_id.value), patient_id=str(patient.id.value)
@@ -396,7 +403,9 @@ async def test_tc43_23_別法人の患者と存在を隠す(role: ActorRole) -> 
     patient = create_patient(corporate_id=other_id)
     await repository.save(patient)
     access = _access(_actor(corporate_id, role))
-    use_case = GetPatientHeadingUseCase(repository, access)
+    use_case = GetPatientHeadingUseCase(
+        reader=GetPatientHeadingProjection(repository), corporate_access=access
+    )
 
     with pytest.raises((TenantBoundaryNotFoundError, PatientNotFoundError)):
         await use_case.execute(
@@ -422,7 +431,10 @@ async def test_tc43_23_別法人の患者と存在を隠す(role: ActorRole) -> 
 async def test_tc43_24_存在しない患者は頭書きを作らない() -> None:
     corporate_id = CorporateId.generate()
     repository = InMemoryPatientRepository()
-    use_case = GetPatientHeadingUseCase(repository, _access(_actor(corporate_id)))
+    use_case = GetPatientHeadingUseCase(
+        reader=GetPatientHeadingProjection(repository),
+        corporate_access=_access(_actor(corporate_id)),
+    )
 
     patient_id = PatientId.generate()
     with pytest.raises(PatientNotFoundError):
@@ -460,7 +472,10 @@ async def test_tc43_25_無効法人の患者頭書きを参照できない() -> 
     )
 
     with pytest.raises(CorporateInactiveError):
-        await GetPatientHeadingUseCase(repository, access).execute(
+        await GetPatientHeadingUseCase(
+            reader=GetPatientHeadingProjection(repository),
+            corporate_access=access,
+        ).execute(
             GetPatientHeadingQuery(
                 corporate_id=str(corporate_id.value), patient_id=str(patient.id.value)
             )
@@ -500,7 +515,9 @@ async def test_tc43_26_患者状態に応じて頭書きを参照し更新する
     repository = InMemoryPatientRepository()
     await repository.save(patient)
     access = _access(_actor(corporate_id))
-    read = await GetPatientHeadingUseCase(repository, access).execute(
+    read = await GetPatientHeadingUseCase(
+        reader=GetPatientHeadingProjection(repository), corporate_access=access
+    ).execute(
         GetPatientHeadingQuery(
             corporate_id=str(corporate_id.value), patient_id=str(patient.id.value)
         )

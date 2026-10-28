@@ -4,9 +4,12 @@ import uuid
 
 from sqlalchemy import insert
 
-from app.application.access_control.models import ActorContext, ResolvedActorContext
+from app.application.access_control.boundary_models import (
+    ActorContext,
+    ResolvedActorContext,
+)
 from app.application.common.clock import Clock
-from app.application.identity.resolve_actor import UnavailableIdentityError
+from app.application.identity.errors import UnavailableIdentityError
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.schema import operation_audits
 

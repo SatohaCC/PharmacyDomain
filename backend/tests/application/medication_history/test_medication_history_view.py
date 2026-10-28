@@ -7,30 +7,43 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.application.access_control.boundary import CorporateAccessBoundary
-from app.application.access_control.exceptions import TenantBoundaryNotFoundError
-from app.application.access_control.models import ActorContext, Permission
-from app.application.access_control.policy import AuthorizationService
-from app.application.common.exceptions import AuthorizationError
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.medication_history.finalize_medication_history import (
-    FinalizeMedicationHistoryCommand,
+from app.application.access_control.boundary_models import ActorContext, Permission
+from app.application.access_control.errors import TenantBoundaryNotFoundError
+from app.application.access_control.interfaces.corporate_access import (
+    CorporateAccessBoundary,
 )
-from app.application.medication_history.get_medication_history import (
-    GetMedicationHistoryQuery,
+from app.application.access_control.policies import AuthorizationService
+from app.application.common.exceptions import AuthorizationError
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.medication_history.commands.dtos.get_medication_history import (
     MedicationHistoryDto,
 )
-from app.application.medication_history.get_medication_history_view import (
+from app.application.medication_history.commands.finalize_medication_history import (
+    FinalizeMedicationHistoryCommand,
+)
+from app.application.medication_history.interfaces.get_medication_history_view_reader import (
     CurrentPatientProfileBoundary,
-    GetMedicationHistoryViewQuery,
-    GetMedicationHistoryViewUseCase,
+)
+from app.application.medication_history.queries.dtos.get_medication_history_view import (
     MedicationHistoryPatientProfileDto,
+)
+from app.application.medication_history.queries.get_medication_history_view import (
+    GetMedicationHistoryViewUseCase,
+)
+from app.application.medication_history.queries.models import (
+    GetMedicationHistoryQuery,
+    GetMedicationHistoryViewQuery,
 )
 from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.primitives import FollowUpRecordedTimestamp
 from app.domain.patient.identifiers import PatientId
 from app.domain.staff.identifiers import StaffId
+from app.infrastructure.readers.medication_history_get_medication_history_view import (
+    GetMedicationHistoryViewProjection,
+)
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.application.medication_history.helpers import (
     MedicationHistoryFixture,
@@ -134,9 +147,10 @@ def _view_use_case(
         ),
     )
     return GetMedicationHistoryViewUseCase(
-        fixture.record_repository,
-        profile_reader,
-        corporate_access,
+        reader=GetMedicationHistoryViewProjection(
+            fixture.record_repository, profile_reader
+        ),
+        corporate_access=corporate_access,
     )
 
 

@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import Request, Response
 from fastapi.routing import APIRoute
 
-from app.application.failure_mapping import translate_errors
+from app.application.composition.errors import translate_errors
 
 
 class ApplicationRoute(APIRoute):

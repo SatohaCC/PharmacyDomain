@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.corporate.exceptions import CorporateNotFoundError
-from app.application.corporate.get_corporate import (
-    CorporateResponseDto,
-    GetCorporateUseCase,
-)
+from app.application.corporate.errors import CorporateNotFoundError
+from app.application.corporate.queries.dtos.get_corporate import CorporateResponseDto
+from app.application.corporate.queries.get_corporate import GetCorporateUseCase
 from app.domain.foundation.exceptions import DomainValidationError
 from tests.application.access_helpers import create_vendor_corporate_access_for
 from tests.application.corporate.helpers import create_corporate, save_corporate

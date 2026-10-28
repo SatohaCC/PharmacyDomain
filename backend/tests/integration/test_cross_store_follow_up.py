@@ -14,7 +14,10 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.access_control.models import ActorRole, ResolvedActorContext
+from app.application.access_control.boundary_models import (
+    ActorRole,
+    ResolvedActorContext,
+)
 from app.bootstrap import create_app
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.entities import (

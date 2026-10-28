@@ -1,0 +1,47 @@
+"""Applicationのchange_representativeを定義する。"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from app.application.access_control.boundary_models import Permission
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.corporate.repositories import CorporateRepository
+from app.domain.corporate.value_objects import CorporateRepresentativeName
+from app.domain.shared.person_name import PersonNamePart
+
+
+@dataclass(frozen=True, kw_only=True)
+class ChangeRepresentativeCommand:
+    """代表者変更に必要な入力データ（DTO）"""
+
+    corporate_id: str
+    new_last_name: str
+    new_first_name: str
+
+
+class ChangeRepresentativeUseCase:
+    """代表者名変更ユースケース"""
+
+    def __init__(
+        self, repository: CorporateRepository, corporate_access: CorporateAccessService
+    ) -> None:
+        self._repository = repository
+        self._corporate_access = corporate_access
+
+    async def execute(self, command: ChangeRepresentativeCommand) -> None:
+        corporate_id = CorporateId.parse(command.corporate_id)
+        new_representative_name = CorporateRepresentativeName(
+            last_name=PersonNamePart(command.new_last_name),
+            first_name=PersonNamePart(command.new_first_name),
+        )
+        corporate = await self._corporate_access.require_active(
+            corporate_id=corporate_id, permission=Permission.MANAGE_CORPORATE
+        )
+        if corporate.representative_name == new_representative_name:
+            return
+        corporate = corporate.change_representative(new_representative_name)
+        await self._repository.save(corporate)

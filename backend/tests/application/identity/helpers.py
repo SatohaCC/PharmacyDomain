@@ -5,20 +5,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from app.application.identity.accept_invitation import AcceptInvitationUseCase
-from app.application.identity.cancel_invitation import CancelInvitationUseCase
-from app.application.identity.change_account_status import (
+from app.application.identity.commands.accept_invitation import AcceptInvitationUseCase
+from app.application.identity.commands.cancel_invitation import CancelInvitationUseCase
+from app.application.identity.commands.change_membership import ChangeMembershipUseCase
+from app.application.identity.commands.invite_user import InviteUserUseCase
+from app.application.identity.commands.link_staff_person import LinkStaffPersonUseCase
+from app.application.identity.commands.reactivate_account import (
     ReactivateAccountUseCase,
-    SuspendAccountUseCase,
 )
-from app.application.identity.change_membership import ChangeMembershipUseCase
-from app.application.identity.get_invitation import GetInvitationUseCase
-from app.application.identity.get_user import GetUserUseCase
-from app.application.identity.invite_user import InviteUserUseCase
-from app.application.identity.link_staff import LinkStaffPersonUseCase
-from app.application.identity.list_users import ListUsersUseCase
-from app.application.identity.register_person import RegisterPersonUseCase
-from app.application.identity.support import IdentityRepositories
+from app.application.identity.commands.register_person import RegisterPersonUseCase
+from app.application.identity.commands.services.repositories import IdentityRepositories
+from app.application.identity.commands.suspend_account import SuspendAccountUseCase
+from app.application.identity.queries.get_invitation import GetInvitationUseCase
+from app.application.identity.queries.get_user import GetUserUseCase
+from app.application.identity.queries.list_users import ListUsersUseCase
+from app.infrastructure.readers.identity_get_invitation import GetInvitationProjection
+from app.infrastructure.readers.identity_get_user import GetUserProjection
+from app.infrastructure.readers.identity_list_users import ListUsersProjection
 from tests.application.access_helpers import (
     AutoProvisioningCorporateRepository,
     create_vendor_corporate_access,
@@ -97,12 +100,17 @@ def create_identity_use_cases(*, now: datetime | None = None) -> IdentityUseCase
         cancel_invitation=CancelInvitationUseCase(
             repositories.invitations, access, work, lock
         ),
-        get_invitation=GetInvitationUseCase(repositories.invitations, access),
+        get_invitation=GetInvitationUseCase(
+            reader=GetInvitationProjection(repositories.invitations),
+            access=access,
+        ),
         change_membership=ChangeMembershipUseCase(
             repositories, staff, stores, access, work, lock
         ),
-        list_users=ListUsersUseCase(repositories, access),
-        get_user=GetUserUseCase(repositories, access),
+        list_users=ListUsersUseCase(
+            reader=ListUsersProjection(repositories), access=access
+        ),
+        get_user=GetUserUseCase(reader=GetUserProjection(repositories), access=access),
         suspend_account=SuspendAccountUseCase(repositories, access, work, lock),
         reactivate_account=ReactivateAccountUseCase(repositories, access, work, lock),
     )

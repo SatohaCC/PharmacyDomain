@@ -11,11 +11,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Response
 from pydantic import field_validator, model_validator
 
-from app.application.integration.nsips.ingest_nsips import (
-    IngestNsipsCommand,
-    IngestNsipsResultDto,
-)
-from app.application.integration.nsips.models import (
+from app.application.integration.boundary_models import (
     NsipsAdditionInfo,
     NsipsBundle,
     NsipsInsuranceInfo,
@@ -25,6 +21,8 @@ from app.application.integration.nsips.models import (
     NsipsRpInfo,
     NsipsSplitInfo,
 )
+from app.application.integration.commands.dtos.ingest_nsips import IngestNsipsResultDto
+from app.application.integration.commands.ingest_nsips import IngestNsipsCommand
 from app.presentational.dependencies import (
     IntegrationUseCasesDep,
     get_actor_context,
