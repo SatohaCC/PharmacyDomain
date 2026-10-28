@@ -88,9 +88,12 @@ class CorporateMembership(AggregateRoot[CorporateMembershipId]):
     store_ids: frozenset[StoreId]
     staff_id: StaffId | None = None
     status: AccountStatus = AccountStatus.ACTIVE
+    suspended_store_ids: frozenset[StoreId] = frozenset()
 
     def validate(self) -> None:
         """店舗ロールに法人内のスタッフ参照を要求する。"""
+        if not self.suspended_store_ids <= self.store_ids:
+            raise DomainValidationError("停止対象は所属店舗から指定してください。")
         if self.role != MembershipRole.CORPORATE_ADMIN and self.staff_id is None:
             raise DomainValidationError(
                 "店舗ロールには本人に対応するスタッフが必要です。"
@@ -108,7 +111,30 @@ class CorporateMembership(AggregateRoot[CorporateMembershipId]):
         self, *, role: MembershipRole, store_ids: frozenset[StoreId]
     ) -> CorporateMembership:
         """同一法人内のロールと店舗範囲を変更する。"""
-        return replace(self, role=role, store_ids=store_ids)
+        return replace(
+            self,
+            role=role,
+            store_ids=store_ids,
+            suspended_store_ids=self.suspended_store_ids & store_ids,
+        )
+
+    @property
+    def active_store_ids(self) -> frozenset[StoreId]:
+        """法人管理権限とは独立した、有効な店舗利用権限を返す。"""
+        return self.store_ids - self.suspended_store_ids
+
+    def change_store_access(
+        self, *, store_id: StoreId, is_active: bool
+    ) -> CorporateMembership:
+        """他店舗の利用と法人権限を保ち、一店舗の利用状態だけを変更する。"""
+        if store_id not in self.store_ids:
+            raise DomainValidationError("対象店舗への所属がありません。")
+        suspended = (
+            self.suspended_store_ids - {store_id}
+            if is_active
+            else self.suspended_store_ids | {store_id}
+        )
+        return replace(self, suspended_store_ids=suspended)
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)

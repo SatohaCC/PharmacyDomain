@@ -163,7 +163,10 @@ async def test_シードした法人管理者が_自法人の主体として解�
     actor = await root.resolve_identity(VerifiedSubject(principal_id=subject.value))
 
     # Assert
-    assert actor.roles == frozenset({ActorRole.CORPORATE_ADMIN})
+    assert actor.roles == frozenset(
+        {ActorRole.CORPORATE_ADMIN, ActorRole.STORE_OPERATOR, ActorRole.STORE_MANAGER}
+    )
+    assert actor.managed_store_ids == actor.store_ids
     assert actor.corporate_id == data.corporate.id
     assert actor.staff_id == data.staff.id
 

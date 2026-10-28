@@ -26,6 +26,9 @@ from app.application.composition.adapters.clinical_store_guard import (
 from app.application.composition.adapters.corporate_activity_guard import (
     CorporateActivityWriteGuard,
 )
+from app.application.composition.adapters.manager_membership_guard import (
+    ManagerMembershipWriteGuard,
+)
 from app.application.composition.adapters.resolved_actor_guard import (
     CompositeWriteGuard,
     ResolvedActorWriteGuard,
@@ -104,6 +107,7 @@ class PostgresRequestScope(RequestScope):
                 business_date(clock),
                 actor.person_id.value,
                 actor.account_id.value,
+                tuple(item.value for item in actor.managed_store_ids),
             )
         repositories = PostgresRepositorySet.create(unit_of_work)
         corporate_access = CorporateAccessService(repositories.corporate, authorization)
@@ -125,6 +129,12 @@ class PostgresRequestScope(RequestScope):
                 ).check,
                 StaffAssignmentWriteGuard(
                     repositories.store, repositories.manager_assignment, clock, lock
+                ).check,
+                ManagerMembershipWriteGuard(
+                    repositories.membership,
+                    repositories.manager_assignment,
+                    clock,
+                    lock,
                 ).check,
                 CorporateActivityWriteGuard(repositories.corporate, lock).check,
             ]

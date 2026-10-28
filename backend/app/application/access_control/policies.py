@@ -21,6 +21,7 @@ _CORPORATE_ADMIN_PERMISSIONS = frozenset(
         Permission.MANAGE_STORE,
         Permission.VIEW_STAFF,
         Permission.MANAGE_STAFF,
+        Permission.MANAGE_STORE_USERS,
         Permission.VIEW_PATIENT,
         Permission.MANAGE_PATIENT,
         Permission.VIEW_PATIENT_HEADING,
@@ -96,10 +97,19 @@ def _store_role_allows(actor: ResolvedActorContext, permission: Permission) -> b
     集合リテラルが2箇所に置かれており、片方へ権限を足すと、同じ操作が入口に
     よって通ったり通らなかったりする状態になりえた。
     """
+    if permission == Permission.MANAGE_STORE_USERS:
+        return ActorRole.STORE_MANAGER in actor.roles
     if permission in _STORE_VIEW_PERMISSIONS:
-        return bool(actor.roles & {ActorRole.STORE_OPERATOR, ActorRole.STORE_VIEWER})
+        return bool(
+            actor.roles
+            & {
+                ActorRole.STORE_OPERATOR,
+                ActorRole.STORE_VIEWER,
+                ActorRole.STORE_MANAGER,
+            }
+        )
     if permission in _STORE_WRITE_PERMISSIONS:
-        return ActorRole.STORE_OPERATOR in actor.roles
+        return bool(actor.roles & {ActorRole.STORE_OPERATOR, ActorRole.STORE_MANAGER})
     return False
 
 
@@ -130,6 +140,11 @@ class AuthorizationService:
             or target_store_id not in actor.store_ids
         ):
             raise TenantBoundaryNotFoundError()
+        if (
+            permission == Permission.MANAGE_STORE_USERS
+            and target_store_id not in actor.managed_store_ids
+        ):
+            self._deny(permission)
         if _store_role_allows(actor, permission):
             return
         self._deny(permission)

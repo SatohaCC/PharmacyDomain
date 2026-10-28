@@ -11,7 +11,7 @@ public_modules = ["commands.create_event", "commands.create_event_definition", "
 
 [features.composition]
 depends_on = ["access_control", "care_event", "corporate", "coverage", "dispensing", "identity", "integration", "medication_history", "medicine_catalog", "patient", "prescription", "reception", "staff", "store"]
-public_modules = ["adapters.care_event_references", "adapters.clinical_store_guard", "adapters.corporate_activity_guard", "adapters.coverage_references", "adapters.dispensing_references", "adapters.medication_history_patient_profile", "adapters.medication_history_references", "adapters.medicine_restriction_adapter", "adapters.organization_snapshot_mapping", "adapters.patient_references", "adapters.prescription_references", "adapters.reception_medication_history", "adapters.resolved_actor_guard", "adapters.staff_integrity", "adapters.staff_person_adapter", "adapters.store_operation_adapter", "commands.register_contract", "errors", "registry", "runtime"]
+public_modules = ["adapters.care_event_references", "adapters.clinical_store_guard", "adapters.corporate_activity_guard", "adapters.coverage_references", "adapters.dispensing_references", "adapters.manager_membership_guard", "adapters.medication_history_patient_profile", "adapters.medication_history_references", "adapters.medicine_restriction_adapter", "adapters.organization_snapshot_mapping", "adapters.patient_references", "adapters.prescription_references", "adapters.reception_medication_history", "adapters.resolved_actor_guard", "adapters.staff_integrity", "adapters.staff_person_adapter", "adapters.store_operation_adapter", "commands.register_contract", "errors", "registry", "runtime"]
 
 [features.corporate]
 depends_on = ["access_control"]

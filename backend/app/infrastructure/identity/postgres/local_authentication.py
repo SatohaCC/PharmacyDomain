@@ -37,6 +37,9 @@ from app.infrastructure.identity.postgres.user_account import (
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.schema import local_credentials, local_sessions
 from app.infrastructure.readers.identity_resolve_actor import ResolveActorProjection
+from app.infrastructure.store.postgres.store_manager_assignment import (
+    PostgresStoreManagerAssignmentRepository,
+)
 
 
 def normalize_login_id(login_id: str) -> str:
@@ -94,7 +97,9 @@ class PostgresLocalAuthentication(LocalAuthentication):
                     PostgresAccountPersonRepository(work),
                     PostgresUserAccountRepository(work),
                     PostgresCorporateMembershipRepository(work),
-                )
+                    PostgresStoreManagerAssignmentRepository(work),
+                ),
+                clock=self._clock,
             )
             try:
                 await resolver.execute(VerifiedSubject(principal_id=subject))

@@ -35,6 +35,9 @@ from tests.fakes.in_memory_identity_repositories import (
     InMemoryUserAccountRepository,
     InMemoryUserInvitationRepository,
 )
+from tests.fakes.in_memory_manager_assignment_repository import (
+    InMemoryStoreManagerAssignmentRepository,
+)
 from tests.fakes.in_memory_staff_repository import InMemoryStaffRepository
 from tests.fakes.in_memory_store_repository import InMemoryStoreRepository
 from tests.fakes.null_unit_of_work import NullUnitOfWork
@@ -105,7 +108,14 @@ def create_identity_use_cases(*, now: datetime | None = None) -> IdentityUseCase
             access=access,
         ),
         change_membership=ChangeMembershipUseCase(
-            repositories, staff, stores, access, work, lock
+            repositories,
+            staff,
+            stores,
+            access,
+            work,
+            lock,
+            InMemoryStoreManagerAssignmentRepository(),
+            clock,
         ),
         list_users=ListUsersUseCase(
             reader=ListUsersProjection(repositories), access=access

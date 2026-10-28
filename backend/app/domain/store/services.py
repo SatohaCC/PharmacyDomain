@@ -50,6 +50,15 @@ class StoreManagerAssignmentService:
                 "閉局店舗、退職者、薬剤師資格のないスタッフには任命できません。"
             )
         period = assignment.period
+        if any(
+            affiliation.store_id != store.id
+            and (period.ends_on is None or affiliation.starts_on <= period.ends_on)
+            and (affiliation.ends_on is None or period.starts_on <= affiliation.ends_on)
+            for affiliation in staff.affiliations
+        ):
+            raise ManagerAssignmentConflictError(
+                "管理薬剤師は在任期間中、任命された一店舗だけに所属できます。"
+            )
         if not any(
             affiliation.store_id == store.id
             and affiliation.starts_on <= period.starts_on

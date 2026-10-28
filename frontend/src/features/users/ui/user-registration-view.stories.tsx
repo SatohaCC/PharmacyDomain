@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { UserRegistrationView } from "./user-registration-view";
 const meta = {
   title: "画面/ユーザー登録",
@@ -22,6 +22,19 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const 通常: Story = {};
+export const 法人管理者と店舗利用権限: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const store = canvas.getByRole("checkbox", { name: "テスト薬局" });
+    await userEvent.click(store);
+    await expect(store).toBeChecked();
+    await expect(
+      canvas.getByText("法人管理者にも店舗の利用権限を追加できます。", {
+        exact: false,
+      }),
+    ).toBeVisible();
+  },
+};
 export const 店舗ユーザー: Story = { args: { role: "store_viewer" } };
 export const 部分成功: Story = {
   args: {

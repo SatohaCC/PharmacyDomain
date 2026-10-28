@@ -9,6 +9,9 @@ from uuid import UUID
 
 from sqlalchemy import Select, Table, cast, exists, false, func, or_, select
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.sql.selectable import FromClause
+
+from app.infrastructure.postgres.schema import corporate_memberships, user_accounts
 
 
 class ReadScopeKind(StrEnum):
@@ -90,6 +93,7 @@ class RepositoryReadScope:
     applied_on: date
     person_id: UUID
     account_id: UUID
+    managed_store_ids: tuple[UUID, ...] = ()
 
     def apply(self, table: Table, statement: Select[Any]) -> Select[Any]:
         """テーブルごとに宣言された範囲を取得条件へ足す。
@@ -119,11 +123,42 @@ class RepositoryReadScope:
                 )
             )
         if kind is ReadScopeKind.OWN_PERSON:
-            return statement.where(table.c.id == self.person_id)
+            if not self.managed_store_ids:
+                return statement.where(table.c.id == self.person_id)
+            accounts = user_accounts.alias("managed_accounts")
+            return statement.where(
+                or_(
+                    table.c.id == self.person_id,
+                    exists(
+                        select(1)
+                        .select_from(accounts)
+                        .where(
+                            accounts.c.person_id == table.c.id,
+                            exists(self._managed_memberships(accounts.c.id)),
+                        )
+                    ),
+                )
+            )
         if kind is ReadScopeKind.OWN_ACCOUNT:
-            return statement.where(table.c.id == self.account_id)
+            return (
+                statement.where(
+                    or_(
+                        table.c.id == self.account_id,
+                        exists(self._managed_memberships(table.c.id)),
+                    )
+                )
+                if self.managed_store_ids
+                else statement.where(table.c.id == self.account_id)
+            )
 
         statement = statement.where(table.c.corporate_id == self.corporate_id)
+        if table.name == "corporate_memberships" and self.managed_store_ids:
+            return statement.where(
+                or_(
+                    table.c.account_id == self.account_id,
+                    self._managed_store_condition(table),
+                )
+            )
         if kind is ReadScopeKind.CORPORATE:
             return statement
         if kind is ReadScopeKind.STORE_ITSELF:
@@ -131,6 +166,28 @@ class RepositoryReadScope:
         if kind is ReadScopeKind.STORE:
             return statement.where(table.c.store_id.in_(self.store_ids))
         return statement.where(exists(self._visible_affiliation(table)))
+
+    def _managed_store_condition(self, table: FromClause) -> Any:
+        """担当店舗を含む所属だけをSQLで選ぶ。他店舗の付与情報は更新しない。"""
+        return or_(
+            *(
+                table.c.payload["store_ids"].contains([str(item)])
+                for item in self.managed_store_ids
+            )
+        )
+
+    def _managed_memberships(self, account_id: Any) -> Select[Any]:
+        """自法人かつ担当店舗に所属する対象に限定した相関副問い合わせ。"""
+        memberships = corporate_memberships.alias("managed_memberships")
+        return (
+            select(1)
+            .select_from(memberships)
+            .where(
+                memberships.c.corporate_id == self.corporate_id,
+                memberships.c.account_id == account_id,
+                self._managed_store_condition(memberships),
+            )
+        )
 
     def _visible_affiliation(self, table: Table) -> Select[Any]:
         """適用日に許可店舗へ所属している行だけを選ぶ相関副問い合わせ。"""

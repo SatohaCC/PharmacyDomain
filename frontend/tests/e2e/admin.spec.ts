@@ -168,6 +168,75 @@ test("法人管理者には法人登録を表示しない", async ({ page }) => 
     page.getByRole("link", { name: "法人を登録", exact: true }),
   ).toHaveCount(0);
 });
+
+test("法人管理者に店舗利用権限と対応スタッフを追加して登録できる", async ({
+  page,
+}) => {
+  await mock(page);
+  await page.route("**/api/corporates/corp-1/stores", (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: "store-1",
+          corporate_id: corp.id,
+          name: "テスト店舗",
+          name_kana: "テスト",
+          code: null,
+        },
+      ],
+    }),
+  );
+  await page.route("**/api/corporates/corp-1/staffs", (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: "staff-1",
+          last_name: "テスト",
+          first_name: "太郎",
+          is_active: true,
+        },
+      ],
+    }),
+  );
+  let linked = false;
+  await page.route(
+    "**/api/corporates/corp-1/staffs/staff-1/person-link",
+    (route) => {
+      expect(route.request().postDataJSON().person_id).toBe("person-1");
+      linked = true;
+      return route.fulfill({ json: { id: "staff-1" } });
+    },
+  );
+  await page.route("**/api/corporates/corp-1/local-users", (route) => {
+    expect(linked).toBe(true);
+    expect(route.request().postDataJSON()).toMatchObject({
+      role: "corporate_admin",
+      store_ids: ["store-1"],
+      staff_id: "staff-1",
+    });
+    return route.fulfill({
+      status: 201,
+      json: { id: "account-1", login_id: "test-admin" },
+    });
+  });
+  await connect(page, "/admin/corporates/corp-1/users/new");
+  for (const [label, value] of [
+    ["姓", "テスト"],
+    ["名", "太郎"],
+    ["姓カナ", "テスト"],
+    ["名カナ", "タロウ"],
+  ])
+    await page.getByLabel(label, { exact: false }).first().fill(value);
+  await page.getByText("テスト店舗", { exact: true }).click();
+  await page.getByRole("button", { name: /対応するスタッフ/ }).click();
+  await page.getByRole("option", { name: "テスト 太郎", exact: true }).click();
+  await page.getByLabel("ログインID").fill("test-admin");
+  await page.getByLabel("初期パスワード").fill("test-initial-password-12345");
+  await page.getByRole("button", { name: "ユーザーを登録する" }).click();
+  await expect(
+    page.getByRole("heading", { name: "ユーザー登録が完了しました" }),
+  ).toBeVisible();
+});
 test("未登録の人も招待画面へ到達でき秘密をURLから除去する", async ({
   page,
 }) => {

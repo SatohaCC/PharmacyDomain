@@ -6,11 +6,13 @@ export function Checkbox({
   name,
   value,
   disabled,
+  readOnly,
 }: {
   label: string;
   name: string;
   value: string;
   disabled?: boolean;
+  readOnly?: boolean;
 }) {
   return (
     <AriaCheckbox
@@ -18,6 +20,7 @@ export function Checkbox({
       name={name}
       value={value}
       isDisabled={disabled}
+      isReadOnly={readOnly}
     >
       {({ isSelected }) => (
         <>

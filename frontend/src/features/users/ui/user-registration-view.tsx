@@ -124,22 +124,42 @@ export function UserRegistrationView({
             { value: "store_viewer", label: "店舗閲覧者" },
           ]}
         />
+        <FieldGroup>
+          店舗の利用権限
+          {stores.map((s) => (
+            <Checkbox
+              key={s.id}
+              name="store_ids"
+              value={s.id}
+              label={s.name}
+              readOnly={frozen}
+            />
+          ))}
+          {!stores.length && (
+            <Paragraph>先に店舗を登録してください。</Paragraph>
+          )}
+        </FieldGroup>
+        <Paragraph>
+          法人管理者にも店舗の利用権限を追加できます。管理薬剤師の管理権限は有効な任命から付与され、在任中は一店舗だけに勤務・所属できます。
+        </Paragraph>
+        {role === "corporate_admin" && (
+          <SelectField
+            label="対応するスタッフ（任意）"
+            name="staff_id"
+            disabled={!!snapshot.linked}
+            options={[
+              { value: "", label: "指定しない" },
+              ...staffs
+                .filter((s) => s.is_active)
+                .map((s) => ({
+                  value: s.id,
+                  label: s.last_name + " " + s.first_name,
+                })),
+            ]}
+          />
+        )}
         {role !== "corporate_admin" && (
           <>
-            <FieldGroup>
-              許可する店舗
-              {stores.map((s) => (
-                <Checkbox
-                  key={s.id}
-                  name="store_ids"
-                  value={s.id}
-                  label={s.name}
-                />
-              ))}
-              {!stores.length && (
-                <Paragraph>先に店舗を登録してください。</Paragraph>
-              )}
-            </FieldGroup>
             <SelectField
               label="スタッフの指定"
               disabled={frozen}

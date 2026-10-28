@@ -135,7 +135,7 @@ async def setup_organization(
             corporate_id=corporate.id,
             role=MembershipRole.CORPORATE_ADMIN,
             staff_id=person.id,
-            store_ids=frozenset(),
+            store_ids=frozenset({store.id}),
         )
         for index, person in enumerate(staff)
     ]

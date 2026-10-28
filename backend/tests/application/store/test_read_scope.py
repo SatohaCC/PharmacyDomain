@@ -33,6 +33,16 @@ async def test_店舗参照_操作主体の範囲に応じて詳細と一覧を�
     repository = InMemoryStoreRepository()
     await repository.save(allowed)
     await repository.save(hidden)
+    if role == ActorRole.STORE_MANAGER and empty_scope:
+        with pytest.raises(ValueError):
+            ResolvedActorContext(
+                principal_id="テスト管理薬剤師",
+                roles=frozenset({role}),
+                corporate_id=allowed.corporate_id,
+                person_id=AccountPersonId.generate(),
+                account_id=UserAccountId.generate(),
+            )
+        return
     actor = ResolvedActorContext(
         principal_id="確認済み",
         roles=frozenset({role}),
@@ -40,6 +50,9 @@ async def test_店舗参照_操作主体の範囲に応じて詳細と一覧を�
         person_id=AccountPersonId.generate(),
         account_id=UserAccountId.generate(),
         store_ids=frozenset() if empty_scope else frozenset({allowed.id}),
+        managed_store_ids=frozenset({allowed.id})
+        if role == ActorRole.STORE_MANAGER
+        else frozenset(),
     )
     access = CorporateAccessService(
         AutoProvisioningCorporateRepository(), AuthorizationService(actor)

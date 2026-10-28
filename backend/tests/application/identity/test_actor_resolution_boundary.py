@@ -25,6 +25,7 @@ from app.domain.identity.primitives import (
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.identifiers import StaffId
 from app.domain.store.identifiers import StoreId
+from tests.fakes.fake_clock import FakeClock
 
 _SUBJECT = VerifiedSubject(principal_id="issuer/テスト操作者")
 
@@ -75,7 +76,7 @@ async def test_操作者解決_Readerが停止アカウントを返しても_App
         _snapshot(), account_status=AccountStatus.SUSPENDED, is_vendor_admin=vendor
     )
     reader = SnapshotIdentityReader(facts)
-    use_case = ResolveActorUseCase(reader)
+    use_case = ResolveActorUseCase(reader, FakeClock())
     # Act / Assert
     with pytest.raises(UnavailableIdentityError):
         await use_case.execute(_SUBJECT)
@@ -124,7 +125,7 @@ async def test_操作者解決_参照事実が欠落または不一致なら_App
         facts = replace(
             original, membership=replace(membership, status=AccountStatus.SUSPENDED)
         )
-    use_case = ResolveActorUseCase(SnapshotIdentityReader(facts))
+    use_case = ResolveActorUseCase(SnapshotIdentityReader(facts), FakeClock())
     # Act / Assert
     with pytest.raises(UnavailableIdentityError):
         await use_case.execute(_SUBJECT)
@@ -137,7 +138,7 @@ async def test_操作者解決_有効な所属の事実から_Applicationがロ�
     # Arrange
     facts = _snapshot()
     assert facts.membership is not None
-    use_case = ResolveActorUseCase(SnapshotIdentityReader(facts))
+    use_case = ResolveActorUseCase(SnapshotIdentityReader(facts), FakeClock())
     # Act
     actor = await use_case.execute(_SUBJECT)
     # Assert
@@ -161,7 +162,7 @@ async def test_操作者解決_有効なベンダー管理者なら_所属停止
         is_vendor_admin=True,
         membership=replace(facts.membership, status=AccountStatus.SUSPENDED),
     )
-    use_case = ResolveActorUseCase(SnapshotIdentityReader(facts))
+    use_case = ResolveActorUseCase(SnapshotIdentityReader(facts), FakeClock())
     # Act
     actor = await use_case.execute(_SUBJECT)
     # Assert

@@ -94,7 +94,7 @@ export interface paths {
     put?: never;
     /**
      * Suspend Account
-     * @description 本人に対応する個人アカウント全体をベンダーが停止する。
+     * @description ベンダーまたは自法人の管理者が個人アカウント全体を停止する。
      */
     post: operations["suspend_account_accounts__account_id__suspension_post"];
     delete?: never;
@@ -2708,6 +2708,10 @@ export interface components {
       role?: components["schemas"]["MembershipRole-Input"] | null;
       /** Store Ids */
       store_ids?: string[] | null;
+      /** Store Id */
+      store_id?: string | null;
+      /** Store Is Active */
+      store_is_active?: boolean | null;
     };
     /**
      * ChangePasswordRequest
@@ -3036,6 +3040,10 @@ export interface components {
       staff_id: string | null;
       /** Store Ids */
       store_ids: string[];
+      /** Managed Store Ids */
+      managed_store_ids: string[];
+      /** Permissions */
+      permissions: components["schemas"]["UserPermissionDto"][];
     };
     /**
      * DeactivateCoverageRequest
@@ -4249,6 +4257,11 @@ export interface components {
       store_ids: string[];
       /** Staff Id */
       staff_id: string | null;
+      /**
+       * Suspended Store Ids
+       * @default []
+       */
+      suspended_store_ids: string[];
     };
     /**
      * MergePatientsRequest
@@ -6233,6 +6246,24 @@ export interface components {
       billing_additions?:
         components["schemas"]["BillingAdditionRequest"][] | null;
     };
+    /**
+     * UserPermissionDto
+     * @description 本人へ付与された権限の種類と法人・店舗の範囲。
+     */
+    UserPermissionDto: {
+      permission_type: components["schemas"]["UserPermissionType"];
+      /** Corporate Id */
+      corporate_id: string;
+      /** Store Id */
+      store_id: string | null;
+    };
+    /**
+     * UserPermissionType
+     * @description 本人へ範囲付きで付与する三種類のユーザー権限。
+     * @enum {string}
+     */
+    UserPermissionType:
+      "general_user" | "managing_pharmacist" | "corporate_admin";
     /**
      * VerifyDispensingRequest
      * @description 鑑査の入力。

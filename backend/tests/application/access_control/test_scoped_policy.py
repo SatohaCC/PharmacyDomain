@@ -32,6 +32,9 @@ def _actor(
         membership_id=CorporateMembershipId.generate(),
         staff_id=StaffId.generate(),
         store_ids=frozenset({_STORE}) if stores is None else stores,
+        managed_store_ids=frozenset({_STORE})
+        if role == ActorRole.STORE_MANAGER
+        else frozenset(),
     )
 
 

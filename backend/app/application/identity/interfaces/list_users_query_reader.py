@@ -15,6 +15,7 @@ class ListUsersQueryReader(Protocol):
         *,
         after: str | None = None,
         limit: int = DEFAULT_PAGE_SIZE,
+        store_ids: tuple[str, ...] | None = None,
     ) -> Page[MembershipViewDto]:
         """認可済みの検索条件から、不変な参照結果だけを返す。"""
         ...

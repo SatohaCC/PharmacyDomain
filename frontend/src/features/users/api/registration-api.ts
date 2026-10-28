@@ -37,7 +37,7 @@ export async function registerUser(
           )
         ).id,
       prepareStaff:
-        role === "corporate_admin"
+        role === "corporate_admin" && !input.staffId
           ? undefined
           : async (personId) => {
               if (staffMode === "existing" && !p.linked) {
@@ -96,7 +96,7 @@ export async function registerUser(
               initial_password: input.initialPassword,
               role,
               store_ids: storeIds,
-              staff_id: role === "corporate_admin" ? null : p.staffId,
+              staff_id: p.staffId ?? null,
             },
           }),
         ),
