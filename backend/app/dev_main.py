@@ -117,6 +117,10 @@ def _build_actor(values: Mapping[str, str], *, principal_id: str) -> ActorContex
     実行されないまま残る。
     """
     role = _parse_role(values.get("DEV_ACTOR_ROLE", "").strip())
+    if role is ActorRole.STORE_MANAGER:
+        raise DevActorConfigurationError(
+            "管理薬剤師の権限は通常ログインで有効な任命から解決してください。"
+        )
     person_id = _parse_person_id(values.get("DEV_ACTOR_PERSON_ID", "").strip())
     account_id = _parse_account_id(values.get("DEV_ACTOR_ACCOUNT_ID", "").strip())
     if role is ActorRole.VENDOR_SYSTEM_ADMIN:

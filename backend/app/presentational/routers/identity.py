@@ -155,6 +155,8 @@ class ChangeMembershipRequest(RequestModel):
     status: AccountStatus | None = None
     role: MembershipRole | None = None
     store_ids: tuple[str, ...] | None = None
+    store_id: str | None = None
+    store_is_active: bool | None = None
 
 
 @router.post(
@@ -202,6 +204,8 @@ async def change_membership(
         status=body.status,
         role=body.role,
         store_ids=body.store_ids,
+        store_id=body.store_id,
+        store_is_active=body.store_is_active,
     )
     return RegisteredIdResponse(id=str(membership.id.value))
 
@@ -213,7 +217,7 @@ async def change_membership(
 async def suspend_account(
     account_id: str, use_cases: IdentityUseCasesDep
 ) -> RegisteredIdResponse:
-    """本人に対応する個人アカウント全体をベンダーが停止する。"""
+    """ベンダーまたは自法人の管理者が個人アカウント全体を停止する。"""
     account = await use_cases.suspend_account.execute(account_id)
     return RegisteredIdResponse(id=str(account.id.value))
 

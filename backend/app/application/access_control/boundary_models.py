@@ -17,8 +17,17 @@ class ActorRole(StrEnum):
 
     VENDOR_SYSTEM_ADMIN = "vendor_system_admin"
     CORPORATE_ADMIN = "corporate_admin"
+    STORE_MANAGER = "store_manager"
     STORE_OPERATOR = "store_operator"
     STORE_VIEWER = "store_viewer"
+
+
+class UserPermissionType(StrEnum):
+    """本人へ範囲付きで付与する三種類のユーザー権限。"""
+
+    GENERAL_USER = "general_user"
+    MANAGING_PHARMACIST = "managing_pharmacist"
+    CORPORATE_ADMIN = "corporate_admin"
 
 
 class Permission(StrEnum):
@@ -34,6 +43,7 @@ class Permission(StrEnum):
     MANAGE_STORE = "manage_store"
     VIEW_STAFF = "view_staff"
     MANAGE_STAFF = "manage_staff"
+    MANAGE_STORE_USERS = "manage_store_users"
     VIEW_PATIENT = "view_patient"
     MANAGE_PATIENT = "manage_patient"
     VIEW_PATIENT_HEADING = "view_patient_heading"
@@ -94,6 +104,7 @@ class ResolvedActorContext(ActorContext):
     membership_id: CorporateMembershipId | None = None
     staff_id: StaffId | None = None
     store_ids: frozenset[StoreId] = frozenset()
+    managed_store_ids: frozenset[StoreId] = frozenset()
 
     def __post_init__(self) -> None:
         """店舗ロールが法人スコープを持つことを、構築の時点で確かめる。
@@ -104,7 +115,18 @@ class ResolvedActorContext(ActorContext):
         """
         super().__post_init__()
         if (
-            self.roles & {ActorRole.STORE_OPERATOR, ActorRole.STORE_VIEWER}
+            self.roles
+            & {
+                ActorRole.STORE_OPERATOR,
+                ActorRole.STORE_VIEWER,
+                ActorRole.STORE_MANAGER,
+            }
             and self.corporate_id is None
         ):
             raise ValueError("店舗ロールには所属法人が必要です。")
+        if (self.managed_store_ids and self.managed_store_ids != self.store_ids) or len(
+            self.managed_store_ids
+        ) > 1:
+            raise ValueError("管理薬剤師の管理対象は利用可能な一店舗に限ります。")
+        if (ActorRole.STORE_MANAGER in self.roles) != bool(self.managed_store_ids):
+            raise ValueError("管理薬剤師権限には管理対象店舗が必要です。")

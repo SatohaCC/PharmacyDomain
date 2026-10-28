@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.application.access_control.boundary_models import ResolvedActorContext
+from app.application.access_control.boundary_models import (
+    ActorRole,
+    ResolvedActorContext,
+    UserPermissionType,
+)
 from app.application.common.optional_conversion import optional_id
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.entities import (
@@ -89,6 +93,15 @@ class StaffPersonDto:
 
 
 @dataclass(frozen=True)
+class UserPermissionDto:
+    """本人へ付与された権限の種類と法人・店舗の範囲。"""
+
+    permission_type: UserPermissionType
+    corporate_id: str
+    store_id: str | None
+
+
+@dataclass(frozen=True)
 class CurrentActorDto:
     """いま操作している本人・アカウント・権限の範囲。"""
 
@@ -99,10 +112,35 @@ class CurrentActorDto:
     roles: tuple[str, ...]
     staff_id: str | None
     store_ids: tuple[str, ...]
+    managed_store_ids: tuple[str, ...]
+    permissions: tuple[UserPermissionDto, ...]
 
     @classmethod
     def from_actor(cls, actor: ResolvedActorContext) -> CurrentActorDto:
         """解決済みActorを公開値へ写す。主体の識別子そのものは返さない。"""
+        permissions: list[UserPermissionDto] = []
+        if actor.corporate_id is not None:
+            corporate_id = str(actor.corporate_id.value)
+            if ActorRole.CORPORATE_ADMIN in actor.roles:
+                permissions.append(
+                    UserPermissionDto(
+                        UserPermissionType.CORPORATE_ADMIN, corporate_id, None
+                    )
+                )
+            for store in sorted(actor.store_ids, key=lambda item: item.value):
+                permissions.append(
+                    UserPermissionDto(
+                        UserPermissionType.GENERAL_USER, corporate_id, str(store.value)
+                    )
+                )
+            for store in sorted(actor.managed_store_ids, key=lambda item: item.value):
+                permissions.append(
+                    UserPermissionDto(
+                        UserPermissionType.MANAGING_PHARMACIST,
+                        corporate_id,
+                        str(store.value),
+                    )
+                )
         return cls(
             str(actor.person_id.value),
             str(actor.account_id.value),
@@ -114,4 +152,9 @@ class CurrentActorDto:
                 str(item.value)
                 for item in sorted(actor.store_ids, key=lambda item: item.value)
             ),
+            tuple(
+                str(item.value)
+                for item in sorted(actor.managed_store_ids, key=lambda item: item.value)
+            ),
+            tuple(permissions),
         )

@@ -25,6 +25,7 @@ class ListUsersProjection(ListUsersQueryReader):
         *,
         after: str | None = None,
         limit: int = DEFAULT_PAGE_SIZE,
+        store_ids: tuple[str, ...] | None = None,
     ) -> Page[MembershipViewDto]:
         """IDの昇順で並べ、続きがあればカーソルを返す。"""
         corporate = CorporateId.parse(corporate_id)
@@ -38,7 +39,13 @@ class ListUsersProjection(ListUsersQueryReader):
             key=lambda item: item.id.value,
         )
         rows = [
-            item for item in rows if after_id is None or item.id.value > after_id.value
+            item
+            for item in rows
+            if (after_id is None or item.id.value > after_id.value)
+            and (
+                store_ids is None
+                or any(str(store.value) in store_ids for store in item.store_ids)
+            )
         ]
         page = rows[:limit]
         return Page(

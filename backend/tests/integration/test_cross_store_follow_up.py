@@ -45,6 +45,7 @@ from app.domain.staff.value_objects import (
     StoreAffiliation,
 )
 from app.domain.store.entities import Store
+from app.domain.store.identifiers import StoreId
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
@@ -180,6 +181,7 @@ async def _save_corporate_admin(
     session_factory: async_sessionmaker[AsyncSession],
     *,
     corporate_id: CorporateId,
+    store_ids: frozenset[StoreId] = frozenset(),
 ) -> FastAPI:
     """法人全体を担当する法人管理者を保存してアプリを組み立てる。"""
     person = _person()
@@ -193,7 +195,7 @@ async def _save_corporate_admin(
         account_id=account.id,
         corporate_id=corporate_id,
         role=MembershipRole.CORPORATE_ADMIN,
-        store_ids=frozenset(),
+        store_ids=store_ids,
     )
     async with PostgresUnitOfWork(session_factory) as work:
         repositories = PostgresRepositorySet.create(work)
@@ -208,6 +210,7 @@ async def _save_corporate_admin(
         account_id=account.id,
         membership_id=membership.id,
         corporate_id=corporate_id,
+        store_ids=store_ids,
     )
     return _app_for_actor(engine, session_factory, actor)
 

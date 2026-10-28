@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from app.application.access_control.boundary_models import Permission
+from app.application.access_control.boundary_models import (
+    ActorRole,
+    Permission,
+    ResolvedActorContext,
+)
 from app.application.access_control.interfaces.corporate_access import (
     CorporateAccessBoundary,
 )
@@ -32,12 +36,28 @@ class ListUsersUseCase:
     ) -> Page[MembershipViewDto]:
         """IDの昇順で並べ、続きがあればカーソルを返す。"""
         corporate = CorporateId.parse(corporate_id)
+        actor = self._access.actor
+        manager = isinstance(actor, ResolvedActorContext) and not actor.roles & {
+            ActorRole.CORPORATE_ADMIN,
+            ActorRole.VENDOR_SYSTEM_ADMIN,
+        }
         await self._access.require_active(
-            corporate_id=corporate, permission=Permission.MANAGE_STAFF
+            corporate_id=corporate,
+            permission=Permission.MANAGE_STORE_USERS
+            if manager
+            else Permission.MANAGE_STAFF,
         )
         if not 1 <= limit <= MAX_PAGE_SIZE:
             raise DomainValidationError(
                 f"件数は1から{MAX_PAGE_SIZE}で指定してください。"
             )
         CorporateMembershipId.parse(after) if after else None
+        if manager:
+            assert isinstance(actor, ResolvedActorContext)
+            return await self._reader.read(
+                corporate_id,
+                after=after,
+                limit=limit,
+                store_ids=tuple(str(item.value) for item in actor.managed_store_ids),
+            )
         return await self._reader.read(corporate_id, after=after, limit=limit)

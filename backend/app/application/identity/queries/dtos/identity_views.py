@@ -36,6 +36,7 @@ class MembershipViewDto:
     role: MembershipRole
     store_ids: tuple[str, ...]
     staff_id: str | None
+    suspended_store_ids: tuple[str, ...] = ()
 
     @classmethod
     def from_entities(
@@ -55,6 +56,12 @@ class MembershipViewDto:
                 for item in sorted(membership.store_ids, key=lambda item: item.value)
             ),
             optional_id(membership.staff_id),
+            tuple(
+                str(item.value)
+                for item in sorted(
+                    membership.suspended_store_ids, key=lambda item: item.value
+                )
+            ),
         )
 
 

@@ -316,6 +316,7 @@ async def test_TC17_スタッフ未解決Actorではレビューを実行でき�
         staff_id=None,
         role=ActorRole.CORPORATE_ADMIN,
         corporate_id=fixture.corporate_id,
+        store_ids=frozenset({fixture.store_id}),
     )
     access = CorporateAccessService(
         fixture.corporate_repository, AuthorizationService(unresolved_actor)

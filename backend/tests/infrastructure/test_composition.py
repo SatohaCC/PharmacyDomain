@@ -29,6 +29,9 @@ from app.application.composition.adapters.clinical_store_guard import (
 from app.application.composition.adapters.corporate_activity_guard import (
     CorporateActivityWriteGuard,
 )
+from app.application.composition.adapters.manager_membership_guard import (
+    ManagerMembershipWriteGuard,
+)
 from app.application.composition.adapters.resolved_actor_guard import (
     CompositeWriteGuard,
     ResolvedActorWriteGuard,
@@ -335,6 +338,7 @@ def test_保存前の境界が_宣言した順で全て掛かる() -> None:
         ResolvedActorWriteGuard,
         ClinicalStoreWriteGuard,
         StaffAssignmentWriteGuard,
+        ManagerMembershipWriteGuard,
         CorporateActivityWriteGuard,
     ]
 

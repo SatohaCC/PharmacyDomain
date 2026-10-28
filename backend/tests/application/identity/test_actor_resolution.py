@@ -27,10 +27,14 @@ from app.domain.shared.person_name import (
 from app.domain.staff.identifiers import StaffId
 from app.domain.store.identifiers import StoreId
 from app.infrastructure.readers.identity_resolve_actor import ResolveActorProjection
+from tests.fakes.fake_clock import FakeClock
 from tests.fakes.in_memory_identity_repositories import (
     InMemoryAccountPersonRepository,
     InMemoryCorporateMembershipRepository,
     InMemoryUserAccountRepository,
+)
+from tests.fakes.in_memory_manager_assignment_repository import (
+    InMemoryStoreManagerAssignmentRepository,
 )
 
 _PRINCIPAL_ID = "issuer/検証済み主体"
@@ -79,7 +83,13 @@ async def _setup() -> tuple[
     await memberships.save(membership)
     return (
         ResolveActorUseCase(
-            reader=ResolveActorProjection(people, accounts, memberships)
+            reader=ResolveActorProjection(
+                people,
+                accounts,
+                memberships,
+                InMemoryStoreManagerAssignmentRepository(),
+            ),
+            clock=FakeClock(),
         ),
         VerifiedSubject(principal_id=_PRINCIPAL_ID),
         people,
@@ -208,7 +218,9 @@ async def test_操作者Reader_停止状態も権限を判断せず_参照事実
     await accounts.save(
         replace(account, status=AccountStatus.SUSPENDED, is_vendor_admin=True)
     )
-    reader = ResolveActorProjection(people, accounts, memberships)
+    reader = ResolveActorProjection(
+        people, accounts, memberships, InMemoryStoreManagerAssignmentRepository()
+    )
     # Act
     facts = await reader.get_by_subject(ExternalSubjectKey(subject.principal_id))
     # Assert

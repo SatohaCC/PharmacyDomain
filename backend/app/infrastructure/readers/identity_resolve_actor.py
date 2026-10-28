@@ -5,6 +5,7 @@ from app.application.identity.interfaces.resolve_actor_query_reader import (
 )
 from app.application.identity.queries.dtos.identity_resolution import (
     IdentityResolutionSnapshot,
+    ManagerIdentitySnapshot,
     MembershipIdentitySnapshot,
 )
 from app.domain.identity.primitives import ExternalSubjectKey
@@ -13,6 +14,7 @@ from app.domain.identity.repositories import (
     CorporateMembershipRepository,
     UserAccountRepository,
 )
+from app.domain.store.repositories import StoreManagerAssignmentRepository
 
 
 class ResolveActorProjection(ResolveActorQueryReader):
@@ -23,10 +25,12 @@ class ResolveActorProjection(ResolveActorQueryReader):
         people: AccountPersonRepository,
         accounts: UserAccountRepository,
         memberships: CorporateMembershipRepository,
+        managers: StoreManagerAssignmentRepository,
     ) -> None:
         self._people = people
         self._accounts = accounts
         self._memberships = memberships
+        self._managers = managers
 
     async def get_by_subject(
         self, subject: ExternalSubjectKey
@@ -37,6 +41,13 @@ class ResolveActorProjection(ResolveActorQueryReader):
             return None
         person = await self._people.get(account.person_id)
         membership = await self._memberships.find_active_for_account(account.id)
+        assignments = (
+            await self._managers.list_by_staff(
+                membership.corporate_id, membership.staff_id
+            )
+            if membership is not None and membership.staff_id is not None
+            else []
+        )
         membership_snapshot = (
             MembershipIdentitySnapshot(
                 id=membership.id,
@@ -46,6 +57,19 @@ class ResolveActorProjection(ResolveActorQueryReader):
                 role=membership.role,
                 staff_id=membership.staff_id,
                 store_ids=membership.store_ids,
+                suspended_store_ids=membership.suspended_store_ids,
+                manager_assignments=tuple(
+                    ManagerIdentitySnapshot(
+                        corporate_id=item.corporate_id,
+                        store_id=item.store_id,
+                        staff_id=item.staff_id,
+                        person_id=item.person_id,
+                        status=item.status,
+                        starts_on=item.period.starts_on,
+                        ends_on=item.period.ends_on,
+                    )
+                    for item in assignments
+                ),
             )
             if membership is not None
             else None

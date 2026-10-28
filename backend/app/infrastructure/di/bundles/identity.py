@@ -122,6 +122,8 @@ def build_identity_use_cases(
             access,
             unit_of_work,
             lock,
+            repositories.manager_assignment,
+            clock,
         ),
         list_users=ListUsersUseCase(
             reader=ListUsersProjection(identity), access=access
@@ -133,7 +135,11 @@ def build_identity_use_cases(
         ),
         resolve_actor=ResolveActorUseCase(
             reader=ResolveActorProjection(
-                identity.people, identity.accounts, identity.memberships
-            )
+                identity.people,
+                identity.accounts,
+                identity.memberships,
+                repositories.manager_assignment,
+            ),
+            clock=clock,
         ),
     )
