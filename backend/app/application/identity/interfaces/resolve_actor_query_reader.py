@@ -1,14 +1,18 @@
-"""Applicationのresolve_actor_query_readerを定義する。"""
-
-from __future__ import annotations
+"""操作者の有効性を判断する前に、外部主体に対応する参照事実を取得する契約。"""
 
 from typing import Protocol
 
-from app.application.access_control.boundary_models import ResolvedActorContext
-from app.application.identity.boundary_models import VerifiedSubject
+from app.application.identity.queries.dtos.identity_resolution import (
+    IdentityResolutionSnapshot,
+)
+from app.domain.identity.primitives import ExternalSubjectKey
 
 
 class ResolveActorQueryReader(Protocol):
-    async def read(self, subject: VerifiedSubject) -> ResolvedActorContext:
-        """認可済みの検索条件から、不変な参照結果だけを返す。"""
+    """認可結果やActorを生成せず、取得した事実だけを返す。"""
+
+    async def get_by_subject(
+        self, subject: ExternalSubjectKey
+    ) -> IdentityResolutionSnapshot | None:
+        """対応アカウントが無ければNone、本人・所属が無ければ欠落した事実を返す。"""
         ...

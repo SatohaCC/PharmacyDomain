@@ -2,7 +2,7 @@
 
 作成日: 2026-10-28。状態: 実装完了。全規則APP000〜APP015への適合まで承認済み。
 
-実施結果は[検証記録](reports/2026-10-28-application-harness-port.md)を参照する。
+実施結果は[検証記録](reports/2026-10-28-application-harness-port.md)を参照する。操作者解決の責務に関するP1対応は[レビュー修正記録](reports/2026-10-28-application-harness-review-fix.md)を参照する。
 
 ## 範囲と移植元
 

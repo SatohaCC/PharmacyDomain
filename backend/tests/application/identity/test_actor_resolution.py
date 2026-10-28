@@ -199,3 +199,21 @@ async def test_本人の行が無いアカウントは操作主体にならな�
 
     with pytest.raises(UnavailableIdentityError):
         await resolver.execute(subject)
+
+
+@pytest.mark.asyncio
+async def test_操作者Reader_停止状態も権限を判断せず_参照事実として返す() -> None:
+    # Arrange
+    _, subject, people, accounts, memberships, account, _ = await _setup()
+    await accounts.save(
+        replace(account, status=AccountStatus.SUSPENDED, is_vendor_admin=True)
+    )
+    reader = ResolveActorProjection(people, accounts, memberships)
+    # Act
+    facts = await reader.get_by_subject(ExternalSubjectKey(subject.principal_id))
+    # Assert
+    assert facts is not None
+    assert facts.account_id == account.id
+    assert facts.person_id == account.person_id
+    assert facts.account_status == AccountStatus.SUSPENDED
+    assert facts.is_vendor_admin is True

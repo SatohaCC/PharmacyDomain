@@ -1,15 +1,13 @@
-"""Repositoryから参照用DTOを投影するアダプタ。保存は行わない。"""
+"""外部主体に対応するアカウント・本人・所属の保存値だけを取得する。"""
 
-from app.application.access_control.boundary_models import (
-    ActorRole,
-    ResolvedActorContext,
-)
-from app.application.identity.boundary_models import VerifiedSubject
-from app.application.identity.errors import UnavailableIdentityError
 from app.application.identity.interfaces.resolve_actor_query_reader import (
     ResolveActorQueryReader,
 )
-from app.domain.identity.primitives import AccountStatus, ExternalSubjectKey
+from app.application.identity.queries.dtos.identity_resolution import (
+    IdentityResolutionSnapshot,
+    MembershipIdentitySnapshot,
+)
+from app.domain.identity.primitives import ExternalSubjectKey
 from app.domain.identity.repositories import (
     AccountPersonRepository,
     CorporateMembershipRepository,
@@ -18,7 +16,7 @@ from app.domain.identity.repositories import (
 
 
 class ResolveActorProjection(ResolveActorQueryReader):
-    """停止状態と法人権限を毎回読み直してActorを生成する。"""
+    """利用状態やロールを判断せず、Applicationへ参照事実を渡す。"""
 
     def __init__(
         self,
@@ -30,38 +28,34 @@ class ResolveActorProjection(ResolveActorQueryReader):
         self._accounts = accounts
         self._memberships = memberships
 
-    async def read(self, subject: VerifiedSubject) -> ResolvedActorContext:
-        """外部主体からアカウントと本人を引き、現在有効なアクセス権を照合する。
-
-        出発点を外部主体にしているので、「主体を固定していないアカウント」は
-        検索の時点で到達できない。分岐で除外していた頃は、その分岐を書き忘れると
-        未固定のアカウントにだけ照合が効かなくなっていた。
-        """
-        account = await self._accounts.get_by_subject(
-            ExternalSubjectKey(subject.principal_id)
-        )
-        if account is None or account.status != AccountStatus.ACTIVE:
-            raise UnavailableIdentityError()
+    async def get_by_subject(
+        self, subject: ExternalSubjectKey
+    ) -> IdentityResolutionSnapshot | None:
+        """主体からアカウントを引き、欠落を含む関連情報を不変の投影で返す。"""
+        account = await self._accounts.get_by_subject(subject)
+        if account is None:
+            return None
         person = await self._people.get(account.person_id)
-        if person is None:
-            raise UnavailableIdentityError()
-        if account.is_vendor_admin:
-            return ResolvedActorContext(
-                principal_id=subject.principal_id,
-                person_id=person.id,
-                account_id=account.id,
-                roles=frozenset({ActorRole.VENDOR_SYSTEM_ADMIN}),
-            )
         membership = await self._memberships.find_active_for_account(account.id)
-        if membership is None:
-            raise UnavailableIdentityError()
-        return ResolvedActorContext(
-            principal_id=subject.principal_id,
-            person_id=person.id,
+        membership_snapshot = (
+            MembershipIdentitySnapshot(
+                id=membership.id,
+                account_id=membership.account_id,
+                corporate_id=membership.corporate_id,
+                status=membership.status,
+                role=membership.role,
+                staff_id=membership.staff_id,
+                store_ids=membership.store_ids,
+            )
+            if membership is not None
+            else None
+        )
+        return IdentityResolutionSnapshot(
             account_id=account.id,
-            membership_id=membership.id,
-            corporate_id=membership.corporate_id,
-            roles=frozenset({ActorRole(membership.role.value)}),
-            staff_id=membership.staff_id,
-            store_ids=membership.store_ids,
+            account_person_id=account.person_id,
+            person_id=person.id if person is not None else None,
+            external_subject=account.external_subject,
+            account_status=account.status,
+            is_vendor_admin=account.is_vendor_admin,
+            membership=membership_snapshot,
         )
