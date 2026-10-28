@@ -7,7 +7,7 @@ import types
 from collections.abc import Mapping
 from dataclasses import fields
 from datetime import date, datetime
-from typing import Any, TypeVar, Union, cast, get_args, get_origin
+from typing import Any, TypeAliasType, TypeVar, Union, cast, get_args, get_origin
 
 from app.domain.foundation.exceptions import DomainValidationError
 
@@ -58,6 +58,9 @@ def _ensure_resolved(
     field_name: str,
 ) -> None:
     """未解決の型変数を黙って許可せず、設定誤りとして明示する。"""
+    if isinstance(annotation, TypeAliasType):
+        _ensure_resolved(annotation.__value__, owner=owner, field_name=field_name)
+        return
     if isinstance(annotation, TypeVar):
         raise RuntimeError(
             f"{owner.__qualname__}.{field_name} に未解決の型変数があります。"
@@ -68,6 +71,8 @@ def _ensure_resolved(
 
 def _matches_declared_type(value: object, annotation: object) -> bool:
     """このプロジェクトのドメインフィールドで使う型構造を照合する。"""
+    if isinstance(annotation, TypeAliasType):
+        return _matches_declared_type(value, annotation.__value__)
     if annotation is Any:
         return True
     if annotation is None or annotation is types.NoneType:
@@ -107,6 +112,8 @@ def _matches_declared_type(value: object, annotation: object) -> bool:
 
 def _expected_type_name(annotation: object) -> str:
     """検証エラーへ表示する宣言型名を組み立てる。"""
+    if isinstance(annotation, TypeAliasType):
+        return _expected_type_name(annotation.__value__)
     if annotation is None or annotation is types.NoneType:
         return "None"
     origin = get_origin(annotation)

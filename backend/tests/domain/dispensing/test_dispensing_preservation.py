@@ -10,6 +10,7 @@ from app.domain.dispensing.primitives import (
 from app.domain.shared.preservation import (
     PreservationPolicy,
     PreservationPolicyCatalog,
+    PreservationPolicyName,
     PreservationRecordKind,
     RetentionYears,
 )
@@ -57,7 +58,7 @@ def test_dispensing_retention_expiry_multiple_obligations() -> None:
         record_kind=PreservationRecordKind.DISPENSING_RECORD,
         policies=(
             PreservationPolicy(
-                name="療担規則の現行3年保存",
+                name=PreservationPolicyName("療担規則の現行3年保存"),
                 retention_years=RetentionYears(3),
                 effective_from=date.min,
             ),

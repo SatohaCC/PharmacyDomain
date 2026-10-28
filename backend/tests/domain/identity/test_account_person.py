@@ -2,24 +2,36 @@
 
 from app.domain.identity.entities import AccountPerson
 from app.domain.shared.actor import AccountPersonId
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 
 
 def test_氏名変更で本人の識別子は変化しない() -> None:
     person = AccountPerson(
         id=AccountPersonId.generate(),
-        names=PersonNames.create(
-            last_name="山田",
-            first_name="太郎",
-            last_name_kana="ヤマダ",
-            first_name_kana="タロウ",
+        names=PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart("山田"), first_name=PersonNamePart("太郎")
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart("ヤマダ"),
+                first_name=PersonNameKanaPart("タロウ"),
+            ),
         ),
     )
-    names = PersonNames.create(
-        last_name="鈴木",
-        first_name="太郎",
-        last_name_kana="スズキ",
-        first_name_kana="タロウ",
+    names = PersonNames(
+        kanji=PersonName(
+            last_name=PersonNamePart("鈴木"), first_name=PersonNamePart("太郎")
+        ),
+        kana=PersonNameKana(
+            last_name=PersonNameKanaPart("スズキ"),
+            first_name=PersonNameKanaPart("タロウ"),
+        ),
     )
     updated = person.change_names(names)
     assert updated.id == person.id

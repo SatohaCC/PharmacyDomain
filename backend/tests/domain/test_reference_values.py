@@ -4,6 +4,7 @@ import pytest
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.medication_history.primitives import SourceDispensingQuantity
 from app.domain.medication_history.value_objects import RpSource
 from app.domain.staff.value_objects import StoreSource
 from app.domain.store.identifiers import StoreId
@@ -28,5 +29,9 @@ def test_店舗参照_同じ参照先でも事実が変われば_異なる値に
 
 @pytest.mark.parametrize("quantity", [0, -1])
 def test_調剤参照_数量が正でなければ_構築を拒否する(quantity: int) -> None:
-    with pytest.raises(DomainValidationError, match="調剤数量は1以上"):
-        RpSource(quantity=quantity, medicines=(), is_quantity_adjusted=False)
+    with pytest.raises(DomainValidationError, match="値は"):
+        RpSource(
+            quantity=SourceDispensingQuantity(quantity),
+            medicines=(),
+            is_quantity_adjusted=False,
+        )

@@ -11,8 +11,11 @@ from datetime import date
 from enum import StrEnum
 from typing import Self
 
-from app.domain.foundation.exceptions import DomainError
-from app.domain.foundation.primitives.primitives import BasePositiveInt
+from app.domain.foundation.exceptions import DomainError, DomainValidationError
+from app.domain.foundation.primitives.primitives import (
+    BaseNormalizedString,
+    BasePositiveInt,
+)
 from app.domain.foundation.value_object import ValueObject
 
 
@@ -67,7 +70,7 @@ class RetentionYears(BasePositiveInt):
 class PreservationPolicy(ValueObject):
     """法定保存期間ポリシー（有効期間と保存年数）。"""
 
-    name: str
+    name: PreservationPolicyName
     retention_years: RetentionYears
     effective_from: date
     effective_to: date | None = None
@@ -157,7 +160,9 @@ class PreservationPolicyCatalog(ValueObject):
                 record_kind=record_kind,
                 policies=(
                     PreservationPolicy(
-                        name="薬剤服用歴の最終記入日から3年保存",
+                        name=PreservationPolicyName(
+                            "薬剤服用歴の最終記入日から3年保存"
+                        ),
                         retention_years=RetentionYears(3),
                         effective_from=date.min,
                     ),
@@ -167,13 +172,13 @@ class PreservationPolicyCatalog(ValueObject):
             record_kind=record_kind,
             policies=(
                 PreservationPolicy(
-                    name="薬剤師法改正前の3年保存",
+                    name=PreservationPolicyName("薬剤師法改正前の3年保存"),
                     retention_years=RetentionYears(3),
                     effective_from=date.min,
                     effective_to=date(2027, 5, 19),
                 ),
                 PreservationPolicy(
-                    name="薬剤師法改正後の5年保存",
+                    name=PreservationPolicyName("薬剤師法改正後の5年保存"),
                     retention_years=RetentionYears(5),
                     effective_from=date(2027, 5, 20),
                 ),
@@ -211,3 +216,11 @@ def resolve_latest_retention_expiry_date(
             )
         )
     return latest_retention_expiry_date(*calculated_dates)
+
+
+class PreservationPolicyName(BaseNormalizedString):
+    """保存期間ポリシーの名称。"""
+
+    def validate(self) -> None:
+        if not self.value:
+            raise DomainValidationError("値は空にできません。")

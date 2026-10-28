@@ -19,7 +19,9 @@ from app.domain.patient.identifiers import PatientId
 from app.domain.patient.primitives import (
     PatientAddress,
     PatientHeadingText,
+    PatientHeadingTimestamp,
     PatientProfileChangeSource,
+    PatientProfileField,
 )
 from app.domain.patient.value_objects import (
     PatientHeadingContent,
@@ -57,7 +59,7 @@ def _revision(summary: str, notes: str | None = None) -> PatientHeadingRevision:
         ),
         person_id=AccountPersonId.generate(),
         account_id=UserAccountId.generate(),
-        recorded_at=_NOW,
+        recorded_at=PatientHeadingTimestamp(_NOW),
     )
 
 
@@ -326,7 +328,9 @@ async def test_tc43_44_同時に読んだ患者改訂はDBversionで競合する
         ).record_profile_change(
             PatientProfileChange(
                 recorded_at=_NOW,
-                changed_fields=("patient.address",),
+                changed_fields=tuple(
+                    PatientProfileField(item) for item in ("patient.address",)
+                ),
                 source=PatientProfileChangeSource.MANUAL,
                 before_profile=before_profile,
                 applied_profile=updated_profile,

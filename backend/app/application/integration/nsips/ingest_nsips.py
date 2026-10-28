@@ -55,9 +55,15 @@ from app.domain.dispensing.primitives import DispensingQuantity as DispensedQuan
 from app.domain.dispensing.repositories import DispensingProcessRepository
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.medication_history.entities import MedicationHistoryRecord
-from app.domain.medication_history.identifiers import MedicationHistoryRecordId
+from app.domain.medication_history.identifiers import (
+    ExternalCorrectionId,
+    MedicationHistoryRecordId,
+)
 from app.domain.medication_history.primitives import (
+    CorrectionDocumentNumber,
+    ExternalCorrectionDetails,
     ExternalCorrectionKind,
+    ExternalCorrectionReason,
     ExternalCorrectionStatus,
     ExternalCorrectionTimestamp,
 )
@@ -72,6 +78,7 @@ from app.domain.patient.primitives import (
     PatientGenderCode,
     PatientPhoneNumber,
     PatientPostalCode,
+    PatientProfileField,
 )
 from app.domain.patient.repositories import (
     PatientExternalIdentifierRepository,
@@ -88,14 +95,28 @@ from app.domain.prescription.repositories import PrescriptionRepository
 from app.domain.prescription.value_objects import PrescriptionRp
 from app.domain.reception.entities import Reception
 from app.domain.reception.identifiers import ReceptionId
-from app.domain.reception.primitives import ReceptionFieldPath, ReceptionFingerprint
+from app.domain.reception.primitives import (
+    ReceptionBillingCode,
+    ReceptionBillingName,
+    ReceptionBillingPoints,
+    ReceptionBillingQuantity,
+    ReceptionFieldPath,
+    ReceptionFingerprint,
+    ReceptionOriginalJson,
+)
 from app.domain.reception.repositories import ReceptionRepository
 from app.domain.reception.value_objects import (
     ReceptionBillingAddition,
     ReceptionCorrection,
     ReceptionSourceData,
 )
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 from app.domain.store.identifiers import StoreId
 
 _SUPPORTED_RAW_NSIPS_VERSIONS: frozenset[str] = frozenset()
@@ -354,7 +375,7 @@ class IngestNsipsUseCase:
                 (
                     item
                     for item in history.external_corrections
-                    if item.correction_id == correction_id
+                    if item.correction_id.value == correction_id
                 ),
                 None,
             )
@@ -399,21 +420,31 @@ class IngestNsipsUseCase:
             raise TypeError(f"受付Bundleに未対応の値があります: {type(value).__name__}")
 
         return ReceptionSourceData(
-            bundle_json=json.dumps(
-                map_bundle(bundle),
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-                default=encode,
+            bundle_json=ReceptionOriginalJson(
+                json.dumps(
+                    map_bundle(bundle),
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    default=encode,
+                )
             ),
             imported_at=imported_at,
             is_follow_up=is_follow_up,
             billing_additions=tuple(
                 ReceptionBillingAddition(
-                    code=addition.code,
-                    name=addition.name,
-                    points=addition.points,
-                    quantity=addition.quantity,
+                    code=ReceptionBillingCode(addition.code),
+                    name=ReceptionBillingName(addition.name),
+                    points=(
+                        ReceptionBillingPoints(addition.points)
+                        if (addition.points) is not None
+                        else None
+                    ),
+                    quantity=(
+                        ReceptionBillingQuantity(addition.quantity)
+                        if (addition.quantity) is not None
+                        else None
+                    ),
                 )
                 for addition in bundle.additions
             ),
@@ -475,11 +506,15 @@ class IngestNsipsUseCase:
             str(corporate_id.value),
         )
         received_profile = PatientProfileSnapshot(
-            names=PersonNames.create(
-                last_name=patient_command.last_name,
-                first_name=patient_command.first_name,
-                last_name_kana=patient_command.last_name_kana,
-                first_name_kana=patient_command.first_name_kana,
+            names=PersonNames(
+                kanji=PersonName(
+                    last_name=PersonNamePart(patient_command.last_name),
+                    first_name=PersonNamePart(patient_command.first_name),
+                ),
+                kana=PersonNameKana(
+                    last_name=PersonNameKanaPart(patient_command.last_name_kana),
+                    first_name=PersonNameKanaPart(patient_command.first_name_kana),
+                ),
             ),
             birth_date=PatientBirthDate(bundle.patient.birth_date),
             gender=build_optional(bundle.patient.gender, PatientGenderCode),
@@ -580,7 +615,7 @@ class IngestNsipsUseCase:
             store_id=store_id,
             external_patient_id=ExternalPatientId(bundle.patient.external_patient_id),
             recorded_at=self._clock.now(),
-            changed_fields=event_fields,
+            changed_fields=tuple(PatientProfileField(item) for item in event_fields),
             received_profile=received_profile,
             before_profile=before_profile,
             applied_profile=applied_profile,
@@ -929,15 +964,23 @@ class IngestNsipsUseCase:
                     if has_pending_review:
                         now_utc = self._clock.now()
                         external_correction = ExternalPrescriptionCorrection(
-                            correction_id=self._external_correction_id(
-                                record_id=matching_record.id,
-                                document_number=doc_num,
-                                fingerprint=incoming_fingerprint,
+                            correction_id=ExternalCorrectionId(
+                                self._external_correction_id(
+                                    record_id=matching_record.id,
+                                    document_number=doc_num,
+                                    fingerprint=incoming_fingerprint,
+                                )
                             ),
                             corrected_at=ExternalCorrectionTimestamp(now_utc),
-                            source_document_number=doc_num,
-                            reason=f"レセコン訂正データ受信: {diff_summary}",
-                            details=diff_summary,
+                            source_document_number=CorrectionDocumentNumber(doc_num),
+                            reason=ExternalCorrectionReason(
+                                f"レセコン訂正データ受信: {diff_summary}"
+                            ),
+                            details=(
+                                ExternalCorrectionDetails(diff_summary)
+                                if (diff_summary) is not None
+                                else None
+                            ),
                             kind=ExternalCorrectionKind(bundle.correction_kind)
                             if bundle.correction_kind is not None
                             else ExternalCorrectionKind.UPDATE,
@@ -1233,12 +1276,17 @@ class IngestNsipsUseCase:
                     )
                 )
                 correction = ExternalPrescriptionCorrection(
-                    correction_id="corr-"
-                    + hashlib.sha256(identity.encode("utf-8")).hexdigest(),
+                    correction_id=ExternalCorrectionId(
+                        "corr-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
+                    ),
                     corrected_at=ExternalCorrectionTimestamp(received_at),
-                    source_document_number=bundle.prescription.document_number,
-                    reason="NSIPS削除通知を受信しました。",
-                    details="対象処方の削除が通知されました。",
+                    source_document_number=CorrectionDocumentNumber(
+                        bundle.prescription.document_number
+                    ),
+                    reason=ExternalCorrectionReason("NSIPS削除通知を受信しました。"),
+                    details=ExternalCorrectionDetails(
+                        "対象処方の削除が通知されました。"
+                    ),
                     kind=ExternalCorrectionKind.DELETE,
                 )
                 if (
@@ -1541,8 +1589,8 @@ class IngestNsipsUseCase:
                     (
                         item.code.value,
                         item.name.value,
-                        item.points,
-                        item.quantity,
+                        (unwrap(item.points)),
+                        (unwrap(item.quantity)),
                     )
                     for item in matching_history.billing_additions
                 )

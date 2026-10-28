@@ -127,7 +127,9 @@ async def test_受付取込_保険情報を別受付で受信_原本を保存し
         reception_id=second_id,
     )
     assert stored is not None and stored.source_data is not None
-    assert json.loads(stored.source_data.bundle_json)["insurance"] == asdict(insurance)
+    assert json.loads(stored.source_data.bundle_json.value)["insurance"] == asdict(
+        insurance
+    )
     assert stored.source_data_history == ()
 
 
@@ -240,13 +242,13 @@ async def test_受付取込_同一受付の保険訂正_受信履歴を保持し
         reception_id=reception_id,
     )
     assert stored is not None and stored.source_data is not None
-    assert json.loads(stored.source_data.bundle_json)["insurance"] == asdict(
+    assert json.loads(stored.source_data.bundle_json.value)["insurance"] == asdict(
         changed_insurance
     )
     assert len(stored.source_data_history) == 1
-    assert json.loads(stored.source_data_history[0].bundle_json)["insurance"] == asdict(
-        _INSURANCE
-    )
+    assert json.loads(stored.source_data_history[0].bundle_json.value)[
+        "insurance"
+    ] == asdict(_INSURANCE)
     assert len(stored.correction_history) == 1
     assert len(fixture.reception_repo.items) == 1
     assert len(fixture.prescription_repo.items) == (0 if follow_up else 1)

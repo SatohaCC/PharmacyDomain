@@ -10,7 +10,13 @@ from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.entities import AccountPerson
 from app.domain.identity.repositories import AccountPersonRepository
 from app.domain.shared.actor import AccountPersonId
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 
 
 class RegisterPersonUseCase:
@@ -46,11 +52,15 @@ class RegisterPersonUseCase:
             )
         person = AccountPerson(
             id=AccountPersonId.generate(),
-            names=PersonNames.create(
-                last_name=names.last_name,
-                first_name=names.first_name,
-                last_name_kana=names.last_name_kana,
-                first_name_kana=names.first_name_kana,
+            names=PersonNames(
+                kanji=PersonName(
+                    last_name=PersonNamePart(names.last_name),
+                    first_name=PersonNamePart(names.first_name),
+                ),
+                kana=PersonNameKana(
+                    last_name=PersonNameKanaPart(names.last_name_kana),
+                    first_name=PersonNameKanaPart(names.first_name_kana),
+                ),
             ),
         )
         await self._people.save(person)

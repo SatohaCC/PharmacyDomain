@@ -44,11 +44,13 @@ from app.domain.medication_history.repositories import MedicationHistoryReposito
 from app.domain.medicine_catalog.primitives import MedicineCode, MedicineCodeType
 from app.domain.medicine_catalog.value_objects import MedicineIdentifier
 from app.domain.patient.entities import Patient, PatientExternalIdentifier
+from app.domain.patient.identifiers import PatientExternalIdentifierId
 from app.domain.patient.primitives import (
     ExternalPatientId,
     ExternalSystemName,
     PatientAddress,
     PatientHeadingText,
+    PatientProfileField,
 )
 from app.domain.patient.value_objects import (
     PatientHeadingContent,
@@ -343,16 +345,16 @@ async def test_受付取込_保険変更と訂正再送_既存資格を変えず
             reception_id=second_id,
         )
         assert original is not None and original.source_data is not None
-        assert json.loads(original.source_data.bundle_json)["insurance"] == asdict(
-            bundle.insurance
-        )
+        assert json.loads(original.source_data.bundle_json.value)[
+            "insurance"
+        ] == asdict(bundle.insurance)
         assert original.source_data_history == ()
         assert stored is not None and stored.source_data is not None
-        assert json.loads(stored.source_data.bundle_json)["insurance"] == asdict(
+        assert json.loads(stored.source_data.bundle_json.value)["insurance"] == asdict(
             corrected_insurance
         )
         assert len(stored.source_data_history) == 1
-        assert json.loads(stored.source_data_history[0].bundle_json)[
+        assert json.loads(stored.source_data_history[0].bundle_json.value)[
             "insurance"
         ] == asdict(changed_insurance)
         existing = await repositories.patient_coverage.get(
@@ -526,7 +528,9 @@ async def test_tc85_同一Patientの競合更新は古いversionを拒否し再�
             store_id=organization.store.id,
             external_patient_id=ExternalPatientId("POS-TC85"),
             recorded_at=recorded_at,
-            changed_fields=("patient.address",),
+            changed_fields=tuple(
+                PatientProfileField(item) for item in ("patient.address",)
+            ),
             received_profile=PatientProfileSnapshot(
                 names=patient.names,
                 birth_date=patient.birth_date,
@@ -997,12 +1001,13 @@ async def test_実DB取込_旧患者ID指紋欠損_別患者拒否後に元ID訂
         )
         await repos.patient.save(other_patient)
         await repos.patient_external_identifier.save(
-            PatientExternalIdentifier.create(
+            PatientExternalIdentifier(
+                id=PatientExternalIdentifierId.generate(),
                 corporate_id=organization.corporate.id,
-                store_id=organization.store.id,
                 patient_id=other_patient.id,
                 system_name=ExternalSystemName("recept"),
                 external_patient_id=alternate_id,
+                store_id=organization.store.id,
             )
         )
         for external_id, expected_patient_id in (

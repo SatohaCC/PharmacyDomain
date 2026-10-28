@@ -67,30 +67,6 @@ class CoverageSelectionRecord(AggregateRoot[CoverageSelectionRecordId]):
         "recorded_by": "記録者",
     }
 
-    @classmethod
-    def create(
-        cls,
-        *,
-        corporate_id: CorporateId,
-        store_id: StoreId,
-        patient_id: PatientId,
-        applied_on: CoverageAppliedOn,
-        selection: CoverageSelection,
-        recorded_at: CoverageRecordedAt,
-        recorded_by: OperatorPrincipalId,
-    ) -> Self:
-        """信頼済み監査値を含む適用資格選択履歴を生成する。"""
-        return cls(
-            id=CoverageSelectionRecordId.generate(),
-            corporate_id=corporate_id,
-            store_id=store_id,
-            patient_id=patient_id,
-            applied_on=applied_on,
-            selection=selection,
-            recorded_at=recorded_at,
-            recorded_by=recorded_by,
-        )
-
     @property
     def snapshot(self) -> CoverageSnapshot:
         """適用時点の不変スナップショット。"""
@@ -128,32 +104,6 @@ class PatientCoverage(AggregateRoot[PatientCoverageId]):
             raise CoverageDetailsMismatchError()
         if self.coverage_type is CoverageType.INSURANCE and self.priority.value != 1:
             raise InsuranceCoveragePriorityError()
-
-    @classmethod
-    def create(
-        cls,
-        *,
-        corporate_id: CorporateId,
-        patient_id: PatientId,
-        coverage_type: CoverageType,
-        period: CoveragePeriod,
-        activation: CoverageActivation,
-        priority: CoveragePriority,
-        insurance_details: InsuranceCoverageDetails | None = None,
-        public_expense_details: PublicExpenseCoverageDetails | None = None,
-    ) -> Self:
-        """患者の保険資格（保険証または公費受給者証情報）を新規登録する。"""
-        return cls(
-            id=PatientCoverageId.generate(),
-            corporate_id=corporate_id,
-            patient_id=patient_id,
-            coverage_type=coverage_type,
-            period=period,
-            activation=activation,
-            priority=priority,
-            insurance_details=insurance_details,
-            public_expense_details=public_expense_details,
-        )
 
     def change_period(self, period: CoveragePeriod) -> Self:
         """保険証や公費受給者証の有効期間を変更する。"""

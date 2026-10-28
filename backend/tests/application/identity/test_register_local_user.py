@@ -18,7 +18,13 @@ from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.identity.entities import AccountPerson, UserAccount
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.shared.actor import AccountPersonId, UserAccountId
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 from tests.application.access_helpers import (
     AutoProvisioningCorporateRepository,
     create_vendor_corporate_access,
@@ -49,11 +55,14 @@ async def setup_registration() -> tuple[IdentityUseCaseSet, RegisterLocalUserCom
     fixture = create_identity_use_cases()
     person = AccountPerson(
         id=AccountPersonId.generate(),
-        names=PersonNames.create(
-            last_name="テスト",
-            first_name="太郎",
-            last_name_kana="テスト",
-            first_name_kana="タロウ",
+        names=PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart("テスト"), first_name=PersonNamePart("太郎")
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart("テスト"),
+                first_name=PersonNameKanaPart("タロウ"),
+            ),
         ),
     )
     await fixture.repositories.people.save(person)

@@ -17,7 +17,7 @@ from app.application.coverage.get_last_coverage_selection import (
 )
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.entities import CoverageSelectionRecord
-from app.domain.coverage.identifiers import PatientCoverageId
+from app.domain.coverage.identifiers import CoverageSelectionRecordId, PatientCoverageId
 from app.domain.coverage.primitives import (
     CoverageAppliedOn,
     CoverageBenefitRatio,
@@ -113,7 +113,8 @@ async def _save_record(
     recorded_at: datetime = _RECORDED_AT,
 ) -> CoverageSelectionRecord:
     """フィクスチャの法人・店舗・患者に対する履歴を保存する。"""
-    record = CoverageSelectionRecord.create(
+    record = CoverageSelectionRecord(
+        id=CoverageSelectionRecordId.generate(),
         corporate_id=fixture.corporate_id,
         store_id=fixture.store_id,
         patient_id=fixture.patient_id,

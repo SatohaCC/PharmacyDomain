@@ -88,12 +88,13 @@ class PostgresCorporateRepository(
         statement = select(corporates)
         if query.name is not None:
             statement = statement.where(
-                corporates.c.name.contains(query.name, autoescape=True)
+                corporates.c.name.contains(query.name.value, autoescape=True)
             )
         if query.status is not None:
             statement = statement.where(corporates.c.status == query.status.value)
         if query.after_id is not None:
             statement = statement.where(corporates.c.id > query.after_id.value)
         return await self.find_all(
-            CORPORATE_MAPPING, statement.order_by(corporates.c.id).limit(query.limit)
+            CORPORATE_MAPPING,
+            statement.order_by(corporates.c.id).limit(query.limit.value),
         )

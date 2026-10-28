@@ -316,14 +316,21 @@ async def test_MedicationHistoryEventReferenceAdapter_Event発生情報解決() 
     occurred_at = datetime(2026, 9, 20, 10, 0, tzinfo=UTC)
     created_at = datetime(2026, 9, 20, 10, 5, tzinfo=UTC)
 
-    event = Event.create(
+    event = Event(
+        id=EventId.generate(),
         event_type_id=EventTypeId.generate(),
+        event_definition_corporate_id=None,
+        event_type_standard_code=None,
         event_type_name=EventTypeName("来局相談"),
         corporate_id=corporate_id,
         store_id=store_id,
         patient_id=patient_id,
         occurred_at=EventOccurredTimestamp(occurred_at),
         created_at=EventCreatedTimestamp(created_at),
+        related_event_id=None,
+        reception_id=None,
+        prescription_id=None,
+        dispensing_id=None,
     )
     await repo.save(event)
     adapter = MedicationHistoryEventReferenceAdapter(repo)

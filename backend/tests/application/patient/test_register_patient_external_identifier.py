@@ -18,7 +18,14 @@ from app.application.patient.register_patient_external_identifier import (
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.entities import Patient
 from app.domain.patient.exceptions import PatientExternalIdentifierAlreadyExistsError
-from app.domain.shared.person_name import PersonNames
+from app.domain.patient.identifiers import PatientId
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 from app.domain.store.identifiers import StoreId
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.factories.store_factory import create_store
@@ -43,15 +50,24 @@ async def _create_patient(
     last_name_kana: str = "ヤマダ",
 ) -> Patient:
     """テスト用の患者を保存して返す。"""
-    patient = Patient.create(
+    patient = Patient(
+        id=PatientId.generate(),
         corporate_id=corporate_id,
-        names=PersonNames.create(
-            last_name=last_name,
-            first_name="太郎",
-            last_name_kana=last_name_kana,
-            first_name_kana="タロウ",
+        names=PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart(last_name), first_name=PersonNamePart("太郎")
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart(last_name_kana),
+                first_name=PersonNameKanaPart("タロウ"),
+            ),
         ),
         patient_number=await repository.allocate_patient_number(corporate_id),
+        birth_date=None,
+        gender=None,
+        postal_code=None,
+        address=None,
+        phone_number=None,
     )
     await repository.save(patient)
     return patient

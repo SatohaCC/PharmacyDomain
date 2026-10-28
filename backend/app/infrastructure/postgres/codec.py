@@ -14,6 +14,7 @@ from typing import (
     Any,
     Final,
     Literal,
+    TypeAliasType,
     TypeVar,
     Union,
     cast,
@@ -190,6 +191,8 @@ def _encode(value: object) -> object:
 
 
 def _decode(value: object, annotation: object, *, context: str) -> object:
+    if isinstance(annotation, TypeAliasType):
+        return _decode(value, annotation.__value__, context=context)
     origin = get_origin(annotation)
 
     if origin is Annotated:
@@ -286,6 +289,10 @@ def _decode_union(
 ) -> object:
     if value is None and type(None) in choices:
         return None
+    # 復元済みの列挙型を先行する文字列Primitiveへ変換しない。
+    for choice in choices:
+        if type(value) is choice:
+            return value
     errors: list[PersistenceMappingError] = []
     for choice in choices:
         if choice is type(None):

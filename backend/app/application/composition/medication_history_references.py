@@ -6,6 +6,7 @@ from dataclasses import replace
 from datetime import datetime
 
 from app.application.common.exceptions import NotFoundError
+from app.application.common.optional_conversion import unwrap
 from app.application.composition.medication_history_snapshot_mapping import (
     dispensing_source,
 )
@@ -143,10 +144,10 @@ class ReceptionMedicationHistorySourceAdapter(ReceptionMedicationHistoryBoundary
             billing_additions=(
                 tuple(
                     BillingAdditionInput(
-                        code=item.code,
-                        name=item.name,
-                        points=item.points,
-                        quantity=item.quantity,
+                        code=item.code.value,
+                        name=item.name.value,
+                        points=(unwrap(item.points)),
+                        quantity=(unwrap(item.quantity)),
                     )
                     for item in source_data.billing_additions
                 )

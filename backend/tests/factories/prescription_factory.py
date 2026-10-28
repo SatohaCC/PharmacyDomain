@@ -13,6 +13,7 @@ from decimal import Decimal
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.identifiers import PatientId
 from app.domain.prescription.entities import Prescription
+from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.prescription.primitives import (
     DepartmentCodeType,
     DepartmentName,
@@ -40,6 +41,7 @@ from app.domain.prescription.primitives import (
     PrescriptionDocumentNumber,
     PrescriptionIssuedDate,
     PrescriptionSourceType,
+    PrescriptionStatus,
     PrescriptionValidTo,
     RpNumber,
 )
@@ -56,7 +58,12 @@ from app.domain.prescription.value_objects import (
     PrescriptionPeriod,
     PrescriptionRp,
 )
-from app.domain.shared.person_name import PersonName, PersonNameKana
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+)
 from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.staff.identifiers import StaffId
 from app.domain.store.identifiers import StoreId
@@ -96,10 +103,12 @@ def create_prescriber(
 ) -> PrescriberInfo:
     """処方医情報を組み立てる。"""
     return PrescriberInfo(
-        names=PersonName.create(last_name=last_name, first_name=first_name),
-        names_kana=PersonNameKana.create(
-            last_name=last_name_kana,
-            first_name=first_name_kana,
+        names=PersonName(
+            last_name=PersonNamePart(last_name), first_name=PersonNamePart(first_name)
+        ),
+        names_kana=PersonNameKana(
+            last_name=PersonNameKanaPart(last_name_kana),
+            first_name=PersonNameKanaPart(first_name_kana),
         ),
     )
 
@@ -182,7 +191,8 @@ def create_prescription(
     management_info: PrescriptionManagementInfo | None = None,
 ) -> Prescription:
     """処方箋集約を組み立てる。"""
-    return Prescription.create(
+    return Prescription(
+        id=PrescriptionId.generate(),
         corporate_id=corporate_id
         if corporate_id is not None
         else CorporateId.generate(),
@@ -195,7 +205,11 @@ def create_prescription(
         prescriber=create_prescriber(),
         period=create_period(),
         rps=rps if rps is not None else (create_rp(),),
-        management_info=management_info,
+        status=PrescriptionStatus.RECEIVED,
+        management_info=management_info
+        if management_info is not None
+        else PrescriptionManagementInfo(),
+        coverage_selection_record_id=None,
     )
 
 

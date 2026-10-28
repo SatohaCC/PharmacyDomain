@@ -19,7 +19,13 @@ from app.domain.identity.primitives import (
     MembershipRole,
 )
 from app.domain.shared.actor import AccountPersonId, UserAccountId
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 from app.domain.staff.identifiers import StaffId
 from app.domain.store.identifiers import StoreId
 from tests.fakes.in_memory_identity_repositories import (
@@ -45,11 +51,14 @@ async def _setup() -> tuple[
     memberships = InMemoryCorporateMembershipRepository()
     person = AccountPerson(
         id=AccountPersonId.generate(),
-        names=PersonNames.create(
-            last_name="山田",
-            first_name="太郎",
-            last_name_kana="ヤマダ",
-            first_name_kana="タロウ",
+        names=PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart("山田"), first_name=PersonNamePart("太郎")
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart("ヤマダ"),
+                first_name=PersonNameKanaPart("タロウ"),
+            ),
         ),
     )
     # 解決の出発点は外部主体なので、固定済みを既定にする。

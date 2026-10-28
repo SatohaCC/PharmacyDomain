@@ -30,9 +30,12 @@ from app.domain.medication_history.exceptions import (
     CounselorQualificationError,
     MedicationHistoryNotFinalizedError,
 )
+from app.domain.medication_history.identifiers import ExternalCorrectionId
 from app.domain.medication_history.primitives import (
+    CorrectionDocumentNumber,
     ExternalCorrectionDecision,
     ExternalCorrectionKind,
+    ExternalCorrectionReason,
     ExternalCorrectionTimestamp,
     FinalizedTimestamp,
 )
@@ -58,12 +61,12 @@ from tests.fakes.in_memory_prescription_repository import (
 def _pending_correction() -> ExternalPrescriptionCorrection:
     """確定薬歴に保留訂正を1件付ける。"""
     correction = ExternalPrescriptionCorrection(
-        correction_id="corr-usecase-001",
+        correction_id=ExternalCorrectionId("corr-usecase-001"),
         corrected_at=ExternalCorrectionTimestamp(
             datetime(2026, 8, 24, 7, 0, tzinfo=UTC)
         ),
-        source_document_number="RX-20260824-001",
-        reason="NSIPS訂正受信",
+        source_document_number=CorrectionDocumentNumber("RX-20260824-001"),
+        reason=ExternalCorrectionReason("NSIPS訂正受信"),
         kind=ExternalCorrectionKind.UPDATE,
     )
     return correction

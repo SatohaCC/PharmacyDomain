@@ -5,7 +5,13 @@ from __future__ import annotations
 import pytest
 
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.prescription.primitives import InteractionSeverity, YjCode
+from app.domain.prescription.primitives import (
+    InteractionClinicalCondition,
+    InteractionMechanism,
+    InteractionRecommendation,
+    InteractionSeverity,
+    YjCode,
+)
 from app.domain.prescription.services import DrugInteractionAuditService
 from app.domain.prescription.value_objects import DrugInteractionPair
 from tests.fakes.fake_drug_interaction import FakeDrugInteractionDataSource
@@ -132,9 +138,11 @@ async def test_相互作用重大度と臨床情報の突合() -> None:
             medicine_a=c_warfarin,
             medicine_b=c_miconazole,
             severity=InteractionSeverity.CONTRAINDICATED,
-            clinical_condition="重篤な出血症状の出現",
-            mechanism="ミコナゾールがCYP2C9を阻害しワルファリン血中濃度が著しく上昇",
-            recommendation="併用を避けること（併用禁忌）",
+            clinical_condition=InteractionClinicalCondition("重篤な出血症状の出現"),
+            mechanism=InteractionMechanism(
+                "ミコナゾールがCYP2C9を阻害しワルファリン血中濃度が著しく上昇"
+            ),
+            recommendation=InteractionRecommendation("併用を避けること（併用禁忌）"),
         )
     )
     # 併用注意ペアを登録
@@ -143,9 +151,15 @@ async def test_相互作用重大度と臨床情報の突合() -> None:
             medicine_a=c_warfarin,
             medicine_b=c_aspirin,
             severity=InteractionSeverity.PRECAUTION,
-            clinical_condition="抗凝固作用の増強による出血リスク増大",
-            mechanism="血小板凝集抑制作用および消化管粘膜障害の相加",
-            recommendation="血液凝固能検査を実施し用量調整を行うこと",
+            clinical_condition=InteractionClinicalCondition(
+                "抗凝固作用の増強による出血リスク増大"
+            ),
+            mechanism=InteractionMechanism(
+                "血小板凝集抑制作用および消化管粘膜障害の相加"
+            ),
+            recommendation=InteractionRecommendation(
+                "血液凝固能検査を実施し用量調整を行うこと"
+            ),
         )
     )
 
@@ -161,7 +175,7 @@ async def test_相互作用重大度と臨床情報の突合() -> None:
         p for p in result.pairs if p.severity == InteractionSeverity.CONTRAINDICATED
     ]
     assert len(contra_pairs) == 1
-    assert contra_pairs[0].clinical_condition == "重篤な出血症状の出現"
+    assert contra_pairs[0].clinical_condition.value == "重篤な出血症状の出現"
 
     # 併用注意の検証
     precaution_pairs = [
@@ -169,7 +183,8 @@ async def test_相互作用重大度と臨床情報の突合() -> None:
     ]
     assert len(precaution_pairs) == 1
     assert (
-        precaution_pairs[0].clinical_condition == "抗凝固作用の増強による出血リスク増大"
+        precaution_pairs[0].clinical_condition.value
+        == "抗凝固作用の増強による出血リスク増大"
     )
 
     # 相互作用なしの検証（残り4ペア）
@@ -191,7 +206,7 @@ async def test_監査結果の集計とフィルタ() -> None:
             medicine_a=cA,
             medicine_b=cB,
             severity=InteractionSeverity.CONTRAINDICATED,
-            clinical_condition="併用禁忌事象",
+            clinical_condition=InteractionClinicalCondition("併用禁忌事象"),
         )
     )
     # AとC: 併用注意
@@ -200,7 +215,7 @@ async def test_監査結果の集計とフィルタ() -> None:
             medicine_a=cA,
             medicine_b=cC,
             severity=InteractionSeverity.PRECAUTION,
-            clinical_condition="併用注意事象",
+            clinical_condition=InteractionClinicalCondition("併用注意事象"),
         )
     )
     # BとC: 相互作用なし（未登録）

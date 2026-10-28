@@ -2,16 +2,18 @@ import pytest
 
 from app.domain.corporate.entities import Corporate
 from app.domain.corporate.exceptions import CorporateNameAlreadyExistsError
-from app.domain.corporate.primitives import CorporateName, CorporateRepresentativeName
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.corporate.primitives import CorporateName
 from app.domain.corporate.services import CorporateNameUniquenessService
+from app.domain.corporate.value_objects import CorporateRepresentativeName
+from app.domain.shared.person_name import PersonNamePart
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository
 
 
 def create_representative() -> CorporateRepresentativeName:
     """テスト用代表者名のヘルパー関数"""
-    return CorporateRepresentativeName.create(
-        last_name="山田",
-        first_name="太郎",
+    return CorporateRepresentativeName(
+        last_name=PersonNamePart("山田"), first_name=PersonNamePart("太郎")
     )
 
 
@@ -34,7 +36,8 @@ async def test_ensure_name_is_unique_raises_error_when_name_already_exists() -> 
     # Arrange: あらかじめリポジトリに法人を1件登録しておく
     repository = InMemoryCorporateRepository()
     existing_name = CorporateName("既存テスト法人")
-    existing_corporate = Corporate.create(
+    existing_corporate = Corporate(
+        id=CorporateId.generate(),
         name=existing_name,
         representative_name=create_representative(),
     )
@@ -57,7 +60,8 @@ async def test_ensure_name_is_unique_allows_the_current_corporate_name() -> None
     # Arrange
     repository = InMemoryCorporateRepository()
     existing_name = CorporateName("既存テスト法人")
-    existing_corporate = Corporate.create(
+    existing_corporate = Corporate(
+        id=CorporateId.generate(),
         name=existing_name,
         representative_name=create_representative(),
     )

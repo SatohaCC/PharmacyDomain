@@ -41,6 +41,8 @@ from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.primitives import (
     BillingAdditionCode,
     BillingAdditionName,
+    BillingPoints,
+    BillingQuantity,
     CounselingMethod,
     CounselingTimestamp,
     ExternalCorrectionDecision,
@@ -59,7 +61,7 @@ from app.domain.medication_history.value_objects import (
     ResidualDrugRecord,
 )
 from app.domain.patient.entities import PatientExternalIdentifier
-from app.domain.patient.identifiers import PatientId
+from app.domain.patient.identifiers import PatientExternalIdentifierId, PatientId
 from app.domain.patient.primitives import (
     ExternalPatientId,
     ExternalSystemName,
@@ -73,9 +75,16 @@ from app.domain.prescription.primitives import (
     PrescriptionStatus,
 )
 from app.domain.reception.identifiers import ReceptionId
+from app.domain.reception.primitives import ReceptionOriginalJson
 from app.domain.reception.value_objects import ReceptionSourceData
 from app.domain.shared.actor import AccountPersonId, UserAccountId
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 from app.domain.store.identifiers import StoreId
 from tests.application.access_helpers import create_vendor_corporate_access_for
 from tests.application.integration.nsips.helpers import (
@@ -130,10 +139,18 @@ async def _save_history_after_pharmacist_writing(
         soap=create_soap(subjective="薬剤師が初回保存した記録。"),
         billing_additions=tuple(
             BillingAddition(
-                code=BillingAdditionCode(item.code),
-                name=BillingAdditionName(item.name),
-                points=item.points,
-                quantity=item.quantity,
+                code=BillingAdditionCode(item.code.value),
+                name=BillingAdditionName(item.name.value),
+                points=(
+                    BillingPoints(item.points.value)
+                    if item.points is not None
+                    else None
+                ),
+                quantity=(
+                    BillingQuantity(item.quantity.value)
+                    if item.quantity is not None
+                    else None
+                ),
             )
             for item in reception.source_data.billing_additions
         ),
@@ -177,7 +194,9 @@ async def test_tc08_Uファイル保留を薬剤師が指定した薬歴だけ�
     assert reception is not None
     fixture.medication_history_repo.items.clear()
     source_data = ReceptionSourceData(
-        bundle_json='{"prescription":{"rps":[]},"follow_up":{"kind":"U"}}',
+        bundle_json=ReceptionOriginalJson(
+            '{"prescription":{"rps":[]},"follow_up":{"kind":"U"}}'
+        ),
         imported_at=fixture.clock.now(),
         is_follow_up=True,
     )
@@ -1604,12 +1623,13 @@ async def test_取込_同一患者の別有効IDで再送_受付指紋の元ID�
         for path, _ in reception.field_fingerprints
     )
     original_link = next(iter(fixture.patient_external_id_repo.items.values()))
-    alternate_link = PatientExternalIdentifier.create(
+    alternate_link = PatientExternalIdentifier(
+        id=PatientExternalIdentifierId.generate(),
         corporate_id=fixture.corporate_id,
-        store_id=original_link.store_id,
         patient_id=patient_id,
         system_name=original_link.system_name,
         external_patient_id=ExternalPatientId("P-ALTERNATE-ACTIVE"),
+        store_id=original_link.store_id,
     )
     await fixture.patient_external_id_repo.save(alternate_link)
     active_link = await fixture.patient_external_id_repo.get_active_by_source(
@@ -2066,7 +2086,14 @@ async def test_tc47_処方メタデータ差分は重複扱いせず訂正を要
     assert reloaded_history.soap == finalized_history.soap
     assert reloaded_history.is_finalized is True
     assert reloaded_history.has_pending_correction_review is True
-    assert field_name in (reloaded_history.external_corrections[-1].details or "")
+    assert field_name in (
+        (
+            reloaded_history.external_corrections[-1].details.value
+            if reloaded_history.external_corrections[-1].details is not None
+            else None
+        )
+        or ""
+    )
 
 
 @pytest.mark.asyncio
@@ -2395,7 +2422,8 @@ async def test_tc59_剤数量と保険欠落が同時に変わる場合は自動
     assert reception.source_data is not None
     assert reception.source_data_history == (initial_reception.source_data,)
     assert (
-        reception.source_data.bundle_json != initial_reception.source_data.bundle_json
+        reception.source_data.bundle_json.value
+        != initial_reception.source_data.bundle_json.value
     )
     assert {
         field.value for field in reception.correction_history[-1].changed_fields
@@ -2452,8 +2480,16 @@ async def test_issue36_tc33_U再取込の加算比較は新しいFOLLOW_UPでは
                 BillingAddition(
                     code=BillingAdditionCode(addition_info.code),
                     name=BillingAdditionName(addition_info.name),
-                    points=addition_info.points,
-                    quantity=addition_info.quantity,
+                    points=(
+                        BillingPoints(addition_info.points)
+                        if addition_info.points is not None
+                        else None
+                    ),
+                    quantity=(
+                        BillingQuantity(addition_info.quantity)
+                        if addition_info.quantity is not None
+                        else None
+                    ),
                 ),
             ),
         )
@@ -2537,12 +2573,13 @@ async def test_取込_患者ID指紋欠損の完全重複で別患者リンク_�
         replace(patient, id=other_patient_id, patient_number=other_patient_number)
     )
     original_link = next(iter(fixture.patient_external_id_repo.items.values()))
-    alternate_link = PatientExternalIdentifier.create(
+    alternate_link = PatientExternalIdentifier(
+        id=PatientExternalIdentifierId.generate(),
         corporate_id=fixture.corporate_id,
-        store_id=original_link.store_id,
         patient_id=other_patient_id,
         system_name=original_link.system_name,
         external_patient_id=ExternalPatientId("P-LEGACY-OTHER-PATIENT"),
+        store_id=original_link.store_id,
     )
     await fixture.patient_external_id_repo.save(alternate_link)
     changed = replace(
@@ -3171,7 +3208,7 @@ async def test_TC31_解決済みの外部訂正を再送しても保留へ戻さ
     )
     assert saved_history is not None
     resolved_history = saved_history.review_external_correction(
-        correction_id=saved_history.external_corrections[0].correction_id,
+        correction_id=saved_history.external_corrections[0].correction_id.value,
         decision=ExternalCorrectionDecision.NO_ACTION,
         reason="内容を確認し、薬歴への反映は不要と判断した。",
         reviewed_by=fixture.pharmacist_id,
@@ -3294,7 +3331,7 @@ async def test_TC35_削除保留を再登録処方と照合して解決する() 
 
     # 照合判断（MATCH_REREGISTERED_PRESCRIPTION）で解決
     resolved = pending_history.review_external_correction(
-        correction_id=pending_history.external_corrections[0].correction_id,
+        correction_id=pending_history.external_corrections[0].correction_id.value,
         decision=ExternalCorrectionDecision.MATCH_REREGISTERED_PRESCRIPTION,
         reason="再登録処方箋との一致を確認し解決した。",
         reviewed_by=fixture.pharmacist_id,
@@ -3373,7 +3410,7 @@ async def test_TC35_削除保留を薬歴追記訂正で解決する() -> None:
     assert correction.status is ExternalCorrectionStatus.PENDING
 
     amended = pending.review_external_correction(
-        correction_id=correction.correction_id,
+        correction_id=correction.correction_id.value,
         decision=ExternalCorrectionDecision.AMEND,
         reason="削除された処方内容を確認し、患者への説明を追記した。",
         reviewed_by=fixture.pharmacist_id,
@@ -3391,7 +3428,11 @@ async def test_TC35_削除保留を薬歴追記訂正で解決する() -> None:
     )
     event = amended.external_corrections[0].review_events[-1]
     assert event.decision is ExternalCorrectionDecision.AMEND
-    assert event.amendment_id == amended.amendments[0].amendment_id
+    assert (event.amendment_id.value if event.amendment_id is not None else None) == (
+        amended.amendments[0].amendment_id.value
+        if amended.amendments[0].amendment_id is not None
+        else None
+    )
 
 
 @pytest.mark.asyncio
@@ -3584,12 +3625,13 @@ async def test_取込_患者ID指紋欠損で有効対応なし_拒否し新リ�
     await fixture.reception_repo.save(legacy)
     incoming_id = ExternalPatientId("P-LEGACY-NO-ACTIVE-LINK")
     if inactive_only:
-        inactive_link = PatientExternalIdentifier.create(
+        inactive_link = PatientExternalIdentifier(
+            id=PatientExternalIdentifierId.generate(),
             corporate_id=fixture.corporate_id,
-            store_id=fixture.store_id,
             patient_id=patient_id,
             system_name=ExternalSystemName("recept"),
             external_patient_id=incoming_id,
+            store_id=fixture.store_id,
         ).deactivate()
         await fixture.patient_external_id_repo.save(inactive_link)
     assert (
@@ -3684,12 +3726,13 @@ async def test_取込_患者ID指紋欠損で別患者の属性訂正_拒否し�
         replace(patient, id=other_patient_id, patient_number=other_patient_number)
     )
     original_link = next(iter(fixture.patient_external_id_repo.items.values()))
-    alternate_link = PatientExternalIdentifier.create(
+    alternate_link = PatientExternalIdentifier(
+        id=PatientExternalIdentifierId.generate(),
         corporate_id=fixture.corporate_id,
-        store_id=original_link.store_id,
         patient_id=other_patient_id,
         system_name=original_link.system_name,
         external_patient_id=ExternalPatientId("P-LEGACY-CORRECTION-OTHER"),
+        store_id=original_link.store_id,
     )
     await fixture.patient_external_id_repo.save(alternate_link)
     changed = replace(
@@ -3829,23 +3872,27 @@ async def test_取込_患者ID指紋欠損で他スコープのリンクのみ_�
         patient_number=await fixture.patient_repo.allocate_patient_number(
             foreign_corporate
         ),
-        names=PersonNames.create(
-            last_name="非公開",
-            first_name="患者",
-            last_name_kana="ヒコウカイ",
-            first_name_kana="カンジャ",
+        names=PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart("非公開"), first_name=PersonNamePart("患者")
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart("ヒコウカイ"),
+                first_name=PersonNameKanaPart("カンジャ"),
+            ),
         ),
     )
     await fixture.patient_repo.save(foreign_patient)
     incoming_id = ExternalPatientId("P-FOREIGN-SCOPE-ONLY")
-    foreign_link = PatientExternalIdentifier.create(
+    foreign_link = PatientExternalIdentifier(
+        id=PatientExternalIdentifierId.generate(),
         corporate_id=foreign_corporate,
-        store_id=foreign_store_id,
         patient_id=foreign_patient.id,
         system_name=ExternalSystemName(
             "other-source" if different_scope == "source" else "recept"
         ),
         external_patient_id=incoming_id,
+        store_id=foreign_store_id,
     )
     await fixture.patient_external_id_repo.save(foreign_link)
     assert (

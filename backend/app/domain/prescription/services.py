@@ -17,6 +17,9 @@ from app.domain.prescription.exceptions import (
     RefillNotAllowedError,
 )
 from app.domain.prescription.primitives import (
+    InteractionClinicalCondition,
+    InteractionMechanism,
+    InteractionRecommendation,
     InteractionSeverity,
     MedicineRestrictionFlag,
     PrescriptionSourceType,
@@ -83,9 +86,9 @@ class DrugInteractionAuditService:
                     medicine_a=med_a,
                     medicine_b=med_b,
                     severity=InteractionSeverity.NONE,
-                    clinical_condition="",
-                    mechanism="",
-                    recommendation="",
+                    clinical_condition=InteractionClinicalCondition(""),
+                    mechanism=InteractionMechanism(""),
+                    recommendation=InteractionRecommendation(""),
                 )
             evaluated_pairs.append(pair)
 

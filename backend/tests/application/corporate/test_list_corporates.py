@@ -11,18 +11,21 @@ from app.application.corporate.list_corporates import (
 )
 from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.corporate.primitives import CorporateName, CorporateRepresentativeName
+from app.domain.corporate.primitives import CorporateName
+from app.domain.corporate.value_objects import CorporateRepresentativeName
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.shared.person_name import PersonNamePart
 from tests.fakes.in_memory_corporate_search_repository import (
     InMemoryCorporateSearchRepository,
 )
 
 
 def _corporate(index: int) -> Corporate:
-    return Corporate.create(
+    return Corporate(
+        id=CorporateId.generate(),
         name=CorporateName(f"法人{index:03d}"),
-        representative_name=CorporateRepresentativeName.create(
-            last_name="山田", first_name="太郎"
+        representative_name=CorporateRepresentativeName(
+            last_name=PersonNamePart("山田"), first_name=PersonNamePart("太郎")
         ),
     )
 
@@ -45,7 +48,7 @@ async def test_法人一覧は_ID昇順で既定の五十件を返す() -> None:
         str(item.id.value) for item in items[:50]
     ]
     assert result.next_cursor is not None
-    assert repository.queries[0].limit <= 51
+    assert repository.queries[0].limit.value <= 51
 
 
 @pytest.mark.asyncio

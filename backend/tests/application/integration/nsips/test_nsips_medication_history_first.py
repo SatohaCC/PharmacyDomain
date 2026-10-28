@@ -41,7 +41,7 @@ from app.application.medication_history.start_medication_history import (
 from app.application.patient.get_patient import GetPatientQuery, GetPatientUseCase
 from app.application.patient.register_patient import RegisterPatientUseCase
 from app.domain.care_event.entities import Event
-from app.domain.care_event.identifiers import EventTypeId
+from app.domain.care_event.identifiers import EventId, EventTypeId
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
     EventOccurredTimestamp,
@@ -285,17 +285,19 @@ async def test_tc12_保険変更後の受付取込_原本を保持し薬剤師�
     source_data = getattr(reception, "source_data", None)
     assert source_data is not None
     assert source_data.imported_at == fixture.clock.now()
-    assert source_data.billing_additions[0].code == "140000110"
+    assert source_data.billing_additions[0].code.value == "140000110"
     assert source_data.billing_additions[0].points is None
-    assert source_data.billing_additions[0].quantity == 1
-    assert "140000110" in source_data.bundle_json
-    assert "特定薬剤管理指導加算２" in source_data.bundle_json
+    assert source_data.billing_additions[0].quantity.value == 1
+    assert "140000110" in source_data.bundle_json.value
+    assert "特定薬剤管理指導加算２" in source_data.bundle_json.value
 
     # 5. 薬剤師が本文を記載して初回保存した時点でのみ薬歴を作り、
     #    受付の由来情報を引き継ぐ。記載者はActor由来で、指導実績とは別。
     reception_id = str(reception.id.value)
-    event = Event.create(
+    event = Event(
+        id=EventId.generate(),
         event_type_id=EventTypeId.generate(),
+        event_definition_corporate_id=None,
         event_type_standard_code=EventTypeStandardCode("prescription_reception"),
         event_type_name=EventTypeName("処方箋受付"),
         corporate_id=fixture.corporate_id,
@@ -303,6 +305,7 @@ async def test_tc12_保険変更後の受付取込_原本を保持し薬剤師�
         patient_id=PatientId.parse(result.patient_id),
         occurred_at=EventOccurredTimestamp(fixture.clock.now()),
         created_at=EventCreatedTimestamp(fixture.clock.now()),
+        related_event_id=None,
         reception_id=reception.id,
         prescription_id=PrescriptionId.parse(result.prescription_id),
         dispensing_id=DispensingId.parse(result.dispensing_id),

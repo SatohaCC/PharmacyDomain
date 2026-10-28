@@ -14,6 +14,7 @@ from app.domain.medication_history.exceptions import (
 )
 from app.domain.medication_history.identifiers import CategoryCatalogId
 from app.domain.medication_history.primitives import (
+    CategoryDisplayOrder,
     MajorCategoryCode,
     MajorCategoryName,
     MediumCategoryCode,
@@ -45,7 +46,7 @@ def _sample_catalog(
             MajorCategoryDefinition(
                 code=MajorCategoryCode("soap"),
                 name=MajorCategoryName("SOAP"),
-                display_order=1,
+                display_order=CategoryDisplayOrder(1),
             ),
         ),
         medium_categories=medium_categories
@@ -55,7 +56,7 @@ def _sample_catalog(
                 code=MediumCategoryCode("s"),
                 major_category_code=MajorCategoryCode("soap"),
                 name=MediumCategoryName("S（主観的情報）"),
-                display_order=1,
+                display_order=CategoryDisplayOrder(1),
             ),
         ),
     )
@@ -96,10 +97,14 @@ def test_duplicate_major_category_rejected() -> None:
         _sample_catalog(
             major_categories=(
                 MajorCategoryDefinition(
-                    code=dup_code, name=MajorCategoryName("SOAP 1"), display_order=1
+                    code=dup_code,
+                    name=MajorCategoryName("SOAP 1"),
+                    display_order=CategoryDisplayOrder(1),
                 ),
                 MajorCategoryDefinition(
-                    code=dup_code, name=MajorCategoryName("SOAP 2"), display_order=2
+                    code=dup_code,
+                    name=MajorCategoryName("SOAP 2"),
+                    display_order=CategoryDisplayOrder(2),
                 ),
             )
         )
@@ -113,7 +118,9 @@ def test_duplicate_medium_category_rejected() -> None:
         _sample_catalog(
             major_categories=(
                 MajorCategoryDefinition(
-                    code=major_code, name=MajorCategoryName("SOAP"), display_order=1
+                    code=major_code,
+                    name=MajorCategoryName("SOAP"),
+                    display_order=CategoryDisplayOrder(1),
                 ),
             ),
             medium_categories=(
@@ -121,13 +128,13 @@ def test_duplicate_medium_category_rejected() -> None:
                     code=dup_code,
                     major_category_code=major_code,
                     name=MediumCategoryName("S 1"),
-                    display_order=1,
+                    display_order=CategoryDisplayOrder(1),
                 ),
                 MediumCategoryDefinition(
                     code=dup_code,
                     major_category_code=major_code,
                     name=MediumCategoryName("S 2"),
-                    display_order=2,
+                    display_order=CategoryDisplayOrder(2),
                 ),
             ),
         )
@@ -141,7 +148,7 @@ def test_unreferenced_major_category_rejected() -> None:
                 MajorCategoryDefinition(
                     code=MajorCategoryCode("soap"),
                     name=MajorCategoryName("SOAP"),
-                    display_order=1,
+                    display_order=CategoryDisplayOrder(1),
                 ),
             ),
             medium_categories=(
@@ -149,7 +156,7 @@ def test_unreferenced_major_category_rejected() -> None:
                     code=MediumCategoryCode("other"),
                     major_category_code=MajorCategoryCode("non_existent"),
                     name=MediumCategoryName("その他"),
-                    display_order=1,
+                    display_order=CategoryDisplayOrder(1),
                 ),
             ),
         )
@@ -161,7 +168,7 @@ def test_add_and_update_major_category() -> None:
     custom_major = MajorCategoryDefinition(
         code=MajorCategoryCode("followup"),
         name=MajorCategoryName("フォローアップ"),
-        display_order=2,
+        display_order=CategoryDisplayOrder(2),
     )
     added = catalog.add_major_category(custom_major)
     assert len(added.major_categories) == len(catalog.major_categories) + 1
@@ -171,13 +178,13 @@ def test_add_and_update_major_category() -> None:
     updated_major = MajorCategoryDefinition(
         code=MajorCategoryCode("followup"),
         name=MajorCategoryName("調剤後フォロー"),
-        display_order=3,
+        display_order=CategoryDisplayOrder(3),
         is_enabled=False,
     )
     updated = added.update_major_category(updated_major)
     target = next(m for m in updated.major_categories if m.code == custom_major.code)
     assert target.name.value == "調剤後フォロー"
-    assert target.display_order == 3
+    assert target.display_order.value == 3
     assert not target.is_enabled
 
 
@@ -188,7 +195,7 @@ def test_add_and_update_medium_category() -> None:
         code=MediumCategoryCode("p"),
         major_category_code=MajorCategoryCode("soap"),
         name=MediumCategoryName("P（計画）"),
-        display_order=2,
+        display_order=CategoryDisplayOrder(2),
         is_required=False,
     )
     added = catalog.add_medium_category(new_medium)
@@ -199,7 +206,7 @@ def test_add_and_update_medium_category() -> None:
         code=MediumCategoryCode("p"),
         major_category_code=MajorCategoryCode("soap"),
         name=MediumCategoryName("P（次回指導計画）"),
-        display_order=2,
+        display_order=CategoryDisplayOrder(2),
         is_required=True,
     )
     updated = added.update_medium_category(updated_medium)
@@ -215,10 +222,14 @@ def test_medium_categories_for_major() -> None:
     catalog = _sample_catalog(
         major_categories=(
             MajorCategoryDefinition(
-                code=soap_code, name=MajorCategoryName("SOAP"), display_order=1
+                code=soap_code,
+                name=MajorCategoryName("SOAP"),
+                display_order=CategoryDisplayOrder(1),
             ),
             MajorCategoryDefinition(
-                code=statutory_code, name=MajorCategoryName("法令"), display_order=2
+                code=statutory_code,
+                name=MajorCategoryName("法令"),
+                display_order=CategoryDisplayOrder(2),
             ),
         ),
         medium_categories=(
@@ -226,19 +237,19 @@ def test_medium_categories_for_major() -> None:
                 code=MediumCategoryCode("s"),
                 major_category_code=soap_code,
                 name=MediumCategoryName("S"),
-                display_order=1,
+                display_order=CategoryDisplayOrder(1),
             ),
             MediumCategoryDefinition(
                 code=MediumCategoryCode("handbook"),
                 major_category_code=statutory_code,
                 name=MediumCategoryName("手帳"),
-                display_order=2,
+                display_order=CategoryDisplayOrder(2),
             ),
             MediumCategoryDefinition(
                 code=MediumCategoryCode("p"),
                 major_category_code=soap_code,
                 name=MediumCategoryName("P"),
-                display_order=3,
+                display_order=CategoryDisplayOrder(3),
             ),
         ),
     )
@@ -253,7 +264,9 @@ def test_required_medium_categories() -> None:
     catalog = _sample_catalog(
         major_categories=(
             MajorCategoryDefinition(
-                code=soap_code, name=MajorCategoryName("SOAP"), display_order=1
+                code=soap_code,
+                name=MajorCategoryName("SOAP"),
+                display_order=CategoryDisplayOrder(1),
             ),
         ),
         medium_categories=(
@@ -261,7 +274,7 @@ def test_required_medium_categories() -> None:
                 code=MediumCategoryCode("s"),
                 major_category_code=soap_code,
                 name=MediumCategoryName("S"),
-                display_order=1,
+                display_order=CategoryDisplayOrder(1),
                 is_required=True,
                 is_enabled=True,
             ),
@@ -269,7 +282,7 @@ def test_required_medium_categories() -> None:
                 code=MediumCategoryCode("o"),
                 major_category_code=soap_code,
                 name=MediumCategoryName("O"),
-                display_order=2,
+                display_order=CategoryDisplayOrder(2),
                 is_required=False,
                 is_enabled=True,
             ),
@@ -277,7 +290,7 @@ def test_required_medium_categories() -> None:
                 code=MediumCategoryCode("p"),
                 major_category_code=soap_code,
                 name=MediumCategoryName("P"),
-                display_order=3,
+                display_order=CategoryDisplayOrder(3),
                 is_required=True,
                 is_enabled=False,  # 非アクティブは除外
             ),
@@ -294,7 +307,9 @@ def test_validate_record_compliance_success() -> None:
     catalog = _sample_catalog(
         major_categories=(
             MajorCategoryDefinition(
-                code=soap_code, name=MajorCategoryName("SOAP"), display_order=1
+                code=soap_code,
+                name=MajorCategoryName("SOAP"),
+                display_order=CategoryDisplayOrder(1),
             ),
         ),
         medium_categories=(
@@ -302,14 +317,14 @@ def test_validate_record_compliance_success() -> None:
                 code=MediumCategoryCode("s"),
                 major_category_code=soap_code,
                 name=MediumCategoryName("S"),
-                display_order=1,
+                display_order=CategoryDisplayOrder(1),
                 is_required=True,
             ),
             MediumCategoryDefinition(
                 code=MediumCategoryCode("p"),
                 major_category_code=soap_code,
                 name=MediumCategoryName("P"),
-                display_order=2,
+                display_order=CategoryDisplayOrder(2),
                 is_required=True,
             ),
         ),
@@ -333,7 +348,9 @@ def test_validate_record_compliance_missing_required() -> None:
     catalog = _sample_catalog(
         major_categories=(
             MajorCategoryDefinition(
-                code=soap_code, name=MajorCategoryName("SOAP"), display_order=1
+                code=soap_code,
+                name=MajorCategoryName("SOAP"),
+                display_order=CategoryDisplayOrder(1),
             ),
         ),
         medium_categories=(
@@ -341,14 +358,14 @@ def test_validate_record_compliance_missing_required() -> None:
                 code=MediumCategoryCode("s"),
                 major_category_code=soap_code,
                 name=MediumCategoryName("S（主観的情報）"),
-                display_order=1,
+                display_order=CategoryDisplayOrder(1),
                 is_required=True,
             ),
             MediumCategoryDefinition(
                 code=MediumCategoryCode("p"),
                 major_category_code=soap_code,
                 name=MediumCategoryName("P（計画）"),
-                display_order=2,
+                display_order=CategoryDisplayOrder(2),
                 is_required=True,
             ),
         ),

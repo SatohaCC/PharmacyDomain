@@ -34,6 +34,7 @@ from app.domain.patient.primitives import (
     PatientPhoneNumber,
     PatientPostalCode,
     PatientProfileChangeSource,
+    PatientProfileField,
 )
 from app.domain.patient.value_objects import (
     PatientProfileChange,
@@ -80,7 +81,9 @@ def _profile_change() -> PatientProfileChange:
         store_id=StoreId.generate(),
         external_patient_id=ExternalPatientId("RECEIPT-42"),
         recorded_at=datetime(2026, 9, 23, 1, 2, 3, tzinfo=UTC),
-        changed_fields=("patient.address",),
+        changed_fields=tuple(
+            PatientProfileField(item) for item in ("patient.address",)
+        ),
         source=PatientProfileChangeSource.NSIPS,
         received_profile=after,
         before_profile=before,

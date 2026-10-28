@@ -47,7 +47,9 @@ EXPECTED_AGGREGATE_ROOTS: frozenset[str] = frozenset(
 #: 集約ルートが自集約の内部構成要素として保持することを許可された子エンティティ。
 ALLOWED_CHILD_ENTITIES: dict[str, frozenset[str]] = {
     "Prescription": frozenset({"PrescriptionInquiry"}),
-    "MedicationHistoryRecord": frozenset({"TracingReport"}),
+    "MedicationHistoryRecord": frozenset(
+        {"TracingReport", "MedicationHistoryFactCorrection"}
+    ),
 }
 
 

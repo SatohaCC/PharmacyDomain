@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, datetime, time
-from typing import ClassVar, Final, Self
+from typing import ClassVar, Final
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
@@ -291,31 +291,11 @@ class ContactInfo(ValueObject):
     fax_number: StoreFaxNumber | None = None
     email: StoreEmailAddress | None = None
 
-    @classmethod
-    def create(
-        cls,
-        *,
-        phone_number: StorePhoneNumber,
-        fax_number: StoreFaxNumber | None = None,
-        email: StoreEmailAddress | None = None,
-    ) -> Self:
-        """空の任意連絡先を ``None`` に正規化して生成する。"""
-        return cls(
-            phone_number=phone_number,
-            fax_number=fax_number if fax_number and fax_number.value else None,
-            email=email if email and email.value else None,
-        )
-
     _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
         "phone_number": "電話番号",
         "fax_number": "FAX番号",
         "email": "メールアドレス",
     }
-
-    def _normalize_fields(self) -> None:
-        """未発行の空FAXを未設定へ正規化する。"""
-        if isinstance(self.fax_number, StoreFaxNumber) and not self.fax_number.value:
-            object.__setattr__(self, "fax_number", None)
 
     def validate(self) -> None:
         """必須の電話番号が空でないことを検証する。"""

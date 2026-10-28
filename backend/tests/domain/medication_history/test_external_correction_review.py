@@ -6,9 +6,13 @@ import pytest
 
 from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.exceptions import MedicationHistoryDomainError
+from app.domain.medication_history.identifiers import ExternalCorrectionId
 from app.domain.medication_history.primitives import (
+    CorrectionDocumentNumber,
     ExternalCorrectionDecision,
+    ExternalCorrectionDetails,
     ExternalCorrectionKind,
+    ExternalCorrectionReason,
     ExternalCorrectionStatus,
     ExternalCorrectionTimestamp,
     FinalizedTimestamp,
@@ -35,11 +39,11 @@ def _correction(
 ) -> ExternalPrescriptionCorrection:
     """外部訂正証跡を組み立てる。"""
     return ExternalPrescriptionCorrection(
-        correction_id="corr-review-001",
+        correction_id=ExternalCorrectionId("corr-review-001"),
         corrected_at=_RECEIVED_AT,
-        source_document_number="RX-20260824-001",
-        reason="NSIPS外部処方訂正",
-        details="用法変更",
+        source_document_number=CorrectionDocumentNumber("RX-20260824-001"),
+        reason=ExternalCorrectionReason("NSIPS外部処方訂正"),
+        details=ExternalCorrectionDetails("用法変更"),
         kind=kind,
     )
 
@@ -81,9 +85,10 @@ def test_TC02_追記訂正とレビュー判断を同じ薬歴へ追記する() 
     assert correction.review_events[-1].reviewed_at == _REVIEWED_AT
     assert correction.review_events[-1].amendment_id is not None
     assert (
-        reviewed.amendments[-1].amendment_id
-        == correction.review_events[-1].amendment_id
-    )
+        reviewed.amendments[-1].amendment_id.value
+        if reviewed.amendments[-1].amendment_id is not None
+        else None
+    ) == correction.review_events[-1].amendment_id.value
     assert reviewed.has_pending_correction_review is False
 
 
@@ -100,7 +105,7 @@ def test_TC03_理由付き不採用は解決し空白理由は拒否する() -> 
     )
 
     assert resolved.external_corrections[0].status is ExternalCorrectionStatus.RESOLVED
-    assert resolved.external_corrections[0].review_events[-1].reason
+    assert resolved.external_corrections[0].review_events[-1].reason.value
     assert resolved.amendments == record.amendments
     assert resolved.has_pending_correction_review is False
 
@@ -158,7 +163,7 @@ def test_TC05_削除訂正を再登録処方IDと照合する() -> None:
     matched_id = PrescriptionId.generate()
 
     resolved = record.review_external_correction(
-        correction_id=correction.correction_id,
+        correction_id=correction.correction_id.value,
         decision=ExternalCorrectionDecision.MATCH_REREGISTERED_PRESCRIPTION,
         reason="再登録された同一処方箋であることを確認した。",
         reviewed_by=reviewer,

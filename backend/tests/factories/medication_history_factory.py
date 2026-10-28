@@ -83,7 +83,13 @@ from app.domain.medication_history.value_objects import (
 )
 from app.domain.patient.identifiers import PatientId
 from app.domain.prescription.identifiers import PrescriptionId
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 from app.domain.staff.identifiers import StaffId
 from app.domain.store.identifiers import StoreId
 
@@ -456,11 +462,14 @@ def create_person_names(
     first_name_kana: str = "タロウ",
 ) -> PersonNames:
     """漢字とカナの氏名一式を組み立てる。"""
-    return PersonNames.create(
-        last_name=last_name,
-        first_name=first_name,
-        last_name_kana=last_name_kana,
-        first_name_kana=first_name_kana,
+    return PersonNames(
+        kanji=PersonName(
+            last_name=PersonNamePart(last_name), first_name=PersonNamePart(first_name)
+        ),
+        kana=PersonNameKana(
+            last_name=PersonNameKanaPart(last_name_kana),
+            first_name=PersonNameKanaPart(first_name_kana),
+        ),
     )
 
 

@@ -11,7 +11,11 @@ from app.domain.patient.exceptions import (
     PatientStateConflictError,
 )
 from app.domain.patient.identifiers import PatientId
-from app.domain.patient.primitives import PatientHeadingText, PatientStatus
+from app.domain.patient.primitives import (
+    PatientHeadingText,
+    PatientHeadingTimestamp,
+    PatientStatus,
+)
 from app.domain.patient.value_objects import (
     PatientHeadingContent,
     PatientHeadingRevision,
@@ -38,7 +42,7 @@ def _revision(
         content=_content(summary),
         person_id=AccountPersonId.generate(),
         account_id=UserAccountId.generate(),
-        recorded_at=recorded_at,
+        recorded_at=PatientHeadingTimestamp(recorded_at),
     )
 
 
@@ -70,7 +74,7 @@ def test_tc43_02_頭書きの初回記録は別の患者インスタンスに追
     assert revision.content == _content("大切な申し送り", "前回のトラブル経緯")
     assert revision.person_id == person_id
     assert revision.account_id == account_id
-    assert revision.recorded_at == recorded_at
+    assert revision.recorded_at.value == recorded_at
 
 
 @pytest.mark.parametrize(
@@ -160,8 +164,8 @@ def test_tc43_08_日時を協定世界時へ正規化する() -> None:
         recorded_at=datetime(2026, 9, 1, 9, tzinfo=timezone(timedelta(hours=9))),
     )
 
-    assert revision.recorded_at == datetime(2026, 9, 1, tzinfo=UTC)
-    assert revision.recorded_at.tzinfo is UTC
+    assert revision.recorded_at.value == datetime(2026, 9, 1, tzinfo=UTC)
+    assert revision.recorded_at.value.tzinfo is UTC
 
 
 def test_tc43_09_タイムゾーンのない日時を拒否する() -> None:

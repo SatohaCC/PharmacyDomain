@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.foundation.primitives.identifiers import EntityStringId
 
 _DOMAIN = Path(__file__).resolve().parents[2] / "app" / "domain"
 
@@ -55,6 +56,13 @@ def test_公開ID_定義を移動しても_生成と復元の契約を維持す�
             if not isinstance(node, ast.ClassDef):
                 continue
             identifier = getattr(module, node.name)
+            if issubclass(identifier, EntityStringId):
+                original = identifier("テスト識別子")
+                assert original == identifier.parse("テスト識別子")
+                assert hash(original) == hash(identifier.parse("テスト識別子"))
+                with pytest.raises(DomainValidationError):
+                    identifier("")
+                continue
             value = uuid.uuid7()
             original = identifier(value)
             restored = identifier.parse(str(value))

@@ -23,6 +23,7 @@ from app.domain.medication_history.identifiers import (
     MedicationHistoryRecordId,
 )
 from app.domain.medication_history.primitives import (
+    CategoryDisplayOrder,
     MajorCategoryCode,
     MajorCategoryName,
     MediumCategoryCode,
@@ -61,7 +62,9 @@ async def test_finalize_passes_when_corporate_required_categories_met(
         corporate_id=fixture.corporate_id,
         major_categories=(
             MajorCategoryDefinition(
-                code=soap_code, name=MajorCategoryName("SOAP"), display_order=1
+                code=soap_code,
+                name=MajorCategoryName("SOAP"),
+                display_order=CategoryDisplayOrder(1),
             ),
         ),
         medium_categories=(
@@ -69,14 +72,14 @@ async def test_finalize_passes_when_corporate_required_categories_met(
                 code=MediumCategoryCode("s"),
                 major_category_code=soap_code,
                 name=MediumCategoryName("S"),
-                display_order=1,
+                display_order=CategoryDisplayOrder(1),
                 is_required=True,
             ),
             MediumCategoryDefinition(
                 code=MediumCategoryCode("p"),
                 major_category_code=soap_code,
                 name=MediumCategoryName("P"),
-                display_order=2,
+                display_order=CategoryDisplayOrder(2),
                 is_required=True,
             ),
         ),
@@ -130,7 +133,9 @@ async def test_finalize_fails_when_corporate_required_categories_missing(
         corporate_id=fixture.corporate_id,
         major_categories=(
             MajorCategoryDefinition(
-                code=soap_code, name=MajorCategoryName("SOAP"), display_order=1
+                code=soap_code,
+                name=MajorCategoryName("SOAP"),
+                display_order=CategoryDisplayOrder(1),
             ),
         ),
         medium_categories=(
@@ -138,14 +143,14 @@ async def test_finalize_fails_when_corporate_required_categories_missing(
                 code=MediumCategoryCode("s"),
                 major_category_code=soap_code,
                 name=MediumCategoryName("S"),
-                display_order=1,
+                display_order=CategoryDisplayOrder(1),
                 is_required=True,
             ),
             MediumCategoryDefinition(
                 code=MediumCategoryCode("p"),
                 major_category_code=soap_code,
                 name=MediumCategoryName("P（指導計画）"),
-                display_order=2,
+                display_order=CategoryDisplayOrder(2),
                 is_required=True,
             ),
         ),
@@ -214,7 +219,9 @@ async def test_tc45_29_法人必須区分は_Event種別によらず適用され
             corporate_id=fixture.corporate_id,
             major_categories=(
                 MajorCategoryDefinition(
-                    code=soap_code, name=MajorCategoryName("SOAP"), display_order=1
+                    code=soap_code,
+                    name=MajorCategoryName("SOAP"),
+                    display_order=CategoryDisplayOrder(1),
                 ),
             ),
             medium_categories=(
@@ -222,14 +229,14 @@ async def test_tc45_29_法人必須区分は_Event種別によらず適用され
                     code=MediumCategoryCode("s"),
                     major_category_code=soap_code,
                     name=MediumCategoryName("S"),
-                    display_order=1,
+                    display_order=CategoryDisplayOrder(1),
                     is_required=True,
                 ),
                 MediumCategoryDefinition(
                     code=MediumCategoryCode("p"),
                     major_category_code=soap_code,
                     name=MediumCategoryName("P"),
-                    display_order=2,
+                    display_order=CategoryDisplayOrder(2),
                     is_required=True,
                 ),
             ),

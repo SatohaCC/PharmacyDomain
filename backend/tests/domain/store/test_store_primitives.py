@@ -221,13 +221,9 @@ def test_store_address_rejects_raw_string_for_address() -> None:
         )
 
 
-def test_contact_info_create_normalizes_blank_optional_values_to_none() -> None:
+def test_連絡先_任意項目を未設定として直接生成する() -> None:
     # Arrange / Act
-    actual = ContactInfo.create(
-        phone_number=StorePhoneNumber("03-1234-5678"),
-        fax_number=StoreFaxNumber(""),
-        email=None,
-    )
+    actual = ContactInfo(phone_number=StorePhoneNumber("03-1234-5678"))
 
     # Assert
     assert actual.phone_number.value == "0312345678"
@@ -237,7 +233,7 @@ def test_contact_info_create_normalizes_blank_optional_values_to_none() -> None:
 
 def test_contact_info_keeps_optional_values_when_supplied() -> None:
     # Arrange / Act
-    actual = ContactInfo.create(
+    actual = ContactInfo(
         phone_number=StorePhoneNumber("0312345678"),
         fax_number=StoreFaxNumber("0312345679"),
         email=StoreEmailAddress("Info@Example.COM"),
@@ -253,7 +249,9 @@ def test_contact_info_keeps_optional_values_when_supplied() -> None:
 def test_contact_info_requires_phone_number() -> None:
     # Arrange / Act / Assert
     with pytest.raises(DomainValidationError) as exc_info:
-        ContactInfo.create(phone_number=StorePhoneNumber(""))
+        ContactInfo(
+            phone_number=StorePhoneNumber(""),
+        )
 
     assert str(exc_info.value) == "電話番号は空にできません。"
 
@@ -264,7 +262,9 @@ def test_contact_info_rejects_fax_number_passed_as_phone_number() -> None:
 
     # Act
     with pytest.raises(DomainValidationError) as exc_info:
-        ContactInfo.create(phone_number=fax)  # type: ignore[arg-type]
+        ContactInfo(
+            phone_number=fax,  # type: ignore[arg-type]
+        )
 
     # Assert
     assert str(exc_info.value) == "電話番号は StorePhoneNumber で指定してください。"

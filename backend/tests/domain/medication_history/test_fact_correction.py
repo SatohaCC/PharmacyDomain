@@ -13,6 +13,8 @@ from app.domain.medication_history.exceptions import MedicationHistoryDomainErro
 from app.domain.medication_history.primitives import (
     BillingAdditionCode,
     BillingAdditionName,
+    BillingPoints,
+    BillingQuantity,
     CounselingMethod,
     CounselingNote,
     CounselingTimestamp,
@@ -148,8 +150,8 @@ def _addition(name: str) -> BillingAddition:
     return BillingAddition(
         code=BillingAdditionCode("A001"),
         name=BillingAdditionName(name),
-        points=10,
-        quantity=1,
+        points=BillingPoints(10),
+        quantity=BillingQuantity(1),
     )
 
 
@@ -395,7 +397,7 @@ def test_tc14_同名の原本Intentを1件だけ置換する() -> None:
         originals[1],
     )
     assert corrected.profile_updates.new_allergies == originals
-    assert _events(corrected)[0].target == element_id
+    assert _events(corrected)[0].target.value == element_id
 
 
 def test_tc16_欠落Intentを追加して原本配列は空のままにする() -> None:
@@ -437,7 +439,7 @@ def test_tc17_追加した要素を同じIDで後から訂正できる(operation
     assert len(_events(corrected)) == 2
     assert _events(corrected)[0].after == create_allergy_intent()
     assert _events(corrected)[1].before == create_allergy_intent()
-    assert _events(corrected)[1].target == element_id
+    assert _events(corrected)[1].target.value == element_id
     expected = (replacement,) if operation == "replace" else ()
     assert _facts(corrected).profile_updates.new_allergies == expected
 

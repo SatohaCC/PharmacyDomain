@@ -4,30 +4,9 @@ from pathlib import Path
 
 import pytest
 
+from tools.check_domain_architecture import module_violations as _module_violations
+
 _DOMAIN = Path(__file__).resolve().parents[2] / "app" / "domain"
-_ROLES = {
-    "__init__.py",
-    "identifiers.py",
-    "exceptions.py",
-    "primitives.py",
-    "value_objects.py",
-    "entities.py",
-    "repositories.py",
-    "services.py",
-}
-
-
-def _module_violations(domain: Path) -> list[str]:
-    """基盤以外の全コンテキストから標準外のPython配置を集める。"""
-    return sorted(
-        path.relative_to(domain).as_posix()
-        for context in domain.iterdir()
-        if context.is_dir()
-        and context.name not in {"foundation", "shared", "__pycache__"}
-        for path in context.rglob("*.py")
-        if "__pycache__" not in path.parts
-        and (path.parent != context or path.name not in _ROLES)
-    )
 
 
 def test_Domainモジュール_全業務コンテキストが_役割別の直下配置を使う() -> None:

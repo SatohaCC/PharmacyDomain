@@ -28,7 +28,8 @@ from datetime import date
 
 from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.corporate.primitives import CorporateName, CorporateRepresentativeName
+from app.domain.corporate.primitives import CorporateName
+from app.domain.corporate.value_objects import CorporateRepresentativeName
 from app.domain.identity.entities import (
     AccountPerson,
     CorporateMembership,
@@ -38,7 +39,13 @@ from app.domain.identity.entities import (
 from app.domain.identity.identifiers import CorporateMembershipId
 from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole
 from app.domain.shared.actor import AccountPersonId, UserAccountId
-from app.domain.shared.person_name import PersonNamePart, PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 from app.domain.staff.entities import Staff
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import PharmacistLicenseNumber, StaffCode
@@ -149,11 +156,15 @@ def build_seed_data() -> SeedData:
     return SeedData(
         vendor_person=AccountPerson(
             id=vendor_person_id,
-            names=PersonNames.create(
-                last_name="開発",
-                first_name="ベンダー",
-                last_name_kana="カイハツ",
-                first_name_kana="ベンダー",
+            names=PersonNames(
+                kanji=PersonName(
+                    last_name=PersonNamePart("開発"),
+                    first_name=PersonNamePart("ベンダー"),
+                ),
+                kana=PersonNameKana(
+                    last_name=PersonNameKanaPart("カイハツ"),
+                    first_name=PersonNameKanaPart("ベンダー"),
+                ),
             ),
         ),
         vendor_account=UserAccount(
@@ -164,11 +175,14 @@ def build_seed_data() -> SeedData:
         ),
         admin_person=AccountPerson(
             id=admin_person_id,
-            names=PersonNames.create(
-                last_name="調剤",
-                first_name="花子",
-                last_name_kana="チョウザイ",
-                first_name_kana="ハナコ",
+            names=PersonNames(
+                kanji=PersonName(
+                    last_name=PersonNamePart("調剤"), first_name=PersonNamePart("花子")
+                ),
+                kana=PersonNameKana(
+                    last_name=PersonNameKanaPart("チョウザイ"),
+                    first_name=PersonNameKanaPart("ハナコ"),
+                ),
             ),
         ),
         admin_account=UserAccount(
@@ -195,19 +209,24 @@ def build_seed_data() -> SeedData:
                 postal_code=StorePostalCode("1000001"),
                 address=StoreAddressLine("東京都千代田区千代田1-1"),
             ),
-            contact_info=ContactInfo.create(
-                phone_number=StorePhoneNumber("0312345678")
+            contact_info=ContactInfo(
+                phone_number=StorePhoneNumber("0312345678"),
+                fax_number=None if False else None,
+                email=None if False else None,
             ),
             code=StoreCode("SEED-001"),
         ),
         staff=Staff(
             id=staff_id,
             corporate_id=corporate_id,
-            names=PersonNames.create(
-                last_name="調剤",
-                first_name="花子",
-                last_name_kana="チョウザイ",
-                first_name_kana="ハナコ",
+            names=PersonNames(
+                kanji=PersonName(
+                    last_name=PersonNamePart("調剤"), first_name=PersonNamePart("花子")
+                ),
+                kana=PersonNameKana(
+                    last_name=PersonNameKanaPart("チョウザイ"),
+                    first_name=PersonNameKanaPart("ハナコ"),
+                ),
             ),
             qualifications=StaffQualifications.from_profiles(
                 PharmacistProfile(license_number=PharmacistLicenseNumber("123456"))

@@ -363,19 +363,19 @@ class DispensingConsistencyService:
                 raise SplitInstructionMissingError()
             _ensure_within(
                 iteration=iteration,
-                limit=management.split_count,
+                limit=management.split_count.value,
                 instruction="医師の分割指示",
             )
             if process.total_split_count is not None:
                 _ensure_within(
                     iteration=process.total_split_count.value,
-                    limit=management.split_count,
+                    limit=management.split_count.value,
                     instruction="医師の分割指示の全分割回数",
                 )
         if management.refill_count is not None:
             _ensure_within(
                 iteration=iteration,
-                limit=management.refill_count,
+                limit=management.refill_count.value,
                 instruction="リフィル総使用回数",
             )
             return

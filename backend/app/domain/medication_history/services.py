@@ -168,7 +168,7 @@ def _assess_dispensed_quantity(
     del record, source
     return _recorded_if(
         bool(dispensing.dispensed_rps)
-        and all(rp.quantity is not None for rp in dispensing.dispensed_rps)
+        and all(rp.quantity.value is not None for rp in dispensing.dispensed_rps)
     )
 
 
@@ -255,7 +255,12 @@ def _assess_change_and_inquiry_detail(
     return _recorded_if(
         all(
             medicine.substitution is not None
-            and medicine.substitution.reason is not None
+            and (
+                medicine.substitution.reason.value
+                if medicine.substitution.reason is not None
+                else None
+            )
+            is not None
             for medicine in substituted
         )
         and all(inquiry.has_response for inquiry in source.inquiries)

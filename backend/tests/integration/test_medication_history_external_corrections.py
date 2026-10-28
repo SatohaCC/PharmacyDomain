@@ -12,8 +12,11 @@ from app.domain.care_event.entities import EventDefinition
 from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.entities import MedicationHistoryRecord
+from app.domain.medication_history.identifiers import ExternalCorrectionId
 from app.domain.medication_history.primitives import (
+    CorrectionDocumentNumber,
     ExternalCorrectionDecision,
+    ExternalCorrectionReason,
     ExternalCorrectionStatus,
     ExternalCorrectionTimestamp,
     FinalizedTimestamp,
@@ -85,10 +88,10 @@ async def test_TC23_訂正一覧は法人店舗状態と複合カーソルをDB�
             finalized_by=draft.counselor_id,
         )
         correction = ExternalPrescriptionCorrection(
-            correction_id=correction_id,
+            correction_id=ExternalCorrectionId(correction_id),
             corrected_at=ExternalCorrectionTimestamp(now),
-            source_document_number="DOC-EXTERNAL-CORRECTION",
-            reason="外部訂正を受信した。",
+            source_document_number=CorrectionDocumentNumber("DOC-EXTERNAL-CORRECTION"),
+            reason=ExternalCorrectionReason("外部訂正を受信した。"),
         )
         return record.record_external_correction(correction)
 
@@ -200,7 +203,7 @@ async def test_TC23_訂正一覧は法人店舗状態と複合カーソルをDB�
                 ExternalCorrectionStatus.PENDING,
                 ExternalCorrectionStatus.INVESTIGATING,
             ),
-            after=(str(first.record.id.value), first.correction.correction_id),
+            after=(str(first.record.id.value), first.correction.correction_id.value),
             limit=10,
         )
 

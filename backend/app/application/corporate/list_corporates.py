@@ -9,7 +9,12 @@ from app.application.access_control.models import Permission
 from app.application.access_control.policy import AuthorizationService
 from app.application.corporate.get_corporate import CorporateResponseDto
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.corporate.primitives import CorporateName, CorporateStatus
+from app.domain.corporate.primitives import (
+    CorporateName,
+    CorporatePageSize,
+    CorporateSearchText,
+    CorporateStatus,
+)
 from app.domain.corporate.repositories import CorporateSearchRepository
 from app.domain.corporate.value_objects import CorporateSearch
 from app.domain.foundation.exceptions import DomainValidationError
@@ -85,7 +90,10 @@ class ListCorporatesUseCase:
                 ) from error
         found = await self._repository.search(
             CorporateSearch(
-                name=name, status=status, after_id=after_id, limit=query.limit + 1
+                name=(CorporateSearchText(name) if (name) is not None else None),
+                status=status,
+                after_id=after_id,
+                limit=CorporatePageSize(query.limit + 1),
             )
         )
         items = found[: query.limit]

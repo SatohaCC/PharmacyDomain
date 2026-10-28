@@ -81,15 +81,20 @@ def _create_selection(
                 benefit_ratio=CoverageBenefitRatio(70),
             ),
         ),
-        public_expenses=(
-            SelectedPublicExpenseSource(
-                source_coverage_id=public_id,
-                values=PublicExpenseCoverageSnapshot(
-                    priority=CoveragePriority(1),
-                    payer_number=PublicPayerNumber("12345671"),
-                    recipient_number=PublicRecipientNumber("1234561"),
+        public_expenses=tuple(
+            sorted(
+                (
+                    SelectedPublicExpenseSource(
+                        source_coverage_id=public_id,
+                        values=PublicExpenseCoverageSnapshot(
+                            priority=CoveragePriority(1),
+                            payer_number=PublicPayerNumber("12345671"),
+                            recipient_number=PublicRecipientNumber("1234561"),
+                        ),
+                    ),
                 ),
-            ),
+                key=lambda item: item.priority.value,
+            )
         ),
     )
 

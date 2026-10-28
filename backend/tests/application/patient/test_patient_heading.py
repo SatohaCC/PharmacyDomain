@@ -39,7 +39,11 @@ from app.domain.patient.exceptions import (
     PatientStateConflictError,
 )
 from app.domain.patient.identifiers import PatientId
-from app.domain.patient.primitives import PatientHeadingText, PatientStatus
+from app.domain.patient.primitives import (
+    PatientHeadingText,
+    PatientHeadingTimestamp,
+    PatientStatus,
+)
 from app.domain.patient.value_objects import (
     PatientHeadingContent,
     PatientHeadingRevision,
@@ -85,7 +89,7 @@ def _revision(summary: str, at: datetime = _NOW) -> PatientHeadingRevision:
         content=_content(summary),
         person_id=AccountPersonId.generate(),
         account_id=UserAccountId.generate(),
-        recorded_at=at,
+        recorded_at=PatientHeadingTimestamp(at),
     )
 
 
@@ -139,7 +143,7 @@ async def test_tc43_14_参照DTOは履歴末尾と改訂者を返す() -> None:
     assert dto.summary == "現在の概要"
     assert dto.updated_by_person_id == str(second.person_id.value)
     assert dto.updated_by_account_id == str(second.account_id.value)
-    assert dto.updated_at == second.recorded_at.isoformat()
+    assert dto.updated_at == second.recorded_at.value.isoformat()
     assert [revision.revision for revision in dto.history] == [1, 2]
     assert [revision.summary for revision in dto.history] == ["前の概要", "現在の概要"]
 
@@ -163,7 +167,7 @@ async def test_tc43_15_指定した頭書き項目だけを更新する(
         content=_content("元の概要", "元の申し送り"),
         person_id=AccountPersonId.generate(),
         account_id=UserAccountId.generate(),
-        recorded_at=_NOW,
+        recorded_at=PatientHeadingTimestamp(_NOW),
     )
     patient = replace(
         create_patient(corporate_id=corporate_id), heading_history=(first,)
@@ -307,7 +311,7 @@ async def test_tc43_19_記録者と時刻は本人と注入時計から得る() 
     revision = updated.heading_history[-1]
     assert revision.person_id == actor.person_id
     assert revision.account_id == actor.account_id
-    assert revision.recorded_at == _NOW
+    assert revision.recorded_at.value == _NOW
 
 
 @pytest.mark.asyncio

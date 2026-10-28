@@ -6,6 +6,7 @@ from enum import StrEnum
 
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.primitives.primitives import (
+    BaseAwareTimestamp,
     BaseDate,
     BaseFreeText,
     BaseNormalizedString,
@@ -94,3 +95,22 @@ class PatientProfileChangeSource(StrEnum):
 
     NSIPS = "nsips"
     MANUAL = "manual"
+
+
+class PatientProfileField(StrEnum):
+    """プロフィール変更履歴に記録する項目。"""
+
+    KANJI_NAME = "patient.kanji_name"
+    KANA_NAME = "patient.kana_name"
+    BIRTH_DATE = "patient.birth_date"
+    GENDER = "patient.gender"
+    POSTAL_CODE = "patient.postal_code"
+    ADDRESS = "patient.address"
+    PHONE_NUMBER = "patient.phone_number"
+    EXTERNAL_PATIENT_ID = "patient.external_patient_id"
+
+
+class PatientHeadingTimestamp(BaseAwareTimestamp):
+    """頭書きの記録日時。"""
+
+    timestamp_name = "頭書きの記録日時"

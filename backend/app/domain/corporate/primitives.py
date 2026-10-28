@@ -5,8 +5,10 @@ from __future__ import annotations
 from enum import StrEnum
 
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.foundation.primitives.primitives import BaseNormalizedString
-from app.domain.shared.person_name import PersonName
+from app.domain.foundation.primitives.primitives import (
+    BaseNormalizedString,
+    BasePositiveInt,
+)
 
 
 class CorporateStatus(StrEnum):
@@ -26,5 +28,13 @@ class CorporateName(BaseNormalizedString):
             raise DomainValidationError("法人名は100文字以内で指定してください。")
 
 
-class CorporateRepresentativeName(PersonName):
-    """代表者名"""
+class CorporateSearchText(BaseNormalizedString):
+    """法人名称の検索文字列。"""
+
+    def validate(self) -> None:
+        if not self.value:
+            raise DomainValidationError("値は空にできません。")
+
+
+class CorporatePageSize(BasePositiveInt):
+    """法人検索で取得する件数。"""

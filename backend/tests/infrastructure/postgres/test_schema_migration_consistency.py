@@ -26,6 +26,7 @@ from sqlalchemy.schema import CreateIndex, CreateTable
 
 import app.infrastructure as infrastructure
 from app.domain.care_event.entities import Event, EventDefinition
+from app.domain.care_event.identifiers import EventId
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
     EventOccurredTimestamp,
@@ -47,7 +48,13 @@ from app.domain.reception.entities import Reception
 from app.domain.reception.identifiers import ReceptionId
 from app.domain.reception.primitives import ReceptionFieldPath, ReceptionFingerprint
 from app.domain.shared.actor import AccountPersonId, UserAccountId
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 from app.domain.store.entities import StoreManagerAssignment
 from app.domain.store.identifiers import StoreManagerAssignmentId
 from app.domain.store.value_objects import ManagerAssignmentPeriod
@@ -142,11 +149,14 @@ def _row_value_cases() -> list[tuple[AggregateMapping[Any], Mapping[str, object]
     """各Repositoryが1行に書く値を、対応と組にして返す。"""
     person = AccountPerson(
         id=AccountPersonId.generate(),
-        names=PersonNames.create(
-            last_name="山田",
-            first_name="太郎",
-            last_name_kana="ヤマダ",
-            first_name_kana="タロウ",
+        names=PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart("山田"), first_name=PersonNamePart("太郎")
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart("ヤマダ"),
+                first_name=PersonNameKanaPart("タロウ"),
+            ),
         ),
     )
     account = UserAccount(id=UserAccountId.generate(), person_id=person.id)
@@ -238,7 +248,8 @@ def _row_value_cases() -> list[tuple[AggregateMapping[Any], Mapping[str, object]
         _case(EVENT_DEFINITION_MAPPING, event_type),
         _case(
             EVENT_MAPPING,
-            Event.create(
+            Event(
+                id=EventId.generate(),
                 event_type_id=event_type.id,
                 event_type_standard_code=event_type.standard_code,
                 event_type_name=event_type.name,

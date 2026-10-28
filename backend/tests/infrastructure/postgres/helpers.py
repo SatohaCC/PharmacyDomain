@@ -14,7 +14,9 @@ from sqlalchemy.sql import ClauseElement
 
 import migrations.versions
 from app.domain.corporate.entities import Corporate
-from app.domain.corporate.primitives import CorporateName, CorporateRepresentativeName
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.corporate.primitives import CorporateName
+from app.domain.corporate.value_objects import CorporateRepresentativeName
 from app.domain.shared.person_name import PersonNamePart
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from tests.fakes.recording_async_session import FakeResult, RecordingAsyncSession
@@ -52,11 +54,11 @@ def ordered_migrations() -> list[Any]:
 
 def create_corporate(name: str = "テスト薬局グループ") -> Corporate:
     """テスト用の法人を1件作る。"""
-    return Corporate.create(
+    return Corporate(
+        id=CorporateId.generate(),
         name=CorporateName(name),
         representative_name=CorporateRepresentativeName(
-            last_name=PersonNamePart("山田"),
-            first_name=PersonNamePart("太郎"),
+            last_name=PersonNamePart("山田"), first_name=PersonNamePart("太郎")
         ),
     )
 

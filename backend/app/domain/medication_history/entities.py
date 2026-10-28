@@ -40,7 +40,9 @@ from app.domain.medication_history.exceptions import (
     UnfinalizedRecordProjectionError,
 )
 from app.domain.medication_history.identifiers import (
+    AmendmentId,
     CategoryCatalogId,
+    FactRecordId,
     FollowUpId,
     MedicationHistoryRecordId,
     PatientMedicalProfileId,
@@ -50,14 +52,20 @@ from app.domain.medication_history.primitives import (
     AllergenName,
     AmendmentReason,
     AmendmentTimestamp,
+    CategoryDisplayOrder,
     ConditionName,
     ConditionStatus,
     CounselingMethod,
     CounselingTimestamp,
     ExternalCorrectionDecision,
+    ExternalCorrectionReason,
     ExternalCorrectionStatus,
     ExternalCorrectionTimestamp,
+    FactCorrectionOperation,
+    FactCorrectionReason,
     FactCorrectionTimestamp,
+    FactFieldName,
+    FactTarget,
     FinalizationDelayReason,
     FinalizedTimestamp,
     FollowUpRecordedTimestamp,
@@ -90,7 +98,8 @@ from app.domain.medication_history.value_objects import (
     EffectiveMedicationHistoryFacts,
     ExternalCorrectionReviewEvent,
     ExternalPrescriptionCorrection,
-    FactElement,
+    FactArrayValue,
+    FactValue,
     FamilyPharmacistAgreement,
     GenericPreference,
     HandbookStatus,
@@ -98,7 +107,6 @@ from app.domain.medication_history.value_objects import (
     MajorCategoryDefinition,
     MedicalConditionRecord,
     MedicationHistoryAmendment,
-    MedicationHistoryFactCorrection,
     MediumCategoryDefinition,
     ProfileProvenance,
     ProfileUpdateIntents,
@@ -123,6 +131,58 @@ _SOAP_SECTION_MAPPING: dict[str, str] = {
     "a": "assessment",
     "p": "plan",
 }
+
+
+@dataclass(frozen=True, eq=False, kw_only=True)
+class FactElement(Entity[FactRecordId]):
+    """原本または訂正で追加された配列要素。"""
+
+    id: FactRecordId
+    value: FactArrayValue
+
+
+@dataclass(frozen=True, eq=False, kw_only=True)
+class MedicationHistoryFactCorrection(Entity[FactRecordId]):
+    """原本を変更せず積み上げる一件の訂正。"""
+
+    id: FactRecordId
+    target: FactTarget
+    field_name: FactFieldName
+    operation: FactCorrectionOperation
+    before: FactValue | None
+    after: FactValue | None
+    reason: FactCorrectionReason
+    corrected_by: StaffId
+    recorded_at: FactCorrectionTimestamp
+    element_id: FactRecordId | None = None
+
+    def validate(self) -> None:
+        """対象項目の型と操作の組み合わせを監査記録の構築時に検証する。"""
+        field = self.field_name.value
+        is_array = field in FACT_ARRAY_TYPES
+        expected = (FACT_ARRAY_TYPES if is_array else FACT_FIELD_TYPES)[field]
+        if not is_array and self.target.value != field:
+            raise DomainValidationError("訂正対象と事実項目が一致しません。")
+        if (
+            self.operation is FactCorrectionOperation.APPEND
+            and self.target.value != field
+        ):
+            raise DomainValidationError("追加先の配列項目が一致しません。")
+        for value in (self.before, self.after):
+            if value is not None and not isinstance(value, expected):
+                raise DomainValidationError("訂正値の型が対象項目と異なります。")
+        if self.operation is FactCorrectionOperation.RETRACT and self.after is not None:
+            raise DomainValidationError("取消しには訂正後の値を指定できません。")
+        if self.operation is FactCorrectionOperation.APPEND:
+            if (
+                not is_array
+                or self.element_id is None
+                or self.after is None
+                or self.before is not None
+            ):
+                raise DomainValidationError("配列追加には新しい要素IDと値が必要です。")
+        elif self.element_id is not None:
+            raise DomainValidationError("要素IDの新規発行は配列追加時だけ許可します。")
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)
@@ -162,12 +222,12 @@ class MedicationHistoryCategoryCatalog(AggregateRoot[CategoryCatalogId]):
             MajorCategoryDefinition(
                 code=soap_code,
                 name=MajorCategoryName("SOAP"),
-                display_order=1,
+                display_order=CategoryDisplayOrder(1),
             ),
             MajorCategoryDefinition(
                 code=statutory_code,
                 name=MajorCategoryName("法令"),
-                display_order=2,
+                display_order=CategoryDisplayOrder(2),
             ),
         )
 
@@ -176,49 +236,49 @@ class MedicationHistoryCategoryCatalog(AggregateRoot[CategoryCatalogId]):
                 code=MediumCategoryCode("s"),
                 major_category_code=soap_code,
                 name=MediumCategoryName("S（主観的情報）"),
-                display_order=1,
+                display_order=CategoryDisplayOrder(1),
             ),
             MediumCategoryDefinition(
                 code=MediumCategoryCode("o"),
                 major_category_code=soap_code,
                 name=MediumCategoryName("O（客観的情報）"),
-                display_order=2,
+                display_order=CategoryDisplayOrder(2),
             ),
             MediumCategoryDefinition(
                 code=MediumCategoryCode("a"),
                 major_category_code=soap_code,
                 name=MediumCategoryName("A（評価・判断）"),
-                display_order=3,
+                display_order=CategoryDisplayOrder(3),
             ),
             MediumCategoryDefinition(
                 code=MediumCategoryCode("p"),
                 major_category_code=soap_code,
                 name=MediumCategoryName("P（計画・指導）"),
-                display_order=4,
+                display_order=CategoryDisplayOrder(4),
             ),
             MediumCategoryDefinition(
                 code=MediumCategoryCode("handbook"),
                 major_category_code=statutory_code,
                 name=MediumCategoryName("お薬手帳"),
-                display_order=5,
+                display_order=CategoryDisplayOrder(5),
             ),
             MediumCategoryDefinition(
                 code=MediumCategoryCode("residual_drug"),
                 major_category_code=statutory_code,
                 name=MediumCategoryName("残薬確認"),
-                display_order=6,
+                display_order=CategoryDisplayOrder(6),
             ),
             MediumCategoryDefinition(
                 code=MediumCategoryCode("concurrent_medication"),
                 major_category_code=statutory_code,
                 name=MediumCategoryName("併用薬確認"),
-                display_order=7,
+                display_order=CategoryDisplayOrder(7),
             ),
             MediumCategoryDefinition(
                 code=MediumCategoryCode("other"),
                 major_category_code=statutory_code,
                 name=MediumCategoryName("その他"),
-                display_order=8,
+                display_order=CategoryDisplayOrder(8),
             ),
         )
 
@@ -264,12 +324,12 @@ class MedicationHistoryCategoryCatalog(AggregateRoot[CategoryCatalogId]):
         matched = [
             m for m in self.medium_categories if m.major_category_code == major_code
         ]
-        return tuple(sorted(matched, key=lambda m: m.display_order))
+        return tuple(sorted(matched, key=lambda m: m.display_order.value))
 
     def required_medium_categories(self) -> tuple[MediumCategoryDefinition, ...]:
         """法人ルールとして確定時に必須とされている有効な中区分を返す。"""
         required = [m for m in self.medium_categories if m.is_required and m.is_enabled]
-        return tuple(sorted(required, key=lambda m: m.display_order))
+        return tuple(sorted(required, key=lambda m: m.display_order.value))
 
     def validate_record_compliance(self, record: MedicationHistoryRecord) -> None:
         """薬歴記録が本カタログの法人必須ルールを満たしているか検証する。"""
@@ -961,7 +1021,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
                 values = getattr(self, field_name)
             result[field_name] = [
                 FactElement(
-                    id=str(uuid5(self.id.value, f"{field_name}:{index}")),
+                    id=FactRecordId(str(uuid5(self.id.value, f"{field_name}:{index}"))),
                     value=value,
                 )
                 for index, value in enumerate(values)
@@ -988,7 +1048,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         )
         elements = self._original_fact_elements()
         for correction in self.fact_corrections:
-            field_name = correction.field_name
+            field_name = correction.field_name.value
             if field_name in FACT_ARRAY_TYPES:
                 items = elements[field_name]
                 if correction.operation == "append":
@@ -997,14 +1057,17 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
                             "追加要素のIDと値が必要です。"
                         )
                     items.append(
-                        FactElement(id=correction.element_id, value=correction.after)
+                        FactElement(
+                            id=FactRecordId(correction.element_id.value),
+                            value=cast(FactArrayValue, correction.after),
+                        )
                     )
                 else:
                     position = next(
                         (
                             index
                             for index, item in enumerate(items)
-                            if item.id == correction.target
+                            if item.id.value == correction.target.value
                         ),
                         None,
                     )
@@ -1016,7 +1079,8 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
                         items.pop(position)
                     elif correction.after is not None:
                         items[position] = FactElement(
-                            id=correction.target, value=correction.after
+                            id=FactRecordId(correction.target.value),
+                            value=cast(FactArrayValue, correction.after),
                         )
             elif field_name.startswith("profile_updates."):
                 facts = replace(
@@ -1061,7 +1125,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         """事実訂正履歴の不整合（ID重複や未確定記録への訂正など）がないかを検証する。"""
         if self.fact_corrections and not self.is_projection_eligible:
             raise MedicationHistoryNotFinalizedError()
-        ids = [item.id for item in self.fact_corrections]
+        ids = [item.id.value for item in self.fact_corrections]
         if len(ids) != len(set(ids)):
             raise MedicationHistoryDomainError("薬歴訂正IDが重複しています。")
         if self.status is MedicationHistoryStatus.FINALIZED and any(
@@ -1097,7 +1161,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
                 (
                     name
                     for name, items in elements.items()
-                    if any(item.id == target for item in items)
+                    if any(item.id.value == target for item in items)
                 ),
                 "",
             )
@@ -1127,7 +1191,11 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             after = value
         if is_array:
             before = next(
-                (item.value for item in elements[field_name] if item.id == target),
+                (
+                    item.value
+                    for item in elements[field_name]
+                    if item.id.value == target
+                ),
                 None,
             )
             if operation != "append" and before is None:
@@ -1139,16 +1207,16 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         if operation == "retract" and not is_array and before is None:
             raise MedicationHistoryDomainError("取消し対象の値がありません。")
         event = MedicationHistoryFactCorrection(
-            id=str(uuid7()),
-            target=target,
-            field_name=field_name,
-            operation=operation,
-            before=before,
-            after=after,
-            reason=reason.strip(),
+            id=FactRecordId(str(uuid7())),
+            target=FactTarget(target),
+            field_name=FactFieldName(field_name),
+            operation=FactCorrectionOperation(operation),
+            before=cast(FactValue | None, before),
+            after=cast(FactValue | None, after),
+            reason=FactCorrectionReason(reason.strip()),
             corrected_by=corrected_by,
             recorded_at=FactCorrectionTimestamp(recorded_at),
-            element_id=str(uuid7()) if operation == "append" else None,
+            element_id=(FactRecordId(str(uuid7())) if operation == "append" else None),
         )
         return replace(self, fact_corrections=(*self.fact_corrections, event))
 
@@ -1356,7 +1424,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             reason=reason,
             amended_by=amended_by,
             amended_at=amended_at,
-            amendment_id=effective_amendment_id,
+            amendment_id=(AmendmentId(effective_amendment_id)),
         )
         return replace(self, amendments=(*self.amendments, amendment))
 
@@ -1432,16 +1500,20 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             (
                 item
                 for item in self.external_corrections
-                if item.correction_id == correction.correction_id
+                if item.correction_id.value == correction.correction_id.value
             ),
             None,
         )
         if existing is not None:
             if (
                 existing.kind == correction.kind
-                and existing.source_document_number == correction.source_document_number
-                and existing.reason == correction.reason
-                and existing.details == correction.details
+                and existing.source_document_number.value
+                == correction.source_document_number.value
+                and existing.reason.value == correction.reason.value
+                and (existing.details.value if existing.details is not None else None)
+                == (
+                    correction.details.value if correction.details is not None else None
+                )
             ):
                 return self
             raise MedicationHistoryDomainError(
@@ -1460,7 +1532,11 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     ) -> Self:
         """外部処方訂正の内容を薬剤師が確認・了解したことを記録する。"""
         target = next(
-            (c for c in self.external_corrections if c.correction_id == correction_id),
+            (
+                c
+                for c in self.external_corrections
+                if c.correction_id.value == correction_id
+            ),
             None,
         )
         if target is None:
@@ -1472,7 +1548,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             status=ExternalCorrectionStatus.RESOLVED,
         )
         updated_corrections = tuple(
-            updated_correction if c.correction_id == correction_id else c
+            updated_correction if c.correction_id.value == correction_id else c
             for c in self.external_corrections
         )
         return replace(self, external_corrections=updated_corrections)
@@ -1495,7 +1571,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             (
                 item
                 for item in self.external_corrections
-                if item.correction_id == correction_id
+                if item.correction_id.value == correction_id
             ),
             None,
         )
@@ -1537,10 +1613,12 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         is_final_decision = decision is not ExternalCorrectionDecision.INVESTIGATING
         event = ExternalCorrectionReviewEvent(
             decision=decision,
-            reason=normalized_reason,
+            reason=ExternalCorrectionReason(normalized_reason),
             reviewed_by=reviewed_by,
             reviewed_at=reviewed_at,
-            amendment_id=amendment_id,
+            amendment_id=(
+                AmendmentId(amendment_id) if amendment_id is not None else None
+            ),
             matched_prescription_id=matched_prescription_id,
         )
         updated_target = replace(
@@ -1559,7 +1637,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             else target.acknowledged_at,
         )
         updated_corrections = tuple(
-            updated_target if item.correction_id == correction_id else item
+            updated_target if item.correction_id.value == correction_id else item
             for item in updated.external_corrections
         )
         return replace(updated, external_corrections=updated_corrections)

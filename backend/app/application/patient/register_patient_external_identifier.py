@@ -11,7 +11,7 @@ from app.application.patient.support import load_patient_or_raise
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.entities import PatientExternalIdentifier
 from app.domain.patient.exceptions import PatientExternalIdentifierAlreadyExistsError
-from app.domain.patient.identifiers import PatientId
+from app.domain.patient.identifiers import PatientExternalIdentifierId, PatientId
 from app.domain.patient.primitives import ExternalPatientId, ExternalSystemName
 from app.domain.patient.repositories import (
     PatientExternalIdentifierRepository,
@@ -113,7 +113,8 @@ class RegisterPatientExternalIdentifierUseCase:
         if existing is not None:
             raise PatientExternalIdentifierAlreadyExistsError()
 
-        identifier = PatientExternalIdentifier.create(
+        identifier = PatientExternalIdentifier(
+            id=PatientExternalIdentifierId.generate(),
             corporate_id=corporate_id,
             patient_id=patient_id,
             system_name=system_name,

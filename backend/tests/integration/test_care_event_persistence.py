@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.application.common.optional_conversion import unwrap
 from app.domain.care_event.entities import Event, EventDefinition
+from app.domain.care_event.identifiers import EventId
 from app.domain.care_event.primitives import (
     EventCreatedTimestamp,
     EventOccurredTimestamp,
@@ -68,15 +69,21 @@ async def test_tc45_04_05_07_種別の一意性履歴読取と法人別一覧(
             corporate_id=corporate_a.id
         )
         standard = next(item for item in definitions_a if item.corporate_id is None)
-        event = Event.create(
+        event = Event(
+            id=EventId.generate(),
             event_type_id=custom_a.id,
-            event_type_name=custom_a.name,
             event_definition_corporate_id=corporate_a.id,
+            event_type_standard_code=None,
+            event_type_name=custom_a.name,
             corporate_id=corporate_a.id,
             store_id=store_a.id,
             patient_id=patient_a.id,
             occurred_at=EventOccurredTimestamp(occurred_at),
             created_at=EventCreatedTimestamp(occurred_at),
+            related_event_id=None,
+            reception_id=None,
+            prescription_id=None,
+            dispensing_id=None,
         )
         await repositories.event.save(event)
         record = replace(
@@ -177,8 +184,10 @@ async def test_tc45_21_22_23_58_Eventと薬歴のPostgreSQL往復と一意性(
             and item.standard_code is not None
             and item.standard_code.value == "in_person_consultation"
         )
-        event = Event.create(
+        event = Event(
+            id=EventId.generate(),
             event_type_id=definition.id,
+            event_definition_corporate_id=None,
             event_type_standard_code=definition.standard_code,
             event_type_name=definition.name,
             corporate_id=corporate.id,
@@ -186,6 +195,10 @@ async def test_tc45_21_22_23_58_Eventと薬歴のPostgreSQL往復と一意性(
             patient_id=patient.id,
             occurred_at=EventOccurredTimestamp(occurred_at),
             created_at=EventCreatedTimestamp(occurred_at),
+            related_event_id=None,
+            reception_id=None,
+            prescription_id=None,
+            dispensing_id=None,
         )
         await repositories.event.save(event)
 
@@ -347,8 +360,10 @@ async def test_tc45_16_Event関連参照の法人患者不一致や自己参照�
             corporate_id=corp_a.id
         )
         def_std = definitions[0]
-        base_event = Event.create(
+        base_event = Event(
+            id=EventId.generate(),
             event_type_id=def_std.id,
+            event_definition_corporate_id=None,
             event_type_standard_code=def_std.standard_code,
             event_type_name=def_std.name,
             corporate_id=corp_a.id,
@@ -356,10 +371,16 @@ async def test_tc45_16_Event関連参照の法人患者不一致や自己参照�
             patient_id=patient_a1.id,
             occurred_at=EventOccurredTimestamp(occurred_at),
             created_at=EventCreatedTimestamp(occurred_at),
+            related_event_id=None,
+            reception_id=None,
+            prescription_id=None,
+            dispensing_id=None,
         )
         await repos.event.save(base_event)
-        alternate_event = Event.create(
+        alternate_event = Event(
+            id=EventId.generate(),
             event_type_id=def_std.id,
+            event_definition_corporate_id=None,
             event_type_standard_code=def_std.standard_code,
             event_type_name=def_std.name,
             corporate_id=corp_a.id,
@@ -367,9 +388,15 @@ async def test_tc45_16_Event関連参照の法人患者不一致や自己参照�
             patient_id=patient_a1.id,
             occurred_at=EventOccurredTimestamp(occurred_at),
             created_at=EventCreatedTimestamp(occurred_at),
+            related_event_id=None,
+            reception_id=None,
+            prescription_id=None,
+            dispensing_id=None,
         )
-        linked_event = Event.create(
+        linked_event = Event(
+            id=EventId.generate(),
             event_type_id=def_std.id,
+            event_definition_corporate_id=None,
             event_type_standard_code=def_std.standard_code,
             event_type_name=def_std.name,
             corporate_id=corp_a.id,
@@ -378,6 +405,9 @@ async def test_tc45_16_Event関連参照の法人患者不一致や自己参照�
             occurred_at=EventOccurredTimestamp(occurred_at),
             created_at=EventCreatedTimestamp(occurred_at),
             related_event_id=base_event.id,
+            reception_id=None,
+            prescription_id=None,
+            dispensing_id=None,
         )
         await repos.event.save(alternate_event)
         await repos.event.save(linked_event)
@@ -695,8 +725,10 @@ async def test_tc45_23_薬歴とEventの処方調剤不一致直接INSERTがDB�
         )
         def_std = definitions[0]
 
-        event_with_both = Event.create(
+        event_with_both = Event(
+            id=EventId.generate(),
             event_type_id=def_std.id,
+            event_definition_corporate_id=None,
             event_type_standard_code=def_std.standard_code,
             event_type_name=def_std.name,
             corporate_id=corp.id,
@@ -704,11 +736,15 @@ async def test_tc45_23_薬歴とEventの処方調剤不一致直接INSERTがDB�
             patient_id=patient.id,
             occurred_at=EventOccurredTimestamp(occurred_at),
             created_at=EventCreatedTimestamp(occurred_at),
+            related_event_id=None,
+            reception_id=None,
             prescription_id=pres1.id,
             dispensing_id=disp1.id,
         )
-        event_with_none = Event.create(
+        event_with_none = Event(
+            id=EventId.generate(),
             event_type_id=def_std.id,
+            event_definition_corporate_id=None,
             event_type_standard_code=def_std.standard_code,
             event_type_name=def_std.name,
             corporate_id=corp.id,
@@ -716,6 +752,10 @@ async def test_tc45_23_薬歴とEventの処方調剤不一致直接INSERTがDB�
             patient_id=patient.id,
             occurred_at=EventOccurredTimestamp(occurred_at),
             created_at=EventCreatedTimestamp(occurred_at),
+            related_event_id=None,
+            reception_id=None,
+            prescription_id=None,
+            dispensing_id=None,
         )
         await repos.event.save(event_with_both)
         await repos.event.save(event_with_none)
@@ -880,8 +920,10 @@ async def test_tc45_39_ReceptionのEvent参照不整合や二重関連がDBで�
         )
         def_std = definitions[0]
 
-        valid_event = Event.create(
+        valid_event = Event(
+            id=EventId.generate(),
             event_type_id=def_std.id,
+            event_definition_corporate_id=None,
             event_type_standard_code=def_std.standard_code,
             event_type_name=def_std.name,
             corporate_id=corp.id,
@@ -889,10 +931,15 @@ async def test_tc45_39_ReceptionのEvent参照不整合や二重関連がDBで�
             patient_id=patient.id,
             occurred_at=EventOccurredTimestamp(occurred_at),
             created_at=EventCreatedTimestamp(occurred_at),
+            related_event_id=None,
             reception_id=rec1.id,
+            prescription_id=None,
+            dispensing_id=None,
         )
-        store2_event = Event.create(
+        store2_event = Event(
+            id=EventId.generate(),
             event_type_id=def_std.id,
+            event_definition_corporate_id=None,
             event_type_standard_code=def_std.standard_code,
             event_type_name=def_std.name,
             corporate_id=corp.id,
@@ -900,9 +947,15 @@ async def test_tc45_39_ReceptionのEvent参照不整合や二重関連がDBで�
             patient_id=patient.id,
             occurred_at=EventOccurredTimestamp(occurred_at),
             created_at=EventCreatedTimestamp(occurred_at),
+            related_event_id=None,
+            reception_id=None,
+            prescription_id=None,
+            dispensing_id=None,
         )
-        no_rec_event = Event.create(
+        no_rec_event = Event(
+            id=EventId.generate(),
             event_type_id=def_std.id,
+            event_definition_corporate_id=None,
             event_type_standard_code=def_std.standard_code,
             event_type_name=def_std.name,
             corporate_id=corp.id,
@@ -910,6 +963,10 @@ async def test_tc45_39_ReceptionのEvent参照不整合や二重関連がDBで�
             patient_id=patient.id,
             occurred_at=EventOccurredTimestamp(occurred_at),
             created_at=EventCreatedTimestamp(occurred_at),
+            related_event_id=None,
+            reception_id=None,
+            prescription_id=None,
+            dispensing_id=None,
         )
         await repos.event.save(valid_event)
         await repos.event.save(store2_event)
@@ -999,7 +1056,8 @@ async def test_tc45_全種別のEvent作成と薬歴保存の成立(
         assert len(all_definitions) == 7  # 6 standard + 1 custom
 
         for definition in all_definitions:
-            event = Event.create(
+            event = Event(
+                id=EventId.generate(),
                 event_type_id=definition.id,
                 event_definition_corporate_id=definition.corporate_id,
                 event_type_standard_code=definition.standard_code,
@@ -1009,6 +1067,10 @@ async def test_tc45_全種別のEvent作成と薬歴保存の成立(
                 patient_id=patient.id,
                 occurred_at=EventOccurredTimestamp(occurred_at),
                 created_at=EventCreatedTimestamp(occurred_at),
+                related_event_id=None,
+                reception_id=None,
+                prescription_id=None,
+                dispensing_id=None,
             )
             await repositories.event.save(event)
 

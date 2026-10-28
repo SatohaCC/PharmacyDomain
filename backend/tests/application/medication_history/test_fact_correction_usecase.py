@@ -31,6 +31,7 @@ from app.domain.medication_history.exceptions import (
 )
 from app.domain.medication_history.identifiers import CategoryCatalogId
 from app.domain.medication_history.primitives import (
+    CategoryDisplayOrder,
     CounselingNote,
     MajorCategoryCode,
     MajorCategoryName,
@@ -441,7 +442,7 @@ async def test_tc44_法人必須区分を欠く訂正だけを拒否する() -> 
             MajorCategoryDefinition(
                 code=major,
                 name=MajorCategoryName("薬学的管理"),
-                display_order=1,
+                display_order=CategoryDisplayOrder(1),
             ),
         ),
         medium_categories=(
@@ -449,7 +450,7 @@ async def test_tc44_法人必須区分を欠く訂正だけを拒否する() -> 
                 code=medium,
                 major_category_code=major,
                 name=MediumCategoryName("服薬状況"),
-                display_order=1,
+                display_order=CategoryDisplayOrder(1),
                 is_required=True,
             ),
         ),

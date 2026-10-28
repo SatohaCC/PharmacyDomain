@@ -103,9 +103,9 @@ class RegisterStoreUseCase:
             postal_code=StorePostalCode(command.postal_code),
             address=StoreAddressLine(command.address),
         )
-        contact_info = ContactInfo.create(
+        contact_info = ContactInfo(
             phone_number=StorePhoneNumber(command.phone_number),
-            fax_number=(StoreFaxNumber(raw_fax_number) if raw_fax_number else None),
+            fax_number=StoreFaxNumber(raw_fax_number) if raw_fax_number else None,
             email=StoreEmailAddress(raw_email) if raw_email else None,
         )
         code = StoreCode(raw_code) if raw_code else None
@@ -129,12 +129,13 @@ class RegisterStoreUseCase:
                 number=insurance_pharmacy_number,
             )
 
-        store = Store.create(
+        store = Store(
+            id=StoreId.generate(),
             corporate_id=corporate_id,
+            code=code,
             names=names,
             address=address,
             contact_info=contact_info,
-            code=code,
             insurance_pharmacy_number=insurance_pharmacy_number,
         )
         await self._repository.save(store)

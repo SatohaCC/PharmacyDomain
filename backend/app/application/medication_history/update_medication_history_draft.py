@@ -31,6 +31,8 @@ from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.primitives import (
     BillingAdditionCode,
     BillingAdditionName,
+    BillingPoints,
+    BillingQuantity,
     CounselingMethod,
 )
 from app.domain.medication_history.repositories import MedicationHistoryRepository
@@ -113,8 +115,16 @@ class UpdateMedicationHistoryDraftUseCase:
                 BillingAddition(
                     code=BillingAdditionCode(item.code),
                     name=BillingAdditionName(item.name),
-                    points=item.points,
-                    quantity=item.quantity,
+                    points=(
+                        BillingPoints(item.points)
+                        if (item.points) is not None
+                        else None
+                    ),
+                    quantity=(
+                        BillingQuantity(item.quantity)
+                        if (item.quantity) is not None
+                        else None
+                    ),
                 )
                 for item in command.billing_additions
             )

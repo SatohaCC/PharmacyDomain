@@ -16,6 +16,7 @@ from app.application.coverage.reference import (
 )
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.entities import CoverageSelectionRecord
+from app.domain.coverage.identifiers import CoverageSelectionRecordId
 from app.domain.coverage.primitives import (
     CoverageAppliedOn,
     CoverageRecordedAt,
@@ -83,7 +84,8 @@ class RecordCoverageSelectionUseCase:
             coverage_ids=command.coverage_ids,
             applied_on=applied_on,
         )
-        record = CoverageSelectionRecord.create(
+        record = CoverageSelectionRecord(
+            id=CoverageSelectionRecordId.generate(),
             corporate_id=corporate_id,
             store_id=store_id,
             patient_id=patient_id,

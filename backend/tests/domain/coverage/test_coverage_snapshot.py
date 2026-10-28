@@ -87,7 +87,9 @@ def test_資格スナップショット_社保1件と公費2件を渡すと_順�
     # Act
     actual = CoverageSnapshot(
         insurance=insurance,
-        public_expenses=(public_second, public_first),
+        public_expenses=tuple(
+            sorted((public_second, public_first), key=lambda item: item.priority.value)
+        ),
     )
 
     # Assert
@@ -114,7 +116,14 @@ def test_資格スナップショット_公費順位が重複すると_検証エ
 
     # Act / Assert
     with pytest.raises(CoverageCombinationInvalidError):
-        CoverageSnapshot(public_expenses=(public_first, another_public_first))
+        CoverageSnapshot(
+            public_expenses=tuple(
+                sorted(
+                    (public_first, another_public_first),
+                    key=lambda item: item.priority.value,
+                )
+            )
+        )
 
 
 @pytest.mark.parametrize("priorities", [(3,), (2,), (1, 3), (2, 3)])
@@ -128,7 +137,11 @@ def test_資格スナップショット_公費順位が第一公費から連続�
 
     # Act / Assert
     with pytest.raises(CoverageCombinationInvalidError):
-        CoverageSnapshot(public_expenses=public_expenses)
+        CoverageSnapshot(
+            public_expenses=tuple(
+                sorted(public_expenses, key=lambda item: item.priority.value)
+            )
+        )
 
 
 @pytest.mark.parametrize("count", [1, 2, 3, 4])
@@ -141,7 +154,11 @@ def test_資格スナップショット_公費順位が第一公費から連続�
     )
 
     # Act
-    actual = CoverageSnapshot(public_expenses=public_expenses)
+    actual = CoverageSnapshot(
+        public_expenses=tuple(
+            sorted(public_expenses, key=lambda item: item.priority.value)
+        )
+    )
 
     # Assert
     assert [item.priority.value for item in actual.public_expenses] == list(

@@ -64,7 +64,7 @@ def create_contact_info(
     fax_number: str | None = None,
     email: str | None = None,
 ) -> ContactInfo:
-    return ContactInfo.create(
+    return ContactInfo(
         phone_number=StorePhoneNumber(phone_number),
         fax_number=StoreFaxNumber(fax_number) if fax_number else None,
         email=StoreEmailAddress(email) if email else None,
@@ -104,17 +104,16 @@ def create_store(
     insurance_pharmacy_number: str | None = None,
 ) -> Store:
     """既定値を持つ店舗を組み立てる（永続化はしない）。"""
-    return Store.create(
+    return Store(
+        id=StoreId.generate(),
         corporate_id=corporate_id
         if corporate_id is not None
         else CorporateId.generate(),
+        code=StoreCode(code) if code else None,
         names=create_store_names(name=name, kana=kana),
         address=create_store_address(),
         contact_info=create_contact_info(),
-        code=StoreCode(code) if code else None,
-        insurance_pharmacy_number=(
-            InsurancePharmacyNumber(insurance_pharmacy_number)
-            if insurance_pharmacy_number
-            else None
-        ),
+        insurance_pharmacy_number=InsurancePharmacyNumber(insurance_pharmacy_number)
+        if insurance_pharmacy_number
+        else None,
     )

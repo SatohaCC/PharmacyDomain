@@ -44,9 +44,11 @@ from app.domain.patient.primitives import (
     PatientBirthDate,
     PatientGenderCode,
     PatientHeadingText,
+    PatientHeadingTimestamp,
     PatientPhoneNumber,
     PatientPostalCode,
     PatientProfileChangeSource,
+    PatientProfileField,
     PatientStatus,
 )
 from app.domain.patient.value_objects import (
@@ -67,7 +69,11 @@ from app.domain.prescription.primitives import (
 )
 from app.domain.reception.entities import Reception
 from app.domain.reception.identifiers import ReceptionId
-from app.domain.reception.primitives import ReceptionFieldPath, ReceptionFingerprint
+from app.domain.reception.primitives import (
+    ReceptionFieldPath,
+    ReceptionFingerprint,
+    ReceptionOriginalJson,
+)
 from app.domain.reception.value_objects import ReceptionCorrection, ReceptionSourceData
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.entities import Staff
@@ -241,7 +247,9 @@ def test_受付の全体ハッシュ値と項目ハッシュ値が_JSONBを経�
             ),
         ),
         source_data=ReceptionSourceData(
-            bundle_json='{"additions":[{"code":"140000110"}],"follow_up":{}}',
+            bundle_json=ReceptionOriginalJson(
+                '{"additions":[{"code":"140000110"}],"follow_up":{}}'
+            ),
             imported_at=datetime(2026, 9, 23, tzinfo=UTC),
             is_follow_up=True,
         ),
@@ -607,7 +615,7 @@ def test_tc43_37_患者頭書きの改訂と記録者をJSONで往復する() ->
         content=content,
         person_id=AccountPersonId.generate(),
         account_id=UserAccountId.generate(),
-        recorded_at=datetime(2026, 9, 2, 3, tzinfo=UTC),
+        recorded_at=PatientHeadingTimestamp(datetime(2026, 9, 2, 3, tzinfo=UTC)),
     )
     patient = dataclasses.replace(patient, heading_history=(revision,))
 
@@ -617,7 +625,7 @@ def test_tc43_37_患者頭書きの改訂と記録者をJSONで往復する() ->
     assert restored.heading_history[0].content == content
     assert restored.heading_history[0].person_id == revision.person_id
     assert restored.heading_history[0].account_id == revision.account_id
-    assert restored.heading_history[0].recorded_at == revision.recorded_at
+    assert restored.heading_history[0].recorded_at.value == revision.recorded_at.value
 
 
 def test_tc43_38_頭書き履歴を持たない旧患者payloadを復元できる() -> None:
@@ -653,7 +661,10 @@ def test_tc71_患者プロフィール受信履歴のcodec往復と旧payload互
         store_id=StoreId.generate(),
         external_patient_id=ExternalPatientId("RECEIPT-42"),
         recorded_at=datetime(2026, 9, 23, 1, 2, 3, tzinfo=UTC),
-        changed_fields=("patient.address", "patient.phone_number"),
+        changed_fields=tuple(
+            PatientProfileField(item)
+            for item in ("patient.address", "patient.phone_number")
+        ),
         source=PatientProfileChangeSource.NSIPS,
         received_profile=received,
         before_profile=before,
@@ -662,7 +673,9 @@ def test_tc71_患者プロフィール受信履歴のcodec往復と旧payload互
     manual_change = PatientProfileChange(
         source=PatientProfileChangeSource.MANUAL,
         recorded_at=datetime(2026, 9, 24, 1, 2, 3, tzinfo=UTC),
-        changed_fields=("patient.address",),
+        changed_fields=tuple(
+            PatientProfileField(item) for item in ("patient.address",)
+        ),
         before_profile=received,
         applied_profile=before,
         person_id=AccountPersonId.generate(),

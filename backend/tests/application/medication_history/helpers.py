@@ -77,7 +77,7 @@ from app.domain.medication_history.services import (
 from app.domain.patient.identifiers import PatientId
 from app.domain.reception.entities import Reception
 from app.domain.reception.identifiers import ReceptionId
-from app.domain.reception.primitives import ReceptionFingerprint
+from app.domain.reception.primitives import ReceptionFingerprint, ReceptionOriginalJson
 from app.domain.reception.value_objects import ReceptionSourceData
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.identifiers import StaffId
@@ -383,8 +383,10 @@ def create_start_command(
 ) -> StartMedicationHistoryCommand:
     """薬歴作成コマンドを組み立てる。"""
     dispensing_process = dispensing if dispensing is not None else fixture.dispensing
-    event = Event.create(
+    event = Event(
+        id=EventId.generate(),
         event_type_id=fixture.event_type_id,
+        event_definition_corporate_id=None,
         event_type_standard_code=EventTypeStandardCode("prescription_reception"),
         event_type_name=EventTypeName("処方箋受付"),
         corporate_id=fixture.corporate_id,
@@ -392,6 +394,8 @@ def create_start_command(
         patient_id=dispensing_process.patient_id,
         occurred_at=EventOccurredTimestamp(fixture.clock.now()),
         created_at=EventCreatedTimestamp(fixture.clock.now()),
+        related_event_id=None,
+        reception_id=None,
         prescription_id=dispensing_process.prescription_id,
         dispensing_id=dispensing_process.id,
     )
@@ -445,7 +449,7 @@ def create_nsips_start_command(
         prescription_id=fixture.dispensing.prescription_id,
         dispensing_id=fixture.dispensing.id,
         source_data=ReceptionSourceData(
-            bundle_json="{}",
+            bundle_json=ReceptionOriginalJson("{}"),
             imported_at=fixture.clock.now(),
         ),
         event_id=event.id,

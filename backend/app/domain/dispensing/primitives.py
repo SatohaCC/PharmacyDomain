@@ -656,3 +656,11 @@ class _MedicineCodeComparison(Enum):
     MATCH = auto()
     MISMATCH = auto()
     UNKNOWN = auto()
+
+
+class SourceSplitCount(BasePositiveInt):
+    """原本処方の全分割回数。"""
+
+
+class SourceRefillCount(BasePositiveInt):
+    """原本処方のリフィル総使用回数。"""

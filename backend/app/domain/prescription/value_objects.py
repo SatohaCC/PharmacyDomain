@@ -43,6 +43,9 @@ from app.domain.prescription.primitives import (
     InquiryResponseContent,
     InquiryResultType,
     InquiryTimestamp,
+    InteractionClinicalCondition,
+    InteractionMechanism,
+    InteractionRecommendation,
     InteractionSeverity,
     LaboratoryDataText,
     MedicalInstitutionAddressLine,
@@ -130,9 +133,9 @@ class DrugInteractionPair(ValueObject):
     medicine_a: YjCode
     medicine_b: YjCode
     severity: InteractionSeverity
-    clinical_condition: str = ""
-    mechanism: str = ""
-    recommendation: str = ""
+    clinical_condition: InteractionClinicalCondition = InteractionClinicalCondition("")
+    mechanism: InteractionMechanism = InteractionMechanism("")
+    recommendation: InteractionRecommendation = InteractionRecommendation("")
 
 
 @dataclass(frozen=True, kw_only=True)

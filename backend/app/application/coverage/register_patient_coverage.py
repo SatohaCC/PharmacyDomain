@@ -19,6 +19,7 @@ from app.application.coverage.support import (
 )
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.entities import PatientCoverage
+from app.domain.coverage.identifiers import PatientCoverageId
 from app.domain.coverage.primitives import CoverageType
 from app.domain.coverage.repositories import PatientCoverageRepository
 from app.domain.coverage.services import PatientCoverageConflictService
@@ -97,7 +98,8 @@ class RegisterPatientCoverageUseCase:
                 payer_number=command.payer_number,
                 recipient_number=command.recipient_number,
             )
-        coverage = PatientCoverage.create(
+        coverage = PatientCoverage(
+            id=PatientCoverageId.generate(),
             corporate_id=corporate_id,
             patient_id=patient_id,
             coverage_type=coverage_type,

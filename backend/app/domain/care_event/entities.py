@@ -62,41 +62,6 @@ class Event(AggregateRoot[EventId]):
             raise DomainError("Eventの発生日時は一度設定した後に変更できません。")
         return replace(self, occurred_at=occurred_at)
 
-    @classmethod
-    def create(
-        cls,
-        *,
-        event_type_id: EventTypeId,
-        event_definition_corporate_id: CorporateId | None = None,
-        event_type_standard_code: EventTypeStandardCode | None = None,
-        event_type_name: EventTypeName,
-        corporate_id: CorporateId,
-        store_id: StoreId,
-        patient_id: PatientId,
-        occurred_at: EventOccurredTimestamp,
-        created_at: EventCreatedTimestamp,
-        related_event_id: EventId | None = None,
-        reception_id: ReceptionId | None = None,
-        prescription_id: PrescriptionId | None = None,
-        dispensing_id: DispensingId | None = None,
-    ) -> Self:
-        return cls(
-            id=EventId.generate(),
-            event_type_id=event_type_id,
-            event_definition_corporate_id=event_definition_corporate_id,
-            event_type_standard_code=event_type_standard_code,
-            event_type_name=event_type_name,
-            corporate_id=corporate_id,
-            store_id=store_id,
-            patient_id=patient_id,
-            occurred_at=occurred_at,
-            created_at=created_at,
-            related_event_id=related_event_id,
-            reception_id=reception_id,
-            prescription_id=prescription_id,
-            dispensing_id=dispensing_id,
-        )
-
 
 @dataclass(frozen=True, eq=False, kw_only=True)
 class EventDefinition(AggregateRoot[EventTypeId]):

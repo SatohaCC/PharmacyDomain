@@ -20,6 +20,7 @@ from app.domain.patient.primitives import (
     PatientAddress,
     PatientBirthDate,
     PatientGenderCode,
+    PatientHeadingTimestamp,
     PatientNumber,
     PatientPhoneNumber,
     PatientPostalCode,
@@ -49,26 +50,6 @@ class PatientExternalIdentifier(AggregateRoot[PatientExternalIdentifierId]):
     external_patient_id: ExternalPatientId
     store_id: StoreId | None = None
     is_active: bool = True
-
-    @classmethod
-    def create(
-        cls,
-        *,
-        corporate_id: CorporateId,
-        patient_id: PatientId,
-        system_name: ExternalSystemName,
-        external_patient_id: ExternalPatientId,
-        store_id: StoreId | None = None,
-    ) -> Self:
-        """外部患者IDの対応付けを生成する。"""
-        return cls(
-            id=PatientExternalIdentifierId.generate(),
-            corporate_id=corporate_id,
-            patient_id=patient_id,
-            system_name=system_name,
-            external_patient_id=external_patient_id,
-            store_id=store_id,
-        )
 
     def deactivate(self) -> Self:
         """外部IDの対応付けを無効化する。"""
@@ -112,32 +93,6 @@ class Patient(AggregateRoot[PatientId]):
     def is_merged(self) -> bool:
         """他の患者集約へ名寄せ統合された状態か。"""
         return self.status == PatientStatus.MERGED
-
-    @classmethod
-    def create(
-        cls,
-        *,
-        corporate_id: CorporateId,
-        names: PersonNames,
-        patient_number: PatientNumber,
-        birth_date: PatientBirthDate | None = None,
-        gender: PatientGenderCode | None = None,
-        postal_code: PatientPostalCode | None = None,
-        address: PatientAddress | None = None,
-        phone_number: PatientPhoneNumber | None = None,
-    ) -> Self:
-        """新しい患者を生成する。"""
-        return cls(
-            id=PatientId.generate(),
-            corporate_id=corporate_id,
-            names=names,
-            patient_number=patient_number,
-            birth_date=birth_date,
-            gender=gender,
-            postal_code=postal_code,
-            address=address,
-            phone_number=phone_number,
-        )
 
     def change_names(self, names: PersonNames) -> Self:
         """患者氏名を変更する。"""
@@ -213,7 +168,7 @@ class Patient(AggregateRoot[PatientId]):
             content=content,
             person_id=person_id,
             account_id=account_id,
-            recorded_at=recorded_at,
+            recorded_at=PatientHeadingTimestamp(recorded_at),
         )
         return replace(self, heading_history=(*self.heading_history, revision))
 

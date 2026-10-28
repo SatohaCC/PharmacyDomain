@@ -56,7 +56,7 @@ class InMemoryCorporateRepository(
         return [
             copy.deepcopy(item)
             for item in items
-            if (query.name is None or query.name in item.name.value)
+            if (query.name is None or query.name.value in item.name.value)
             and (query.status is None or query.status == item.status)
             and (query.after_id is None or item.id.value > query.after_id.value)
-        ][: query.limit]
+        ][: query.limit.value]

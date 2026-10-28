@@ -21,6 +21,7 @@ from app.domain.care_event.identifiers import EventId
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.primitives.base import DomainPrimitive
 from app.domain.medication_history.entities import (
+    FactElement,
     MedicationHistoryRecord,
     TracingReport,
 )
@@ -32,7 +33,6 @@ from app.domain.medication_history.value_objects import (
     CategorizedNote,
     ExternalCorrectionReviewEvent,
     ExternalPrescriptionCorrection,
-    FactElement,
     HandbookStatus,
     LabeledNote,
     MedicationHistoryAmendment,
@@ -67,8 +67,8 @@ def _element_json(element: FactElement) -> dict[str, object]:
     """配列要素IDと値の項目を1つの表示単位にする。"""
     payload = _fact_json(element.value)
     if isinstance(payload, dict):
-        return {"id": element.id, **payload}
-    return {"id": element.id, "value": payload}
+        return {"id": element.id.value, **payload}
+    return {"id": element.id.value, "value": payload}
 
 
 def _profile_updates_json(
@@ -123,16 +123,16 @@ def _fact_corrections_json(
     """追記順を保った監査履歴を返す。"""
     return tuple(
         {
-            "id": item.id,
-            "target": item.target,
+            "id": item.id.value,
+            "target": item.target.value,
             "field_name": item.field_name,
             "operation": item.operation,
             "before": _fact_json(item.before),
             "after": _fact_json(item.after),
-            "reason": item.reason,
+            "reason": item.reason.value,
             "corrected_by": _fact_json(item.corrected_by),
             "recorded_at": _fact_json(item.recorded_at),
-            "element_id": item.element_id,
+            "element_id": (unwrap(item.element_id)),
         }
         for item in record.fact_corrections
     )
@@ -239,7 +239,7 @@ class AmendmentDto:
             reason=value.reason.value,
             amended_by=str(value.amended_by.value),
             amended_at=value.amended_at.value.isoformat(),
-            amendment_id=value.amendment_id,
+            amendment_id=(unwrap(value.amendment_id)),
         )
 
 
@@ -262,10 +262,10 @@ class ExternalCorrectionReviewEventDto:
         event = value
         return cls(
             decision=event.decision.value,
-            reason=event.reason,
+            reason=event.reason.value,
             reviewed_by=str(event.reviewed_by.value),
             reviewed_at=event.reviewed_at.value.isoformat(),
-            amendment_id=event.amendment_id,
+            amendment_id=(unwrap(event.amendment_id)),
             matched_prescription_id=(
                 str(event.matched_prescription_id.value)
                 if event.matched_prescription_id is not None
@@ -295,13 +295,13 @@ class ExternalPrescriptionCorrectionDto:
     ) -> ExternalPrescriptionCorrectionDto:
         """訂正証跡から旧確認表現も含むDTOを生成する。"""
         return cls(
-            correction_id=value.correction_id,
+            correction_id=value.correction_id.value,
             kind=value.kind.value,
             status=("resolved" if value.is_acknowledged else value.status.value),
             corrected_at=value.corrected_at.value.isoformat(),
-            source_document_number=value.source_document_number,
-            reason=value.reason,
-            details=value.details,
+            source_document_number=value.source_document_number.value,
+            reason=value.reason.value,
+            details=(unwrap(value.details)),
             acknowledged_by=(
                 str(value.acknowledged_by.value)
                 if value.acknowledged_by is not None
@@ -419,8 +419,8 @@ class BillingAdditionDto:
         return cls(
             code=value.code.value,
             name=value.name.value,
-            points=value.points,
-            quantity=value.quantity,
+            points=(unwrap(value.points)),
+            quantity=(unwrap(value.quantity)),
             id=element_id,
         )
 
@@ -552,13 +552,13 @@ class MedicationHistoryDto:
             fact_corrections=_fact_corrections_json(record),
             additional_notes=tuple(
                 CategorizedNoteDto.from_value(
-                    cast(CategorizedNote, element.value), element_id=element.id
+                    cast(CategorizedNote, element.value), element_id=element.id.value
                 )
                 for element in record.fact_elements("additional_notes")
             ),
             billing_additions=tuple(
                 BillingAdditionDto.from_value(
-                    cast(BillingAddition, element.value), element_id=element.id
+                    cast(BillingAddition, element.value), element_id=element.id.value
                 )
                 for element in record.fact_elements("billing_additions")
             ),

@@ -26,11 +26,12 @@ from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.exceptions import DispensingPharmacistQualificationError
 from app.domain.dispensing.identifiers import DispensingId
 from app.domain.patient.entities import Patient, PatientExternalIdentifier
-from app.domain.patient.identifiers import PatientId
+from app.domain.patient.identifiers import PatientExternalIdentifierId, PatientId
 from app.domain.patient.primitives import (
     ExternalPatientId,
     ExternalSystemName,
     PatientHeadingText,
+    PatientHeadingTimestamp,
 )
 from app.domain.patient.value_objects import (
     PatientHeadingContent,
@@ -42,7 +43,13 @@ from app.domain.reception.entities import Reception
 from app.domain.reception.identifiers import ReceptionId
 from app.domain.reception.primitives import ReceptionFingerprint
 from app.domain.shared.actor import AccountPersonId, UserAccountId
-from app.domain.shared.person_name import PersonNames
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
 from app.domain.staff.value_objects import AffiliationPeriod, StoreAffiliation
 from app.domain.store.identifiers import StoreId
 from tests.application.integration.nsips.helpers import (
@@ -278,7 +285,7 @@ async def test_既存患者のNSIPSでは既存患者IDが再利用される() -
         ),
         person_id=AccountPersonId.generate(),
         account_id=UserAccountId.generate(),
-        recorded_at=datetime(2026, 9, 23, tzinfo=UTC),
+        recorded_at=PatientHeadingTimestamp(datetime(2026, 9, 23, tzinfo=UTC)),
     )
     await fixture.patient_repo.save(replace(patient, heading_history=(heading,)))
 
@@ -544,25 +551,36 @@ async def test_tc55_別店舗で同じ受付IDを独立した受付として処�
 async def test_tc64_店舗未指定の旧外部IDを店舗別取込で採用しない() -> None:
     """未スコープの旧リンクから新店舗へ誤って患者を結び付けない。"""
     fixture = await create_fixture()
-    legacy_patient = Patient.create(
+    legacy_patient = Patient(
+        id=PatientId.generate(),
         corporate_id=fixture.corporate_id,
-        names=PersonNames.create(
-            last_name="旧",
-            first_name="患者",
-            last_name_kana="キュウ",
-            first_name_kana="カンジャ",
+        names=PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart("旧"), first_name=PersonNamePart("患者")
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart("キュウ"),
+                first_name=PersonNameKanaPart("カンジャ"),
+            ),
         ),
         patient_number=await fixture.patient_repo.allocate_patient_number(
             fixture.corporate_id
         ),
+        birth_date=None,
+        gender=None,
+        postal_code=None,
+        address=None,
+        phone_number=None,
     )
     await fixture.patient_repo.save(legacy_patient)
     await fixture.patient_external_id_repo.save(
-        PatientExternalIdentifier.create(
+        PatientExternalIdentifier(
+            id=PatientExternalIdentifierId.generate(),
             corporate_id=fixture.corporate_id,
             patient_id=legacy_patient.id,
             system_name=ExternalSystemName("recept"),
             external_patient_id=ExternalPatientId("P-TC64-LEGACY"),
+            store_id=None,
         )
     )
 
@@ -747,7 +765,7 @@ async def test_tc07_薬歴未作成のフォローアップ単独受付を受付
     source_data = getattr(follow_up_reception, "source_data", None)
     assert source_data is not None
     assert source_data.is_follow_up is True
-    assert "DOC-FOLLOWUP" in source_data.bundle_json
+    assert "DOC-FOLLOWUP" in source_data.bundle_json.value
 
 
 @pytest.mark.asyncio
@@ -833,4 +851,7 @@ async def test_tc09_既存受付に明示関連付けした薬歴も自動更新
     assert updated_reception.source_data is not None
     assert updated_reception.source_data.is_follow_up is True
     assert updated_reception.source_data_history == (original_source_data,)
-    assert updated_reception.source_data.bundle_json != original_source_data.bundle_json
+    assert (
+        updated_reception.source_data.bundle_json.value
+        != original_source_data.bundle_json.value
+    )

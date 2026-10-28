@@ -94,10 +94,10 @@ def test_受付原本_明示変換しても_既存のJSON表現を維持する(w
         bundle, imported_at=imported_at, is_follow_up=False
     )
 
-    assert actual.bundle_json == expected
+    assert actual.bundle_json.value == expected
     assert actual.imported_at == imported_at
-    parsed = json.loads(actual.bundle_json)
+    parsed = json.loads(actual.bundle_json.value)
     assert parsed["prescription"]["rps"][0]["medicines"][0]["dosage"] == "1.250"
     assert parsed["patient"]["birth_date"] == "2000-01-02"
     assert parsed["patient"]["gender"] is None
-    assert "山田 太郎" in actual.bundle_json
+    assert "山田 太郎" in actual.bundle_json.value

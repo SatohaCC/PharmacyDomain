@@ -49,9 +49,9 @@ class ChangeStoreContactInfoUseCase:
         store_id = StoreId.parse(command.store_id)
         raw_fax_number = to_optional_text(command.fax_number)
         raw_email = to_optional_text(command.email)
-        new_contact_info = ContactInfo.create(
+        new_contact_info = ContactInfo(
             phone_number=StorePhoneNumber(command.phone_number),
-            fax_number=(StoreFaxNumber(raw_fax_number) if raw_fax_number else None),
+            fax_number=StoreFaxNumber(raw_fax_number) if raw_fax_number else None,
             email=StoreEmailAddress(raw_email) if raw_email else None,
         )
 

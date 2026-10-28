@@ -17,7 +17,7 @@ from app.domain.coverage.exceptions import (
     CoverageCombinationInvalidError,
     CoverageSelectionInvalidError,
 )
-from app.domain.coverage.identifiers import PatientCoverageId
+from app.domain.coverage.identifiers import CoverageSelectionRecordId, PatientCoverageId
 from app.domain.coverage.primitives import (
     CoverageAppliedOn,
     CoverageBenefitRatio,
@@ -73,16 +73,24 @@ def _public_frame(
     )
 
 
-def test_適用資格選択_公費を順位の逆順で渡すと_順位順に正規化される() -> None:
+def test_適用資格選択_順位順へ整えた公費を_そのまま保持する() -> None:
     # Arrange
     second, first = _public_frame(2), _public_frame(1)
 
     # Act
-    actual = CoverageSelection(public_expenses=(second, first))
+    actual = CoverageSelection(
+        public_expenses=tuple(
+            sorted((second, first), key=lambda item: item.priority.value)
+        )
+    )
 
-    # Assert: 並び順という自由度が消え、どの入力順でも同一の値になる
+    # Assert: 利用側が明示した順位順を保持する
     assert actual.public_expenses == (first, second)
-    assert actual == CoverageSelection(public_expenses=(first, second))
+    assert actual == CoverageSelection(
+        public_expenses=tuple(
+            sorted((first, second), key=lambda item: item.priority.value)
+        )
+    )
 
 
 def test_適用資格選択_元IDは医療保険から公費順位順で導出される() -> None:
@@ -92,7 +100,10 @@ def test_適用資格選択_元IDは医療保険から公費順位順で導出�
 
     # Act
     actual = CoverageSelection(
-        insurance=insurance, public_expenses=(second, first)
+        insurance=insurance,
+        public_expenses=tuple(
+            sorted((second, first), key=lambda item: item.priority.value)
+        ),
     ).source_coverage_ids
 
     # Assert: 崩れた並びを保持する記憶域が存在しない
@@ -110,7 +121,10 @@ def test_適用資格選択_スナップショットは枠と同じ値と順序�
 
     # Act
     actual = CoverageSelection(
-        insurance=insurance, public_expenses=(second, first)
+        insurance=insurance,
+        public_expenses=tuple(
+            sorted((second, first), key=lambda item: item.priority.value)
+        ),
     ).snapshot
 
     # Assert
@@ -128,7 +142,11 @@ def test_適用資格選択_同じ元IDを医療保険枠と公費枠に指定�
     with pytest.raises(CoverageSelectionInvalidError):
         CoverageSelection(
             insurance=_insurance_frame(shared),
-            public_expenses=(_public_frame(1, shared),),
+            public_expenses=tuple(
+                sorted(
+                    (_public_frame(1, shared),), key=lambda item: item.priority.value
+                )
+            ),
         )
 
 
@@ -144,7 +162,11 @@ def test_適用資格選択_公費順位が第一公費から連続しないと_
 ):
     # Arrange / Act / Assert
     with pytest.raises(CoverageCombinationInvalidError):
-        CoverageSelection(public_expenses=(_public_frame(2),))
+        CoverageSelection(
+            public_expenses=tuple(
+                sorted((_public_frame(2),), key=lambda item: item.priority.value)
+            )
+        )
 
 
 def test_適用資格選択_公費が第五以降を含むと_組み合わせ検証エラーになる() -> None:
@@ -152,12 +174,17 @@ def test_適用資格選択_公費が第五以降を含むと_組み合わせ検
     # CoveragePriority が 1..4 しか許さないため、5件目は必ず重複になる。
     with pytest.raises(CoverageCombinationInvalidError):
         CoverageSelection(
-            public_expenses=(
-                _public_frame(1),
-                _public_frame(2),
-                _public_frame(3),
-                _public_frame(4),
-                _public_frame(4),
+            public_expenses=tuple(
+                sorted(
+                    (
+                        _public_frame(1),
+                        _public_frame(2),
+                        _public_frame(3),
+                        _public_frame(4),
+                        _public_frame(4),
+                    ),
+                    key=lambda item: item.priority.value,
+                )
             )
         )
 
@@ -166,10 +193,14 @@ def test_適用資格選択履歴_選択を渡すと_元IDとスナップショ�
     # Arrange
     insurance = _insurance_frame()
     first = _public_frame(1)
-    selection = CoverageSelection(insurance=insurance, public_expenses=(first,))
+    selection = CoverageSelection(
+        insurance=insurance,
+        public_expenses=tuple(sorted((first,), key=lambda item: item.priority.value)),
+    )
 
     # Act
-    actual = CoverageSelectionRecord.create(
+    actual = CoverageSelectionRecord(
+        id=CoverageSelectionRecordId.generate(),
         corporate_id=CorporateId.generate(),
         store_id=StoreId.generate(),
         patient_id=PatientId.generate(),
@@ -185,3 +216,12 @@ def test_適用資格選択履歴_選択を渡すと_元IDとスナップショ�
         first.source_coverage_id,
     )
     assert actual.snapshot == selection.snapshot
+
+
+def test_適用資格選択_逆順の公費を暗黙に並べ替えず拒否する() -> None:
+    # Arrange
+    frames = (_public_frame(2), _public_frame(1))
+
+    # Act / Assert
+    with pytest.raises(CoverageSelectionInvalidError, match="適用順位順"):
+        CoverageSelection(public_expenses=frames)

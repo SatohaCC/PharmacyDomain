@@ -19,7 +19,9 @@ from app.domain.shared.person_name import (
 
 def test_person_name_create_normalizes_whitespace() -> None:
     # Arrange / Act
-    actual = PersonName.create(last_name="  山田 ", first_name=" 太郎 ")
+    actual = PersonName(
+        last_name=PersonNamePart("  山田 "), first_name=PersonNamePart(" 太郎 ")
+    )
 
     # Assert
     assert actual.full_name == "山田 太郎"
@@ -27,7 +29,9 @@ def test_person_name_create_normalizes_whitespace() -> None:
 
 def test_person_name_kana_create_normalizes_half_width_kana() -> None:
     # Arrange / Act
-    actual = PersonNameKana.create(last_name="ｻﾝﾌﾟﾙ", first_name="ﾀﾛｳ")
+    actual = PersonNameKana(
+        last_name=PersonNameKanaPart("ｻﾝﾌﾟﾙ"), first_name=PersonNameKanaPart("ﾀﾛｳ")
+    )
 
     # Assert
     assert actual.full_name == "サンプル タロウ"
@@ -78,7 +82,10 @@ def test_person_names_rejects_raw_kanji_value_object() -> None:
     with pytest.raises(DomainValidationError) as exc_info:
         PersonNames(
             kanji="山田 太郎",  # type: ignore[arg-type]
-            kana=PersonNameKana.create(last_name="ヤマダ", first_name="タロウ"),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart("ヤマダ"),
+                first_name=PersonNameKanaPart("タロウ"),
+            ),
         )
 
     assert str(exc_info.value) == "漢字氏名は PersonName で指定してください。"
@@ -88,7 +95,9 @@ def test_person_names_rejects_raw_kana_value_object() -> None:
     # Arrange / Act / Assert
     with pytest.raises(DomainValidationError) as exc_info:
         PersonNames(
-            kanji=PersonName.create(last_name="山田", first_name="太郎"),
+            kanji=PersonName(
+                last_name=PersonNamePart("山田"), first_name=PersonNamePart("太郎")
+            ),
             kana="ヤマダ タロウ",  # type: ignore[arg-type]
         )
 
@@ -97,11 +106,14 @@ def test_person_names_rejects_raw_kana_value_object() -> None:
 
 def test_person_names_create_normalizes_all_name_parts() -> None:
     # Arrange / Act
-    actual = PersonNames.create(
-        last_name=" 山田 ",
-        first_name=" 太郎 ",
-        last_name_kana=" ｻﾝﾌﾟﾙ ",
-        first_name_kana=" ﾀﾛｳ ",
+    actual = PersonNames(
+        kanji=PersonName(
+            last_name=PersonNamePart(" 山田 "), first_name=PersonNamePart(" 太郎 ")
+        ),
+        kana=PersonNameKana(
+            last_name=PersonNameKanaPart(" ｻﾝﾌﾟﾙ "),
+            first_name=PersonNameKanaPart(" ﾀﾛｳ "),
+        ),
     )
 
     # Assert
