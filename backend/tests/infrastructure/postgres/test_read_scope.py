@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 from typing import Any
 from uuid import UUID
@@ -27,6 +28,18 @@ _CORPORATE_ID = UUID("01890000-0000-7000-8000-000000000000")
 _STORE_ID = UUID("01890000-0000-7000-8000-000000000001")
 _PERSON_ID = UUID("01890000-0000-7000-8000-0000000000a0")
 _ACCOUNT_ID = UUID("01890000-0000-7000-8000-0000000000a1")
+
+
+def test_法人管理者_店舗業務の取得は制限し_法人内の店舗管理は維持する() -> None:
+    # Arrange
+    scope = replace(_scope(), corporate_administration=True)
+    # Act
+    prescriptions = str(scope.apply(schema.prescriptions, select(schema.prescriptions)))
+    stores = str(scope.apply(schema.stores, select(schema.stores)))
+    # Assert
+    assert "prescriptions.store_id IN" in prescriptions
+    assert "stores.corporate_id =" in stores
+    assert "stores.id IN" not in stores
 
 
 def _scope() -> RepositoryReadScope:

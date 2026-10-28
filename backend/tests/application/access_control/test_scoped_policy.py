@@ -20,6 +20,28 @@ _CORPORATE = CorporateId.generate()
 _STORE = StoreId.generate()
 
 
+@pytest.mark.parametrize(
+    "permission", [Permission.VIEW_PRESCRIPTION, Permission.MANAGE_DISPENSING]
+)
+def test_法人管理者_店舗利用権限のない店舗では_業務の参照と更新を拒否する(
+    permission: Permission,
+) -> None:
+    # Arrange
+    authorization = AuthorizationService(_actor(ActorRole.CORPORATE_ADMIN))
+    # Act / Assert
+    with pytest.raises(TenantBoundaryNotFoundError):
+        authorization.require_store(
+            permission=permission,
+            target_corporate_id=_CORPORATE,
+            target_store_id=StoreId.generate(),
+        )
+    authorization.require_store(
+        permission=Permission.MANAGE_STORE,
+        target_corporate_id=_CORPORATE,
+        target_store_id=StoreId.generate(),
+    )
+
+
 def _actor(
     role: ActorRole, *, stores: frozenset[StoreId] | None = None
 ) -> ResolvedActorContext:

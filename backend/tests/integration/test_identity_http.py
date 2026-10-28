@@ -18,10 +18,10 @@ from tests.integration.organization_helpers import (
 )
 
 
-def identity_app(fixture: Organization) -> FastAPI:
+def identity_app(fixture: Organization, *, actor_index: int = 0) -> FastAPI:
     """本番配線を使い、本人確認基盤の結果だけを固定する。"""
     provider = StubVerifiedSubjectProvider(
-        {"person": VerifiedSubject(principal_id=external_subject_of(0))}
+        {"person": VerifiedSubject(principal_id=external_subject_of(actor_index))}
     )
     app = create_app(identity_provider=provider)
     setattr(

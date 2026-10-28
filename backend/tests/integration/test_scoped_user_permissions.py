@@ -16,6 +16,8 @@ from app.domain.store.exceptions import ManagerAssignmentConflictError
 from app.domain.store.identifiers import StoreId
 from app.infrastructure.di.repositories import PostgresRepositorySet
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
+from tests.factories.persistence_factory import create_patient
+from tests.factories.prescription_factory import create_prescription
 from tests.factories.store_factory import create_manager_assignment, create_store
 from tests.integration.organization_helpers import (
     Organization,
@@ -97,11 +99,50 @@ async def test_管理薬剤師_実DBで複数店舗利用の法人管理者を�
     )
     assert ActorRole.CORPORATE_ADMIN in target.roles
     assert target.store_ids == frozenset({other})
+    patient = create_patient(corporate_id=fixture.corporate.id)
+    stopped = create_prescription(
+        corporate_id=fixture.corporate.id,
+        store_id=fixture.store.id,
+        patient_id=patient.id,
+    )
+    available = create_prescription(
+        corporate_id=fixture.corporate.id, store_id=other, patient_id=patient.id
+    )
     async with PostgresUnitOfWork(session_factory) as work:
-        account = await PostgresRepositorySet.create(work).user_account.get(
-            fixture.accounts[1].id
-        )
+        repositories = PostgresRepositorySet.create(work)
+        account = await repositories.user_account.get(fixture.accounts[1].id)
         assert account is not None and account.status == AccountStatus.ACTIVE
+        await repositories.patient.save(patient)
+        await repositories.prescription.save(stopped)
+        await repositories.prescription.save(available)
+        await work.commit()
+    async with fixture.root.request_scope(
+        authorization=AuthorizationService(target)
+    ) as scope:
+        rows = await scope.repositories.prescription.list_by_patient(
+            corporate_id=fixture.corporate.id, patient_id=patient.id
+        )
+        assert [item.id for item in rows] == [available.id]
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=identity_app(fixture, actor_index=1)),
+        base_url="http://test",
+        headers={"Authorization": "Bearer person"},
+    ) as client:
+        base = f"/corporates/{fixture.corporate.id.value}"
+        hidden = await client.get(f"{base}/prescriptions/{stopped.id.value}")
+        assert hidden.status_code == 404, hidden.text
+        forbidden = await client.post(
+            f"{base}/prescriptions/{stopped.id.value}/cancellation"
+        )
+        assert forbidden.status_code == 404, forbidden.text
+        visible = await client.get(f"{base}/prescriptions/{available.id.value}")
+        assert visible.status_code == 200, visible.text
+        stores = await client.get(f"{base}/stores")
+        assert stores.status_code == 200, stores.text
+        assert {item["id"] for item in stores.json()} == {
+            str(fixture.store.id.value),
+            str(other.value),
+        }
 
 
 @pytest.mark.asyncio

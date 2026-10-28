@@ -95,10 +95,10 @@ class PostgresRequestScope(RequestScope):
         self._actor = authorization.actor
         self._clock = clock
         actor = authorization.actor
-        if isinstance(actor, ResolvedActorContext) and not actor.roles & {
-            ActorRole.VENDOR_SYSTEM_ADMIN,
-            ActorRole.CORPORATE_ADMIN,
-        }:
+        if (
+            isinstance(actor, ResolvedActorContext)
+            and ActorRole.VENDOR_SYSTEM_ADMIN not in actor.roles
+        ):
             # 法人の有無は ResolvedActorContext が構築時に保証する。
             assert actor.corporate_id is not None
             unit_of_work.read_scope = RepositoryReadScope(
@@ -108,6 +108,7 @@ class PostgresRequestScope(RequestScope):
                 actor.person_id.value,
                 actor.account_id.value,
                 tuple(item.value for item in actor.managed_store_ids),
+                corporate_administration=ActorRole.CORPORATE_ADMIN in actor.roles,
             )
         repositories = PostgresRepositorySet.create(unit_of_work)
         corporate_access = CorporateAccessService(repositories.corporate, authorization)

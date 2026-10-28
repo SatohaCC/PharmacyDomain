@@ -94,6 +94,7 @@ class RepositoryReadScope:
     person_id: UUID
     account_id: UUID
     managed_store_ids: tuple[UUID, ...] = ()
+    corporate_administration: bool = False
 
     def apply(self, table: Table, statement: Select[Any]) -> Select[Any]:
         """テーブルごとに宣言された範囲を取得条件へ足す。
@@ -113,6 +114,13 @@ class RepositoryReadScope:
             return statement
         if kind is ReadScopeKind.DENIED:
             return statement.where(false())
+        if self.corporate_administration and kind in {
+            ReadScopeKind.OWN_PERSON,
+            ReadScopeKind.OWN_ACCOUNT,
+        }:
+            # 法人管理では、所属作成前の本人・アカウントも扱う。
+            # 対象法人との対応は各管理UseCaseが確認する。
+            return statement
         if kind is ReadScopeKind.CORPORATE_ITSELF:
             return statement.where(table.c.id == self.corporate_id)
         if kind is ReadScopeKind.CORPORATE_OR_GLOBAL:
@@ -152,6 +160,8 @@ class RepositoryReadScope:
             )
 
         statement = statement.where(table.c.corporate_id == self.corporate_id)
+        if self.corporate_administration and kind is not ReadScopeKind.STORE:
+            return statement
         if table.name == "corporate_memberships" and self.managed_store_ids:
             return statement.where(
                 or_(

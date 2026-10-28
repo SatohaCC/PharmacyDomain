@@ -63,6 +63,9 @@ _STORE_WRITE_PERMISSIONS = frozenset(
         Permission.MANAGE_PATIENT_HEADING,
     }
 )
+_STORE_BUSINESS_PERMISSIONS = (
+    _STORE_VIEW_PERMISSIONS - {Permission.VIEW_STORE, Permission.VIEW_STAFF}
+) | _STORE_WRITE_PERMISSIONS
 _VENDOR_ONLY_PERMISSIONS = frozenset(
     {
         Permission.REGISTER_CORPORATE,
@@ -127,10 +130,10 @@ class AuthorizationService:
         target_store_id: StoreId,
     ) -> None:
         """本人の法人権限と対象店舗への操作権限を確認する。"""
-        if self._actor.roles & {
-            ActorRole.VENDOR_SYSTEM_ADMIN,
-            ActorRole.CORPORATE_ADMIN,
-        }:
+        if ActorRole.VENDOR_SYSTEM_ADMIN in self._actor.roles or (
+            ActorRole.CORPORATE_ADMIN in self._actor.roles
+            and permission not in _STORE_BUSINESS_PERMISSIONS
+        ):
             self.require(permission=permission, target_corporate_id=target_corporate_id)
             return
         actor = self._actor
@@ -140,6 +143,9 @@ class AuthorizationService:
             or target_store_id not in actor.store_ids
         ):
             raise TenantBoundaryNotFoundError()
+        if ActorRole.CORPORATE_ADMIN in actor.roles:
+            self.require(permission=permission, target_corporate_id=target_corporate_id)
+            return
         if (
             permission == Permission.MANAGE_STORE_USERS
             and target_store_id not in actor.managed_store_ids

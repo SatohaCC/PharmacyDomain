@@ -144,6 +144,7 @@ async def _save_unique_corporate_admin(
     session_factory: async_sessionmaker[AsyncSession],
     *,
     corporate_id: CorporateId,
+    store_ids: frozenset[StoreId],
 ) -> FastAPI:
     """他のテストActorと衝突しない法人管理者を保存する。"""
     person = _person()
@@ -158,7 +159,7 @@ async def _save_unique_corporate_admin(
         account_id=account.id,
         corporate_id=corporate_id,
         role=MembershipRole.CORPORATE_ADMIN,
-        store_ids=frozenset(),
+        store_ids=store_ids,
     )
     async with PostgresUnitOfWork(session_factory) as work:
         repositories = PostgresRepositorySet.create(work)
@@ -173,6 +174,7 @@ async def _save_unique_corporate_admin(
         account_id=account.id,
         membership_id=membership.id,
         corporate_id=corporate_id,
+        store_ids=store_ids,
     )
     return _app_for_actor(engine, session_factory, actor)
 
@@ -295,7 +297,10 @@ async def test_tc45_care_event_http認可マトリクス(
     store1 = operator_fixture.store
     store2 = await _save_secondary_store(session_factory, corporate_id=corp_id)
     admin_app = await _save_corporate_admin(
-        engine, session_factory, corporate_id=corp_id
+        engine,
+        session_factory,
+        corporate_id=corp_id,
+        store_ids=frozenset({store1.id, store2.id}),
     )
     operator_app = operator_fixture.app
     viewer_app = await _save_store_viewer(
@@ -308,11 +313,14 @@ async def test_tc45_care_event_http認可マトリクス(
         await repositories.corporate.save(foreign_corporate)
         await repositories.patient.save(foreign_patient)
         await work.commit()
-    foreign_admin_app = await _save_unique_corporate_admin(
-        engine, session_factory, corporate_id=foreign_corporate.id
-    )
     foreign_store = await _save_secondary_store(
         session_factory, corporate_id=foreign_corporate.id
+    )
+    foreign_admin_app = await _save_unique_corporate_admin(
+        engine,
+        session_factory,
+        corporate_id=foreign_corporate.id,
+        store_ids=frozenset({foreign_store.id}),
     )
     viewer_store2_app = await _save_store_viewer(
         engine, session_factory, corporate_id=corp_id, store_id=store2.id

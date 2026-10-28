@@ -19,6 +19,7 @@ export async function registerUser(
   const params = corporationParams(corporateId);
 
   const { names, storeIds } = input;
+  const preparationMode = role === "corporate_admin" ? "existing" : staffMode;
   if (personMode === "existing" && !p.personId) {
     p.personId = input.personId;
     if (!p.personId) throw new Error("本人IDを指定してください。");
@@ -40,12 +41,12 @@ export async function registerUser(
         role === "corporate_admin" && !input.staffId
           ? undefined
           : async (personId) => {
-              if (staffMode === "existing" && !p.linked) {
+              if (preparationMode === "existing" && !p.linked) {
                 p.staffId = input.staffId;
                 changed();
               }
               if (!p.staffId) {
-                if (staffMode === "existing") {
+                if (preparationMode === "existing") {
                   p.staffId = input.staffId;
                   if (!p.staffId)
                     throw new Error("スタッフを選択してください。");
