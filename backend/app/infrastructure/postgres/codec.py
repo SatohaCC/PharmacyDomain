@@ -289,12 +289,14 @@ def _decode_union(
 ) -> object:
     if value is None and type(None) in choices:
         return None
+    # 復元済みの列挙型を先行する文字列Primitiveへ変換しない。
+    for choice in choices:
+        if type(value) is choice:
+            return value
     errors: list[PersistenceMappingError] = []
     for choice in choices:
         if choice is type(None):
             continue
-        if type(value) is choice:
-            return value
         try:
             return _decode(value, choice, context=context)
         except PersistenceMappingError as error:
