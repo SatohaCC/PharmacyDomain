@@ -14,15 +14,16 @@ from collections.abc import Mapping
 from datetime import date
 from pathlib import Path
 
-from app.application.access_control.models import ActorContext
-from app.application.access_control.policy import AuthorizationService
-from app.application.medicine_catalog.import_yj_catalog import (
+from app.application.access_control.boundary_models import ActorContext
+from app.application.access_control.policies import AuthorizationService
+from app.application.medicine_catalog.commands.import_yj_catalog import (
     ImportYjCatalogCommand,
     ImportYjCatalogUseCase,
 )
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.medicine_catalog.csv_source import read_catalog_text
 from app.infrastructure.postgres.connection import (
     PostgresSettings,
     PostgresUnitOfWork,
@@ -76,7 +77,7 @@ async def run_import(
             )
             result = await use_case.execute(
                 ImportYjCatalogCommand(
-                    file_path=str(file_path),
+                    csv_text=read_catalog_text(file_path),
                     catalog_version=catalog_version,
                 )
             )

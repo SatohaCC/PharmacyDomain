@@ -6,9 +6,9 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.application.access_control.exceptions import TenantBoundaryNotFoundError
-from app.application.access_control.models import ActorRole
-from app.application.access_control.store_access import StoreOperation
+from app.application.access_control.boundary_models import ActorRole
+from app.application.access_control.errors import TenantBoundaryNotFoundError
+from app.application.access_control.interfaces.store_operations import StoreOperation
 from app.application.common.exceptions import AuthorizationError
 from app.domain.care_event.entities import Event, EventDefinition
 from app.domain.care_event.identifiers import EventId, EventTypeId

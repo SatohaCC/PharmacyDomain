@@ -14,16 +14,16 @@ from decimal import Decimal
 
 import pytest
 
-from app.application.access_control.exceptions import TenantBoundaryNotFoundError
-from app.application.corporate.exceptions import CorporateInactiveError
-from app.application.prescription.exceptions import (
+from app.application.access_control.errors import TenantBoundaryNotFoundError
+from app.application.corporate.errors import CorporateInactiveError
+from app.application.prescription.commands.models import (
+    PrescriptionManagementInput,
+    PublicExpenseBurdenInput,
+)
+from app.application.prescription.errors import (
     PrescriptionCoverageSelectionNotFoundError,
     PrescriptionPatientNotFoundError,
     PrescriptionStoreNotFoundError,
-)
-from app.application.prescription.inputs import (
-    PrescriptionManagementInput,
-    PublicExpenseBurdenInput,
 )
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.identifiers import CoverageSelectionRecordId

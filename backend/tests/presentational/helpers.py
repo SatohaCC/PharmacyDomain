@@ -7,26 +7,26 @@ Application層のテストが確かめているため、ここでは固定の主
 
 from __future__ import annotations
 
-from app.application.access_control.models import (
+from app.application.access_control.boundary_models import (
     ActorContext,
     ActorRole,
     ResolvedActorContext,
 )
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.policies import AuthorizationService
 from app.application.common.clock import Clock
-from app.application.composition.coverage_references import (
+from app.application.composition.adapters.coverage_references import (
     CoveragePatientReferenceAdapter,
     CoverageStoreReferenceAdapter,
 )
-from app.application.composition.organization_snapshot_mapping import (
+from app.application.composition.adapters.organization_snapshot_mapping import (
     ManagerStaffAdapter,
     StaffStoreAdapter,
 )
-from app.application.composition.reception_medication_history import (
+from app.application.composition.adapters.reception_medication_history import (
     ReceptionMedicationHistoryAssociationAdapter,
 )
-from app.application.composition.staff_person_adapter import StaffPersonAdapter
-from app.application.composition.use_case_bundles import (
+from app.application.composition.adapters.staff_person_adapter import StaffPersonAdapter
+from app.application.composition.registry import (
     CorporateUseCases,
     CoverageUseCases,
     MedicineCatalogUseCases,
@@ -35,99 +35,137 @@ from app.application.composition.use_case_bundles import (
     StaffUseCases,
     StoreUseCases,
 )
-from app.application.corporate.change_corporate_name import ChangeCorporateNameUseCase
-from app.application.corporate.change_corporate_status import (
+from app.application.corporate.commands.change_corporate_name import (
+    ChangeCorporateNameUseCase,
+)
+from app.application.corporate.commands.change_corporate_status import (
     ChangeCorporateStatusUseCase,
 )
-from app.application.corporate.change_representative import ChangeRepresentativeUseCase
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.corporate.get_corporate import GetCorporateUseCase
-from app.application.corporate.list_corporates import ListCorporatesUseCase
-from app.application.corporate.register_corporate import RegisterCorporateUseCase
-from app.application.coverage.change_patient_coverage_period import (
+from app.application.corporate.commands.change_representative import (
+    ChangeRepresentativeUseCase,
+)
+from app.application.corporate.commands.register_corporate import (
+    RegisterCorporateUseCase,
+)
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.corporate.queries.get_corporate import GetCorporateUseCase
+from app.application.corporate.queries.list_corporates import ListCorporatesUseCase
+from app.application.coverage.commands.change_patient_coverage_period import (
     ChangePatientCoveragePeriodUseCase,
 )
-from app.application.coverage.deactivate_patient_coverage import (
+from app.application.coverage.commands.deactivate_patient_coverage import (
     DeactivatePatientCoverageUseCase,
 )
-from app.application.coverage.get_last_coverage_selection import (
-    GetLastCoverageSelectionUseCase,
-)
-from app.application.coverage.get_patient_coverage import GetPatientCoverageUseCase
-from app.application.coverage.list_patient_coverages import ListPatientCoveragesUseCase
-from app.application.coverage.record_coverage_selection import (
+from app.application.coverage.commands.record_coverage_selection import (
     RecordCoverageSelectionUseCase,
 )
-from app.application.coverage.register_patient_coverage import (
+from app.application.coverage.commands.register_patient_coverage import (
     RegisterPatientCoverageUseCase,
 )
-from app.application.coverage.selection import CoverageSelectionBuilder
-from app.application.medicine_catalog.get_medicine import GetEffectiveMedicineUseCase
-from app.application.medicine_catalog.import_yj_catalog import ImportYjCatalogUseCase
-from app.application.medicine_catalog.register_medicine import RegisterMedicineUseCase
-from app.application.patient.change_patient_birth_date import (
+from app.application.coverage.commands.services.selection import (
+    CoverageSelectionBuilder,
+)
+from app.application.coverage.queries.get_last_coverage_selection import (
+    GetLastCoverageSelectionUseCase,
+)
+from app.application.coverage.queries.get_patient_coverage import (
+    GetPatientCoverageUseCase,
+)
+from app.application.coverage.queries.list_patient_coverages import (
+    ListPatientCoveragesUseCase,
+)
+from app.application.medicine_catalog.commands.import_yj_catalog import (
+    ImportYjCatalogUseCase,
+)
+from app.application.medicine_catalog.commands.register_medicine import (
+    RegisterMedicineUseCase,
+)
+from app.application.medicine_catalog.queries.get_effective_medicine import (
+    GetEffectiveMedicineUseCase,
+)
+from app.application.patient.commands.change_patient_birth_date import (
     ChangePatientBirthDateUseCase,
 )
-from app.application.patient.change_patient_heading import ChangePatientHeadingUseCase
-from app.application.patient.change_patient_names import ChangePatientNamesUseCase
-from app.application.patient.change_patient_profile import ChangePatientProfileUseCase
-from app.application.patient.deactivate_patient import DeactivatePatientUseCase
-from app.application.patient.deactivate_patient_external_identifier import (
+from app.application.patient.commands.change_patient_heading import (
+    ChangePatientHeadingUseCase,
+)
+from app.application.patient.commands.change_patient_names import (
+    ChangePatientNamesUseCase,
+)
+from app.application.patient.commands.change_patient_profile import (
+    ChangePatientProfileUseCase,
+)
+from app.application.patient.commands.deactivate_patient import DeactivatePatientUseCase
+from app.application.patient.commands.deactivate_patient_external_identifier import (
     DeactivatePatientExternalIdentifierUseCase,
 )
-from app.application.patient.get_patient import GetPatientUseCase
-from app.application.patient.get_patient_external_identifier import (
-    GetPatientExternalIdentifierUseCase,
-)
-from app.application.patient.get_patient_heading import GetPatientHeadingUseCase
-from app.application.patient.list_patient_external_identifiers import (
-    ListPatientExternalIdentifiersUseCase,
-)
-from app.application.patient.merge_patients import MergePatientsUseCase
-from app.application.patient.reactivate_patient import ReactivatePatientUseCase
-from app.application.patient.register_patient import RegisterPatientUseCase
-from app.application.patient.register_patient_external_identifier import (
+from app.application.patient.commands.merge_patients import MergePatientsUseCase
+from app.application.patient.commands.reactivate_patient import ReactivatePatientUseCase
+from app.application.patient.commands.register_patient import RegisterPatientUseCase
+from app.application.patient.commands.register_patient_external_identifier import (
     RegisterPatientExternalIdentifierUseCase,
 )
-from app.application.reception.associate_reception_medication_history import (
+from app.application.patient.queries.get_patient import GetPatientUseCase
+from app.application.patient.queries.get_patient_external_identifier import (
+    GetPatientExternalIdentifierUseCase,
+)
+from app.application.patient.queries.get_patient_heading import GetPatientHeadingUseCase
+from app.application.patient.queries.list_patient_external_identifiers import (
+    ListPatientExternalIdentifiersUseCase,
+)
+from app.application.reception.commands.associate_reception_medication_history import (
     AssociateReceptionMedicationHistoryUseCase,
 )
-from app.application.staff.activate_staff import ActivateStaffUseCase
-from app.application.staff.assign_concurrent_store import (
+from app.application.staff.commands.activate_staff import ActivateStaffUseCase
+from app.application.staff.commands.assign_staff_concurrent_store import (
     AssignStaffConcurrentStoreUseCase,
 )
-from app.application.staff.change_staff_job_title import ChangeStaffJobTitleUseCase
-from app.application.staff.change_staff_names import ChangeStaffNamesUseCase
-from app.application.staff.deactivate_staff import DeactivateStaffUseCase
-from app.application.staff.get_staff import GetStaffUseCase
-from app.application.staff.list_staffs import ListStaffsUseCase
-from app.application.staff.register_staff import RegisterStaffUseCase
-from app.application.staff.remove_concurrent_store import (
+from app.application.staff.commands.change_staff_job_title import (
+    ChangeStaffJobTitleUseCase,
+)
+from app.application.staff.commands.change_staff_names import ChangeStaffNamesUseCase
+from app.application.staff.commands.deactivate_staff import DeactivateStaffUseCase
+from app.application.staff.commands.register_staff import RegisterStaffUseCase
+from app.application.staff.commands.remove_staff_concurrent_store import (
     RemoveStaffConcurrentStoreUseCase,
 )
-from app.application.staff.transfer_home_store import TransferStaffHomeStoreUseCase
-from app.application.staff.update_qualifications import UpdateStaffQualificationsUseCase
-from app.application.store.business_hours import (
-    ChangeStoreBusinessHoursUseCase,
-    GetStoreOpeningStatusUseCase,
+from app.application.staff.commands.transfer_staff_home_store import (
+    TransferStaffHomeStoreUseCase,
 )
-from app.application.store.change_insurance_pharmacy_number import (
+from app.application.staff.commands.update_staff_qualifications import (
+    UpdateStaffQualificationsUseCase,
+)
+from app.application.staff.queries.get_staff import GetStaffUseCase
+from app.application.staff.queries.list_staffs import ListStaffsUseCase
+from app.application.store.commands.change_insurance_pharmacy_number import (
     ChangeInsurancePharmacyNumberUseCase,
 )
-from app.application.store.change_store_address import ChangeStoreAddressUseCase
-from app.application.store.change_store_code import ChangeStoreCodeUseCase
-from app.application.store.change_store_contact_info import (
+from app.application.store.commands.change_store_address import (
+    ChangeStoreAddressUseCase,
+)
+from app.application.store.commands.change_store_business_hours import (
+    ChangeStoreBusinessHoursUseCase,
+)
+from app.application.store.commands.change_store_code import ChangeStoreCodeUseCase
+from app.application.store.commands.change_store_contact_info import (
     ChangeStoreContactInfoUseCase,
 )
-from app.application.store.change_store_name import ChangeStoreNamesUseCase
-from app.application.store.get_store import GetStoreUseCase
-from app.application.store.list_stores import ListStoresUseCase
-from app.application.store.management import (
-    ChangeStoreStatusUseCase,
+from app.application.store.commands.change_store_names import ChangeStoreNamesUseCase
+from app.application.store.commands.change_store_status import ChangeStoreStatusUseCase
+from app.application.store.commands.manage_store_manager import (
     ManageStoreManagerUseCase,
+)
+from app.application.store.commands.register_store import RegisterStoreUseCase
+from app.application.store.commands.revoke_store_closure import (
     RevokeStoreClosureUseCase,
 )
-from app.application.store.register_store import RegisterStoreUseCase
+from app.application.store.queries.get_store import GetStoreUseCase
+from app.application.store.queries.get_store_opening_status import (
+    GetStoreOpeningStatusUseCase,
+)
+from app.application.store.queries.list_stores import ListStoresUseCase
 from app.domain.corporate.services import CorporateNameUniquenessService
 from app.domain.coverage.services import (
     CoverageSelectionService,
@@ -144,6 +182,38 @@ from app.domain.store.services import (
     StoreCodeUniquenessService,
     StoreNameUniquenessService,
 )
+from app.infrastructure.readers.corporate_list_corporates import (
+    ListCorporatesProjection,
+)
+from app.infrastructure.readers.coverage_get_last_coverage_selection import (
+    GetLastCoverageSelectionProjection,
+)
+from app.infrastructure.readers.coverage_get_patient_coverage import (
+    GetPatientCoverageProjection,
+)
+from app.infrastructure.readers.coverage_list_patient_coverages import (
+    ListPatientCoveragesProjection,
+)
+from app.infrastructure.readers.medicine_catalog_get_effective_medicine import (
+    GetEffectiveMedicineProjection,
+)
+from app.infrastructure.readers.patient_get_patient import GetPatientProjection
+from app.infrastructure.readers.patient_get_patient_external_identifier import (
+    GetPatientExternalIdentifierProjection,
+)
+from app.infrastructure.readers.patient_get_patient_heading import (
+    GetPatientHeadingProjection,
+)
+from app.infrastructure.readers.patient_list_patient_external_identifiers import (
+    ListPatientExternalIdentifiersProjection,
+)
+from app.infrastructure.readers.staff_get_staff import GetStaffProjection
+from app.infrastructure.readers.staff_list_staffs import ListStaffsProjection
+from app.infrastructure.readers.store_get_store import GetStoreProjection
+from app.infrastructure.readers.store_get_store_opening_status import (
+    GetStoreOpeningStatusProjection,
+)
+from app.infrastructure.readers.store_list_stores import ListStoresProjection
 from tests.application.staff.access_revocation_helpers import (
     create_access_revocation,
 )
@@ -205,7 +275,10 @@ def create_corporate_use_cases(
     uniqueness = CorporateNameUniquenessService(repository)
     access = _access_for(repository)
     return CorporateUseCases(
-        list=ListCorporatesUseCase(repository, AuthorizationService(vendor_admin())),
+        list=ListCorporatesUseCase(
+            reader=ListCorporatesProjection(repository),
+            authorization=AuthorizationService(vendor_admin()),
+        ),
         register=RegisterCorporateUseCase(repository, uniqueness, access),
         get=GetCorporateUseCase(access),
         change_name=ChangeCorporateNameUseCase(repository, uniqueness, access),
@@ -253,14 +326,21 @@ def create_store_use_cases(
             FakeOrganizationLock(),
         ),
         register=RegisterStoreUseCase(repository, names, codes, numbers, access),
-        get=GetStoreUseCase(repository, access),
-        list_by_corporate=ListStoresUseCase(repository, access),
+        get=GetStoreUseCase(
+            reader=GetStoreProjection(repository), corporate_access=access
+        ),
+        list_by_corporate=ListStoresUseCase(
+            reader=ListStoresProjection(repository), corporate_access=access
+        ),
         change_names=ChangeStoreNamesUseCase(repository, names, access),
         change_code=ChangeStoreCodeUseCase(repository, codes, access),
         change_address=ChangeStoreAddressUseCase(repository, access),
         change_contact_info=ChangeStoreContactInfoUseCase(repository, access),
         change_business_hours=ChangeStoreBusinessHoursUseCase(repository, access),
-        opening_status=GetStoreOpeningStatusUseCase(repository, access, FakeClock()),
+        opening_status=GetStoreOpeningStatusUseCase(
+            reader=GetStoreOpeningStatusProjection(repository, FakeClock()),
+            corporate_access=access,
+        ),
         change_insurance_pharmacy_number=ChangeInsurancePharmacyNumberUseCase(
             repository, numbers, access
         ),
@@ -281,8 +361,14 @@ def create_staff_use_cases(
         register=RegisterStaffUseCase(
             staffs, StaffStoreAdapter(stores), code_uniqueness, assignment, access
         ),
-        get=GetStaffUseCase(staffs, access, clock),
-        list_by_corporate=ListStaffsUseCase(staffs, access),
+        get=GetStaffUseCase(
+            reader=GetStaffProjection(staffs),
+            corporate_access=access,
+            clock=clock,
+        ),
+        list_by_corporate=ListStaffsUseCase(
+            reader=ListStaffsProjection(staffs), corporate_access=access
+        ),
         change_names=ChangeStaffNamesUseCase(staffs, access),
         change_job_title=ChangeStaffJobTitleUseCase(staffs, access),
         update_qualifications=UpdateStaffQualificationsUseCase(staffs, access),
@@ -316,11 +402,16 @@ def create_patient_use_cases(
     clock = FakeClock()
     return PatientUseCases(
         register=RegisterPatientUseCase(patients, access),
-        get=GetPatientUseCase(patients, access),
+        get=GetPatientUseCase(
+            reader=GetPatientProjection(patients), corporate_access=access
+        ),
         change_names=ChangePatientNamesUseCase(patients, access, clock),
         change_birth_date=ChangePatientBirthDateUseCase(patients, access, clock),
         change_profile=ChangePatientProfileUseCase(patients, access, clock),
-        get_heading=GetPatientHeadingUseCase(patients, access),
+        get_heading=GetPatientHeadingUseCase(
+            reader=GetPatientHeadingProjection(patients),
+            corporate_access=access,
+        ),
         change_heading=ChangePatientHeadingUseCase(patients, access, clock),
         deactivate=DeactivatePatientUseCase(patients, access, clock),
         reactivate=ReactivatePatientUseCase(patients, access, clock),
@@ -329,10 +420,12 @@ def create_patient_use_cases(
             patients, identifiers, access
         ),
         get_external_identifier=GetPatientExternalIdentifierUseCase(
-            identifiers, access
+            reader=GetPatientExternalIdentifierProjection(identifiers),
+            corporate_access=access,
         ),
         list_external_identifiers=ListPatientExternalIdentifiersUseCase(
-            patients, identifiers, access
+            reader=ListPatientExternalIdentifiersProjection(patients, identifiers),
+            corporate_access=access,
         ),
         deactivate_external_identifier=DeactivatePatientExternalIdentifierUseCase(
             identifiers, access
@@ -358,9 +451,14 @@ def create_coverage_use_cases(
         register=RegisterPatientCoverageUseCase(
             coverages, patient_reference, conflict, access
         ),
-        get=GetPatientCoverageUseCase(coverages, access),
+        get=GetPatientCoverageUseCase(
+            reader=GetPatientCoverageProjection(coverages),
+            corporate_access=access,
+        ),
         list_by_patient=ListPatientCoveragesUseCase(
-            coverages, patient_reference, access
+            reader=ListPatientCoveragesProjection(coverages),
+            patient_reference=patient_reference,
+            corporate_access=access,
         ),
         change_period=ChangePatientCoveragePeriodUseCase(coverages, conflict, access),
         deactivate=DeactivatePatientCoverageUseCase(coverages, access),
@@ -373,11 +471,10 @@ def create_coverage_use_cases(
             clock,
         ),
         get_last_coverage_selection=GetLastCoverageSelectionUseCase(
-            records,
-            access,
-            store_reference,
-            patient_reference,
-            selection,
+            reader=GetLastCoverageSelectionProjection(records, selection),
+            corporate_access=access,
+            store_reference=store_reference,
+            patient_reference=patient_reference,
         ),
     )
 
@@ -415,6 +512,8 @@ def create_medicine_catalog_use_cases(
         register=RegisterMedicineUseCase(
             medicines, auth, MedicineEffectivePeriodConflictService()
         ),
-        get_effective=GetEffectiveMedicineUseCase(medicines, auth),
+        get_effective=GetEffectiveMedicineUseCase(
+            reader=GetEffectiveMedicineProjection(medicines), authorization=auth
+        ),
         import_yj=ImportYjCatalogUseCase(medicines, auth),
     )

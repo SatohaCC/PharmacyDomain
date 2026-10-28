@@ -17,64 +17,82 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Query
 from pydantic import Field
 
-from app.application.care_event.create_event import CreateEventCommand
-from app.application.care_event.get_event import GetEventQuery
+from app.application.care_event.commands.create_event import CreateEventCommand
+from app.application.care_event.queries.models import GetEventQuery
 from app.application.common.exceptions import NotFoundError
 from app.application.common.pagination import Page
-from app.application.dispensing.get_dispensing import GetDispensingQuery
-from app.application.medication_history.amend_medication_history import (
+from app.application.dispensing.queries.models import GetDispensingQuery
+from app.application.medication_history.commands.amend_medication_history import (
     AmendMedicationHistoryCommand,
 )
-from app.application.medication_history.category_catalog import CategoryCatalogDto
-from app.application.medication_history.correct_medication_history_fact import (
+from app.application.medication_history.commands.correct_medication_history_fact import (
     CorrectMedicationHistoryFactCommand,
 )
-from app.application.medication_history.finalize_medication_history import (
-    FinalizeMedicationHistoryCommand,
+from app.application.medication_history.commands.dtos.category_catalog import (
+    CategoryCatalogDto,
 )
-from app.application.medication_history.get_medication_history import (
-    GetFollowUpSourceQuery,
-    GetMedicationHistoryQuery,
-    ListMedicationHistoriesQuery,
+from app.application.medication_history.commands.dtos.get_medication_history import (
     MedicationHistoryDto,
 )
-from app.application.medication_history.get_medication_history_view import (
-    GetMedicationHistoryViewQuery,
-    MedicationHistoryViewDto,
-)
-from app.application.medication_history.get_patient_medical_profile import (
-    GetPatientMedicalProfileQuery,
+from app.application.medication_history.commands.dtos.get_patient_medical_profile import (
     PatientMedicalProfileDto,
-    RebuildPatientMedicalProfileCommand,
 )
-from app.application.medication_history.inputs import (
+from app.application.medication_history.commands.finalize_medication_history import (
+    FinalizeMedicationHistoryCommand,
+)
+from app.application.medication_history.commands.models import (
     BillingAdditionInput,
     CategorizedNoteInput,
     HandbookStatusInput,
     MajorCategoryInput,
     MediumCategoryInput,
     ProfileUpdateInput,
-    RecordTracingReportCommand,
-    RecordTracingReportResponseCommand,
     ResidualDrugInput,
     SoapInput,
-    UpdateCategoryCatalogCommand,
 )
-from app.application.medication_history.list_pending_external_corrections import (
-    ListPendingExternalCorrectionsQuery,
-    PendingExternalCorrectionDto,
+from app.application.medication_history.commands.rebuild_patient_medical_profile import (
+    RebuildPatientMedicalProfileCommand,
 )
-from app.application.medication_history.review_external_prescription_correction import (
+from app.application.medication_history.commands.record_tracing_report import (
+    RecordTracingReportCommand,
+)
+from app.application.medication_history.commands.record_tracing_report_response import (
+    RecordTracingReportResponseCommand,
+)
+from app.application.medication_history.commands.review_external_prescription_correction import (
     ReviewExternalPrescriptionCorrectionCommand,
 )
-from app.application.medication_history.start_medication_history import (
+from app.application.medication_history.commands.start_medication_history import (
     StartMedicationHistoryCommand,
 )
-from app.application.medication_history.update_medication_history_draft import (
+from app.application.medication_history.commands.update_category_catalog import (
+    UpdateCategoryCatalogCommand,
+)
+from app.application.medication_history.commands.update_medication_history_draft import (
     UpdateMedicationHistoryDraftCommand,
 )
-from app.application.medication_history.verify_statutory_record import (
+from app.application.medication_history.queries.dtos.get_medication_history import (
+    MedicationHistoryDto as QueryMedicationHistoryDto,
+)
+from app.application.medication_history.queries.dtos.get_medication_history_view import (
+    MedicationHistoryViewDto,
+)
+from app.application.medication_history.queries.dtos.get_patient_medical_profile import (
+    PatientMedicalProfileDto as QueryPatientMedicalProfileDto,
+)
+from app.application.medication_history.queries.dtos.list_pending_external_corrections import (
+    PendingExternalCorrectionDto,
+)
+from app.application.medication_history.queries.dtos.verify_statutory_record import (
     StatutoryRecordSufficiencyDto,
+)
+from app.application.medication_history.queries.models import (
+    GetFollowUpSourceQuery,
+    GetMedicationHistoryQuery,
+    GetMedicationHistoryViewQuery,
+    GetPatientMedicalProfileQuery,
+    ListMedicationHistoriesQuery,
+    ListPendingExternalCorrectionsQuery,
     VerifyStatutoryRecordQuery,
 )
 from app.presentational.dependencies import (
@@ -82,6 +100,10 @@ from app.presentational.dependencies import (
     DispensingUseCasesDep,
     MedicationHistoryUseCasesDep,
     get_actor_context,
+)
+from app.presentational.dto_mapping import (
+    to_http_medication_history_get_medication_history__medication_history_dto,
+    to_http_medication_history_get_patient_medical_profile__patient_medical_profile_dto,
 )
 from app.presentational.errors import error_responses
 from app.presentational.routing import ApplicationRoute
@@ -258,7 +280,7 @@ async def start_medication_history(
     use_cases: MedicationHistoryUseCasesDep,
     event_use_cases: CareEventUseCasesDep,
     dispensing_use_cases: DispensingUseCasesDep,
-) -> MedicationHistoryDto:
+) -> MedicationHistoryDto | QueryMedicationHistoryDto:
     """既存の初回薬歴入口をEvent作成と薬歴起票へ接続する。"""
     dispensing = await dispensing_use_cases.get.execute(
         GetDispensingQuery(
@@ -290,27 +312,32 @@ async def start_medication_history(
         )
     )
     if event.medication_history_id is not None:
-        return await use_cases.get.execute(
-            GetMedicationHistoryQuery(
-                corporate_id=corporate_id,
-                record_id=event.medication_history_id,
+        return (
+            to_http_medication_history_get_medication_history__medication_history_dto(
+                await use_cases.get.execute(
+                    GetMedicationHistoryQuery(
+                        corporate_id=corporate_id, record_id=event.medication_history_id
+                    )
+                )
             )
         )
-    return await use_cases.start.execute(
-        StartMedicationHistoryCommand(
-            corporate_id=corporate_id,
-            store_id=body.store_id,
-            event_id=event.event_id,
-            dispensing_id=body.dispensing_id,
-            reception_id=body.reception_id,
-            method=body.method,
-            soap=body.soap,
-            handbook_status=body.handbook_status,
-            residual_drug=body.residual_drug,
-            information_sheet_provided=body.information_sheet_provided,
-            profile_updates=body.profile_updates,
-            counselor_id=body.counselor_id,
-            counseled_at=body.counseled_at,
+    return to_http_medication_history_get_medication_history__medication_history_dto(
+        await use_cases.start.execute(
+            StartMedicationHistoryCommand(
+                corporate_id=corporate_id,
+                store_id=body.store_id,
+                event_id=event.event_id,
+                dispensing_id=body.dispensing_id,
+                reception_id=body.reception_id,
+                method=body.method,
+                soap=body.soap,
+                handbook_status=body.handbook_status,
+                residual_drug=body.residual_drug,
+                information_sheet_provided=body.information_sheet_provided,
+                profile_updates=body.profile_updates,
+                counselor_id=body.counselor_id,
+                counseled_at=body.counseled_at,
+            )
         )
     )
 
@@ -327,26 +354,28 @@ async def start_event_medication_history(
     body: StartEventMedicationHistoryRequest,
     use_cases: MedicationHistoryUseCasesDep,
     event_use_cases: CareEventUseCasesDep,
-) -> MedicationHistoryDto:
+) -> MedicationHistoryDto | QueryMedicationHistoryDto:
     """指定Eventに対する共通薬歴下書きを作成する。"""
     event = await event_use_cases.get.execute(
         GetEventQuery(corporate_id=corporate_id, event_id=event_id)
     )
-    return await use_cases.start.execute(
-        StartMedicationHistoryCommand(
-            corporate_id=corporate_id,
-            store_id=event.store_id,
-            event_id=event.event_id,
-            dispensing_id=event.dispensing_id,
-            method=body.method,
-            soap=body.soap,
-            handbook_status=body.handbook_status,
-            residual_drug=body.residual_drug,
-            information_sheet_provided=body.information_sheet_provided,
-            profile_updates=body.profile_updates,
-            counselor_id=body.counselor_id,
-            counseled_at=body.counseled_at,
-            reception_id=event.reception_id,
+    return to_http_medication_history_get_medication_history__medication_history_dto(
+        await use_cases.start.execute(
+            StartMedicationHistoryCommand(
+                corporate_id=corporate_id,
+                store_id=event.store_id,
+                event_id=event.event_id,
+                dispensing_id=event.dispensing_id,
+                method=body.method,
+                soap=body.soap,
+                handbook_status=body.handbook_status,
+                residual_drug=body.residual_drug,
+                information_sheet_provided=body.information_sheet_provided,
+                profile_updates=body.profile_updates,
+                counselor_id=body.counselor_id,
+                counseled_at=body.counseled_at,
+                reception_id=event.reception_id,
+            )
         )
     )
 
@@ -359,10 +388,12 @@ async def get_medication_history(
     corporate_id: str,
     record_id: str,
     use_cases: MedicationHistoryUseCasesDep,
-) -> MedicationHistoryDto:
+) -> MedicationHistoryDto | QueryMedicationHistoryDto:
     """薬歴を1件取得する。"""
-    return await use_cases.get.execute(
-        GetMedicationHistoryQuery(corporate_id=corporate_id, record_id=record_id)
+    return to_http_medication_history_get_medication_history__medication_history_dto(
+        await use_cases.get.execute(
+            GetMedicationHistoryQuery(corporate_id=corporate_id, record_id=record_id)
+        )
     )
 
 
@@ -418,17 +449,19 @@ async def review_external_prescription_correction(
     correction_id: str,
     body: ReviewExternalPrescriptionCorrectionRequest,
     use_cases: MedicationHistoryUseCasesDep,
-) -> MedicationHistoryDto:
+) -> MedicationHistoryDto | QueryMedicationHistoryDto:
     """外部訂正に理由付き判断を記録し、元の確定記録は保持する。"""
-    return await use_cases.review_external_correction.execute(
-        ReviewExternalPrescriptionCorrectionCommand(
-            corporate_id=corporate_id,
-            record_id=record_id,
-            correction_id=correction_id,
-            decision=body.decision,
-            reason=body.reason,
-            amended_soap=body.amended_soap,
-            matched_prescription_id=body.matched_prescription_id,
+    return to_http_medication_history_get_medication_history__medication_history_dto(
+        await use_cases.review_external_correction.execute(
+            ReviewExternalPrescriptionCorrectionCommand(
+                corporate_id=corporate_id,
+                record_id=record_id,
+                correction_id=correction_id,
+                decision=body.decision,
+                reason=body.reason,
+                amended_soap=body.amended_soap,
+                matched_prescription_id=body.matched_prescription_id,
+            )
         )
     )
 
@@ -443,21 +476,21 @@ async def update_medication_history_draft(
     record_id: str,
     body: UpdateMedicationHistoryDraftRequest,
     use_cases: MedicationHistoryUseCasesDep,
-) -> MedicationHistoryDto:
+) -> MedicationHistoryDto | QueryMedicationHistoryDto:
     """下書きを更新する。確定済みの薬歴には使えない。"""
-    return await use_cases.update_draft.execute(
-        UpdateMedicationHistoryDraftCommand(
-            corporate_id=corporate_id,
-            record_id=record_id,
-            soap=body.soap,
-            profile_updates=body.profile_updates,
-            method=body.method,
-            handbook_status=body.handbook_status,
-            residual_drug=body.residual_drug,
-            information_sheet_provided=body.information_sheet_provided,
-            additional_notes=body.additional_notes,
-            billing_additions=(
-                tuple(
+    return to_http_medication_history_get_medication_history__medication_history_dto(
+        await use_cases.update_draft.execute(
+            UpdateMedicationHistoryDraftCommand(
+                corporate_id=corporate_id,
+                record_id=record_id,
+                soap=body.soap,
+                profile_updates=body.profile_updates,
+                method=body.method,
+                handbook_status=body.handbook_status,
+                residual_drug=body.residual_drug,
+                information_sheet_provided=body.information_sheet_provided,
+                additional_notes=body.additional_notes,
+                billing_additions=tuple(
                     BillingAdditionInput(
                         code=item.code,
                         name=item.name,
@@ -467,8 +500,8 @@ async def update_medication_history_draft(
                     for item in body.billing_additions
                 )
                 if body.billing_additions is not None
-                else None
-            ),
+                else None,
+            )
         )
     )
 
@@ -483,16 +516,18 @@ async def finalize_medication_history(
     record_id: str,
     use_cases: MedicationHistoryUseCasesDep,
     body: FinalizeMedicationHistoryRequest | None = None,
-) -> MedicationHistoryDto:
+) -> MedicationHistoryDto | QueryMedicationHistoryDto:
     """薬歴を確定する。頭書きへの投影も同じトランザクションで確定する。"""
-    return await use_cases.finalize.execute(
-        FinalizeMedicationHistoryCommand(
-            corporate_id=corporate_id,
-            record_id=record_id,
-            counseled_at=body.counseled_at if body is not None else None,
-            event_occurred_at=(body.event_occurred_at if body is not None else None),
-            delay_reason=body.delay_reason if body is not None else None,
-            review_result=body.review_result if body is not None else None,
+    return to_http_medication_history_get_medication_history__medication_history_dto(
+        await use_cases.finalize.execute(
+            FinalizeMedicationHistoryCommand(
+                corporate_id=corporate_id,
+                record_id=record_id,
+                counseled_at=body.counseled_at if body is not None else None,
+                event_occurred_at=body.event_occurred_at if body is not None else None,
+                delay_reason=body.delay_reason if body is not None else None,
+                review_result=body.review_result if body is not None else None,
+            )
         )
     )
 
@@ -508,15 +543,17 @@ async def amend_medication_history(
     record_id: str,
     body: AmendMedicationHistoryRequest,
     use_cases: MedicationHistoryUseCasesDep,
-) -> MedicationHistoryDto:
+) -> MedicationHistoryDto | QueryMedicationHistoryDto:
     """確定済みの薬歴を訂正する。元の記載は消えず、訂正として積まれる。"""
-    return await use_cases.amend.execute(
-        AmendMedicationHistoryCommand(
-            corporate_id=corporate_id,
-            record_id=record_id,
-            amended_by=body.amended_by,
-            reason=body.reason,
-            amended_soap=body.amended_soap,
+    return to_http_medication_history_get_medication_history__medication_history_dto(
+        await use_cases.amend.execute(
+            AmendMedicationHistoryCommand(
+                corporate_id=corporate_id,
+                record_id=record_id,
+                amended_by=body.amended_by,
+                reason=body.reason,
+                amended_soap=body.amended_soap,
+            )
         )
     )
 
@@ -532,7 +569,7 @@ async def correct_medication_history_fact(
     record_id: str,
     body: CorrectMedicationHistoryFactRequest,
     use_cases: MedicationHistoryUseCasesDep,
-) -> MedicationHistoryDto:
+) -> MedicationHistoryDto | QueryMedicationHistoryDto:
     """原本を保ったまま事実訂正を追記し、頭書きを再投影する。"""
     command = CorrectMedicationHistoryFactCommand(
         corporate_id=corporate_id,
@@ -543,7 +580,9 @@ async def correct_medication_history_fact(
     )
     if "value" in body.model_fields_set:
         command = replace(command, value=body.value)
-    return await use_cases.correct_fact.execute(command)
+    return to_http_medication_history_get_medication_history__medication_history_dto(
+        await use_cases.correct_fact.execute(command)
+    )
 
 
 @router.post(
@@ -562,7 +601,7 @@ async def add_follow_up(
     body: AddFollowUpRequest,
     use_cases: MedicationHistoryUseCasesDep,
     event_use_cases: CareEventUseCasesDep,
-) -> MedicationHistoryDto:
+) -> MedicationHistoryDto | QueryMedicationHistoryDto:
     """旧フォローアップ入口から独立Eventと薬歴を作成する。"""
     source = await use_cases.get_follow_up_source.execute(
         GetFollowUpSourceQuery(corporate_id=corporate_id, record_id=record_id)
@@ -592,21 +631,23 @@ async def add_follow_up(
             related_event_id=str(source.event_id.value),
         )
     )
-    return await use_cases.start.execute(
-        StartMedicationHistoryCommand(
-            corporate_id=corporate_id,
-            store_id=body.store_id,
-            event_id=event.event_id,
-            dispensing_id=None,
-            method=body.method,
-            soap=body.soap,
-            handbook_status=body.handbook_status,
-            residual_drug=body.residual_drug,
-            information_sheet_provided=body.information_sheet_provided,
-            profile_updates=body.profile_updates,
-            additional_notes=body.additional_notes,
-            counselor_id=body.counselor_id,
-            counseled_at=body.followed_up_at,
+    return to_http_medication_history_get_medication_history__medication_history_dto(
+        await use_cases.start.execute(
+            StartMedicationHistoryCommand(
+                corporate_id=corporate_id,
+                store_id=body.store_id,
+                event_id=event.event_id,
+                dispensing_id=None,
+                method=body.method,
+                soap=body.soap,
+                handbook_status=body.handbook_status,
+                residual_drug=body.residual_drug,
+                information_sheet_provided=body.information_sheet_provided,
+                profile_updates=body.profile_updates,
+                additional_notes=body.additional_notes,
+                counselor_id=body.counselor_id,
+                counseled_at=body.followed_up_at,
+            )
         )
     )
 
@@ -626,20 +667,22 @@ async def record_tracing_report(
     record_id: str,
     body: RecordTracingReportRequest,
     use_cases: MedicationHistoryUseCasesDep,
-) -> MedicationHistoryDto:
+) -> MedicationHistoryDto | QueryMedicationHistoryDto:
     """確定済み薬歴に処方医へのトレーシングレポート記録を追加する。"""
-    return await use_cases.record_tracing_report.execute(
-        RecordTracingReportCommand(
-            corporate_id=corporate_id,
-            record_id=record_id,
-            reporter_id=body.reporter_id,
-            provided_at=body.provided_at,
-            medical_institution_name=body.medical_institution_name,
-            physician_name=body.physician_name,
-            category=body.category,
-            fee_category=body.fee_category,
-            delivery_method=body.delivery_method,
-            content=body.content,
+    return to_http_medication_history_get_medication_history__medication_history_dto(
+        await use_cases.record_tracing_report.execute(
+            RecordTracingReportCommand(
+                corporate_id=corporate_id,
+                record_id=record_id,
+                reporter_id=body.reporter_id,
+                provided_at=body.provided_at,
+                medical_institution_name=body.medical_institution_name,
+                physician_name=body.physician_name,
+                category=body.category,
+                fee_category=body.fee_category,
+                delivery_method=body.delivery_method,
+                content=body.content,
+            )
         )
     )
 
@@ -660,18 +703,20 @@ async def record_tracing_report_response(
     report_id: str,
     body: RecordTracingReportResponseRequest,
     use_cases: MedicationHistoryUseCasesDep,
-) -> MedicationHistoryDto:
+) -> MedicationHistoryDto | QueryMedicationHistoryDto:
     """トレーシングレポートに対する処方医からの返答を記録する。"""
-    return await use_cases.record_tracing_report_response.execute(
-        RecordTracingReportResponseCommand(
-            corporate_id=corporate_id,
-            record_id=record_id,
-            tracing_report_id=report_id,
-            responded_at=body.responded_at,
-            content=body.content,
-            action_type=body.action_type,
-            received_by=body.received_by,
-            acknowledged_physician_name=body.acknowledged_physician_name,
+    return to_http_medication_history_get_medication_history__medication_history_dto(
+        await use_cases.record_tracing_report_response.execute(
+            RecordTracingReportResponseCommand(
+                corporate_id=corporate_id,
+                record_id=record_id,
+                tracing_report_id=report_id,
+                responded_at=body.responded_at,
+                content=body.content,
+                action_type=body.action_type,
+                received_by=body.received_by,
+                acknowledged_physician_name=body.acknowledged_physician_name,
+            )
         )
     )
 
@@ -702,12 +747,15 @@ async def list_medication_histories(
     corporate_id: str,
     patient_id: str,
     use_cases: MedicationHistoryUseCasesDep,
-) -> list[MedicationHistoryDto]:
+) -> list[MedicationHistoryDto] | list[QueryMedicationHistoryDto]:
     """患者の薬歴を一覧する。"""
     records = await use_cases.list_by_patient.execute(
         ListMedicationHistoriesQuery(corporate_id=corporate_id, patient_id=patient_id)
     )
-    return list(records)
+    return [
+        to_http_medication_history_get_medication_history__medication_history_dto(item)
+        for item in (list(records))
+    ]
 
 
 @router.get(
@@ -719,11 +767,13 @@ async def get_medical_profile(
     patient_id: str,
     use_cases: MedicationHistoryUseCasesDep,
     as_of: Annotated[date, Query(description="併用薬の継続判定に使う基準日。")],
-) -> PatientMedicalProfileDto:
+) -> PatientMedicalProfileDto | QueryPatientMedicalProfileDto:
     """頭書きを取得する。継続中の併用薬は基準日で判定する。"""
-    return await use_cases.get_medical_profile.execute(
-        GetPatientMedicalProfileQuery(
-            corporate_id=corporate_id, patient_id=patient_id, as_of=as_of
+    return to_http_medication_history_get_patient_medical_profile__patient_medical_profile_dto(
+        await use_cases.get_medical_profile.execute(
+            GetPatientMedicalProfileQuery(
+                corporate_id=corporate_id, patient_id=patient_id, as_of=as_of
+            )
         )
     )
 
@@ -738,11 +788,13 @@ async def rebuild_medical_profile(
     patient_id: str,
     body: RebuildMedicalProfileRequest,
     use_cases: MedicationHistoryUseCasesDep,
-) -> PatientMedicalProfileDto:
+) -> PatientMedicalProfileDto | QueryPatientMedicalProfileDto:
     """確定済みの薬歴から頭書きを作り直す。"""
-    return await use_cases.rebuild_medical_profile.execute(
-        RebuildPatientMedicalProfileCommand(
-            corporate_id=corporate_id, patient_id=patient_id, as_of=body.as_of
+    return to_http_medication_history_get_patient_medical_profile__patient_medical_profile_dto(
+        await use_cases.rebuild_medical_profile.execute(
+            RebuildPatientMedicalProfileCommand(
+                corporate_id=corporate_id, patient_id=patient_id, as_of=body.as_of
+            )
         )
     )
 

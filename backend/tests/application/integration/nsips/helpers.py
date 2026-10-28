@@ -6,30 +6,32 @@ import uuid
 from dataclasses import dataclass, replace
 from datetime import date
 
-from app.application.composition.dispensing_references import (
+from app.application.composition.adapters.dispensing_references import (
     DispensingStaffQualificationAdapter,
     DispensingStoreReferenceAdapter,
     PrescriptionSourceAdapter,
 )
-from app.application.composition.prescription_references import (
+from app.application.composition.adapters.prescription_references import (
     CoverageSelectionPublicExpenseAdapter,
     PrescriptionPatientReferenceAdapter,
     PrescriptionStoreReferenceAdapter,
 )
-from app.application.dispensing.start_dispensing import StartDispensingUseCase
-from app.application.integration.nsips.ingest_nsips import (
+from app.application.dispensing.commands.start_dispensing import StartDispensingUseCase
+from app.application.integration.commands.dtos.ingest_nsips import IngestNsipsResultDto
+from app.application.integration.commands.ingest_nsips import (
     IngestNsipsCommand,
-    IngestNsipsResultDto,
     IngestNsipsUseCase,
 )
-from app.application.integration.nsips.mapper import NsipsDataMapper
-from app.application.integration.nsips.parser import NsipsParser
-from app.application.patient.register_patient import RegisterPatientUseCase
-from app.application.patient.register_patient_external_identifier import (
+from app.application.integration.commands.services.mapper import NsipsDataMapper
+from app.application.integration.commands.services.parser import NsipsParser
+from app.application.patient.commands.register_patient import RegisterPatientUseCase
+from app.application.patient.commands.register_patient_external_identifier import (
     RegisterPatientExternalIdentifierUseCase,
 )
-from app.application.prescription.ready_for_dispensing import ReadyForDispensingUseCase
-from app.application.prescription.register_prescription import (
+from app.application.prescription.commands.ready_for_dispensing import (
+    ReadyForDispensingUseCase,
+)
+from app.application.prescription.commands.register_prescription import (
     RegisterPrescriptionUseCase,
 )
 from app.domain.corporate.identifiers import CorporateId

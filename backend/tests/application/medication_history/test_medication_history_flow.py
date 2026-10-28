@@ -14,32 +14,22 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
-from app.application.access_control.models import ActorContext, ResolvedActorContext
+from app.application.access_control.boundary_models import (
+    ActorContext,
+    ResolvedActorContext,
+)
 from app.application.common.exceptions import ApplicationError
-from app.application.corporate.exceptions import CorporateInactiveError
-from app.application.medication_history.amend_medication_history import (
+from app.application.corporate.errors import CorporateInactiveError
+from app.application.medication_history.commands.amend_medication_history import (
     AmendMedicationHistoryCommand,
 )
-from app.application.medication_history.exceptions import (
-    MedicationHistoryDispensingNotFoundError,
-    MedicationHistoryNotFoundError,
-    MedicationHistoryStaffNotFoundError,
-    MedicationHistoryStoreNotFoundError,
-    PatientMedicalProfileNotFoundError,
-)
-from app.application.medication_history.finalize_medication_history import (
-    FinalizeMedicationHistoryCommand,
-)
-from app.application.medication_history.get_medication_history import (
-    GetMedicationHistoryQuery,
-    ListMedicationHistoriesQuery,
+from app.application.medication_history.commands.dtos.get_medication_history import (
     MedicationHistoryDto,
 )
-from app.application.medication_history.get_patient_medical_profile import (
-    GetPatientMedicalProfileQuery,
-    RebuildPatientMedicalProfileCommand,
+from app.application.medication_history.commands.finalize_medication_history import (
+    FinalizeMedicationHistoryCommand,
 )
-from app.application.medication_history.inputs import (
+from app.application.medication_history.commands.models import (
     AllergyIntentInput,
     BillingAdditionInput,
     ConcurrentMedicationIntentInput,
@@ -53,8 +43,23 @@ from app.application.medication_history.inputs import (
     StopConcurrentMedicationIntentInput,
     UpdateConditionStatusIntentInput,
 )
-from app.application.medication_history.update_medication_history_draft import (
+from app.application.medication_history.commands.rebuild_patient_medical_profile import (
+    RebuildPatientMedicalProfileCommand,
+)
+from app.application.medication_history.commands.update_medication_history_draft import (
     UpdateMedicationHistoryDraftCommand,
+)
+from app.application.medication_history.errors import (
+    MedicationHistoryDispensingNotFoundError,
+    MedicationHistoryNotFoundError,
+    MedicationHistoryStaffNotFoundError,
+    MedicationHistoryStoreNotFoundError,
+    PatientMedicalProfileNotFoundError,
+)
+from app.application.medication_history.queries.models import (
+    GetMedicationHistoryQuery,
+    GetPatientMedicalProfileQuery,
+    ListMedicationHistoriesQuery,
 )
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.entities import (
@@ -1439,7 +1444,7 @@ class Test下書きの網羅的更新ユースケース:
 
     async def test_tc15_下書きの全項目を更新して保存できる(self) -> None:
         # Arrange
-        from app.application.medication_history.inputs import (
+        from app.application.medication_history.commands.models import (
             CategorizedNoteInput,
             HandbookStatusInput,
             ResidualDrugInput,

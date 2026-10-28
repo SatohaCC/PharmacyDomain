@@ -7,8 +7,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.application.integration.nsips.ingest_nsips import IngestNsipsUseCase
-from app.application.integration.nsips.models import (
+from app.application.integration.boundary_models import (
     NsipsAdditionInfo,
     NsipsBundle,
     NsipsInsuranceInfo,
@@ -18,6 +17,7 @@ from app.application.integration.nsips.models import (
     NsipsRpInfo,
     NsipsSplitInfo,
 )
+from app.application.integration.commands.ingest_nsips import IngestNsipsUseCase
 
 
 @pytest.mark.parametrize("with_optional", [False, True])

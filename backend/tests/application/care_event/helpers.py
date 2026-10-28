@@ -5,16 +5,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from app.application.access_control.models import ActorRole, ResolvedActorContext
-from app.application.access_control.policy import AuthorizationService
-from app.application.care_event.create_event import (
+from app.application.access_control.boundary_models import (
+    ActorRole,
+    ResolvedActorContext,
+)
+from app.application.access_control.policies import AuthorizationService
+from app.application.care_event.commands.create_event import (
     CreateEventCommand,
     CreateEventUseCase,
 )
-from app.application.care_event.list_related_candidates import (
+from app.application.care_event.queries.list_related_event_candidates import (
     ListRelatedEventCandidatesUseCase,
 )
-from app.application.corporate.corporate_access import CorporateAccessService
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
 from app.domain.care_event.entities import EventDefinition
 from app.domain.care_event.identifiers import EventTypeId
 from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
@@ -23,6 +28,9 @@ from app.domain.patient.identifiers import PatientId
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.identifiers import StaffId
 from app.domain.store.identifiers import StoreId
+from app.infrastructure.readers.care_event_list_related_event_candidates import (
+    ListRelatedEventCandidatesProjection,
+)
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.fakes.fake_clock import FakeClock
 from tests.fakes.fake_event_patient_boundary import FakeEventPatientBoundary
@@ -89,7 +97,7 @@ def create_fixture(*, role: ActorRole = ActorRole.STORE_OPERATOR) -> EventFixtur
         clock=clock,
     )
     list_related_candidates = ListRelatedEventCandidatesUseCase(
-        event_repository=event_repository,
+        reader=ListRelatedEventCandidatesProjection(event_repository=event_repository),
         patient_boundary=patient_boundary,
         corporate_access=access,
         store_operations=store_operations,

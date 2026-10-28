@@ -15,7 +15,9 @@ from typing import cast
 
 import pytest
 
-from app.application.composition.dispensing_snapshot_mapping import prescription_source
+from app.application.composition.adapters.dispensing_snapshot_mapping import (
+    prescription_source,
+)
 from app.domain.dispensing.entities import DispensingProcess
 from app.domain.dispensing.exceptions import (
     DispensedMedicineNotInPrescriptionError,

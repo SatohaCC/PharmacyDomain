@@ -5,11 +5,13 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.access_control.models import ActorRole, ResolvedActorContext
-from app.application.access_control.policy import AuthorizationService
-from app.application.store.exceptions import StoreNotFoundError
-from app.application.store.get_store import GetStoreQuery
-from app.application.store.list_stores import ListStoresQuery
+from app.application.access_control.boundary_models import (
+    ActorRole,
+    ResolvedActorContext,
+)
+from app.application.access_control.policies import AuthorizationService
+from app.application.store.errors import StoreNotFoundError
+from app.application.store.queries.models import GetStoreQuery, ListStoresQuery
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,

@@ -1,11 +1,18 @@
-"""HTTP境界が必要とする実行スコープと起動資源の抽象。"""
+"""Applicationのruntimeを定義する。"""
 
-from contextlib import AbstractAsyncContextManager
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import Protocol
 
-from app.application.access_control.models import ResolvedActorContext
-from app.application.access_control.policy import AuthorizationService
-from app.application.composition.use_case_bundles import (
+from app.application.access_control.boundary_models import (
+    ActorContext,
+    ResolvedActorContext,
+)
+from app.application.access_control.policies import AuthorizationService
+from app.application.composition.errors import execution_scope
+from app.application.composition.registry import (
     CareEventUseCases,
     CorporateUseCases,
     CoverageUseCases,
@@ -20,8 +27,8 @@ from app.application.composition.use_case_bundles import (
     StaffUseCases,
     StoreUseCases,
 )
-from app.application.identity.dto import AccountDto
-from app.application.identity.resolve_actor import VerifiedSubject
+from app.application.identity.boundary_models import VerifiedSubject
+from app.application.identity.commands.dtos.identity_views import AccountDto
 
 
 class UseCaseRegistry(Protocol):
@@ -124,3 +131,14 @@ class CompositionRoot(Protocol):
     async def dispose(self) -> None:
         """起動時に取得した資源を解放する。"""
         ...
+
+
+@asynccontextmanager
+async def authorized_request_scope(
+    root: CompositionRoot, actor: ActorContext
+) -> AsyncIterator[RequestScope]:
+    """認証済みの操作者から認可方針を作り、業務実行中の例外を公開境界へ変換する。"""
+    async with execution_scope(
+        root.request_scope(authorization=AuthorizationService(actor))
+    ) as scope:
+        yield scope

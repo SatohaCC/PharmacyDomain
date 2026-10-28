@@ -6,67 +6,79 @@
 from __future__ import annotations
 
 from app.application.common.clock import Clock
-from app.application.composition.coverage_references import (
+from app.application.composition.adapters.coverage_references import (
     CoveragePatientReferenceAdapter,
     CoverageStoreReferenceAdapter,
 )
-from app.application.composition.patient_references import (
+from app.application.composition.adapters.patient_references import (
     PatientStoreReferenceAdapter,
 )
-from app.application.composition.reception_medication_history import (
+from app.application.composition.adapters.reception_medication_history import (
     ReceptionMedicationHistoryAssociationAdapter,
 )
-from app.application.composition.use_case_bundles import (
+from app.application.composition.registry import (
     CoverageUseCases,
     PatientUseCases,
     ReceptionUseCases,
 )
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.coverage.change_patient_coverage_period import (
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.coverage.commands.change_patient_coverage_period import (
     ChangePatientCoveragePeriodUseCase,
 )
-from app.application.coverage.deactivate_patient_coverage import (
+from app.application.coverage.commands.deactivate_patient_coverage import (
     DeactivatePatientCoverageUseCase,
 )
-from app.application.coverage.get_last_coverage_selection import (
-    GetLastCoverageSelectionUseCase,
-)
-from app.application.coverage.get_patient_coverage import GetPatientCoverageUseCase
-from app.application.coverage.list_patient_coverages import ListPatientCoveragesUseCase
-from app.application.coverage.record_coverage_selection import (
+from app.application.coverage.commands.record_coverage_selection import (
     RecordCoverageSelectionUseCase,
 )
-from app.application.coverage.register_patient_coverage import (
+from app.application.coverage.commands.register_patient_coverage import (
     RegisterPatientCoverageUseCase,
 )
-from app.application.coverage.selection import CoverageSelectionBuilder
-from app.application.patient.change_patient_birth_date import (
+from app.application.coverage.commands.services.selection import (
+    CoverageSelectionBuilder,
+)
+from app.application.coverage.queries.get_last_coverage_selection import (
+    GetLastCoverageSelectionUseCase,
+)
+from app.application.coverage.queries.get_patient_coverage import (
+    GetPatientCoverageUseCase,
+)
+from app.application.coverage.queries.list_patient_coverages import (
+    ListPatientCoveragesUseCase,
+)
+from app.application.patient.commands.change_patient_birth_date import (
     ChangePatientBirthDateUseCase,
 )
-from app.application.patient.change_patient_heading import (
+from app.application.patient.commands.change_patient_heading import (
     ChangePatientHeadingUseCase,
 )
-from app.application.patient.change_patient_names import ChangePatientNamesUseCase
-from app.application.patient.change_patient_profile import ChangePatientProfileUseCase
-from app.application.patient.deactivate_patient import DeactivatePatientUseCase
-from app.application.patient.deactivate_patient_external_identifier import (
+from app.application.patient.commands.change_patient_names import (
+    ChangePatientNamesUseCase,
+)
+from app.application.patient.commands.change_patient_profile import (
+    ChangePatientProfileUseCase,
+)
+from app.application.patient.commands.deactivate_patient import DeactivatePatientUseCase
+from app.application.patient.commands.deactivate_patient_external_identifier import (
     DeactivatePatientExternalIdentifierUseCase,
 )
-from app.application.patient.get_patient import GetPatientUseCase
-from app.application.patient.get_patient_external_identifier import (
-    GetPatientExternalIdentifierUseCase,
-)
-from app.application.patient.get_patient_heading import GetPatientHeadingUseCase
-from app.application.patient.list_patient_external_identifiers import (
-    ListPatientExternalIdentifiersUseCase,
-)
-from app.application.patient.merge_patients import MergePatientsUseCase
-from app.application.patient.reactivate_patient import ReactivatePatientUseCase
-from app.application.patient.register_patient import RegisterPatientUseCase
-from app.application.patient.register_patient_external_identifier import (
+from app.application.patient.commands.merge_patients import MergePatientsUseCase
+from app.application.patient.commands.reactivate_patient import ReactivatePatientUseCase
+from app.application.patient.commands.register_patient import RegisterPatientUseCase
+from app.application.patient.commands.register_patient_external_identifier import (
     RegisterPatientExternalIdentifierUseCase,
 )
-from app.application.reception.associate_reception_medication_history import (
+from app.application.patient.queries.get_patient import GetPatientUseCase
+from app.application.patient.queries.get_patient_external_identifier import (
+    GetPatientExternalIdentifierUseCase,
+)
+from app.application.patient.queries.get_patient_heading import GetPatientHeadingUseCase
+from app.application.patient.queries.list_patient_external_identifiers import (
+    ListPatientExternalIdentifiersUseCase,
+)
+from app.application.reception.commands.associate_reception_medication_history import (
     AssociateReceptionMedicationHistoryUseCase,
 )
 from app.domain.coverage.services import (
@@ -77,6 +89,25 @@ from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
+from app.infrastructure.readers.coverage_get_last_coverage_selection import (
+    GetLastCoverageSelectionProjection,
+)
+from app.infrastructure.readers.coverage_get_patient_coverage import (
+    GetPatientCoverageProjection,
+)
+from app.infrastructure.readers.coverage_list_patient_coverages import (
+    ListPatientCoveragesProjection,
+)
+from app.infrastructure.readers.patient_get_patient import GetPatientProjection
+from app.infrastructure.readers.patient_get_patient_external_identifier import (
+    GetPatientExternalIdentifierProjection,
+)
+from app.infrastructure.readers.patient_get_patient_heading import (
+    GetPatientHeadingProjection,
+)
+from app.infrastructure.readers.patient_list_patient_external_identifiers import (
+    ListPatientExternalIdentifiersProjection,
+)
 
 # --------------------------------------------------------------------------
 # 患者
@@ -93,7 +124,10 @@ def build_patient_use_cases(
     identifier_repository = repositories.patient_external_identifier
     return PatientUseCases(
         register=RegisterPatientUseCase(patient_repository, corporate_access),
-        get=GetPatientUseCase(patient_repository, corporate_access),
+        get=GetPatientUseCase(
+            reader=GetPatientProjection(patient_repository),
+            corporate_access=corporate_access,
+        ),
         change_names=ChangePatientNamesUseCase(
             patient_repository,
             corporate_access,
@@ -118,10 +152,14 @@ def build_patient_use_cases(
             store_reference=PatientStoreReferenceAdapter(repositories.store),
         ),
         get_external_identifier=GetPatientExternalIdentifierUseCase(
-            identifier_repository, corporate_access
+            reader=GetPatientExternalIdentifierProjection(identifier_repository),
+            corporate_access=corporate_access,
         ),
         list_external_identifiers=ListPatientExternalIdentifiersUseCase(
-            patient_repository, identifier_repository, corporate_access
+            reader=ListPatientExternalIdentifiersProjection(
+                patient_repository, identifier_repository
+            ),
+            corporate_access=corporate_access,
         ),
         deactivate_external_identifier=DeactivatePatientExternalIdentifierUseCase(
             identifier_repository, corporate_access
@@ -131,7 +169,10 @@ def build_patient_use_cases(
             corporate_access,
             clock,
         ),
-        get_heading=GetPatientHeadingUseCase(patient_repository, corporate_access),
+        get_heading=GetPatientHeadingUseCase(
+            reader=GetPatientHeadingProjection(patient_repository),
+            corporate_access=corporate_access,
+        ),
         change_heading=ChangePatientHeadingUseCase(
             patient_repository, corporate_access, clock
         ),
@@ -162,9 +203,14 @@ def build_coverage_use_cases(
         register=RegisterPatientCoverageUseCase(
             repository, patient_reference, conflict, corporate_access
         ),
-        get=GetPatientCoverageUseCase(repository, corporate_access),
+        get=GetPatientCoverageUseCase(
+            reader=GetPatientCoverageProjection(repository),
+            corporate_access=corporate_access,
+        ),
         list_by_patient=ListPatientCoveragesUseCase(
-            repository, patient_reference, corporate_access
+            reader=ListPatientCoveragesProjection(repository),
+            patient_reference=patient_reference,
+            corporate_access=corporate_access,
         ),
         change_period=ChangePatientCoveragePeriodUseCase(
             repository, conflict, corporate_access
@@ -179,11 +225,12 @@ def build_coverage_use_cases(
             clock,
         ),
         get_last_coverage_selection=GetLastCoverageSelectionUseCase(
-            selection_repository,
-            corporate_access,
-            store_reference,
-            patient_reference,
-            selection_builder,
+            reader=GetLastCoverageSelectionProjection(
+                selection_repository, selection_builder
+            ),
+            corporate_access=corporate_access,
+            store_reference=store_reference,
+            patient_reference=patient_reference,
         ),
     )
 

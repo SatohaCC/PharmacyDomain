@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.application.composition.use_case_bundles import IntegrationUseCases
+from app.application.composition.registry import IntegrationUseCases
 from app.bootstrap import create_app
 from app.presentational.dependencies import get_integration_use_cases
 from app.presentational.errors import ErrorResponse

@@ -10,8 +10,10 @@ from datetime import date
 
 import pytest
 
-from app.application.coverage.exceptions import CoverageSelectionError
-from app.application.coverage.selection import CoverageSelectionBuilder
+from app.application.coverage.commands.services.selection import (
+    CoverageSelectionBuilder,
+)
+from app.application.coverage.errors import CoverageSelectionError
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.entities import PatientCoverage
 from app.domain.coverage.identifiers import PatientCoverageId

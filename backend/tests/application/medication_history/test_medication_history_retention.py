@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime
 import pytest
 
 from app.application.common.organization_lock import OrganizationLock
-from app.application.medication_history.finalize_medication_history import (
+from app.application.medication_history.commands.finalize_medication_history import (
     FinalizeMedicationHistoryCommand,
     FinalizeMedicationHistoryUseCase,
 )

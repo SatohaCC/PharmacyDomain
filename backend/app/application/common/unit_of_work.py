@@ -1,4 +1,6 @@
-"""複数集約を書き込むユースケースが要求する実行中の境界。"""
+"""Applicationのunit_of_workを定義する。"""
+
+from __future__ import annotations
 
 from typing import Protocol
 

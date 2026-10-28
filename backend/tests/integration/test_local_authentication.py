@@ -8,8 +8,8 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.access_control.models import ResolvedActorContext
-from app.application.identity.input_models import AccountStatus
+from app.application.access_control.boundary_models import ResolvedActorContext
+from app.application.identity.commands.models import AccountStatus
 from app.bootstrap import create_app
 from app.dev_main import StaticTokenActorContextProvider
 from app.infrastructure.identity.postgres.local_authentication import (

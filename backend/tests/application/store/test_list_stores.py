@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from app.application.store.list_stores import (
-    ListStoresQuery,
-    ListStoresUseCase,
-)
+from app.application.store.queries.list_stores import ListStoresUseCase
+from app.application.store.queries.models import ListStoresQuery
 from app.domain.corporate.identifiers import CorporateId
+from app.infrastructure.readers.store_list_stores import ListStoresProjection
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.application.store.helpers import save_store
 from tests.fakes.in_memory_store_repository import InMemoryStoreRepository
@@ -21,7 +20,10 @@ async def test_list_stores_returns_summaries_of_the_requesting_corporate() -> No
     )
     await save_store(repository, corporate_id=corporate_id, name="第二薬局")
     await save_store(repository, corporate_id=CorporateId.generate(), name="他法人薬局")
-    use_case = ListStoresUseCase(repository, create_vendor_corporate_access())
+    use_case = ListStoresUseCase(
+        reader=ListStoresProjection(repository),
+        corporate_access=create_vendor_corporate_access(),
+    )
 
     # Act
     actual = await use_case.execute(
@@ -39,7 +41,10 @@ async def test_list_stores_returns_empty_list_when_corporate_has_no_store() -> N
     # Arrange
     repository = InMemoryStoreRepository()
     await save_store(repository, corporate_id=CorporateId.generate())
-    use_case = ListStoresUseCase(repository, create_vendor_corporate_access())
+    use_case = ListStoresUseCase(
+        reader=ListStoresProjection(repository),
+        corporate_access=create_vendor_corporate_access(),
+    )
 
     # Act
     actual = await use_case.execute(

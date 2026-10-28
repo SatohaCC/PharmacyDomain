@@ -7,14 +7,14 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
-from app.application.coverage.exceptions import (
+from app.application.coverage.errors import (
     CoveragePatientNotFoundError,
     CoverageStoreNotFoundError,
 )
-from app.application.coverage.get_last_coverage_selection import (
-    GetLastCoverageSelectionQuery,
+from app.application.coverage.queries.get_last_coverage_selection import (
     GetLastCoverageSelectionUseCase,
 )
+from app.application.coverage.queries.models import GetLastCoverageSelectionQuery
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.entities import CoverageSelectionRecord
 from app.domain.coverage.identifiers import CoverageSelectionRecordId, PatientCoverageId
@@ -35,6 +35,9 @@ from app.domain.coverage.value_objects import (
 )
 from app.domain.patient.identifiers import PatientId
 from app.domain.store.identifiers import StoreId
+from app.infrastructure.readers.coverage_get_last_coverage_selection import (
+    GetLastCoverageSelectionProjection,
+)
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.fakes.coverage_reference_boundaries import (
     FakeCoverageValidity,
@@ -92,11 +95,12 @@ def _create_fixture(*, valid: bool = True) -> _Fixture:
 
     return _Fixture(
         use_case=GetLastCoverageSelectionUseCase(
-            repository=repository,
+            reader=GetLastCoverageSelectionProjection(
+                repository=repository, coverage_validity=coverage_validity
+            ),
             corporate_access=create_vendor_corporate_access(),
             store_reference=store_reference,
             patient_reference=patient_reference,
-            coverage_validity=coverage_validity,
         ),
         repository=repository,
         coverage_validity=coverage_validity,

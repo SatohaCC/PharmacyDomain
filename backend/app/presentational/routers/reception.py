@@ -13,21 +13,29 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
-from app.application.coverage.get_coverage_selection import CoverageSelectionRecordDto
-from app.application.coverage.get_last_coverage_selection import (
-    GetLastCoverageSelectionQuery,
-    LastCoverageSelectionCandidateDto,
+from app.application.coverage.commands.dtos.get_coverage_selection import (
+    CoverageSelectionRecordDto,
 )
-from app.application.coverage.record_coverage_selection import (
+from app.application.coverage.commands.record_coverage_selection import (
     RecordCoverageSelectionCommand,
 )
-from app.application.reception.associate_reception_medication_history import (
+from app.application.coverage.queries.dtos.get_coverage_selection import (
+    CoverageSelectionRecordDto as QueryCoverageSelectionRecordDto,
+)
+from app.application.coverage.queries.dtos.get_last_coverage_selection import (
+    LastCoverageSelectionCandidateDto,
+)
+from app.application.coverage.queries.models import GetLastCoverageSelectionQuery
+from app.application.reception.commands.associate_reception_medication_history import (
     AssociateReceptionMedicationHistoryCommand,
 )
 from app.presentational.dependencies import (
     CoverageUseCasesDep,
     ReceptionUseCasesDep,
     get_actor_context,
+)
+from app.presentational.dto_mapping import (
+    to_http_coverage_get_coverage_selection__coverage_selection_record_dto,
 )
 from app.presentational.errors import error_responses
 from app.presentational.routing import ApplicationRoute
@@ -81,15 +89,17 @@ async def record_coverage_selection(
     corporate_id: str,
     body: RecordCoverageSelectionRequest,
     use_cases: CoverageUseCasesDep,
-) -> CoverageSelectionRecordDto:
+) -> CoverageSelectionRecordDto | QueryCoverageSelectionRecordDto:
     """受付で選んだ資格の組み合わせを履歴として残す。"""
-    return await use_cases.record_coverage_selection.execute(
-        RecordCoverageSelectionCommand(
-            corporate_id=corporate_id,
-            store_id=body.store_id,
-            patient_id=body.patient_id,
-            applied_on=body.applied_on,
-            coverage_ids=tuple(body.coverage_ids),
+    return to_http_coverage_get_coverage_selection__coverage_selection_record_dto(
+        await use_cases.record_coverage_selection.execute(
+            RecordCoverageSelectionCommand(
+                corporate_id=corporate_id,
+                store_id=body.store_id,
+                patient_id=body.patient_id,
+                applied_on=body.applied_on,
+                coverage_ids=tuple(body.coverage_ids),
+            )
         )
     )
 

@@ -17,22 +17,26 @@ from typing import get_type_hints
 import pytest
 
 import app.application
-from app.application.access_control.models import (
+from app.application.access_control.boundary_models import (
     ActorContext,
     ActorRole,
     ResolvedActorContext,
 )
-from app.application.access_control.policy import AuthorizationService
-from app.application.composition.clinical_store_guard import ClinicalStoreWriteGuard
-from app.application.composition.corporate_activity_guard import (
+from app.application.access_control.policies import AuthorizationService
+from app.application.composition.adapters.clinical_store_guard import (
+    ClinicalStoreWriteGuard,
+)
+from app.application.composition.adapters.corporate_activity_guard import (
     CorporateActivityWriteGuard,
 )
-from app.application.composition.resolved_actor_guard import (
+from app.application.composition.adapters.resolved_actor_guard import (
     CompositeWriteGuard,
     ResolvedActorWriteGuard,
 )
-from app.application.composition.staff_integrity import StaffAssignmentWriteGuard
-from app.application.composition.use_case_bundles import (
+from app.application.composition.adapters.staff_integrity import (
+    StaffAssignmentWriteGuard,
+)
+from app.application.composition.registry import (
     CareEventUseCases,
     CorporateUseCases,
     CoverageUseCases,
@@ -47,7 +51,7 @@ from app.application.composition.use_case_bundles import (
     StaffUseCases,
     StoreUseCases,
 )
-from app.application.identity.resolve_actor import UnavailableIdentityError
+from app.application.identity.errors import UnavailableIdentityError
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.infrastructure.di.registry import PostgresUseCaseRegistry
 from app.infrastructure.di.root import PostgresRequestScope

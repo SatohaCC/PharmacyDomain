@@ -1,0 +1,85 @@
+"""Applicationのmedicine_restriction_adapterを定義する。"""
+
+from __future__ import annotations
+
+from datetime import date
+
+from app.application.prescription.interfaces.references import (
+    MedicineRestrictionBoundary,
+)
+from app.domain.medicine_catalog.entities import Medicine
+from app.domain.medicine_catalog.primitives import MedicineCode as CatalogCode
+from app.domain.medicine_catalog.primitives import MedicineCodeType as CatalogCodeType
+from app.domain.medicine_catalog.repositories import MedicineCatalogRepository
+from app.domain.medicine_catalog.value_objects import (
+    MedicineIdentifier as CatalogIdentifier,
+)
+from app.domain.prescription.primitives import MedicineRestrictionFlag
+from app.domain.prescription.value_objects import (
+    MedicineClassification,
+    MedicineIdentifier,
+)
+
+
+def _flag(value: bool) -> MedicineRestrictionFlag:
+    """真偽値を規制区分の値へ写す。"""
+    return MedicineRestrictionFlag.YES if value else MedicineRestrictionFlag.NO
+
+
+def _classify(
+    identifier: MedicineIdentifier, medicine: Medicine
+) -> MedicineClassification:
+    """マスタ行の事実を、処方箋が要求する規制区分へ写す。"""
+    return MedicineClassification(
+        identifier=identifier,
+        is_narcotic=_flag(medicine.is_narcotic),
+        has_dosage_limit=_flag(medicine.has_dosage_limit),
+        is_refill_restricted_patch=_flag(medicine.is_refill_restricted_patch),
+    )
+
+
+class MedicineCatalogRestrictionAdapter(MedicineRestrictionBoundary):
+    """医薬品マスタから処方箋向けの規制区分を組み立てる。"""
+
+    def __init__(self, repository: MedicineCatalogRepository) -> None:
+        self._repository = repository
+
+    async def classify(
+        self, *, identifiers: tuple[MedicineIdentifier, ...], as_of: date
+    ) -> dict[MedicineIdentifier, MedicineClassification]:
+        """指定日に有効なマスタ行から規制区分を導出する。
+
+        **マスタに無い薬品は戻り値へ含めない。** 呼び出し側の Domain Service が
+        ``MedicineClassificationMissingError`` として拒否する。ここで
+        「該当しない」既定値を埋めると、未収載の薬品で麻薬・リフィルの判定が
+        静かに素通りする。
+
+        ``UNKNOWN`` も返さない。マスタ行が引けた以上、そこに書かれた事実は
+        確定しているためである。``UNKNOWN`` は「マスタが無い」ことではなく
+        「マスタはあるが値が未確定」を表す値であり、この実装では起きない。
+        """
+        classified: dict[MedicineIdentifier, MedicineClassification] = {}
+        for identifier in identifiers:
+            medicine = await self._repository.find_effective(
+                identifier=CatalogIdentifier(
+                    code_type=CatalogCodeType(identifier.code_type.value),
+                    code=CatalogCode(identifier.code.value)
+                    if identifier.code is not None
+                    else None,
+                ),
+                as_of=as_of,
+            )
+            if medicine is None:
+                continue
+            classified[identifier] = _classify(identifier, medicine)
+        return classified
+
+
+def prescription_identifier(value: CatalogIdentifier) -> MedicineIdentifier:
+    """医薬品マスタの識別情報を処方記載時点の値へ固定する。"""
+    from app.domain.prescription.primitives import MedicineCode, MedicineCodeType
+
+    return MedicineIdentifier(
+        code_type=MedicineCodeType(value.code_type.value),
+        code=MedicineCode(value.code.value) if value.code is not None else None,
+    )

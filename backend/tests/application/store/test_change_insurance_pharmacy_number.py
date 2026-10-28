@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.store.change_insurance_pharmacy_number import (
+from app.application.store.commands.change_insurance_pharmacy_number import (
     ChangeInsurancePharmacyNumberCommand,
     ChangeInsurancePharmacyNumberUseCase,
 )
-from app.application.store.exceptions import StoreNotFoundError
+from app.application.store.errors import StoreNotFoundError
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.store.exceptions import InsurancePharmacyNumberAlreadyExistsError

@@ -17,18 +17,26 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
-from app.application.medicine_catalog.get_medicine import (
-    GetEffectiveMedicineQuery,
-    MedicineDto,
-)
-from app.application.medicine_catalog.import_yj_catalog import (
-    ImportYjCatalogCommand,
+from app.application.medicine_catalog.commands.dtos.get_medicine import MedicineDto
+from app.application.medicine_catalog.commands.dtos.import_yj_catalog import (
     ImportYjCatalogResultDto,
 )
-from app.application.medicine_catalog.register_medicine import RegisterMedicineCommand
+from app.application.medicine_catalog.commands.import_yj_catalog import (
+    ImportYjCatalogCommand,
+)
+from app.application.medicine_catalog.commands.register_medicine import (
+    RegisterMedicineCommand,
+)
+from app.application.medicine_catalog.queries.dtos.get_medicine import (
+    MedicineDto as QueryMedicineDto,
+)
+from app.application.medicine_catalog.queries.models import GetEffectiveMedicineQuery
 from app.presentational.dependencies import (
     MedicineCatalogUseCasesDep,
     get_actor_context,
+)
+from app.presentational.dto_mapping import (
+    to_http_medicine_catalog_get_medicine__medicine_dto,
 )
 from app.presentational.errors import error_responses
 from app.presentational.routing import ApplicationRoute
@@ -74,23 +82,25 @@ class RegisterMedicineRequest(RequestModel):
 async def register_medicine(
     body: RegisterMedicineRequest,
     use_cases: MedicineCatalogUseCasesDep,
-) -> MedicineDto:
+) -> MedicineDto | QueryMedicineDto:
     """医薬品マスタへ1件取り込む（ベンダーシステム管理者専用）。"""
-    return await use_cases.register.execute(
-        RegisterMedicineCommand(
-            code_type=body.code_type,
-            code=body.code,
-            name=body.name,
-            unit=body.unit,
-            dosage_form=body.dosage_form,
-            listed_on=body.listed_on,
-            catalog_version=body.catalog_version,
-            withdrawn_on=body.withdrawn_on,
-            narcotic_category=body.narcotic_category,
-            generic_category=body.generic_category,
-            has_dosage_limit=body.has_dosage_limit,
-            is_analgesic_antiinflammatory=body.is_analgesic_antiinflammatory,
-            is_dermatological=body.is_dermatological,
+    return to_http_medicine_catalog_get_medicine__medicine_dto(
+        await use_cases.register.execute(
+            RegisterMedicineCommand(
+                code_type=body.code_type,
+                code=body.code,
+                name=body.name,
+                unit=body.unit,
+                dosage_form=body.dosage_form,
+                listed_on=body.listed_on,
+                catalog_version=body.catalog_version,
+                withdrawn_on=body.withdrawn_on,
+                narcotic_category=body.narcotic_category,
+                generic_category=body.generic_category,
+                has_dosage_limit=body.has_dosage_limit,
+                is_analgesic_antiinflammatory=body.is_analgesic_antiinflammatory,
+                is_dermatological=body.is_dermatological,
+            )
         )
     )
 
@@ -108,10 +118,12 @@ async def get_effective_medicine(
         date,
         Query(description="収載期間の判定に使う時点。処方箋の判定では交付日を渡す。"),
     ],
-) -> MedicineDto:
+) -> MedicineDto | QueryMedicineDto:
     """指定時点で有効な医薬品を取得する。"""
-    return await use_cases.get_effective.execute(
-        GetEffectiveMedicineQuery(code_type=code_type, code=code, as_of=as_of)
+    return to_http_medicine_catalog_get_medicine__medicine_dto(
+        await use_cases.get_effective.execute(
+            GetEffectiveMedicineQuery(code_type=code_type, code=code, as_of=as_of)
+        )
     )
 
 
@@ -119,7 +131,6 @@ class ImportYjCatalogRequest(RequestModel):
     """YJコードリストCSVインポートの入力。"""
 
     csv_text: str | None = None
-    file_path: str | None = None
     catalog_version: date | None = None
 
 
@@ -137,7 +148,6 @@ async def import_yj_catalog(
     return await use_cases.import_yj.execute(
         ImportYjCatalogCommand(
             csv_text=body.csv_text,
-            file_path=body.file_path,
             catalog_version=body.catalog_version,
         )
     )

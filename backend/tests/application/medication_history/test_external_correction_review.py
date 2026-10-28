@@ -7,22 +7,27 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.application.access_control.exceptions import TenantBoundaryNotFoundError
-from app.application.access_control.models import ActorRole, ResolvedActorContext
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.boundary_models import (
+    ActorRole,
+    ResolvedActorContext,
+)
+from app.application.access_control.errors import TenantBoundaryNotFoundError
+from app.application.access_control.policies import AuthorizationService
 from app.application.common.exceptions import AuthorizationError, NotFoundError
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.corporate.exceptions import CorporateInactiveError
-from app.application.medication_history.exceptions import (
-    MedicationHistoryNotFoundError,
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
 )
-from app.application.medication_history.list_pending_external_corrections import (
-    ListPendingExternalCorrectionsQuery,
-    ListPendingExternalCorrectionsUseCase,
-)
-from app.application.medication_history.review_external_prescription_correction import (
+from app.application.corporate.errors import CorporateInactiveError
+from app.application.medication_history.commands.review_external_prescription_correction import (
     ReviewExternalPrescriptionCorrectionCommand,
     ReviewExternalPrescriptionCorrectionUseCase,
+)
+from app.application.medication_history.errors import MedicationHistoryNotFoundError
+from app.application.medication_history.queries.list_pending_external_corrections import (
+    ListPendingExternalCorrectionsUseCase,
+)
+from app.application.medication_history.queries.models import (
+    ListPendingExternalCorrectionsQuery,
 )
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.entities import MedicationHistoryRecord
@@ -42,6 +47,9 @@ from app.domain.medication_history.primitives import (
 from app.domain.medication_history.value_objects import ExternalPrescriptionCorrection
 from app.domain.staff.value_objects import StaffQualifications
 from app.domain.store.identifiers import StoreId
+from app.infrastructure.readers.medication_history_list_pending_external_corrections import (
+    ListPendingExternalCorrectionsProjection,
+)
 from tests.application.medication_history.helpers import (
     MedicationHistoryFixture,
     create_fixture,
@@ -178,7 +186,9 @@ async def test_TC20_未完了一覧は保留と調査中だけをページで返
     )
 
     page = await ListPendingExternalCorrectionsUseCase(
-        repository=fixture.record_repository,
+        reader=ListPendingExternalCorrectionsProjection(
+            repository=fixture.record_repository
+        ),
         corporate_access=fixture.corporate_access,
     ).execute(query)
 

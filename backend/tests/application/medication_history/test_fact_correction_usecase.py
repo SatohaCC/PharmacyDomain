@@ -9,13 +9,15 @@ from typing import Any
 
 import pytest
 
-from app.application.access_control.models import ActorContext, ActorRole
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.boundary_models import ActorContext, ActorRole
+from app.application.access_control.policies import AuthorizationService
 from app.application.common.exceptions import ApplicationError
 from app.application.common.unit_of_work import UnitOfWork
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.corporate.exceptions import CorporateInactiveError
-from app.application.medication_history.exceptions import (
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.corporate.errors import CorporateInactiveError
+from app.application.medication_history.errors import (
     MedicationHistoryStaffNotFoundError,
 )
 from app.domain.care_event.identifiers import EventId
@@ -67,7 +69,9 @@ from tests.fakes.fake_organization_management import FakeOrganizationLock
 from tests.fakes.null_unit_of_work import NullUnitOfWork
 
 _MISSING = object()
-_MODULE_NAME = "app.application.medication_history.correct_medication_history_fact"
+_MODULE_NAME = (
+    "app.application.medication_history.commands.correct_medication_history_fact"
+)
 
 
 def _module() -> Any:

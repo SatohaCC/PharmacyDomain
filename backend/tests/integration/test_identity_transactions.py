@@ -7,9 +7,9 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.identity.invite_user import InviteUserCommand
-from app.application.identity.resolve_actor import VerifiedSubject
-from app.application.staff.deactivate_staff import DeactivateStaffCommand
+from app.application.identity.boundary_models import VerifiedSubject
+from app.application.identity.commands.invite_user import InviteUserCommand
+from app.application.staff.commands.deactivate_staff import DeactivateStaffCommand
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.primitives import AccountStatus, MembershipRole
 from app.infrastructure.di.repositories import (

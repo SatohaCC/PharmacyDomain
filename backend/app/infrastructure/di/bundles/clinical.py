@@ -5,21 +5,21 @@
 
 from __future__ import annotations
 
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.policies import AuthorizationService
 from app.application.common.clock import Clock
 from app.application.common.organization_lock import OrganizationLock
-from app.application.composition.care_event_references import (
+from app.application.composition.adapters.care_event_references import (
     MedicationHistoryEventReferenceAdapter,
 )
-from app.application.composition.dispensing_references import (
+from app.application.composition.adapters.dispensing_references import (
     DispensingStaffQualificationAdapter,
     DispensingStoreReferenceAdapter,
     PrescriptionSourceAdapter,
 )
-from app.application.composition.medication_history_patient_profile import (
+from app.application.composition.adapters.medication_history_patient_profile import (
     MedicationHistoryPatientProfileAdapter,
 )
-from app.application.composition.medication_history_references import (
+from app.application.composition.adapters.medication_history_references import (
     CounselorQualificationAdapter,
     DispensingSourceAdapter,
     MedicationHistoryEventOccurrenceAdapter,
@@ -27,93 +27,116 @@ from app.application.composition.medication_history_references import (
     ReceptionMedicationHistorySourceAdapter,
     StatutoryRecordSourceAdapter,
 )
-from app.application.composition.medicine_restriction_adapter import (
+from app.application.composition.adapters.medicine_restriction_adapter import (
     MedicineCatalogRestrictionAdapter,
 )
-from app.application.composition.prescription_references import (
+from app.application.composition.adapters.prescription_references import (
     CoverageSelectionPublicExpenseAdapter,
     PrescriptionPatientReferenceAdapter,
     PrescriptionStaffQualificationAdapter,
     PrescriptionStoreReferenceAdapter,
 )
-from app.application.composition.store_operation_adapter import StoreOperationAdapter
-from app.application.composition.use_case_bundles import (
+from app.application.composition.adapters.store_operation_adapter import (
+    StoreOperationAdapter,
+)
+from app.application.composition.registry import (
     DispensingUseCases,
     MedicationHistoryUseCases,
     PrescriptionUseCases,
 )
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.dispensing.complete_dispensing import CompleteDispensingUseCase
-from app.application.dispensing.get_dispensing import GetDispensingUseCase
-from app.application.dispensing.list_dispensings_by_prescription import (
-    ListDispensingsByPrescriptionUseCase,
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
 )
-from app.application.dispensing.record_audit import RecordAuditUseCase
-from app.application.dispensing.record_dispensed_content import (
+from app.application.dispensing.commands.complete_dispensing import (
+    CompleteDispensingUseCase,
+)
+from app.application.dispensing.commands.record_audit import RecordAuditUseCase
+from app.application.dispensing.commands.record_dispensed_content import (
     RecordDispensedContentUseCase,
 )
-from app.application.dispensing.start_dispensing import StartDispensingUseCase
-from app.application.dispensing.verify_dispensing import VerifyDispensingUseCase
-from app.application.medication_history.amend_medication_history import (
+from app.application.dispensing.commands.start_dispensing import StartDispensingUseCase
+from app.application.dispensing.commands.verify_dispensing import (
+    VerifyDispensingUseCase,
+)
+from app.application.dispensing.queries.get_dispensing import GetDispensingUseCase
+from app.application.dispensing.queries.list_dispensings_by_prescription import (
+    ListDispensingsByPrescriptionUseCase,
+)
+from app.application.medication_history.commands.amend_medication_history import (
     AmendMedicationHistoryUseCase,
 )
-from app.application.medication_history.category_catalog import (
-    GetCategoryCatalogUseCase,
-    UpdateCategoryCatalogUseCase,
-)
-from app.application.medication_history.correct_medication_history_fact import (
+from app.application.medication_history.commands.correct_medication_history_fact import (
     CorrectMedicationHistoryFactUseCase,
 )
-from app.application.medication_history.finalize_medication_history import (
+from app.application.medication_history.commands.ensure_category_catalog import (
+    EnsureCategoryCatalogUseCase,
+)
+from app.application.medication_history.commands.finalize_medication_history import (
     FinalizeMedicationHistoryUseCase,
 )
-from app.application.medication_history.get_medication_history import (
-    GetFollowUpSourceUseCase,
-    GetMedicationHistoryUseCase,
-    ListMedicationHistoriesByPatientUseCase,
-)
-from app.application.medication_history.get_medication_history_view import (
-    GetMedicationHistoryViewUseCase,
-)
-from app.application.medication_history.get_patient_medical_profile import (
-    GetPatientMedicalProfileUseCase,
+from app.application.medication_history.commands.rebuild_patient_medical_profile import (
     RebuildPatientMedicalProfileUseCase,
 )
-from app.application.medication_history.list_pending_external_corrections import (
-    ListPendingExternalCorrectionsUseCase,
-)
-from app.application.medication_history.profile_projection_service import (
-    PatientMedicalProfileProjectionService,
-)
-from app.application.medication_history.record_tracing_report import (
+from app.application.medication_history.commands.record_tracing_report import (
     RecordTracingReportUseCase,
 )
-from app.application.medication_history.record_tracing_report_response import (
+from app.application.medication_history.commands.record_tracing_report_response import (
     RecordTracingReportResponseUseCase,
 )
-from app.application.medication_history.review_external_prescription_correction import (
+from app.application.medication_history.commands.review_external_prescription_correction import (
     ReviewExternalPrescriptionCorrectionUseCase,
 )
-from app.application.medication_history.start_medication_history import (
+from app.application.medication_history.commands.services.profile_projection_service import (
+    PatientMedicalProfileProjectionService,
+)
+from app.application.medication_history.commands.start_medication_history import (
     StartMedicationHistoryUseCase,
 )
-from app.application.medication_history.update_medication_history_draft import (
+from app.application.medication_history.commands.update_category_catalog import (
+    UpdateCategoryCatalogUseCase,
+)
+from app.application.medication_history.commands.update_medication_history_draft import (
     UpdateMedicationHistoryDraftUseCase,
 )
-from app.application.medication_history.verify_statutory_record import (
+from app.application.medication_history.queries.get_follow_up_source import (
+    GetFollowUpSourceUseCase,
+)
+from app.application.medication_history.queries.get_medication_history import (
+    GetMedicationHistoryUseCase,
+)
+from app.application.medication_history.queries.get_medication_history_view import (
+    GetMedicationHistoryViewUseCase,
+)
+from app.application.medication_history.queries.get_patient_medical_profile import (
+    GetPatientMedicalProfileUseCase,
+)
+from app.application.medication_history.queries.list_medication_histories_by_patient import (
+    ListMedicationHistoriesByPatientUseCase,
+)
+from app.application.medication_history.queries.list_pending_external_corrections import (
+    ListPendingExternalCorrectionsUseCase,
+)
+from app.application.medication_history.queries.services.statutory_projection import (
+    StatutoryProjectionService,
+)
+from app.application.medication_history.queries.verify_statutory_record import (
     VerifyStatutoryRecordUseCase,
 )
-from app.application.prescription.audit_interactions import (
+from app.application.prescription.commands.audit_drug_interactions import (
     AuditDrugInteractionsUseCase,
 )
-from app.application.prescription.cancel_prescription import CancelPrescriptionUseCase
-from app.application.prescription.get_prescription import GetPrescriptionUseCase
-from app.application.prescription.ready_for_dispensing import ReadyForDispensingUseCase
-from app.application.prescription.register_prescription import (
+from app.application.prescription.commands.cancel_prescription import (
+    CancelPrescriptionUseCase,
+)
+from app.application.prescription.commands.ready_for_dispensing import (
+    ReadyForDispensingUseCase,
+)
+from app.application.prescription.commands.register_prescription import (
     RegisterPrescriptionUseCase,
 )
-from app.application.prescription.resolve_inquiry import ResolveInquiryUseCase
-from app.application.prescription.start_inquiry import StartInquiryUseCase
+from app.application.prescription.commands.resolve_inquiry import ResolveInquiryUseCase
+from app.application.prescription.commands.start_inquiry import StartInquiryUseCase
+from app.application.prescription.queries.get_prescription import GetPrescriptionUseCase
 from app.domain.dispensing.services import (
     DispensingConsistencyService,
     DispensingIterationUniquenessService,
@@ -138,6 +161,34 @@ from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.organization_lock import PostgresOrganizationLock
 from app.infrastructure.prescription.external.drug_interaction import (
     BlackBoxDrugInteractionDataSource,
+)
+from app.infrastructure.readers.dispensing_get_dispensing import GetDispensingProjection
+from app.infrastructure.readers.dispensing_list_dispensings_by_prescription import (
+    ListDispensingsByPrescriptionProjection,
+)
+from app.infrastructure.readers.medication_history_get_follow_up_source import (
+    GetFollowUpSourceProjection,
+)
+from app.infrastructure.readers.medication_history_get_medication_history import (
+    GetMedicationHistoryProjection,
+)
+from app.infrastructure.readers.medication_history_get_medication_history_view import (
+    GetMedicationHistoryViewProjection,
+)
+from app.infrastructure.readers.medication_history_get_patient_medical_profile import (
+    GetPatientMedicalProfileProjection,
+)
+from app.infrastructure.readers.medication_history_list_medication_histories_by_patient import (
+    ListMedicationHistoriesByPatientProjection,
+)
+from app.infrastructure.readers.medication_history_list_pending_external_corrections import (
+    ListPendingExternalCorrectionsProjection,
+)
+from app.infrastructure.readers.medication_history_verify_statutory_record import (
+    VerifyStatutoryRecordProjection,
+)
+from app.infrastructure.readers.prescription_get_prescription import (
+    GetPrescriptionProjection,
 )
 
 # --------------------------------------------------------------------------
@@ -169,7 +220,10 @@ def build_prescription_use_cases(
             RefillEligibilityService(),
             PublicExpenseBurdenService(),
         ),
-        get=GetPrescriptionUseCase(repository, corporate_access),
+        get=GetPrescriptionUseCase(
+            reader=GetPrescriptionProjection(repository),
+            corporate_access=corporate_access,
+        ),
         ready_for_dispensing=ReadyForDispensingUseCase(repository, corporate_access),
         cancel=CancelPrescriptionUseCase(repository, corporate_access),
         start_inquiry=StartInquiryUseCase(
@@ -237,9 +291,13 @@ def build_dispensing_use_cases(
             unit_of_work,
             clock,
         ),
-        get=GetDispensingUseCase(repository, corporate_access),
+        get=GetDispensingUseCase(
+            reader=GetDispensingProjection(repository),
+            corporate_access=corporate_access,
+        ),
         list_by_prescription=ListDispensingsByPrescriptionUseCase(
-            repository, corporate_access
+            reader=ListDispensingsByPrescriptionProjection(repository),
+            corporate_access=corporate_access,
         ),
     )
 
@@ -334,21 +392,26 @@ def build_medication_history_use_cases(
             projection_service=projection_service,
         ),
         get=GetMedicationHistoryUseCase(
-            record_repository,
-            corporate_access,
-            MedicationHistoryEventReferenceAdapter(repositories.event),
+            reader=GetMedicationHistoryProjection(
+                record_repository,
+                MedicationHistoryEventReferenceAdapter(repositories.event),
+            ),
+            corporate_access=corporate_access,
         ),
         get_follow_up_source=GetFollowUpSourceUseCase(
-            record_repository,
-            corporate_access,
+            reader=GetFollowUpSourceProjection(record_repository),
+            corporate_access=corporate_access,
         ),
         list_by_patient=ListMedicationHistoriesByPatientUseCase(
-            record_repository,
-            corporate_access,
-            MedicationHistoryEventReferenceAdapter(repositories.event),
+            reader=ListMedicationHistoriesByPatientProjection(
+                record_repository,
+                MedicationHistoryEventReferenceAdapter(repositories.event),
+            ),
+            corporate_access=corporate_access,
         ),
         get_medical_profile=GetPatientMedicalProfileUseCase(
-            profile_repository, corporate_access
+            reader=GetPatientMedicalProfileProjection(profile_repository),
+            corporate_access=corporate_access,
         ),
         rebuild_medical_profile=RebuildPatientMedicalProfileUseCase(
             record_repository,
@@ -359,17 +422,17 @@ def build_medication_history_use_cases(
             projection_service=projection_service,
         ),
         verify_statutory_record=VerifyStatutoryRecordUseCase(
-            record_repository,
-            corporate_access,
-            dispensing_source,
-            StatutoryRecordSourceAdapter(
-                repositories.patient,
-                repositories.prescription,
-                repositories.staff,
+            reader=VerifyStatutoryRecordProjection(
+                record_repository,
+                dispensing_source,
+                StatutoryRecordSourceAdapter(
+                    repositories.patient, repositories.prescription, repositories.staff
+                ),
+                StatutoryProjectionService(StatutoryDispensingRecordService()),
             ),
-            StatutoryDispensingRecordService(),
+            corporate_access=corporate_access,
         ),
-        get_category_catalog=GetCategoryCatalogUseCase(
+        get_category_catalog=EnsureCategoryCatalogUseCase(
             catalog_repository,
             corporate_access,
         ),
@@ -388,12 +451,15 @@ def build_medication_history_use_cases(
             corporate_access,
         ),
         get_view=GetMedicationHistoryViewUseCase(
-            record_repository,
-            MedicationHistoryPatientProfileAdapter(repositories.patient),
-            corporate_access,
+            reader=GetMedicationHistoryViewProjection(
+                record_repository,
+                MedicationHistoryPatientProfileAdapter(repositories.patient),
+            ),
+            corporate_access=corporate_access,
         ),
         list_external_corrections=ListPendingExternalCorrectionsUseCase(
-            record_repository, corporate_access
+            reader=ListPendingExternalCorrectionsProjection(record_repository),
+            corporate_access=corporate_access,
         ),
         review_external_correction=ReviewExternalPrescriptionCorrectionUseCase(
             record_repository,

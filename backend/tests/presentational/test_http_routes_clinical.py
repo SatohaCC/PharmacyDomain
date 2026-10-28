@@ -20,53 +20,63 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import TypeAdapter
 
-from app.application.access_control.policy import AuthorizationService
-from app.application.care_event.create_event import CreateEventUseCase
-from app.application.care_event.event_definition import (
+from app.application.access_control.policies import AuthorizationService
+from app.application.care_event.commands.create_event import CreateEventUseCase
+from app.application.care_event.commands.create_event_definition import (
     CreateEventDefinitionUseCase,
-    ListEventDefinitionsUseCase,
+)
+from app.application.care_event.commands.update_event_definition import (
     UpdateEventDefinitionUseCase,
 )
-from app.application.care_event.get_event import GetEventUseCase
-from app.application.care_event.list_related_candidates import (
+from app.application.care_event.queries.get_event import GetEventUseCase
+from app.application.care_event.queries.list_event_definitions import (
+    ListEventDefinitionsUseCase,
+)
+from app.application.care_event.queries.list_related_event_candidates import (
     ListRelatedEventCandidatesUseCase,
 )
-from app.application.composition.care_event_references import (
+from app.application.composition.adapters.care_event_references import (
     EventMedicationHistoryReferenceAdapter,
     EventReceptionReferenceAdapter,
 )
-from app.application.composition.use_case_bundles import (
+from app.application.composition.registry import (
     CareEventUseCases,
     DispensingUseCases,
     MedicationHistoryUseCases,
     PrescriptionUseCases,
 )
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.dispensing.get_dispensing import GetDispensingUseCase
-from app.application.dispensing.inputs import SubstitutionInput
-from app.application.medication_history.correct_medication_history_fact import (
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.dispensing.commands.models import SubstitutionInput
+from app.application.dispensing.queries.get_dispensing import GetDispensingUseCase
+from app.application.medication_history.commands.correct_medication_history_fact import (
     CorrectMedicationHistoryFactUseCase,
 )
-from app.application.medication_history.get_medication_history import (
-    GetFollowUpSourceUseCase,
-)
-from app.application.medication_history.get_medication_history_view import (
-    CurrentPatientProfileBoundary,
-    GetMedicationHistoryViewUseCase,
-    MedicationHistoryPatientProfileDto,
-)
-from app.application.medication_history.inputs import (
+from app.application.medication_history.commands.models import (
     CategorizedNoteInput,
     HandbookStatusInput,
     LabeledNoteInput,
     ResidualDrugInput,
     SoapInput,
 )
-from app.application.medication_history.list_pending_external_corrections import (
-    ListPendingExternalCorrectionsUseCase,
-)
-from app.application.medication_history.review_external_prescription_correction import (
+from app.application.medication_history.commands.review_external_prescription_correction import (
     ReviewExternalPrescriptionCorrectionUseCase,
+)
+from app.application.medication_history.interfaces.get_medication_history_view_reader import (
+    CurrentPatientProfileBoundary,
+)
+from app.application.medication_history.queries.dtos.get_medication_history_view import (
+    MedicationHistoryPatientProfileDto,
+)
+from app.application.medication_history.queries.get_follow_up_source import (
+    GetFollowUpSourceUseCase,
+)
+from app.application.medication_history.queries.get_medication_history_view import (
+    GetMedicationHistoryViewUseCase,
+)
+from app.application.medication_history.queries.list_pending_external_corrections import (
+    ListPendingExternalCorrectionsUseCase,
 )
 from app.bootstrap import create_app
 from app.domain.care_event.entities import EventDefinition
@@ -92,6 +102,23 @@ from app.domain.reception.value_objects import (
     ReceptionSourceData,
 )
 from app.domain.staff.identifiers import StaffId
+from app.infrastructure.readers.care_event_get_event import GetEventProjection
+from app.infrastructure.readers.care_event_list_event_definitions import (
+    ListEventDefinitionsProjection,
+)
+from app.infrastructure.readers.care_event_list_related_event_candidates import (
+    ListRelatedEventCandidatesProjection,
+)
+from app.infrastructure.readers.dispensing_get_dispensing import GetDispensingProjection
+from app.infrastructure.readers.medication_history_get_follow_up_source import (
+    GetFollowUpSourceProjection,
+)
+from app.infrastructure.readers.medication_history_get_medication_history_view import (
+    GetMedicationHistoryViewProjection,
+)
+from app.infrastructure.readers.medication_history_list_pending_external_corrections import (
+    ListPendingExternalCorrectionsProjection,
+)
 from app.presentational.dependencies import (
     get_care_event_use_cases,
     get_dispensing_use_cases,
@@ -878,8 +905,8 @@ def history_client(
     )
     dispensing_use_cases = SimpleNamespace(
         get=GetDispensingUseCase(
-            dispensing_repository,
-            history_fixture.corporate_access,
+            reader=GetDispensingProjection(dispensing_repository),
+            corporate_access=history_fixture.corporate_access,
         )
     )
     event_use_cases = CareEventUseCases(
@@ -896,36 +923,38 @@ def history_client(
             medication_history=event_history,
         ),
         get=GetEventUseCase(
-            history_fixture.event_repository,
-            event_history,
-            history_fixture.corporate_access,
-            history_fixture.store_operations,
+            reader=GetEventProjection(history_fixture.event_repository),
+            medication_history=event_history,
+            corporate_access=history_fixture.corporate_access,
+            store_operations=history_fixture.store_operations,
         ),
         create_definition=CreateEventDefinitionUseCase(
             event_definitions,
             history_fixture.corporate_access,
         ),
         list_definitions=ListEventDefinitionsUseCase(
-            event_definitions,
-            history_fixture.corporate_access,
+            reader=ListEventDefinitionsProjection(event_definitions),
+            corporate_access=history_fixture.corporate_access,
         ),
         update_definition=UpdateEventDefinitionUseCase(
             event_definitions,
             history_fixture.corporate_access,
         ),
         list_related_candidates=ListRelatedEventCandidatesUseCase(
-            history_fixture.event_repository,
-            event_patient,
-            history_fixture.corporate_access,
-            history_fixture.store_operations,
+            reader=ListRelatedEventCandidatesProjection(
+                history_fixture.event_repository
+            ),
+            patient_boundary=event_patient,
+            corporate_access=history_fixture.corporate_access,
+            store_operations=history_fixture.store_operations,
         ),
     )
     view_use_case = GetMedicationHistoryViewUseCase(
-        history_fixture.record_repository,
-        current_patient_profile_reader,
-        CorporateAccessService(
-            history_fixture.corporate_repository,
-            AuthorizationService(vendor_admin()),
+        reader=GetMedicationHistoryViewProjection(
+            history_fixture.record_repository, current_patient_profile_reader
+        ),
+        corporate_access=CorporateAccessService(
+            history_fixture.corporate_repository, AuthorizationService(vendor_admin())
         ),
     )
     bundle = MedicationHistoryUseCases(
@@ -947,8 +976,8 @@ def history_client(
         ),
         get=history_fixture.get,
         get_follow_up_source=GetFollowUpSourceUseCase(
-            history_fixture.record_repository,
-            history_fixture.corporate_access,
+            reader=GetFollowUpSourceProjection(history_fixture.record_repository),
+            corporate_access=history_fixture.corporate_access,
         ),
         list_by_patient=history_fixture.list_by_patient,
         get_medical_profile=history_fixture.get_profile,
@@ -960,8 +989,10 @@ def history_client(
         record_tracing_report_response=history_fixture.record_tracing_report_response,
         get_view=view_use_case,
         list_external_corrections=ListPendingExternalCorrectionsUseCase(
-            history_fixture.record_repository,
-            history_fixture.corporate_access,
+            reader=ListPendingExternalCorrectionsProjection(
+                history_fixture.record_repository
+            ),
+            corporate_access=history_fixture.corporate_access,
         ),
         review_external_correction=ReviewExternalPrescriptionCorrectionUseCase(
             history_fixture.record_repository,
@@ -2080,3 +2111,23 @@ def test_存在しないレポートIDに返答を記録すると404が返る(
 
     # Assert
     assert response.status_code == HTTPStatus.NOT_FOUND, response.text
+
+
+def test_イベント種別一覧_参照DTOを_公開HTTP応答へ変換する(
+    history_client: TestClient,
+    history_fixture: history_helpers.MedicationHistoryFixture,
+) -> None:
+    # Arrange
+    corporate_id = str(history_fixture.corporate_id.value)
+    # Act
+    response = history_client.get(
+        f"/corporates/{corporate_id}/event-definitions", headers=_HEADERS
+    )
+    # Assert
+    assert response.status_code == HTTPStatus.OK, response.text
+    definitions = response.json()
+    assert definitions
+    assert all(
+        isinstance(item["id"], str) and isinstance(item["name"], str)
+        for item in definitions
+    )

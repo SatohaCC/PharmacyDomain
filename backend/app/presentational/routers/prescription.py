@@ -16,32 +16,38 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Depends
 
-from app.application.prescription.audit_interactions import (
+from app.application.prescription.commands.audit_drug_interactions import (
     AuditDrugInteractionsCommand,
+)
+from app.application.prescription.commands.cancel_prescription import (
+    CancelPrescriptionCommand,
+)
+from app.application.prescription.commands.dtos.audit_interactions import (
     DrugInteractionAuditReportDto,
 )
-from app.application.prescription.cancel_prescription import CancelPrescriptionCommand
-from app.application.prescription.get_prescription import (
-    GetPrescriptionQuery,
-    PrescriptionDto,
-)
-from app.application.prescription.inputs import (
+from app.application.prescription.commands.dtos.get_prescription import PrescriptionDto
+from app.application.prescription.commands.models import (
     DepartmentInput,
     MedicalInstitutionInput,
     PrescriberInput,
     PrescriptionManagementInput,
+    ReadyForDispensingCommand,
+    RegisterPrescriptionCommand,
     RpInput,
 )
-from app.application.prescription.ready_for_dispensing import ReadyForDispensingCommand
-from app.application.prescription.register_prescription import (
-    RegisterPrescriptionCommand,
+from app.application.prescription.commands.resolve_inquiry import ResolveInquiryCommand
+from app.application.prescription.commands.start_inquiry import StartInquiryCommand
+from app.application.prescription.queries.dtos.get_prescription import (
+    PrescriptionDto as QueryPrescriptionDto,
 )
-from app.application.prescription.resolve_inquiry import ResolveInquiryCommand
-from app.application.prescription.start_inquiry import StartInquiryCommand
+from app.application.prescription.queries.models import GetPrescriptionQuery
 from app.presentational.dependencies import (
     Actor,
     PrescriptionUseCasesDep,
     get_actor_context,
+)
+from app.presentational.dto_mapping import (
+    to_http_prescription_get_prescription__prescription_dto,
 )
 from app.presentational.errors import error_responses
 from app.presentational.routing import ApplicationRoute
@@ -104,27 +110,29 @@ async def register_prescription(
     corporate_id: str,
     body: RegisterPrescriptionRequest,
     use_cases: PrescriptionUseCasesDep,
-) -> PrescriptionDto:
+) -> PrescriptionDto | QueryPrescriptionDto:
     """処方箋を登録する。
 
     麻薬区分などを医薬品マスタから判定できない場合は失敗する。判定できないことを
     「該当しない」に倒すと、麻薬処方箋の必須項目チェックが素通りする。
     """
-    return await use_cases.register.execute(
-        RegisterPrescriptionCommand(
-            corporate_id=corporate_id,
-            store_id=body.store_id,
-            patient_id=body.patient_id,
-            source_type=body.source_type,
-            document_number=body.document_number,
-            issued_date=body.issued_date,
-            medical_institution=body.medical_institution,
-            department=body.department,
-            prescriber=body.prescriber,
-            rps=tuple(body.rps),
-            valid_to=body.valid_to,
-            management_info=body.management_info,
-            coverage_selection_record_id=body.coverage_selection_record_id,
+    return to_http_prescription_get_prescription__prescription_dto(
+        await use_cases.register.execute(
+            RegisterPrescriptionCommand(
+                corporate_id=corporate_id,
+                store_id=body.store_id,
+                patient_id=body.patient_id,
+                source_type=body.source_type,
+                document_number=body.document_number,
+                issued_date=body.issued_date,
+                medical_institution=body.medical_institution,
+                department=body.department,
+                prescriber=body.prescriber,
+                rps=tuple(body.rps),
+                valid_to=body.valid_to,
+                management_info=body.management_info,
+                coverage_selection_record_id=body.coverage_selection_record_id,
+            )
         )
     )
 
@@ -134,10 +142,14 @@ async def get_prescription(
     corporate_id: str,
     prescription_id: str,
     use_cases: PrescriptionUseCasesDep,
-) -> PrescriptionDto:
+) -> PrescriptionDto | QueryPrescriptionDto:
     """処方箋を1件取得する。"""
-    return await use_cases.get.execute(
-        GetPrescriptionQuery(corporate_id=corporate_id, prescription_id=prescription_id)
+    return to_http_prescription_get_prescription__prescription_dto(
+        await use_cases.get.execute(
+            GetPrescriptionQuery(
+                corporate_id=corporate_id, prescription_id=prescription_id
+            )
+        )
     )
 
 
@@ -150,11 +162,13 @@ async def ready_for_dispensing(
     corporate_id: str,
     prescription_id: str,
     use_cases: PrescriptionUseCasesDep,
-) -> PrescriptionDto:
+) -> PrescriptionDto | QueryPrescriptionDto:
     """調剤可能な状態にする。未回答の疑義照会が残っていれば拒否される。"""
-    return await use_cases.ready_for_dispensing.execute(
-        ReadyForDispensingCommand(
-            corporate_id=corporate_id, prescription_id=prescription_id
+    return to_http_prescription_get_prescription__prescription_dto(
+        await use_cases.ready_for_dispensing.execute(
+            ReadyForDispensingCommand(
+                corporate_id=corporate_id, prescription_id=prescription_id
+            )
         )
     )
 
@@ -168,11 +182,13 @@ async def cancel_prescription(
     corporate_id: str,
     prescription_id: str,
     use_cases: PrescriptionUseCasesDep,
-) -> PrescriptionDto:
+) -> PrescriptionDto | QueryPrescriptionDto:
     """処方箋を取消する。"""
-    return await use_cases.cancel.execute(
-        CancelPrescriptionCommand(
-            corporate_id=corporate_id, prescription_id=prescription_id
+    return to_http_prescription_get_prescription__prescription_dto(
+        await use_cases.cancel.execute(
+            CancelPrescriptionCommand(
+                corporate_id=corporate_id, prescription_id=prescription_id
+            )
         )
     )
 
@@ -188,15 +204,17 @@ async def start_inquiry(
     prescription_id: str,
     body: StartInquiryRequest,
     use_cases: PrescriptionUseCasesDep,
-) -> PrescriptionDto:
+) -> PrescriptionDto | QueryPrescriptionDto:
     """疑義照会を開始する。"""
-    return await use_cases.start_inquiry.execute(
-        StartInquiryCommand(
-            corporate_id=corporate_id,
-            prescription_id=prescription_id,
-            pharmacist_id=body.pharmacist_id,
-            category=body.category,
-            content=body.content,
+    return to_http_prescription_get_prescription__prescription_dto(
+        await use_cases.start_inquiry.execute(
+            StartInquiryCommand(
+                corporate_id=corporate_id,
+                prescription_id=prescription_id,
+                pharmacist_id=body.pharmacist_id,
+                category=body.category,
+                content=body.content,
+            )
         )
     )
 
@@ -212,16 +230,18 @@ async def resolve_inquiry(
     inquiry_number: int,
     body: ResolveInquiryRequest,
     use_cases: PrescriptionUseCasesDep,
-) -> PrescriptionDto:
+) -> PrescriptionDto | QueryPrescriptionDto:
     """疑義照会に回答する。"""
-    return await use_cases.resolve_inquiry.execute(
-        ResolveInquiryCommand(
-            corporate_id=corporate_id,
-            prescription_id=prescription_id,
-            inquiry_number=inquiry_number,
-            responded_by=body.responded_by,
-            result_type=body.result_type,
-            content=body.content,
+    return to_http_prescription_get_prescription__prescription_dto(
+        await use_cases.resolve_inquiry.execute(
+            ResolveInquiryCommand(
+                corporate_id=corporate_id,
+                prescription_id=prescription_id,
+                inquiry_number=inquiry_number,
+                responded_by=body.responded_by,
+                result_type=body.result_type,
+                content=body.content,
+            )
         )
     )
 

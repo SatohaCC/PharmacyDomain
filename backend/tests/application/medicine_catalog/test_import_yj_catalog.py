@@ -7,15 +7,17 @@ from pathlib import Path
 
 import pytest
 
-from app.application.access_control.models import ActorContext
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.boundary_models import ActorContext
+from app.application.access_control.policies import AuthorizationService
 from app.application.common.exceptions import AuthorizationError
-from app.application.medicine_catalog.import_yj_catalog import (
+from app.application.medicine_catalog.commands.import_yj_catalog import (
     ImportYjCatalogCommand,
     ImportYjCatalogUseCase,
-    YjCatalogCsvParser,
-    YjCatalogParseError,
 )
+from app.application.medicine_catalog.commands.services.import_yj_catalog import (
+    YjCatalogCsvParser,
+)
+from app.application.medicine_catalog.errors import YjCatalogParseError
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.medicine_catalog.primitives import (
     GenericCategory,
@@ -23,6 +25,7 @@ from app.domain.medicine_catalog.primitives import (
     MedicineDosageForm,
     NarcoticCategory,
 )
+from app.infrastructure.medicine_catalog.csv_source import read_catalog_text
 from tests.fakes.in_memory_medicine_catalog_repository import (
     InMemoryMedicineCatalogRepository,
 )
@@ -339,5 +342,5 @@ def test_実YJコードCSVサンプル行の統合パース() -> None:
     if not csv_path.exists():
         pytest.skip("実CSVファイルが存在しません。")
     parser = YjCatalogCsvParser()
-    medicines = parser.parse_file(csv_path)
+    medicines = parser.parse_text(read_catalog_text(csv_path))
     assert len(medicines) > 100

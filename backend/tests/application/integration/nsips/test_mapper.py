@@ -5,8 +5,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from app.application.integration.nsips.mapper import NsipsDataMapper
-from app.application.integration.nsips.models import (
+from app.application.integration.boundary_models import (
     NsipsAdditionInfo,
     NsipsBundle,
     NsipsInsuranceInfo,
@@ -16,6 +15,7 @@ from app.application.integration.nsips.models import (
     NsipsRpInfo,
     NsipsSplitInfo,
 )
+from app.application.integration.commands.services.mapper import NsipsDataMapper
 
 
 def _create_sample_bundle(

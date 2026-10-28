@@ -5,8 +5,11 @@ from datetime import UTC, date, datetime
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.access_control.models import ActorRole, ResolvedActorContext
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.boundary_models import (
+    ActorRole,
+    ResolvedActorContext,
+)
+from app.application.access_control.policies import AuthorizationService
 from app.domain.corporate.entities import Corporate
 from app.domain.identity.entities import (
     CorporateMembership,

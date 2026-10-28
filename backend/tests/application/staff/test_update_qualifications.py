@@ -6,7 +6,7 @@ from datetime import date
 
 import pytest
 
-from app.application.staff.update_qualifications import (
+from app.application.staff.commands.update_staff_qualifications import (
     UpdateStaffQualificationsCommand,
     UpdateStaffQualificationsUseCase,
 )

@@ -21,7 +21,7 @@ from types import ModuleType
 import pytest
 
 import app.application
-from app.application.staff.register_staff import RegisterStaffUseCase
+from app.application.staff.commands.register_staff import RegisterStaffUseCase
 from app.domain.foundation.entity import Entity
 from app.domain.staff.identifiers import StaffId
 

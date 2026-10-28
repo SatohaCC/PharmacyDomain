@@ -7,14 +7,14 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from app.application.coverage.exceptions import (
+from app.application.coverage.commands.record_coverage_selection import (
+    RecordCoverageSelectionCommand,
+    RecordCoverageSelectionUseCase,
+)
+from app.application.coverage.errors import (
     CoveragePatientNotFoundError,
     CoverageSelectionError,
     CoverageStoreNotFoundError,
-)
-from app.application.coverage.record_coverage_selection import (
-    RecordCoverageSelectionCommand,
-    RecordCoverageSelectionUseCase,
 )
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.identifiers import PatientCoverageId

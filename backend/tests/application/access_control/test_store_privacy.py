@@ -5,18 +5,30 @@ from datetime import date
 
 import pytest
 
-from app.application.access_control.models import ActorRole, ResolvedActorContext
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.boundary_models import (
+    ActorRole,
+    ResolvedActorContext,
+)
+from app.application.access_control.policies import AuthorizationService
 from app.application.common.exceptions import AuthorizationError
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.medication_history.get_patient_medical_profile import (
-    GetPatientMedicalProfileQuery,
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.medication_history.queries.get_patient_medical_profile import (
     GetPatientMedicalProfileUseCase,
 )
-from app.application.staff.get_staff import GetStaffQuery, GetStaffUseCase
+from app.application.medication_history.queries.models import (
+    GetPatientMedicalProfileQuery,
+)
+from app.application.staff.queries.get_staff import GetStaffUseCase
+from app.application.staff.queries.models import GetStaffQuery
 from app.domain.patient.identifiers import PatientId
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.primitives import StaffEmailAddress, StaffPhoneNumber
+from app.infrastructure.readers.medication_history_get_patient_medical_profile import (
+    GetPatientMedicalProfileProjection,
+)
+from app.infrastructure.readers.staff_get_staff import GetStaffProjection
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.factories.staff_factory import create_staff
 from tests.fakes.fake_clock import FakeClock
@@ -49,7 +61,11 @@ async def test_店舗ロールのスタッフ詳細に個人連絡先を含め�
     access = CorporateAccessService(
         AutoProvisioningCorporateRepository(), AuthorizationService(actor)
     )
-    result = await GetStaffUseCase(repository, access, FakeClock()).execute(
+    result = await GetStaffUseCase(
+        reader=GetStaffProjection(repository),
+        corporate_access=access,
+        clock=FakeClock(),
+    ).execute(
         GetStaffQuery(
             corporate_id=str(staff.corporate_id.value), staff_id=str(staff.id.value)
         )
@@ -59,7 +75,10 @@ async def test_店舗ロールのスタッフ詳細に個人連絡先を含め�
         assert "email" not in asdict(result)
         return
     use_case = GetPatientMedicalProfileUseCase(
-        InMemoryPatientMedicalProfileRepository(), access
+        reader=GetPatientMedicalProfileProjection(
+            InMemoryPatientMedicalProfileRepository()
+        ),
+        corporate_access=access,
     )
     with pytest.raises(AuthorizationError):
         await use_case.execute(

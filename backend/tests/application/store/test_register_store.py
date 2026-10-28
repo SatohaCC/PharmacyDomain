@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.corporate.exceptions import CorporateInactiveError
-from app.application.store.register_store import (
+from app.application.corporate.errors import CorporateInactiveError
+from app.application.store.commands.register_store import (
     RegisterStoreCommand,
     RegisterStoreUseCase,
 )

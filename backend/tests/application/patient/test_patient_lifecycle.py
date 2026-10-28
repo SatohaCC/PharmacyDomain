@@ -6,36 +6,39 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from app.application.access_control.models import (
+from app.application.access_control.boundary_models import (
     ActorContext,
     ActorRole,
     ResolvedActorContext,
 )
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.policies import AuthorizationService
 from app.application.common.exceptions import AuthorizationError
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.patient.change_patient_birth_date import (
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.patient.commands.change_patient_birth_date import (
     ChangePatientBirthDateCommand,
     ChangePatientBirthDateUseCase,
 )
-from app.application.patient.change_patient_names import (
+from app.application.patient.commands.change_patient_names import (
     ChangePatientNamesCommand,
     ChangePatientNamesUseCase,
 )
-from app.application.patient.deactivate_patient import (
+from app.application.patient.commands.deactivate_patient import (
     DeactivatePatientCommand,
     DeactivatePatientUseCase,
 )
-from app.application.patient.exceptions import PatientNotFoundError
-from app.application.patient.get_patient import GetPatientQuery, GetPatientUseCase
-from app.application.patient.merge_patients import (
+from app.application.patient.commands.merge_patients import (
     MergePatientsCommand,
     MergePatientsUseCase,
 )
-from app.application.patient.reactivate_patient import (
+from app.application.patient.commands.reactivate_patient import (
     ReactivatePatientCommand,
     ReactivatePatientUseCase,
 )
+from app.application.patient.errors import PatientNotFoundError
+from app.application.patient.queries.get_patient import GetPatientUseCase
+from app.application.patient.queries.models import GetPatientQuery
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.entities import Patient
 from app.domain.patient.exceptions import PatientStateConflictError
@@ -49,6 +52,7 @@ from app.domain.shared.person_name import (
     PersonNamePart,
     PersonNames,
 )
+from app.infrastructure.readers.patient_get_patient import GetPatientProjection
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.fakes.fake_clock import FakeClock
 from tests.fakes.in_memory_patient_repository import InMemoryPatientRepository
@@ -314,7 +318,9 @@ async def test_TC28_患者取得ユースケース_状態情報取得() -> None:
         )
     )
 
-    get_uc = GetPatientUseCase(repository, access)
+    get_uc = GetPatientUseCase(
+        reader=GetPatientProjection(repository), corporate_access=access
+    )
     dto = await get_uc.execute(
         GetPatientQuery(
             corporate_id=str(corporate_id.value),

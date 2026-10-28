@@ -4,7 +4,7 @@ from typing import Final
 
 from sqlalchemy import exists, or_, select
 
-from app.application.store.management import StoreWorkBoundary
+from app.application.store.interfaces.management import StoreWorkBoundary
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.primitives import DispensingProcessStatus
 from app.domain.prescription.primitives import PrescriptionStatus

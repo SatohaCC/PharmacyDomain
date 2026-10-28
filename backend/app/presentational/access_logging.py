@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import Request, Response
 
-from app.application.access_control.models import ResolvedActorContext
+from app.application.access_control.boundary_models import ResolvedActorContext
 
 _LOGGER = logging.getLogger("pharmacy.access")
 

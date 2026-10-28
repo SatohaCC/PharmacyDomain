@@ -168,8 +168,8 @@ def _run_contract(
         ),
         (
             "application-models",
-            "app.application.example.dto",
-            "app.application.patient.register_patient",
+            "app.application.example.commands.models",
+            "app.application.patient.commands.register_patient",
         ),
         (
             "presentation-infrastructure",

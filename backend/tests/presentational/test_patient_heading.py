@@ -7,7 +7,10 @@ from typing import Any, cast
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.application.access_control.models import ActorRole, ResolvedActorContext
+from app.application.access_control.boundary_models import (
+    ActorRole,
+    ResolvedActorContext,
+)
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.identifiers import PatientId
 from app.domain.patient.primitives import PatientStatus

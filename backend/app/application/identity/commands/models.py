@@ -1,0 +1,44 @@
+"""Applicationのmodelsを定義する。"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import StrEnum
+
+
+@dataclass(frozen=True, kw_only=True)
+class PersonNamesInput:
+    """本人登録時に受け取る氏名の文字列。"""
+
+    last_name: str
+    first_name: str
+    last_name_kana: str
+    first_name_kana: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class RegisterLocalUserCommand:
+    """本人と利用範囲を指定し、初期資格情報を発行する入力。"""
+
+    corporate_id: str
+    person_id: str
+    login_id: str
+    initial_password: str = field(repr=False)
+    role: str = "corporate_admin"
+    store_ids: tuple[str, ...] = ()
+    staff_id: str | None = None
+
+
+class AccountStatus(StrEnum):
+    """アクセス権変更で指定できる状態。"""
+
+    ACTIVE = "active"
+    SUSPENDED = "suspended"
+
+
+class MembershipRole(StrEnum):
+    """招待や権限変更で指定できる法人内ロール。"""
+
+    CORPORATE_ADMIN = "corporate_admin"
+    STORE_OPERATOR = "store_operator"
+    STORE_VIEWER = "store_viewer"

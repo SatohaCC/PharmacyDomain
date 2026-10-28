@@ -1,4 +1,4 @@
-"""Application層の境界で共有する入力正規化処理。"""
+"""Applicationのinput_normalizationを定義する。"""
 
 from __future__ import annotations
 

@@ -14,7 +14,7 @@ from typing import Final, get_type_hints
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from app.application.prescription.inputs import DepartmentInput
+from app.application.prescription.commands.models import DepartmentInput
 from app.infrastructure.di.registry import PostgresUseCaseRegistry
 from app.presentational.routers import (
     care_event,

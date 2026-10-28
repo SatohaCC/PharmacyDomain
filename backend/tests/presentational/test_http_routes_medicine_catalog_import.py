@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from http import HTTPStatus
 
-from app.application.access_control.models import ActorContext
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.boundary_models import ActorContext
+from app.application.access_control.policies import AuthorizationService
 from app.domain.corporate.identifiers import CorporateId
 from app.presentational.dependencies import get_medicine_catalog_use_cases
 from tests.presentational.conftest import AUTHORIZED_HEADERS, Api

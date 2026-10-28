@@ -31,9 +31,12 @@ from fastapi import FastAPI
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.access_control.models import ActorRole, ResolvedActorContext
+from app.application.access_control.boundary_models import (
+    ActorRole,
+    ResolvedActorContext,
+)
 from app.application.common.clock import Clock
-from app.application.dispensing.inputs import SubstitutionInput
+from app.application.dispensing.commands.models import SubstitutionInput
 from app.bootstrap import create_app
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.entities import DispensingProcess

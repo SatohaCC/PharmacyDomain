@@ -5,15 +5,15 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from app.application.composition.organization_snapshot_mapping import (
+from app.application.composition.adapters.organization_snapshot_mapping import (
     ManagerStaffAdapter,
 )
-from app.application.composition.staff_person_adapter import StaffPersonAdapter
-from app.application.store.management import (
-    ManagerAction,
+from app.application.composition.adapters.staff_person_adapter import StaffPersonAdapter
+from app.application.store.commands.manage_store_manager import (
     ManageStoreManagerCommand,
     ManageStoreManagerUseCase,
 )
+from app.application.store.commands.models import ManagerAction
 from app.domain.identity.entities import StaffPersonLink
 from app.domain.shared.actor import AccountPersonId
 from app.domain.staff.entities import Staff

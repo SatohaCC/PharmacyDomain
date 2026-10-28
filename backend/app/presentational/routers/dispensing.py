@@ -12,22 +12,32 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Depends
 
-from app.application.dispensing.complete_dispensing import CompleteDispensingCommand
-from app.application.dispensing.get_dispensing import (
-    DispensingProcessDto,
-    GetDispensingQuery,
+from app.application.dispensing.commands.complete_dispensing import (
+    CompleteDispensingCommand,
 )
-from app.application.dispensing.inputs import DispensedRpInput
-from app.application.dispensing.list_dispensings_by_prescription import (
-    ListDispensingsByPrescriptionQuery,
+from app.application.dispensing.commands.dtos.get_dispensing import DispensingProcessDto
+from app.application.dispensing.commands.models import (
+    DispensedRpInput,
+    StartDispensingCommand,
 )
-from app.application.dispensing.record_audit import RecordAuditCommand
-from app.application.dispensing.record_dispensed_content import (
+from app.application.dispensing.commands.record_audit import RecordAuditCommand
+from app.application.dispensing.commands.record_dispensed_content import (
     RecordDispensedContentCommand,
 )
-from app.application.dispensing.start_dispensing import StartDispensingCommand
-from app.application.dispensing.verify_dispensing import VerifyDispensingCommand
+from app.application.dispensing.commands.verify_dispensing import (
+    VerifyDispensingCommand,
+)
+from app.application.dispensing.queries.dtos.get_dispensing import (
+    DispensingProcessDto as QueryDispensingProcessDto,
+)
+from app.application.dispensing.queries.models import (
+    GetDispensingQuery,
+    ListDispensingsByPrescriptionQuery,
+)
 from app.presentational.dependencies import DispensingUseCasesDep, get_actor_context
+from app.presentational.dto_mapping import (
+    to_http_dispensing_get_dispensing__dispensing_process_dto,
+)
 from app.presentational.errors import error_responses
 from app.presentational.routing import ApplicationRoute
 from app.presentational.schemas import RequestModel
@@ -99,19 +109,21 @@ async def start_dispensing(
     corporate_id: str,
     body: StartDispensingRequest,
     use_cases: DispensingUseCasesDep,
-) -> DispensingProcessDto:
+) -> DispensingProcessDto | QueryDispensingProcessDto:
     """調剤を開始する。処方箋が調剤可能な状態でなければ拒否される。"""
-    return await use_cases.start.execute(
-        StartDispensingCommand(
-            corporate_id=corporate_id,
-            store_id=body.store_id,
-            prescription_id=body.prescription_id,
-            dispenser_id=body.dispenser_id,
-            iteration=body.iteration,
-            dispensed_date=body.dispensed_date,
-            dispensed_rps=tuple(body.dispensed_rps),
-            split_reason=body.split_reason,
-            total_split_count=body.total_split_count,
+    return to_http_dispensing_get_dispensing__dispensing_process_dto(
+        await use_cases.start.execute(
+            StartDispensingCommand(
+                corporate_id=corporate_id,
+                store_id=body.store_id,
+                prescription_id=body.prescription_id,
+                dispenser_id=body.dispenser_id,
+                iteration=body.iteration,
+                dispensed_date=body.dispensed_date,
+                dispensed_rps=tuple(body.dispensed_rps),
+                split_reason=body.split_reason,
+                total_split_count=body.total_split_count,
+            )
         )
     )
 
@@ -121,10 +133,12 @@ async def get_dispensing(
     corporate_id: str,
     dispensing_id: str,
     use_cases: DispensingUseCasesDep,
-) -> DispensingProcessDto:
+) -> DispensingProcessDto | QueryDispensingProcessDto:
     """調剤を1件取得する。"""
-    return await use_cases.get.execute(
-        GetDispensingQuery(corporate_id=corporate_id, dispensing_id=dispensing_id)
+    return to_http_dispensing_get_dispensing__dispensing_process_dto(
+        await use_cases.get.execute(
+            GetDispensingQuery(corporate_id=corporate_id, dispensing_id=dispensing_id)
+        )
     )
 
 
@@ -138,17 +152,19 @@ async def record_dispensed_content(
     dispensing_id: str,
     body: RecordDispensedContentRequest,
     use_cases: DispensingUseCasesDep,
-) -> DispensingProcessDto:
+) -> DispensingProcessDto | QueryDispensingProcessDto:
     """調剤内容を記録する。
 
     PUT なのは、送られた内容で調剤内容一式を置き換えるからである。差分を足す
     操作にすると、代替調剤の取り消しを表現できない。
     """
-    return await use_cases.record_dispensed_content.execute(
-        RecordDispensedContentCommand(
-            corporate_id=corporate_id,
-            dispensing_id=dispensing_id,
-            dispensed_rps=tuple(body.dispensed_rps),
+    return to_http_dispensing_get_dispensing__dispensing_process_dto(
+        await use_cases.record_dispensed_content.execute(
+            RecordDispensedContentCommand(
+                corporate_id=corporate_id,
+                dispensing_id=dispensing_id,
+                dispensed_rps=tuple(body.dispensed_rps),
+            )
         )
     )
 
@@ -163,15 +179,17 @@ async def verify_dispensing(
     dispensing_id: str,
     body: VerifyDispensingRequest,
     use_cases: DispensingUseCasesDep,
-) -> DispensingProcessDto:
+) -> DispensingProcessDto | QueryDispensingProcessDto:
     """鑑査の結果を記録する。"""
-    return await use_cases.verify.execute(
-        VerifyDispensingCommand(
-            corporate_id=corporate_id,
-            dispensing_id=dispensing_id,
-            verifier_id=body.verifier_id,
-            result=body.result,
-            notes=body.notes,
+    return to_http_dispensing_get_dispensing__dispensing_process_dto(
+        await use_cases.verify.execute(
+            VerifyDispensingCommand(
+                corporate_id=corporate_id,
+                dispensing_id=dispensing_id,
+                verifier_id=body.verifier_id,
+                result=body.result,
+                notes=body.notes,
+            )
         )
     )
 
@@ -186,15 +204,17 @@ async def record_audit(
     dispensing_id: str,
     body: RecordAuditRequest,
     use_cases: DispensingUseCasesDep,
-) -> DispensingProcessDto:
+) -> DispensingProcessDto | QueryDispensingProcessDto:
     """監査の結果を記録する。"""
-    return await use_cases.record_audit.execute(
-        RecordAuditCommand(
-            corporate_id=corporate_id,
-            dispensing_id=dispensing_id,
-            auditor_id=body.auditor_id,
-            has_issues=body.has_issues,
-            notes=body.notes,
+    return to_http_dispensing_get_dispensing__dispensing_process_dto(
+        await use_cases.record_audit.execute(
+            RecordAuditCommand(
+                corporate_id=corporate_id,
+                dispensing_id=dispensing_id,
+                auditor_id=body.auditor_id,
+                has_issues=body.has_issues,
+                notes=body.notes,
+            )
         )
     )
 
@@ -209,14 +229,16 @@ async def complete_dispensing(
     dispensing_id: str,
     body: CompleteDispensingRequest,
     use_cases: DispensingUseCasesDep,
-) -> DispensingProcessDto:
+) -> DispensingProcessDto | QueryDispensingProcessDto:
     """調剤を完了する。処方箋の状態更新と同じトランザクションで確定する。"""
-    return await use_cases.complete.execute(
-        CompleteDispensingCommand(
-            corporate_id=corporate_id,
-            dispensing_id=dispensing_id,
-            completion_type=body.completion_type,
-            next_dispensing_date=body.next_dispensing_date,
+    return to_http_dispensing_get_dispensing__dispensing_process_dto(
+        await use_cases.complete.execute(
+            CompleteDispensingCommand(
+                corporate_id=corporate_id,
+                dispensing_id=dispensing_id,
+                completion_type=body.completion_type,
+                next_dispensing_date=body.next_dispensing_date,
+            )
         )
     )
 
@@ -229,14 +251,17 @@ async def list_dispensings_by_prescription(
     corporate_id: str,
     prescription_id: str,
     use_cases: DispensingUseCasesDep,
-) -> list[DispensingProcessDto]:
+) -> list[DispensingProcessDto] | list[QueryDispensingProcessDto]:
     """処方箋にぶら下がる調剤を回数順に一覧する。"""
     dispensings = await use_cases.list_by_prescription.execute(
         ListDispensingsByPrescriptionQuery(
             corporate_id=corporate_id, prescription_id=prescription_id
         )
     )
-    return list(dispensings)
+    return [
+        to_http_dispensing_get_dispensing__dispensing_process_dto(item)
+        for item in (list(dispensings))
+    ]
 
 
 __all__ = ["router"]

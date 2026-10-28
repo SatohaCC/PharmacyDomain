@@ -14,24 +14,37 @@ from typing import Self
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.access_control.models import ActorRole, ResolvedActorContext
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.boundary_models import (
+    ActorRole,
+    ResolvedActorContext,
+)
+from app.application.access_control.policies import AuthorizationService
 from app.application.common.clock import Clock, business_date
-from app.application.composition.clinical_store_guard import ClinicalStoreWriteGuard
-from app.application.composition.corporate_activity_guard import (
+from app.application.composition.adapters.clinical_store_guard import (
+    ClinicalStoreWriteGuard,
+)
+from app.application.composition.adapters.corporate_activity_guard import (
     CorporateActivityWriteGuard,
 )
-from app.application.composition.resolved_actor_guard import (
+from app.application.composition.adapters.resolved_actor_guard import (
     CompositeWriteGuard,
     ResolvedActorWriteGuard,
 )
+from app.application.composition.adapters.staff_integrity import (
+    StaffAssignmentWriteGuard,
+)
+from app.application.composition.adapters.store_operation_adapter import (
+    StoreOperationAdapter,
+)
 from app.application.composition.runtime import CompositionRoot, RequestScope
-from app.application.composition.staff_integrity import StaffAssignmentWriteGuard
-from app.application.composition.store_operation_adapter import StoreOperationAdapter
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.identity.dto import AccountDto
-from app.application.identity.invitation_access import InvitationOnlyAccess
-from app.application.identity.resolve_actor import VerifiedSubject
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.identity.boundary_models import VerifiedSubject
+from app.application.identity.commands.dtos.identity_views import AccountDto
+from app.application.identity.commands.services.invitation_access import (
+    InvitationOnlyAccess,
+)
 from app.infrastructure.di.bundles.identity import build_identity_use_cases
 from app.infrastructure.di.registry import PostgresUseCaseRegistry
 from app.infrastructure.di.repositories import (

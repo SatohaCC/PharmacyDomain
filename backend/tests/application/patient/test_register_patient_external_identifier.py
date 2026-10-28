@@ -7,12 +7,14 @@ from dataclasses import replace
 import pytest
 
 from app.application.common.exceptions import ApplicationError
-from app.application.patient.deactivate_patient_external_identifier import (
+from app.application.patient.commands.deactivate_patient_external_identifier import (
     DeactivatePatientExternalIdentifierCommand,
     DeactivatePatientExternalIdentifierUseCase,
 )
-from app.application.patient.register_patient_external_identifier import (
+from app.application.patient.commands.models import (
     RegisterPatientExternalIdentifierCommand,
+)
+from app.application.patient.commands.register_patient_external_identifier import (
     RegisterPatientExternalIdentifierUseCase,
 )
 from app.domain.corporate.identifiers import CorporateId

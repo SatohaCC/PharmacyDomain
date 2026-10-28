@@ -10,25 +10,25 @@ from datetime import date
 
 import pytest
 
-from app.application.access_control.models import (
-    ActorContext,
-    Permission,
-)
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.boundary_models import ActorContext, Permission
+from app.application.access_control.policies import AuthorizationService
 from app.application.common.exceptions import AuthorizationError
-from app.application.medicine_catalog.exceptions import MedicineNotFoundError
-from app.application.medicine_catalog.get_medicine import (
-    GetEffectiveMedicineQuery,
-    GetEffectiveMedicineUseCase,
-)
-from app.application.medicine_catalog.register_medicine import (
+from app.application.medicine_catalog.commands.register_medicine import (
     RegisterMedicineCommand,
     RegisterMedicineUseCase,
 )
+from app.application.medicine_catalog.errors import MedicineNotFoundError
+from app.application.medicine_catalog.queries.get_effective_medicine import (
+    GetEffectiveMedicineUseCase,
+)
+from app.application.medicine_catalog.queries.models import GetEffectiveMedicineQuery
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.medicine_catalog.exceptions import MedicineEffectivePeriodConflictError
 from app.domain.medicine_catalog.services import MedicineEffectivePeriodConflictService
+from app.infrastructure.readers.medicine_catalog_get_effective_medicine import (
+    GetEffectiveMedicineProjection,
+)
 from tests.fakes.in_memory_medicine_catalog_repository import (
     InMemoryMedicineCatalogRepository,
 )
@@ -178,7 +178,10 @@ class Test取得:
         await _register_use_case(repository).execute(
             _command(listed_on=date(2026, 4, 1), has_dosage_limit=True)
         )
-        use_case = GetEffectiveMedicineUseCase(repository, _vendor_authorization())
+        use_case = GetEffectiveMedicineUseCase(
+            reader=GetEffectiveMedicineProjection(repository),
+            authorization=_vendor_authorization(),
+        )
 
         # Act
         before = await use_case.execute(
@@ -203,7 +206,10 @@ class Test取得:
         await _register_use_case(repository).execute(
             _command(listed_on=date(2026, 4, 1))
         )
-        use_case = GetEffectiveMedicineUseCase(repository, _vendor_authorization())
+        use_case = GetEffectiveMedicineUseCase(
+            reader=GetEffectiveMedicineProjection(repository),
+            authorization=_vendor_authorization(),
+        )
 
         # Act / Assert
         with pytest.raises(MedicineNotFoundError):

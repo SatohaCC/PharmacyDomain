@@ -2,13 +2,21 @@
 
 import pytest
 
-from app.application.access_control.models import ActorRole, ResolvedActorContext
-from app.application.access_control.policy import AuthorizationService
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.store.exceptions import StoreNotFoundError
-from app.application.store.get_store import GetStoreQuery, GetStoreUseCase
-from app.application.store.list_stores import ListStoresQuery, ListStoresUseCase
+from app.application.access_control.boundary_models import (
+    ActorRole,
+    ResolvedActorContext,
+)
+from app.application.access_control.policies import AuthorizationService
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.store.errors import StoreNotFoundError
+from app.application.store.queries.get_store import GetStoreUseCase
+from app.application.store.queries.list_stores import ListStoresUseCase
+from app.application.store.queries.models import GetStoreQuery, ListStoresQuery
 from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.infrastructure.readers.store_get_store import GetStoreProjection
+from app.infrastructure.readers.store_list_stores import ListStoresProjection
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.factories.store_factory import create_store
 from tests.fakes.in_memory_store_repository import InMemoryStoreRepository
@@ -36,13 +44,15 @@ async def test_店舗参照_操作主体の範囲に応じて詳細と一覧を�
     access = CorporateAccessService(
         AutoProvisioningCorporateRepository(), AuthorizationService(actor)
     )
-    details = GetStoreUseCase(repository, access)
+    details = GetStoreUseCase(
+        reader=GetStoreProjection(repository), corporate_access=access
+    )
     unrestricted = role in {ActorRole.VENDOR_SYSTEM_ADMIN, ActorRole.CORPORATE_ADMIN}
 
     # Act
-    rows = await ListStoresUseCase(repository, access).execute(
-        ListStoresQuery(corporate_id=str(allowed.corporate_id.value))
-    )
+    rows = await ListStoresUseCase(
+        reader=ListStoresProjection(repository), corporate_access=access
+    ).execute(ListStoresQuery(corporate_id=str(allowed.corporate_id.value)))
 
     # Assert
     expected = {allowed.id, hidden.id} if unrestricted else actor.store_ids

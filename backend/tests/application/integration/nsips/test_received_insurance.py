@@ -8,16 +8,16 @@ from datetime import date
 
 import pytest
 
-from app.application.composition.prescription_references import (
+from app.application.composition.adapters.prescription_references import (
     PrescriptionPatientReferenceAdapter,
 )
-from app.application.coverage.register_patient_coverage import (
+from app.application.coverage.commands.register_patient_coverage import (
     RegisterPatientCoverageCommand,
     RegisterPatientCoverageUseCase,
 )
-from app.application.integration.nsips.ingest_nsips import IngestNsipsCommand
-from app.application.integration.nsips.models import NsipsBundle, NsipsInsuranceInfo
-from app.application.integration.nsips.parser import NsipsParser
+from app.application.integration.boundary_models import NsipsBundle, NsipsInsuranceInfo
+from app.application.integration.commands.ingest_nsips import IngestNsipsCommand
+from app.application.integration.commands.services.parser import NsipsParser
 from app.domain.coverage.services import PatientCoverageConflictService
 from app.domain.patient.identifiers import PatientId
 from app.domain.reception.identifiers import ReceptionId

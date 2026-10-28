@@ -36,6 +36,8 @@ TEST_DATABASE_URL=postgresql+asyncpg://pharmacydomain:pharmacydomain-dev-passwor
 pnpm --filter pharmacydomain-api exec uv run python -m tools.check_imports --verbose --fail-on-violation
 pnpm --filter pharmacydomain-api exec uv run python -m tools.check_lcom --verbose --fail-on-violation
 pnpm --filter pharmacydomain-api exec uv run python -m tools.check_fake_conformance --verbose --fail-on-violation
+pnpm --filter pharmacydomain-api run lint:application
+pnpm --filter pharmacydomain-api run lint:application:harness
 ```
 
 - **結合テストの接続ポートは `POSTGRES_PORT` から引く**: `compose.yaml` はホスト側の公開ポートを `.env` の `POSTGRES_PORT`（既定 5432）に従わせている。コマンド例で `5432` をベタ書きすると、`POSTGRES_PORT` を変えている環境（他プロジェクトとの衝突回避等）でこのコマンドをそのまま実行したときに接続エラーになる。`TEST_DATABASE_URL` が無いときの自動スキップと違い、間違ったポートへの接続は `ConnectionRefusedError` として失敗するので気づけはするが、そこで手が止まる。**シェルは `.env` を自動で読み込まない**（読むのは `docker compose` 自身だけ）ので、`${POSTGRES_PORT:-5432}` と書くだけでは足りず、`TEST_DATABASE_URL=...` を組み立てる前にコマンド例の側で `.env` を読み込む必要がある。読み込まなければ環境変数 `POSTGRES_PORT` は未設定のままなので既定値 5432 に落ち、`.env` で上書きしている環境では書いた本人の意図に反してベタ書きと同じ結果になる。
@@ -45,7 +47,7 @@ pnpm --filter pharmacydomain-api exec uv run python -m tools.check_fake_conforma
 - **パッケージ構成**: `app/` `tests/` `tools/` 配下で `.py` を持つディレクトリには必ず `__init__.py` を置く。名前空間パッケージのままだと、(1) そのディレクトリだけを指定して `pytest` を回したときにルートが `sys.path` に入らず `app` を import できない、(2) 別ディレクトリに同名モジュールを置いた瞬間にトップレベル名が衝突して収集が壊れる。`tests/tools/test_package_layout.py` が強制する。
 - **package initializerは空にする**: `app/`・`tests/`・`tools/`・`migrations/` の `__init__.py` は空またはモジュールドキュメント文字列だけにする。公開名を再エクスポートせず、利用側はクラス・関数・Protocolを定義元モジュールからimportする。新しいUseCaseを追加しても `__init__.py` の `__all__` は更新しない。initializerの実行文禁止はpackage layoutテスト、`app/` の明示import循環は `tools/check_imports.py` が検査する。
 - **結合テストの分離**: 実DBを要するテストは `tests/integration/` に置き、`TEST_DATABASE_URL` が無ければ自動でスキップする。スキップは「実行したが何も確かめていない」状態なので、CIでは必ずDBを与える専用ジョブで `-m integration` を走らせる。マーカーは `tests/integration/conftest.py` が自動で付ける（各モジュールで付け忘れると、DBの無いジョブ側へ紛れ込む）。
-- **アーキテクチャ規則**: レイヤー・Domain越境・内部階層はImport Linterが強制する。循環、個別Application境界、外部フレームワーク禁止、凝集度、Protocol適合は `tools/` の静的チェッカで補完する。設定は `pyproject.toml` の `[tool.importlinter]` / `[tool.import_rules]` / `[tool.lcom]` / `[tool.fake_rules]`、実行は `tests/tools/test_architecture_rules.py` 経由で `pytest` に含まれる。設計ルールを追加するときは、文章だけでなくチェッカの設定にも反映する。
+- **アーキテクチャ規則**: レイヤー・Domain越境・内部階層はImport Linterが強制する。Applicationの配置・公開面・Command/Query分離は `tools/check_application_architecture.py` と `application-architecture.toml` で全規則を強制する。通常のbackend lintは検査器と正常例・禁止例の自己検証も実行する。循環、個別Application境界、外部フレームワーク禁止、凝集度、Protocol適合は `tools/` の静的チェッカで補完する。設定は `pyproject.toml` の `[tool.importlinter]` / `[tool.import_rules]` / `[tool.lcom]` / `[tool.fake_rules]`、実行は `tests/tools/test_architecture_rules.py` 経由で `pytest` に含まれる。設計ルールを追加するときは、文章だけでなくチェッカの設定にも反映する。
 
 ## レイヤー別ルール（DDD & オニオンアーキテクチャ）
 

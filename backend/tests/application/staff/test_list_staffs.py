@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.staff.list_staffs import (
-    ListStaffsQuery,
-    ListStaffsUseCase,
-)
+from app.application.staff.queries.list_staffs import ListStaffsUseCase
+from app.application.staff.queries.models import ListStaffsQuery
 from app.domain.corporate.identifiers import CorporateId
+from app.infrastructure.readers.staff_list_staffs import ListStaffsProjection
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.factories.staff_factory import create_staff
 from tests.fakes.in_memory_staff_repository import InMemoryStaffRepository
@@ -19,7 +18,7 @@ async def test_list_staffs_returns_only_matching_corporate_staffs() -> None:
     # Arrange
     staff_repo = InMemoryStaffRepository()
     use_case = ListStaffsUseCase(
-        repository=staff_repo,
+        reader=ListStaffsProjection(repository=staff_repo),
         corporate_access=create_vendor_corporate_access(),
     )
 

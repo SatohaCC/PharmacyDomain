@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.corporate.change_corporate_name import (
+from app.application.corporate.commands.change_corporate_name import (
     ChangeCorporateNameCommand,
     ChangeCorporateNameUseCase,
 )

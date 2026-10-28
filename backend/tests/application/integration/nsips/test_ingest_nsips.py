@@ -10,18 +10,16 @@ from decimal import Decimal
 import pytest
 
 from app.application.common.exceptions import ApplicationError
-from app.application.integration.nsips.exceptions import NsipsParseError
-from app.application.integration.nsips.ingest_nsips import (
-    IngestNsipsCommand,
-)
-from app.application.integration.nsips.models import (
+from app.application.integration.boundary_models import (
     NsipsBundle,
     NsipsMedicineInfo,
     NsipsPatientInfo,
     NsipsPrescriptionInfo,
     NsipsRpInfo,
 )
-from app.application.integration.nsips.parser import NsipsParser
+from app.application.integration.commands.ingest_nsips import IngestNsipsCommand
+from app.application.integration.commands.services.parser import NsipsParser
+from app.application.integration.errors import NsipsParseError
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.exceptions import DispensingPharmacistQualificationError
 from app.domain.dispensing.identifiers import DispensingId

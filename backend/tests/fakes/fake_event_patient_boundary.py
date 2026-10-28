@@ -1,7 +1,7 @@
 """Event起票時の患者参照Boundary Fake。"""
 
-from app.application.access_control.exceptions import TenantBoundaryNotFoundError
-from app.application.care_event.references import EventPatientBoundary
+from app.application.access_control.errors import TenantBoundaryNotFoundError
+from app.application.care_event.interfaces.references import EventPatientBoundary
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.identifiers import PatientId
 

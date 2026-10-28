@@ -11,13 +11,15 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.application.composition.dispensing_snapshot_mapping import prescription_source
-from app.application.dispensing.exceptions import (
+from app.application.composition.adapters.dispensing_snapshot_mapping import (
+    prescription_source,
+)
+from app.application.dispensing.errors import (
     DispensingPrescriptionNotFoundError,
     DispensingStaffNotFoundError,
     DispensingStoreNotFoundError,
 )
-from app.application.dispensing.reference import (
+from app.application.dispensing.interfaces.references import (
     PrescriptionCompletionBoundary,
     PrescriptionReferenceBoundary,
     StaffQualificationBoundary,

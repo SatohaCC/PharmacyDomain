@@ -9,12 +9,12 @@ import pytest
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
-from app.application.composition.use_case_bundles import MedicationHistoryUseCases
-from app.application.medication_history.list_pending_external_corrections import (
-    ListPendingExternalCorrectionsUseCase,
-)
-from app.application.medication_history.review_external_prescription_correction import (
+from app.application.composition.registry import MedicationHistoryUseCases
+from app.application.medication_history.commands.review_external_prescription_correction import (
     ReviewExternalPrescriptionCorrectionUseCase,
+)
+from app.application.medication_history.queries.list_pending_external_corrections import (
+    ListPendingExternalCorrectionsUseCase,
 )
 from app.bootstrap import create_app
 from app.domain.medication_history.entities import MedicationHistoryRecord
@@ -27,6 +27,9 @@ from app.domain.medication_history.primitives import (
     FinalizedTimestamp,
 )
 from app.domain.medication_history.value_objects import ExternalPrescriptionCorrection
+from app.infrastructure.readers.medication_history_list_pending_external_corrections import (
+    ListPendingExternalCorrectionsProjection,
+)
 from app.presentational.dependencies import get_medication_history_use_cases
 from app.presentational.routers.medication_history import router as history_router
 from app.presentational.routers.nsips import (
@@ -90,8 +93,10 @@ def client(
         record_tracing_report_response=history_fixture.record_tracing_report_response,
         get_view=cast(Any, None),
         list_external_corrections=ListPendingExternalCorrectionsUseCase(
-            history_fixture.record_repository,
-            history_fixture.corporate_access,
+            reader=ListPendingExternalCorrectionsProjection(
+                history_fixture.record_repository
+            ),
+            corporate_access=history_fixture.corporate_access,
         ),
         review_external_correction=ReviewExternalPrescriptionCorrectionUseCase(
             history_fixture.record_repository,

@@ -8,23 +8,23 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.store.change_insurance_pharmacy_number import (
+from app.application.store.commands.change_insurance_pharmacy_number import (
     ChangeInsurancePharmacyNumberCommand,
     ChangeInsurancePharmacyNumberUseCase,
 )
-from app.application.store.change_store_address import (
+from app.application.store.commands.change_store_address import (
     ChangeStoreAddressCommand,
     ChangeStoreAddressUseCase,
 )
-from app.application.store.change_store_code import (
+from app.application.store.commands.change_store_code import (
     ChangeStoreCodeCommand,
     ChangeStoreCodeUseCase,
 )
-from app.application.store.change_store_contact_info import (
+from app.application.store.commands.change_store_contact_info import (
     ChangeStoreContactInfoCommand,
     ChangeStoreContactInfoUseCase,
 )
-from app.application.store.change_store_name import (
+from app.application.store.commands.change_store_names import (
     ChangeStoreNamesCommand,
     ChangeStoreNamesUseCase,
 )

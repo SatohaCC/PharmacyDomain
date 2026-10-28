@@ -15,7 +15,7 @@ from dataclasses import MISSING, fields, replace
 
 import pytest
 
-from app.application.composition.medication_history_snapshot_mapping import (
+from app.application.composition.adapters.medication_history_snapshot_mapping import (
     dispensing_source,
 )
 from app.domain.corporate.identifiers import CorporateId

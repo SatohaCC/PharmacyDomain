@@ -11,14 +11,18 @@ from dataclasses import replace
 
 import pytest
 
-from app.application.access_control.models import ActorContext
-from app.application.access_control.policy import AuthorizationService
-from app.application.access_control.store_access import (
+from app.application.access_control.boundary_models import ActorContext
+from app.application.access_control.interfaces.store_operations import (
     StoreOperation,
     StoreOperationBoundary,
 )
-from app.application.composition.clinical_store_guard import ClinicalStoreWriteGuard
-from app.application.composition.store_operation_adapter import StoreOperationAdapter
+from app.application.access_control.policies import AuthorizationService
+from app.application.composition.adapters.clinical_store_guard import (
+    ClinicalStoreWriteGuard,
+)
+from app.application.composition.adapters.store_operation_adapter import (
+    StoreOperationAdapter,
+)
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainError
 from app.domain.store.exceptions import (

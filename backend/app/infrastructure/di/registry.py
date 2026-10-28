@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from typing import cast
 
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.policies import AuthorizationService
 from app.application.common.clock import Clock
-from app.application.composition.runtime import UseCaseRegistry
-from app.application.composition.use_case_bundles import (
+from app.application.composition.registry import (
     CareEventUseCases,
     CorporateUseCases,
     CoverageUseCases,
@@ -22,7 +21,10 @@ from app.application.composition.use_case_bundles import (
     StaffUseCases,
     StoreUseCases,
 )
-from app.application.corporate.corporate_access import CorporateAccessService
+from app.application.composition.runtime import UseCaseRegistry
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
 from app.infrastructure.di.bundles.care_event import build_care_event_use_cases
 from app.infrastructure.di.bundles.clinical import (
     build_dispensing_use_cases,

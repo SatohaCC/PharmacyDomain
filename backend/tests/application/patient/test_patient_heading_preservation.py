@@ -7,45 +7,52 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from app.application.access_control.models import ActorRole, ResolvedActorContext
-from app.application.access_control.policy import AuthorizationService
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.medication_history.finalize_medication_history import (
+from app.application.access_control.boundary_models import (
+    ActorRole,
+    ResolvedActorContext,
+)
+from app.application.access_control.policies import AuthorizationService
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.medication_history.commands.finalize_medication_history import (
     FinalizeMedicationHistoryCommand,
 )
-from app.application.medication_history.get_patient_medical_profile import (
-    GetPatientMedicalProfileQuery,
-    RebuildPatientMedicalProfileCommand,
-)
-from app.application.medication_history.inputs import (
+from app.application.medication_history.commands.models import (
     AllergyIntentInput,
     ProfileUpdateInput,
 )
-from app.application.patient.change_patient_birth_date import (
+from app.application.medication_history.commands.rebuild_patient_medical_profile import (
+    RebuildPatientMedicalProfileCommand,
+)
+from app.application.medication_history.queries.models import (
+    GetPatientMedicalProfileQuery,
+)
+from app.application.patient.commands.change_patient_birth_date import (
     ChangePatientBirthDateCommand,
     ChangePatientBirthDateUseCase,
 )
-from app.application.patient.change_patient_heading import (
+from app.application.patient.commands.change_patient_heading import (
     ChangePatientHeadingCommand,
     ChangePatientHeadingUseCase,
 )
-from app.application.patient.change_patient_names import (
+from app.application.patient.commands.change_patient_names import (
     ChangePatientNamesCommand,
     ChangePatientNamesUseCase,
 )
-from app.application.patient.change_patient_profile import (
+from app.application.patient.commands.change_patient_profile import (
     ChangePatientProfileCommand,
     ChangePatientProfileUseCase,
 )
-from app.application.patient.deactivate_patient import (
+from app.application.patient.commands.deactivate_patient import (
     DeactivatePatientCommand,
     DeactivatePatientUseCase,
 )
-from app.application.patient.merge_patients import (
+from app.application.patient.commands.merge_patients import (
     MergePatientsCommand,
     MergePatientsUseCase,
 )
-from app.application.patient.reactivate_patient import (
+from app.application.patient.commands.reactivate_patient import (
     ReactivatePatientCommand,
     ReactivatePatientUseCase,
 )

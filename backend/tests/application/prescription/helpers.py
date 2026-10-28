@@ -10,13 +10,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from app.application.access_control.models import ActorContext
-from app.application.access_control.policy import AuthorizationService
-from app.application.corporate.corporate_access import CorporateAccessService
-from app.application.prescription.audit_interactions import AuditDrugInteractionsUseCase
-from app.application.prescription.cancel_prescription import CancelPrescriptionUseCase
-from app.application.prescription.get_prescription import GetPrescriptionUseCase
-from app.application.prescription.inputs import (
+from app.application.access_control.boundary_models import ActorContext
+from app.application.access_control.policies import AuthorizationService
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
+from app.application.prescription.commands.audit_drug_interactions import (
+    AuditDrugInteractionsUseCase,
+)
+from app.application.prescription.commands.cancel_prescription import (
+    CancelPrescriptionUseCase,
+)
+from app.application.prescription.commands.models import (
     DepartmentInput,
     DosageInstructionInput,
     MedicalInstitutionInput,
@@ -24,15 +29,18 @@ from app.application.prescription.inputs import (
     PrescriberInput,
     PrescriptionManagementInput,
     PublicExpenseBurdenInput,
+    RegisterPrescriptionCommand,
     RpInput,
 )
-from app.application.prescription.ready_for_dispensing import ReadyForDispensingUseCase
-from app.application.prescription.register_prescription import (
-    RegisterPrescriptionCommand,
+from app.application.prescription.commands.ready_for_dispensing import (
+    ReadyForDispensingUseCase,
+)
+from app.application.prescription.commands.register_prescription import (
     RegisterPrescriptionUseCase,
 )
-from app.application.prescription.resolve_inquiry import ResolveInquiryUseCase
-from app.application.prescription.start_inquiry import StartInquiryUseCase
+from app.application.prescription.commands.resolve_inquiry import ResolveInquiryUseCase
+from app.application.prescription.commands.start_inquiry import StartInquiryUseCase
+from app.application.prescription.queries.get_prescription import GetPrescriptionUseCase
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.identifiers import PatientId
 from app.domain.prescription.primitives import (
@@ -55,6 +63,9 @@ from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import PharmacistLicenseNumber
 from app.domain.staff.value_objects import PharmacistProfile, StaffQualifications
 from app.domain.store.identifiers import StoreId
+from app.infrastructure.readers.prescription_get_prescription import (
+    GetPrescriptionProjection,
+)
 from tests.application.access_helpers import (
     AutoProvisioningCorporateRepository,
     create_vendor_corporate_access_for,
@@ -289,7 +300,10 @@ def create_fixture(
         resolve_inquiry=ResolveInquiryUseCase(repository, corporate_access, clock),
         ready_for_dispensing=ReadyForDispensingUseCase(repository, corporate_access),
         cancel=CancelPrescriptionUseCase(repository, corporate_access),
-        get=GetPrescriptionUseCase(repository, corporate_access),
+        get=GetPrescriptionUseCase(
+            reader=GetPrescriptionProjection(repository),
+            corporate_access=corporate_access,
+        ),
         audit_interactions=AuditDrugInteractionsUseCase(
             authorization_service=AuthorizationService(corporate_access.actor),
             data_source=FakeDrugInteractionDataSource(),

@@ -7,8 +7,8 @@ from datetime import date
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.store.management import (
-    ChangeStoreStatusCommand,
+from app.application.store.commands.change_store_status import ChangeStoreStatusCommand
+from app.application.store.commands.revoke_store_closure import (
     RevokeStoreClosureCommand,
 )
 from app.domain.foundation.exceptions import DomainError

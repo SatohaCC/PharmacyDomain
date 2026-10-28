@@ -14,45 +14,51 @@ from http import HTTPStatus
 from fastapi import APIRouter, Depends, Response
 from pydantic import Field
 
-from app.application.patient.change_patient_birth_date import (
+from app.application.patient.commands.change_patient_birth_date import (
     ChangePatientBirthDateCommand,
 )
-from app.application.patient.change_patient_heading import (
+from app.application.patient.commands.change_patient_heading import (
     ChangePatientHeadingCommand,
 )
-from app.application.patient.change_patient_names import ChangePatientNamesCommand
-from app.application.patient.change_patient_profile import (
+from app.application.patient.commands.change_patient_names import (
+    ChangePatientNamesCommand,
+)
+from app.application.patient.commands.change_patient_profile import (
     ChangePatientProfileCommand,
 )
-from app.application.patient.deactivate_patient import DeactivatePatientCommand
-from app.application.patient.deactivate_patient_external_identifier import (
+from app.application.patient.commands.deactivate_patient import DeactivatePatientCommand
+from app.application.patient.commands.deactivate_patient_external_identifier import (
     DeactivatePatientExternalIdentifierCommand,
 )
-from app.application.patient.get_patient import (
-    GetPatientQuery,
-    PatientDto,
-)
-from app.application.patient.get_patient_external_identifier import (
-    GetPatientExternalIdentifierQuery,
-)
-from app.application.patient.get_patient_heading import (
-    GetPatientHeadingQuery,
-    PatientHeadingDto,
-)
-from app.application.patient.list_patient_external_identifiers import (
-    ListPatientExternalIdentifiersQuery,
-)
-from app.application.patient.merge_patients import (
-    MergePatientsCommand,
-    MergePatientsResultDto,
-)
-from app.application.patient.reactivate_patient import ReactivatePatientCommand
-from app.application.patient.register_patient import RegisterPatientCommand
-from app.application.patient.register_patient_external_identifier import (
+from app.application.patient.commands.dtos.get_patient_heading import PatientHeadingDto
+from app.application.patient.commands.dtos.merge_patients import MergePatientsResultDto
+from app.application.patient.commands.dtos.register_patient_external_identifier import (
     PatientExternalIdentifierDto,
+)
+from app.application.patient.commands.merge_patients import MergePatientsCommand
+from app.application.patient.commands.models import (
+    RegisterPatientCommand,
     RegisterPatientExternalIdentifierCommand,
 )
+from app.application.patient.commands.reactivate_patient import ReactivatePatientCommand
+from app.application.patient.queries.dtos.get_patient import PatientDto
+from app.application.patient.queries.dtos.get_patient_heading import (
+    PatientHeadingDto as QueryPatientHeadingDto,
+)
+from app.application.patient.queries.dtos.register_patient_external_identifier import (
+    PatientExternalIdentifierDto as QueryPatientExternalIdentifierDto,
+)
+from app.application.patient.queries.models import (
+    GetPatientExternalIdentifierQuery,
+    GetPatientHeadingQuery,
+    GetPatientQuery,
+    ListPatientExternalIdentifiersQuery,
+)
 from app.presentational.dependencies import PatientUseCasesDep, get_actor_context
+from app.presentational.dto_mapping import (
+    to_http_patient_get_patient_heading__patient_heading_dto,
+    to_http_patient_register_patient_external_identifier__patient_external_identifier_dto,
+)
 from app.presentational.errors import error_responses
 from app.presentational.routing import ApplicationRoute
 from app.presentational.schemas import RegisteredIdResponse, RequestModel
@@ -185,10 +191,12 @@ async def get_patient_heading(
     corporate_id: str,
     patient_id: str,
     use_cases: PatientUseCasesDep,
-) -> PatientHeadingDto:
+) -> PatientHeadingDto | QueryPatientHeadingDto:
     """患者頭書きの現在値と変更履歴を取得する。"""
-    return await use_cases.get_heading.execute(
-        GetPatientHeadingQuery(corporate_id=corporate_id, patient_id=patient_id)
+    return to_http_patient_get_patient_heading__patient_heading_dto(
+        await use_cases.get_heading.execute(
+            GetPatientHeadingQuery(corporate_id=corporate_id, patient_id=patient_id)
+        )
     )
 
 
@@ -202,16 +210,18 @@ async def change_patient_heading(
     patient_id: str,
     body: ChangePatientHeadingRequest,
     use_cases: PatientUseCasesDep,
-) -> PatientHeadingDto:
+) -> PatientHeadingDto | QueryPatientHeadingDto:
     """患者頭書きを部分変更し、更新後の改訂を返す。"""
-    return await use_cases.change_heading.execute(
-        ChangePatientHeadingCommand(
-            corporate_id=corporate_id,
-            patient_id=patient_id,
-            expected_revision=body.expected_revision,
-            provided_fields=frozenset({"summary", "notes"} & body.model_fields_set),
-            summary=body.summary,
-            notes=body.notes,
+    return to_http_patient_get_patient_heading__patient_heading_dto(
+        await use_cases.change_heading.execute(
+            ChangePatientHeadingCommand(
+                corporate_id=corporate_id,
+                patient_id=patient_id,
+                expected_revision=body.expected_revision,
+                provided_fields=frozenset({"summary", "notes"} & body.model_fields_set),
+                summary=body.summary,
+                notes=body.notes,
+            )
         )
     )
 
@@ -366,15 +376,17 @@ async def register_external_identifier(
     patient_id: str,
     body: RegisterExternalIdentifierRequest,
     use_cases: PatientUseCasesDep,
-) -> PatientExternalIdentifierDto:
+) -> PatientExternalIdentifierDto | QueryPatientExternalIdentifierDto:
     """外部システムの患者IDを紐付ける。"""
-    return await use_cases.register_external_identifier.execute(
-        RegisterPatientExternalIdentifierCommand(
-            corporate_id=corporate_id,
-            patient_id=patient_id,
-            system_name=body.system_name,
-            external_patient_id=body.external_patient_id,
-            store_id=body.store_id,
+    return to_http_patient_register_patient_external_identifier__patient_external_identifier_dto(
+        await use_cases.register_external_identifier.execute(
+            RegisterPatientExternalIdentifierCommand(
+                corporate_id=corporate_id,
+                patient_id=patient_id,
+                system_name=body.system_name,
+                external_patient_id=body.external_patient_id,
+                store_id=body.store_id,
+            )
         )
     )
 
@@ -387,13 +399,20 @@ async def list_external_identifiers(
     corporate_id: str,
     patient_id: str,
     use_cases: PatientUseCasesDep,
-) -> list[PatientExternalIdentifierDto]:
+) -> list[PatientExternalIdentifierDto] | list[QueryPatientExternalIdentifierDto]:
     """患者に紐付いた外部患者IDを一覧する。"""
-    return await use_cases.list_external_identifiers.execute(
-        ListPatientExternalIdentifiersQuery(
-            corporate_id=corporate_id, patient_id=patient_id
+    return [
+        to_http_patient_register_patient_external_identifier__patient_external_identifier_dto(
+            item
         )
-    )
+        for item in (
+            await use_cases.list_external_identifiers.execute(
+                ListPatientExternalIdentifiersQuery(
+                    corporate_id=corporate_id, patient_id=patient_id
+                )
+            )
+        )
+    ]
 
 
 @router.get(
@@ -404,11 +423,13 @@ async def get_external_identifier(
     corporate_id: str,
     identifier_id: str,
     use_cases: PatientUseCasesDep,
-) -> PatientExternalIdentifierDto:
+) -> PatientExternalIdentifierDto | QueryPatientExternalIdentifierDto:
     """外部患者IDを1件取得する。"""
-    return await use_cases.get_external_identifier.execute(
-        GetPatientExternalIdentifierQuery(
-            corporate_id=corporate_id, identifier_id=identifier_id
+    return to_http_patient_register_patient_external_identifier__patient_external_identifier_dto(
+        await use_cases.get_external_identifier.execute(
+            GetPatientExternalIdentifierQuery(
+                corporate_id=corporate_id, identifier_id=identifier_id
+            )
         )
     )
 

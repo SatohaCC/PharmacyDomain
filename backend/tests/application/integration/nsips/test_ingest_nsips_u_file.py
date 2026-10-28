@@ -10,17 +10,10 @@ from typing import Any
 
 import pytest
 
-from app.application.composition.reception_medication_history import (
+from app.application.composition.adapters.reception_medication_history import (
     ReceptionMedicationHistoryAssociationAdapter,
 )
-from app.application.integration.nsips.exceptions import (
-    NsipsPatientIdentityConflictError,
-)
-from app.application.integration.nsips.ingest_nsips import (
-    IngestNsipsCommand,
-    IngestNsipsResultDto,
-)
-from app.application.integration.nsips.models import (
+from app.application.integration.boundary_models import (
     NsipsAdditionInfo,
     NsipsBundle,
     NsipsInsuranceInfo,
@@ -30,7 +23,10 @@ from app.application.integration.nsips.models import (
     NsipsRpInfo,
     NsipsSplitInfo,
 )
-from app.application.reception.associate_reception_medication_history import (
+from app.application.integration.commands.dtos.ingest_nsips import IngestNsipsResultDto
+from app.application.integration.commands.ingest_nsips import IngestNsipsCommand
+from app.application.integration.errors import NsipsPatientIdentityConflictError
+from app.application.reception.commands.associate_reception_medication_history import (
     AssociateReceptionMedicationHistoryCommand,
     AssociateReceptionMedicationHistoryUseCase,
 )

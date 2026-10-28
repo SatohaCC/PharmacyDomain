@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from app.application.patient.exceptions import PatientStoreNotFoundError
-from app.application.patient.reference import PatientStoreReferenceBoundary
+from app.application.patient.errors import PatientStoreNotFoundError
+from app.application.patient.interfaces.references import PatientStoreReferenceBoundary
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.store.identifiers import StoreId
 from app.domain.store.repositories import StoreRepository

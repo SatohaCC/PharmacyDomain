@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.corporate.exceptions import CorporateInactiveError
-from app.application.medication_history.category_catalog import (
-    GetCategoryCatalogUseCase,
-    UpdateCategoryCatalogUseCase,
+from app.application.corporate.errors import CorporateInactiveError
+from app.application.medication_history.commands.ensure_category_catalog import (
+    EnsureCategoryCatalogUseCase,
 )
-from app.application.medication_history.inputs import (
+from app.application.medication_history.commands.models import (
     MajorCategoryInput,
     MediumCategoryInput,
+)
+from app.application.medication_history.commands.update_category_catalog import (
     UpdateCategoryCatalogCommand,
+    UpdateCategoryCatalogUseCase,
 )
 from app.domain.corporate.identifiers import CorporateId
 from tests.application.access_helpers import (
@@ -40,7 +42,7 @@ async def test_get_catalog_returns_default_when_not_found(
 ) -> None:
     """TC-APP-01: 未登録法人の取得でデフォルトカタログが生成・保存されて返されること。"""
     corp_access = create_vendor_corporate_access_for(corporate_repo)
-    use_case = GetCategoryCatalogUseCase(catalog_repo, corp_access)
+    use_case = EnsureCategoryCatalogUseCase(catalog_repo, corp_access)
 
     corp_id = str(CorporateId.generate().value)
     result = await use_case.execute(corp_id)
@@ -62,7 +64,7 @@ async def test_get_catalog_returns_saved_catalog(
 ) -> None:
     """TC-APP-02: 既に保存されている法人の区分カタログがそのまま返されること。"""
     corp_access = create_vendor_corporate_access_for(corporate_repo)
-    get_use_case = GetCategoryCatalogUseCase(catalog_repo, corp_access)
+    get_use_case = EnsureCategoryCatalogUseCase(catalog_repo, corp_access)
     update_use_case = UpdateCategoryCatalogUseCase(catalog_repo, corp_access)
 
     corp_id = str(CorporateId.generate().value)
@@ -131,7 +133,7 @@ async def test_inactive_corporate_access_rejected(
 ) -> None:
     """TC-APP-04: 休止中法人のカタログ操作が拒否されること。"""
     corp_access = create_vendor_corporate_access_for(corporate_repo)
-    get_use_case = GetCategoryCatalogUseCase(catalog_repo, corp_access)
+    get_use_case = EnsureCategoryCatalogUseCase(catalog_repo, corp_access)
 
     corp_id = CorporateId.generate()
     corporate_repo.set_inactive(corp_id)
@@ -146,7 +148,7 @@ async def test_catalog_tenant_isolation(
 ) -> None:
     """TC-TNT-01: 法人Aと法人Bのカタログが相互に隔離されていること。"""
     corp_access = create_vendor_corporate_access_for(corporate_repo)
-    get_use_case = GetCategoryCatalogUseCase(catalog_repo, corp_access)
+    get_use_case = EnsureCategoryCatalogUseCase(catalog_repo, corp_access)
     update_use_case = UpdateCategoryCatalogUseCase(catalog_repo, corp_access)
 
     corp_a = str(CorporateId.generate().value)

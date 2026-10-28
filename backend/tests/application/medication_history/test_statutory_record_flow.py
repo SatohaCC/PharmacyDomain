@@ -13,19 +13,17 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.corporate.exceptions import CorporateInactiveError
-from app.application.medication_history.exceptions import (
+from app.application.corporate.errors import CorporateInactiveError
+from app.application.medication_history.commands.finalize_medication_history import (
+    FinalizeMedicationHistoryCommand,
+)
+from app.application.medication_history.errors import (
     MedicationHistoryDispensingNotFoundError,
     MedicationHistoryNotFoundError,
     MedicationHistoryPatientNotFoundError,
     MedicationHistoryPrescriptionNotFoundError,
 )
-from app.application.medication_history.finalize_medication_history import (
-    FinalizeMedicationHistoryCommand,
-)
-from app.application.medication_history.verify_statutory_record import (
-    VerifyStatutoryRecordQuery,
-)
+from app.application.medication_history.queries.models import VerifyStatutoryRecordQuery
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.exceptions import MedicationHistoryDomainError
 from app.domain.medication_history.identifiers import MedicationHistoryRecordId

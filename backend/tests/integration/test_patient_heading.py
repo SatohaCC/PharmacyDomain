@@ -10,9 +10,14 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.access_control.models import ActorRole, ResolvedActorContext
-from app.application.access_control.policy import AuthorizationService
-from app.application.patient.change_patient_heading import ChangePatientHeadingCommand
+from app.application.access_control.boundary_models import (
+    ActorRole,
+    ResolvedActorContext,
+)
+from app.application.access_control.policies import AuthorizationService
+from app.application.patient.commands.change_patient_heading import (
+    ChangePatientHeadingCommand,
+)
 from app.domain.foundation.exceptions import ConcurrentModificationError
 from app.domain.patient.entities import Patient
 from app.domain.patient.identifiers import PatientId

@@ -5,7 +5,9 @@ from datetime import date
 
 import pytest
 
-from app.application.composition.organization_snapshot_mapping import staff_store_source
+from app.application.composition.adapters.organization_snapshot_mapping import (
+    staff_store_source,
+)
 from app.domain.foundation.exceptions import DomainError
 from app.domain.staff.services import StaffStoreAssignmentService
 from app.domain.store.primitives import StoreStatus

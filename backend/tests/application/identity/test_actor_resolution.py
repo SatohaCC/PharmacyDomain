@@ -4,12 +4,10 @@ from dataclasses import replace
 
 import pytest
 
-from app.application.access_control.models import ActorRole
-from app.application.identity.resolve_actor import (
-    ResolveActorUseCase,
-    UnavailableIdentityError,
-    VerifiedSubject,
-)
+from app.application.access_control.boundary_models import ActorRole
+from app.application.identity.boundary_models import VerifiedSubject
+from app.application.identity.errors import UnavailableIdentityError
+from app.application.identity.queries.resolve_actor import ResolveActorUseCase
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.entities import AccountPerson, CorporateMembership, UserAccount
 from app.domain.identity.identifiers import CorporateMembershipId
@@ -28,6 +26,7 @@ from app.domain.shared.person_name import (
 )
 from app.domain.staff.identifiers import StaffId
 from app.domain.store.identifiers import StoreId
+from app.infrastructure.readers.identity_resolve_actor import ResolveActorProjection
 from tests.fakes.in_memory_identity_repositories import (
     InMemoryAccountPersonRepository,
     InMemoryCorporateMembershipRepository,
@@ -79,7 +78,9 @@ async def _setup() -> tuple[
     await accounts.save(account)
     await memberships.save(membership)
     return (
-        ResolveActorUseCase(people, accounts, memberships),
+        ResolveActorUseCase(
+            reader=ResolveActorProjection(people, accounts, memberships)
+        ),
         VerifiedSubject(principal_id=_PRINCIPAL_ID),
         people,
         accounts,
@@ -198,3 +199,21 @@ async def test_本人の行が無いアカウントは操作主体にならな�
 
     with pytest.raises(UnavailableIdentityError):
         await resolver.execute(subject)
+
+
+@pytest.mark.asyncio
+async def test_操作者Reader_停止状態も権限を判断せず_参照事実として返す() -> None:
+    # Arrange
+    _, subject, people, accounts, memberships, account, _ = await _setup()
+    await accounts.save(
+        replace(account, status=AccountStatus.SUSPENDED, is_vendor_admin=True)
+    )
+    reader = ResolveActorProjection(people, accounts, memberships)
+    # Act
+    facts = await reader.get_by_subject(ExternalSubjectKey(subject.principal_id))
+    # Assert
+    assert facts is not None
+    assert facts.account_id == account.id
+    assert facts.person_id == account.person_id
+    assert facts.account_status == AccountStatus.SUSPENDED
+    assert facts.is_vendor_admin is True

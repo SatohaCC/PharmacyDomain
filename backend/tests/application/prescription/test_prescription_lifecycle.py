@@ -8,15 +8,18 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.prescription.cancel_prescription import CancelPrescriptionCommand
-from app.application.prescription.exceptions import PrescriptionNotFoundError
-from app.application.prescription.get_prescription import (
-    GetPrescriptionQuery,
-    PrescriptionDto,
+from app.application.prescription.commands.cancel_prescription import (
+    CancelPrescriptionCommand,
 )
-from app.application.prescription.ready_for_dispensing import ReadyForDispensingCommand
-from app.application.prescription.resolve_inquiry import ResolveInquiryCommand
-from app.application.prescription.start_inquiry import StartInquiryCommand
+from app.application.prescription.commands.dtos.get_prescription import PrescriptionDto
+from app.application.prescription.commands.models import ReadyForDispensingCommand
+from app.application.prescription.commands.resolve_inquiry import ResolveInquiryCommand
+from app.application.prescription.commands.start_inquiry import StartInquiryCommand
+from app.application.prescription.errors import PrescriptionNotFoundError
+from app.application.prescription.queries.dtos.get_prescription import (
+    PrescriptionDto as ReadPrescriptionDto,
+)
+from app.application.prescription.queries.models import GetPrescriptionQuery
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.prescription.exceptions import (
     OpenInquiryExistsError,
@@ -203,7 +206,7 @@ class Test取得:
         )
 
         # Assert
-        assert isinstance(actual, PrescriptionDto)
+        assert isinstance(actual, ReadPrescriptionDto)
         assert actual.id == registered.id
         assert actual.medical_institution.name == "医療法人 サンプル病院"
         assert actual.prescriber.full_name_kana == "サトウ イチロウ"

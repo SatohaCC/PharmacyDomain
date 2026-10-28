@@ -7,13 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from app.application.access_control.exceptions import TenantBoundaryNotFoundError
-from app.application.access_control.models import (
+from app.application.access_control.boundary_models import (
     ActorContext,
     ActorRole,
     Permission,
 )
-from app.application.access_control.policy import AuthorizationService
+from app.application.access_control.errors import TenantBoundaryNotFoundError
+from app.application.access_control.policies import AuthorizationService
 from app.application.common.exceptions import AuthorizationError
 from app.domain.corporate.identifiers import CorporateId
 
@@ -32,7 +32,7 @@ def test_tc45_06_Event種別管理と参照に必要な権限が定義されて�
 
 def test_permission_classification_incomplete_raises_runtime_error() -> None:
     # Arrange
-    from app.application.access_control.policy import (
+    from app.application.access_control.policies import (
         _verify_permission_classification,
     )
 
@@ -46,7 +46,7 @@ def test_permission_classification_incomplete_raises_runtime_error() -> None:
 
 def test_permission_classification_overlapping_raises_runtime_error() -> None:
     # Arrange
-    from app.application.access_control.policy import (
+    from app.application.access_control.policies import (
         _verify_permission_classification,
     )
 
@@ -64,7 +64,7 @@ def test_permission_classification_is_verified_under_optimized_mode() -> None:
     """`assert` へ戻すと `python -O` で検証が消えることを回帰テストで防ぐ。"""
     # Arrange
     snippet = (
-        "from app.application.access_control.policy import "
+        "from app.application.access_control.policies import "
         "_verify_permission_classification as verify\n"
         "verify(vendor_only=frozenset(), corporate_admin=frozenset())\n"
     )

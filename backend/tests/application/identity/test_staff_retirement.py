@@ -7,8 +7,10 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from app.application.composition.staff_integrity import StaffAssignmentWriteGuard
-from app.application.staff.deactivate_staff import (
+from app.application.composition.adapters.staff_integrity import (
+    StaffAssignmentWriteGuard,
+)
+from app.application.staff.commands.deactivate_staff import (
     DeactivateStaffCommand,
     DeactivateStaffUseCase,
 )

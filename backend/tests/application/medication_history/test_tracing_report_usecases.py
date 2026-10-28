@@ -4,15 +4,17 @@ from datetime import timedelta
 
 import pytest
 
-from app.application.corporate.exceptions import CorporateInactiveError
-from app.application.medication_history.exceptions import MedicationHistoryNotFoundError
-from app.application.medication_history.finalize_medication_history import (
+from app.application.corporate.errors import CorporateInactiveError
+from app.application.medication_history.commands.finalize_medication_history import (
     FinalizeMedicationHistoryCommand,
 )
-from app.application.medication_history.inputs import (
+from app.application.medication_history.commands.record_tracing_report import (
     RecordTracingReportCommand,
+)
+from app.application.medication_history.commands.record_tracing_report_response import (
     RecordTracingReportResponseCommand,
 )
+from app.application.medication_history.errors import MedicationHistoryNotFoundError
 from app.domain.medication_history.exceptions import (
     CounselorQualificationError,
     TracingReportAlreadyRespondedError,

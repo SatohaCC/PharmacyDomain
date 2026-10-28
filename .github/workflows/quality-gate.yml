@@ -52,7 +52,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: pnpm typecheck:backend
 
-      - name: Lint する
+      - name: Lint とDomain・Applicationハーネスを検査する
         if: ${{ !cancelled() }}
         run: pnpm lint:backend
 

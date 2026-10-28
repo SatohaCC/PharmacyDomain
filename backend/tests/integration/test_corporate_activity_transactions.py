@@ -7,10 +7,10 @@ import pytest
 from sqlalchemy import column, func, select, table
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.corporate.change_corporate_status import (
+from app.application.corporate.commands.change_corporate_status import (
     ChangeCorporateStatusCommand,
 )
-from app.application.corporate.exceptions import CorporateInactiveError
+from app.application.corporate.errors import CorporateInactiveError
 from app.domain.staff.primitives import JobTitle
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,

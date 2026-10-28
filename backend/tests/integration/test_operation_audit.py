@@ -6,14 +6,14 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.access_control.models import (
+from app.application.access_control.boundary_models import (
     ActorContext,
     ActorRole,
     ResolvedActorContext,
 )
-from app.application.access_control.policy import AuthorizationService
-from app.application.corporate.register_corporate import RegisterCorporateCommand
-from app.application.identity.resolve_actor import UnavailableIdentityError
+from app.application.access_control.policies import AuthorizationService
+from app.application.corporate.commands.models import RegisterCorporateCommand
+from app.application.identity.errors import UnavailableIdentityError
 from app.domain.identity.entities import UserAccount
 from app.domain.shared.actor import UserAccountId
 from app.infrastructure.di.repositories import (

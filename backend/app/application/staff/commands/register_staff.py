@@ -1,0 +1,191 @@
+"""Applicationのregister_staffを定義する。"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import date
+
+from app.application.access_control.boundary_models import Permission
+from app.application.access_control.interfaces.corporate_access import (
+    CorporateAccessBoundary,
+)
+from app.application.common.input_normalization import to_optional_text
+from app.application.staff.commands.services.support import load_store_or_raise
+from app.application.staff.interfaces.references import StaffStoreReference
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.shared.person_name import (
+    PersonName,
+    PersonNameKana,
+    PersonNameKanaPart,
+    PersonNamePart,
+    PersonNames,
+)
+from app.domain.staff.entities import Staff
+from app.domain.staff.identifiers import StaffId
+from app.domain.staff.primitives import (
+    DietitianRegistrationNumber,
+    InsurancePharmacistRegistrationNumber,
+    JobTitle,
+    PharmacistLicenseNumber,
+    SellerRegistrationNumber,
+    StaffCode,
+    StaffEmailAddress,
+    StaffPhoneNumber,
+)
+from app.domain.staff.repositories import StaffRepository
+from app.domain.staff.services import (
+    StaffCodeUniquenessService,
+    StaffStoreAssignmentService,
+)
+from app.domain.staff.value_objects import (
+    BaseQualificationProfile,
+    DietitianProfile,
+    InsurancePharmacistRegistration,
+    PharmacistProfile,
+    RegisteredSellerProfile,
+    StaffQualifications,
+)
+from app.domain.store.identifiers import StoreId
+
+
+@dataclass(frozen=True, kw_only=True)
+class RegisterStaffCommand:
+    """スタッフ新規登録に必要な入力データ（DTO）。"""
+
+    corporate_id: str
+    last_name: str
+    first_name: str
+    last_name_kana: str
+    first_name_kana: str
+    job_title: str | None = None
+    code: str | None = None
+    phone_number: str | None = None
+    email: str | None = None
+    initial_home_store_id: str | None = None
+    initial_start_date: date | None = None
+    pharmacist_license_number: str | None = None
+    insurance_pharmacist_registration_number: str | None = None
+    insurance_pharmacist_registration_date: date | None = None
+    registered_seller_number: str | None = None
+    dietitian_registration_number: str | None = None
+    is_registered_dietitian: bool = True
+
+
+class RegisterStaffUseCase:
+    """スタッフ新規登録ユースケース。"""
+
+    def __init__(
+        self,
+        staff_repository: StaffRepository,
+        store_repository: StaffStoreReference,
+        uniqueness_service: StaffCodeUniquenessService,
+        assignment_service: StaffStoreAssignmentService,
+        corporate_access: CorporateAccessBoundary,
+    ) -> None:
+        self._staff_repository = staff_repository
+        self._store_repository = store_repository
+        self._uniqueness_service = uniqueness_service
+        self._assignment_service = assignment_service
+        self._corporate_access = corporate_access
+
+    def _build_qualifications(
+        self, command: RegisterStaffCommand
+    ) -> StaffQualifications:
+        """コマンドの入力値から資格プロファイル一覧を組み立てる。"""
+        profiles: list[BaseQualificationProfile] = []
+        raw_pharmacist_num = to_optional_text(command.pharmacist_license_number)
+        if raw_pharmacist_num:
+            license_num = PharmacistLicenseNumber(raw_pharmacist_num)
+            insurance_reg = None
+            raw_ins_num = to_optional_text(
+                command.insurance_pharmacist_registration_number
+            )
+            if raw_ins_num and command.insurance_pharmacist_registration_date:
+                insurance_reg = InsurancePharmacistRegistration(
+                    registration_number=InsurancePharmacistRegistrationNumber(
+                        raw_ins_num
+                    ),
+                    registration_date=command.insurance_pharmacist_registration_date,
+                )
+            profiles.append(
+                PharmacistProfile(
+                    license_number=license_num, insurance_registration=insurance_reg
+                )
+            )
+        raw_seller_num = to_optional_text(command.registered_seller_number)
+        if raw_seller_num:
+            profiles.append(
+                RegisteredSellerProfile(
+                    registration_number=SellerRegistrationNumber(raw_seller_num)
+                )
+            )
+        raw_dietitian_num = to_optional_text(command.dietitian_registration_number)
+        if raw_dietitian_num:
+            profiles.append(
+                DietitianProfile(
+                    registration_number=DietitianRegistrationNumber(raw_dietitian_num),
+                    is_registered_dietitian=command.is_registered_dietitian,
+                )
+            )
+        return (
+            StaffQualifications.from_profiles(*profiles)
+            if profiles
+            else StaffQualifications.empty()
+        )
+
+    async def execute(self, command: RegisterStaffCommand) -> StaffId:
+        """スタッフを登録し、採番されたIDを返す。
+
+        集約そのものを返さない。返すと、呼び出し側が導出メソッドを適用日なしで
+        呼べてしまい、「いつ時点の主所属か」が暗黙になる。適用日つきの表現が
+        要るなら ``GetStaffUseCase`` を使う。
+        """
+        corporate_id = CorporateId.parse(command.corporate_id)
+        await self._corporate_access.require_active(
+            corporate_id=corporate_id, permission=Permission.MANAGE_STAFF
+        )
+        raw_code = to_optional_text(command.code)
+        code = StaffCode(raw_code) if raw_code else None
+        if code is not None:
+            await self._uniqueness_service.ensure_code_is_unique(
+                corporate_id=corporate_id, code=code
+            )
+        names = PersonNames(
+            kanji=PersonName(
+                last_name=PersonNamePart(command.last_name),
+                first_name=PersonNamePart(command.first_name),
+            ),
+            kana=PersonNameKana(
+                last_name=PersonNameKanaPart(command.last_name_kana),
+                first_name=PersonNameKanaPart(command.first_name_kana),
+            ),
+        )
+        raw_phone = to_optional_text(command.phone_number)
+        phone_number = StaffPhoneNumber(raw_phone) if raw_phone else None
+        raw_email = to_optional_text(command.email)
+        email = StaffEmailAddress(raw_email) if raw_email else None
+        raw_job_title = to_optional_text(command.job_title)
+        job_title = JobTitle(raw_job_title) if raw_job_title else None
+        qualifications = self._build_qualifications(command)
+        staff = Staff(
+            id=StaffId.generate(),
+            corporate_id=corporate_id,
+            names=names,
+            qualifications=qualifications,
+            job_title=job_title,
+            code=code,
+            phone_number=phone_number,
+            email=email,
+            affiliations=(),
+            is_active=True,
+        )
+        if command.initial_home_store_id and command.initial_start_date:
+            store_id = StoreId.parse(command.initial_home_store_id)
+            store = await load_store_or_raise(
+                self._store_repository, corporate_id=corporate_id, store_id=store_id
+            )
+            staff = self._assignment_service.assign_home_store(
+                staff, store, command.initial_start_date
+            )
+        await self._staff_repository.save(staff)
+        return staff.id

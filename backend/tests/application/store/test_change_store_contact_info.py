@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.store.change_store_contact_info import (
+from app.application.store.commands.change_store_contact_info import (
     ChangeStoreContactInfoCommand,
     ChangeStoreContactInfoUseCase,
 )

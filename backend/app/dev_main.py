@@ -31,7 +31,7 @@ from typing import assert_never
 
 from fastapi import FastAPI
 
-from app.application.access_control.models import (
+from app.application.access_control.boundary_models import (
     ActorContext,
     ActorRole,
     ResolvedActorContext,
