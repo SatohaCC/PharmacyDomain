@@ -515,10 +515,68 @@ unmatched_ignore_imports_alerting = "none"
 
 [[tool.importlinter.contracts]]
 id = "foundation-boundary"
-name = "Domain基盤は共有語彙と業務の公開IDにも依存しない"
+name = "Domain基盤は共有語彙・業務ID・外部フレームワークにも依存しない"
 type = "forbidden"
 source_modules = ["app.domain.foundation"]
-forbidden_modules = ["app.domain.shared", "app.domain.*.identifiers"]
+forbidden_modules = [
+    "app.domain.shared",
+    "app.domain.*.identifiers",
+    "fastapi",
+    "sqlalchemy",
+]
+
+[[tool.importlinter.contracts]]
+id = "shared-boundary"
+name = "共有語彙は業務コンテキストや外側の層を参照しない"
+type = "forbidden"
+source_modules = ["app.domain.shared"]
+forbidden_modules = [
+    "app.domain.care_event",
+    "app.domain.corporate",
+    "app.domain.coverage",
+    "app.domain.dispensing",
+    "app.domain.identity",
+    "app.domain.medication_history",
+    "app.domain.medicine_catalog",
+    "app.domain.patient",
+    "app.domain.prescription",
+    "app.domain.reception",
+    "app.domain.staff",
+    "app.domain.store",
+    "app.application",
+    "app.infrastructure",
+    "app.presentational",
+    "fastapi",
+    "sqlalchemy",
+]
+
+[[tool.importlinter.contracts]]
+id = "application-common"
+name = "Application共通処理は他コンテキストやDomain、外部フレームワークを参照しない"
+type = "forbidden"
+source_modules = ["app.application.common"]
+forbidden_modules = [
+    "app.domain",
+    "app.application.access_control",
+    "app.application.care_event",
+    "app.application.corporate",
+    "app.application.coverage",
+    "app.application.dispensing",
+    "app.application.identity",
+    "app.application.integration",
+    "app.application.medication_history",
+    "app.application.medicine_catalog",
+    "app.application.patient",
+    "app.application.prescription",
+    "app.application.reception",
+    "app.application.staff",
+    "app.application.store",
+    "app.application.composition",
+    "app.infrastructure",
+    "app.presentational",
+    "fastapi",
+    "sqlalchemy",
+]
 
 [[tool.importlinter.contracts]]
 id = "application-contexts"

@@ -102,6 +102,11 @@ def _run_contract(
         ("presentation-domain", "app.presentational.example", "app.domain.example"),
         ("presentation-infrastructure", "app.presentational.example", "app.bootstrap"),
         ("presentation-infrastructure", "app.presentational.example", "sqlalchemy"),
+        ("foundation-boundary", "app.domain.foundation.example", "fastapi"),
+        ("shared-boundary", "app.domain.shared.example", "app.domain.store.example"),
+        ("shared-boundary", "app.domain.shared.example", "fastapi"),
+        ("application-common", "app.application.common.example", "app.domain.example"),
+        ("application-common", "app.application.common.example", "fastapi"),
         (
             "domain-primitives",
             "app.domain.example.primitives",
