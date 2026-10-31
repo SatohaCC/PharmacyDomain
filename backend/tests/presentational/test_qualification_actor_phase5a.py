@@ -91,7 +91,7 @@ from app.domain.medication_history.exceptions import CounselorQualificationError
 from app.domain.medication_history.services import CounselorQualificationService
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.identifiers import StaffId
-from app.domain.staff.primitives import PharmacistLicenseNumber
+from app.domain.staff.primitives import PharmacistLicenseNumber, StaffStatus
 from app.domain.staff.value_objects import (
     AffiliationPeriod,
     PharmacistProfile,
@@ -858,7 +858,9 @@ async def test_TC089_Staff有効性と所属期間境界_停止や期間外は�
             )
 
     # 2. 退職済み（is_active=False）の薬剤師は期間内でも AuthorizationError
-    retired_staff = replace(active_staff, id=StaffId.generate(), is_active=False)
+    retired_staff = replace(
+        active_staff, id=StaffId.generate(), status=StaffStatus.RETIRED
+    )
     await staff_repo.save(retired_staff)
     for adapter in (disp_adapter, presc_adapter, hist_adapter):
         with pytest.raises(AuthorizationError):

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.store.entities import Store, StoreManagerAssignment
 from app.domain.store.exceptions import (
@@ -48,6 +50,13 @@ class StoreManagerAssignmentService:
         ):
             raise ManagerAssignmentConflictError(
                 "閉局店舗、退職者、薬剤師資格のないスタッフには任命できません。"
+            )
+        if (
+            staff.weekly_contract_hours is not None
+            and staff.weekly_contract_hours < Decimal("32.0")
+        ):
+            raise ManagerAssignmentConflictError(
+                "管理薬剤師は週32時間以上の勤務要件（常勤要件）を満たす必要があります。"
             )
         period = assignment.period
         if any(

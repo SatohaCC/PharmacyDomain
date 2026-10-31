@@ -95,6 +95,13 @@ def test_登録した法人を取得できる(api: Api) -> None:
             "require_prescription_audit": {"value": False, "overridable": False},
             "prohibit_self_verification": {"value": False, "overridable": False},
         },
+        "corporate_type": "stock_company",
+        "corporate_number": None,
+        "invoice_number": None,
+        "postal_code": None,
+        "address_line": None,
+        "phone_number": None,
+        "email": None,
     }
 
 

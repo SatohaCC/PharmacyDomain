@@ -62,5 +62,4 @@ def create_staff(
         code=StaffCode(code) if code else None,
         phone_number=None,
         email=None,
-        is_active=True,
     )

@@ -192,3 +192,32 @@ class NarcoticsLicenseNumber(BaseNormalizedString):
         """空でないことを検証する。"""
         if not self.value:
             raise DomainValidationError("麻薬小売業者免許番号は空にできません。")
+
+
+class PublicExpenseDesignationNumber(BaseNormalizedString):
+    """公費指定・認定医療機関番号。"""
+
+    def validate(self) -> None:
+        if not self.value:
+            raise DomainValidationError("指定・認定番号は空にできません。")
+        if len(self.value) > 30:
+            raise DomainValidationError(
+                "指定・認定番号は30文字以内で指定してください。"
+            )
+
+
+class DiseaseCategory(StrEnum):
+    """専門医療機関連携薬局の対象傷病区分。"""
+
+    CANCER = "cancer"  # がん
+    HIV = "hiv"  # HIV
+    OTHER = "other"  # その他
+
+    @property
+    def label(self) -> str:
+        labels = {
+            self.CANCER: "がん",
+            self.HIV: "HIV",
+            self.OTHER: "その他",
+        }
+        return labels[self]

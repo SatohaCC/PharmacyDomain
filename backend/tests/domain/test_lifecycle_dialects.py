@@ -57,7 +57,7 @@ LIFECYCLE_DIALECTS: dict[str, str] = {
     # 方言は ``status_enum`` 1つに収まる。
     "Prescription": "status_enum",
     "Reception": "none",
-    "Staff": "active_flag",
+    "Staff": "status_enum",
     "Store": "status_enum",
     "StoreManagerAssignment": "status_enum",
     "AccountPerson": "none",
@@ -77,8 +77,6 @@ LIFECYCLE_DIALECTS: dict[str, str] = {
 ACTIVE_FLAG_KEY_REUSE: dict[str, bool] = {
     # 誤った患者へ紐付けた外部IDを無効化してから正しい患者へ付け替えるため、再利用を許す。
     "PatientExternalIdentifier": True,
-    # 過去の調剤録・監査の追跡を壊さないため、スタッフコードは再利用させない。
-    "Staff": False,
     # Eventには作成時の種別名を保持するため、無効化後の表示名再利用を許す。
     "EventDefinition": True,
     # 運営者のメールアドレスは無効化後も一意制約を維持し再利用させない。

@@ -33,6 +33,13 @@ class CorporateResponseDto:
     representative_name: str
     is_active: bool
     policy: CorporatePolicyDto
+    corporate_type: str = "stock_company"
+    corporate_number: str | None = None
+    invoice_number: str | None = None
+    postal_code: str | None = None
+    address_line: str | None = None
+    phone_number: str | None = None
+    email: str | None = None
 
     @classmethod
     def from_entity(cls, corporate: Corporate) -> Self:
@@ -51,5 +58,28 @@ class CorporateResponseDto:
                     value=corporate.policy.prohibit_self_verification.value,
                     overridable=corporate.policy.prohibit_self_verification.overridable,
                 ),
+            ),
+            corporate_type=corporate.corporate_type.value,
+            corporate_number=(
+                corporate.corporate_number.value if corporate.corporate_number else None
+            ),
+            invoice_number=(
+                corporate.invoice_number.value if corporate.invoice_number else None
+            ),
+            postal_code=(
+                corporate.address.postal_code.value if corporate.address else None
+            ),
+            address_line=(
+                corporate.address.address_line.value if corporate.address else None
+            ),
+            phone_number=(
+                corporate.contact_info.phone_number.value
+                if corporate.contact_info
+                else None
+            ),
+            email=(
+                corporate.contact_info.email.value
+                if corporate.contact_info and corporate.contact_info.email
+                else None
             ),
         )

@@ -15,6 +15,19 @@ import pytest
 
 import app.domain
 from app.domain.corporate.entities import Corporate
+from app.domain.corporate.primitives import (
+    CorporateAddressLine,
+    CorporateEmailAddress,
+    CorporateNumber,
+    CorporatePhoneNumber,
+    CorporatePostalCode,
+    CorporateType,
+    InvoiceRegistrationNumber,
+)
+from app.domain.corporate.value_objects import (
+    CorporateAddress,
+    CorporateContactInfo,
+)
 from app.domain.dispensing.entities import DispensingProcess
 from app.domain.dispensing.exceptions import VerificationStatusMismatchError
 from app.domain.dispensing.primitives import (
@@ -80,8 +93,12 @@ from app.domain.staff.entities import Staff
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import (
     DietitianRegistrationNumber,
+    EmploymentType,
+    LeaveReason,
     PharmacistLicenseNumber,
     SellerRegistrationNumber,
+    StaffStatus,
+    WeeklyContractHours,
 )
 from app.domain.staff.value_objects import (
     BaseQualificationProfile,
@@ -95,12 +112,16 @@ from app.domain.store.identifiers import StoreId
 from app.domain.store.primitives import (
     BusinessHoursNote,
     BusinessWeekday,
+    PublicExpenseDesignationNumber,
     StoreOpeningState,
 )
 from app.domain.store.value_objects import (
     BusinessDayException,
     BusinessHours,
     BusinessHourSlot,
+    CommunityLinkageCertification,
+    PharmacyCertifications,
+    PublicExpenseDesignations,
     WeekdayBusinessHours,
 )
 from app.infrastructure.postgres.codec import (
@@ -164,6 +185,40 @@ def test_法人が_JSONBを経由して往復できる() -> None:
 
     # Assert
     assert encode_aggregate(restored) == encode_aggregate(corporate)
+
+
+def test_法人の社会ルール属性_JSONBを経由して往復できる() -> None:
+    """法人番号・インボイス番号・法人格・住所・連絡先まで含めて復元できる。"""
+    # Arrange
+    corporate = create_corporate()
+    corp_number = CorporateNumber("7123456789012")
+    invoice = InvoiceRegistrationNumber("T7123456789012")
+    address = CorporateAddress(
+        postal_code=CorporatePostalCode("100-0001"),
+        address_line=CorporateAddressLine("東京都千代田区千代田1-1"),
+    )
+    contact = CorporateContactInfo(
+        phone_number=CorporatePhoneNumber("03-1234-5678"),
+        email=CorporateEmailAddress("info@example.com"),
+    )
+    full_corporate = (
+        corporate.change_corporate_type(CorporateType.MEDICAL_CORPORATION)
+        .update_corporate_number(corp_number)
+        .update_invoice_number(invoice)
+        .change_address(address)
+        .change_contact_info(contact)
+    )
+
+    # Act
+    restored = decode_aggregate(encode_aggregate(full_corporate), Corporate)
+
+    # Assert
+    assert encode_aggregate(restored) == encode_aggregate(full_corporate)
+    assert restored.corporate_type == CorporateType.MEDICAL_CORPORATION
+    assert restored.corporate_number == corp_number
+    assert restored.invoice_number == invoice
+    assert restored.address == address
+    assert restored.contact_info == contact
 
 
 def test_処方箋が_JSONBを経由して往復できる() -> None:
@@ -515,6 +570,25 @@ def test_判別子のない資格プロファイルは_別の資格として復�
         decode_aggregate(payload, Staff)
 
 
+def test_スタッフの社会ルール属性_JSONBを経由して往復できる() -> None:
+    """雇用形態・週所定労働時間・休職ステータスまで含めて復元できる。"""
+    staff = create_staff()
+    customized = (
+        staff.change_employment_type(EmploymentType.PART_TIME)
+        .change_weekly_contract_hours(WeeklyContractHours(Decimal("25.5")))
+        .start_leave(reason=LeaveReason.CHILDCARE, left_on=date(2026, 5, 1))
+    )
+
+    restored = decode_aggregate(encode_aggregate(customized), Staff)
+
+    assert encode_aggregate(restored) == encode_aggregate(customized)
+    assert restored.employment_type == EmploymentType.PART_TIME
+    assert restored.weekly_contract_hours == WeeklyContractHours(Decimal("25.5"))
+    assert restored.status == StaffStatus.ON_LEAVE
+    assert restored.leave_reason == LeaveReason.CHILDCARE
+    assert restored.is_active is False
+
+
 def _store_with_hours() -> Store:
     """昼休みと特例日を持つ開局時間を設定した店舗を作る。"""
     weekly = tuple(
@@ -570,6 +644,35 @@ def test_開局時間の無い古い行も_店舗として復元できる() -> N
 
     # Assert
     assert restored.business_hours is None
+
+
+def test_店舗の社会ルール属性_JSONBを経由して往復できる() -> None:
+    """公費指定・薬局機能認定・安全管理責任者まで含めて復元できる。"""
+    store = create_store()
+    staff_id = StaffId.generate()
+    designations = PublicExpenseDesignations(
+        public_assistance_number=PublicExpenseDesignationNumber("130001"),
+        support_for_independence_number=PublicExpenseDesignationNumber("139999"),
+    )
+    certifications = PharmacyCertifications(
+        community_linkage=CommunityLinkageCertification(
+            certification_number=PublicExpenseDesignationNumber("CL-001"),
+            valid_from=date(2026, 4, 1),
+            valid_to=date(2027, 3, 31),
+        )
+    )
+    customized = (
+        store.update_public_expense_designations(designations)
+        .update_certifications(certifications)
+        .appoint_safety_manager(staff_id)
+    )
+
+    restored = decode_aggregate(encode_aggregate(customized), Store)
+
+    assert encode_aggregate(restored) == encode_aggregate(customized)
+    assert restored.public_expense_designations == designations
+    assert restored.certifications == certifications
+    assert restored.safety_manager_id == staff_id
 
 
 def test_TC30_患者集約のcodec往復() -> None:

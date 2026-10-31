@@ -3,14 +3,119 @@
 from __future__ import annotations
 
 import re
+from decimal import Decimal
 from enum import StrEnum
+from typing import ClassVar
 
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.primitives.primitives import (
     BaseEmailAddress,
+    BaseNonNegativeDecimal,
     BaseNormalizedString,
     BaseTelephoneNumber,
 )
+
+
+class EmploymentType(StrEnum):
+    """スタッフの雇用形態（労働契約区分）。"""
+
+    REGULAR = "regular"  # 正社員（常勤・無期雇用）
+    FIXED_TERM = "fixed_term"  # 契約社員（有期雇用）
+    PART_TIME = "part_time"  # パート・アルバイト（非常勤・短時間）
+    DISPATCHED = "dispatched"  # 派遣スタッフ
+
+    @property
+    def label(self) -> str:
+        labels = {
+            self.REGULAR: "正社員",
+            self.FIXED_TERM: "契約社員",
+            self.PART_TIME: "パート・アルバイト",
+            self.DISPATCHED: "派遣スタッフ",
+        }
+        return labels[self]
+
+
+class StaffStatus(StrEnum):
+    """スタッフの就業状態。"""
+
+    ACTIVE = "active"  # 通常稼働中
+    ON_LEAVE = "on_leave"  # 休職中（産前産後・育児・介護・傷病等）
+    RETIRED = "retired"  # 退職済み
+
+    @property
+    def label(self) -> str:
+        labels = {
+            self.ACTIVE: "稼働中",
+            self.ON_LEAVE: "休職中",
+            self.RETIRED: "退職",
+        }
+        return labels[self]
+
+
+class LeaveReason(StrEnum):
+    """休職理由。"""
+
+    MATERNITY = "maternity"  # 産前産後休業
+    CHILDCARE = "childcare"  # 育児休業
+    FAMILY_CARE = "family_care"  # 介護休業
+    INJURY_ILLNESS = "injury_illness"  # 私傷病休職
+    OTHER = "other"  # その他休職
+
+    @property
+    def label(self) -> str:
+        labels = {
+            self.MATERNITY: "産前産後休業",
+            self.CHILDCARE: "育児休業",
+            self.FAMILY_CARE: "介護休業",
+            self.INJURY_ILLNESS: "傷病休職",
+            self.OTHER: "その他休職",
+        }
+        return labels[self]
+
+
+class WeeklyContractHours(BaseNonNegativeDecimal):
+    """週所定労働時間（時間単位）。
+
+    スポット応援（ヘルプ）要員として事前届出・登録を行う場合など、
+    契約上の基本所定労働時間が0時間となる場合も許容する（0.0〜80.0時間）。
+    """
+
+    max_integer_digits: ClassVar[int] = 2
+    max_decimal_places: ClassVar[int] = 2
+    quantity_name: ClassVar[str] = "週所定労働時間"
+
+    def validate(self) -> None:
+        if not isinstance(self.value, Decimal):
+            raise DomainValidationError(
+                f"{self.quantity_name}は数値である必要があります。"
+            )
+        if not self.value.is_finite():
+            raise DomainValidationError(
+                f"{self.quantity_name}は有限の数値である必要があります。"
+            )
+        if self.value < Decimal("0"):
+            raise DomainValidationError(
+                "週所定労働時間は0以上の値である必要があります。"
+            )
+        if self.value > Decimal("80.0"):
+            raise DomainValidationError(
+                "週所定労働時間は80時間以内で指定してください。"
+            )
+        self._ensure_digits_within_limit()
+
+    def full_time_equivalent(
+        self, standard_hours: Decimal = Decimal("40.0")
+    ) -> Decimal:
+        """基準労働時間（既定40時間）に対する常勤換算比率を算出する。"""
+        if standard_hours <= Decimal("0"):
+            raise DomainValidationError(
+                "基準労働時間は0より大きい値である必要があります。"
+            )
+        return (self.value / standard_hours).quantize(Decimal("0.01"))
+
+    def is_full_time(self, threshold_hours: Decimal = Decimal("32.0")) -> bool:
+        """常勤要件（既定週32時間以上）を満たすか判定する。"""
+        return self.value >= threshold_hours
 
 
 class StaffCode(BaseNormalizedString):

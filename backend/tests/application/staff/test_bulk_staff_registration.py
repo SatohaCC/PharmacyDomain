@@ -36,7 +36,7 @@ from app.domain.identity.identifiers import CorporateMembershipId
 from app.domain.identity.primitives import AccountStatus, MembershipRole
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.identifiers import StaffId
-from app.domain.staff.primitives import PharmacistLicenseNumber
+from app.domain.staff.primitives import PharmacistLicenseNumber, StaffStatus
 from app.domain.staff.services import (
     StaffCodeUniquenessService,
     StaffStoreAssignmentService,
@@ -488,7 +488,7 @@ async def test_スタッフ一括登録_法人ロック待機中に管理者状�
                     staff, staff_store_source(other_store), date(2026, 4, 1)
                 )
             else:
-                staff = replace(staff, is_active=False)
+                staff = replace(staff, status=StaffStatus.RETIRED)
             await fixture.staff_repo.save(staff)
 
     fixture.lock.on_corporate_lock = invalidate
