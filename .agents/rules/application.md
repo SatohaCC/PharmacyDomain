@@ -88,7 +88,7 @@ Domainモデルをモックしない。実オブジェクトとインメモリRe
 
 ## ハーネスと品質ゲート
 
-backend/tools/check_application_architecture.pyがAPP000〜APP015をASTで検査する。構文、配置、相対/wildcard/import初期化、外層依存、役割方向、Handler依存、公開範囲、commonの独立、I/O、動的import、循環、Presentation境界、Command/Query分離、Repository参照を対象とする。個別違反の抑制・baselineは作らない。
+backend/tools/check_application_architecture.pyが構文、配置、空initializer、外層依存、役割方向、Handler依存、公開範囲、commonの独立、I/O、直接の`__import__()`、循環、Presentation境界、Command/Query分離、Repository参照をASTで検査する。相対import・wildcard・import経由の動的呼出しはRuffのTID252・F403・TID251へ集約し、APP002・APP003は廃止する。個別違反の抑制・baselineは作らない。
 
 ルートからpnpm --filter pharmacydomain-api run lint:applicationとlint:application:harnessで診断できる。通常のpnpm lint:backendでも両方を実行し、pytestも実ソース・合成例・CLIを検証する。通常ゲートは全規則を使う。imports/enforcedやfeatureを絞った診断の成功を、全規則適合と報告しない。
 

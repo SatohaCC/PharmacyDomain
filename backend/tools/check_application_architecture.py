@@ -22,9 +22,7 @@ class Finding:
     feature: str = ""
 
 
-IMPORT_RULES = frozenset(
-    {"APP002", "APP003", "APP004", "APP005", "APP009", "APP010", "APP011", "APP000"}
-)
+IMPORT_RULES = frozenset({"APP004", "APP005", "APP009", "APP010", "APP011", "APP000"})
 ROOT_ROLES = {
     "boundary_models": "boundary_models",
     "values": "values",
@@ -415,19 +413,11 @@ def check(
                 targets = [alias.name for alias in node.names]
             elif isinstance(node, ast.ImportFrom):
                 if node.level:
-                    emit(
-                        path,
-                        node.lineno,
-                        "APP002",
-                        "appから始まる絶対importを使用してください",
-                    )
                     package = module.split(".")[:-1]
                     base_parts = package[: len(package) - node.level + 1]
                     base = ".".join(base_parts + ([node.module] if node.module else []))
                 else:
                     base = node.module or ""
-                if any(alias.name == "*" for alias in node.names):
-                    emit(path, node.lineno, "APP003", "wildcard importは禁止です")
                 targets = [base]
                 # package形式のimportも実際の参照先へ解決する。
                 for alias in node.names:

@@ -278,7 +278,7 @@ def upgrade() -> None:
         ),
     )
 
-    applied_at = datetime.now(UTC)
+    applied_at = datetime.now(UTC)  # noqa: TID251 -- 移行処理の適用日時を記録する。
     event_type_ids = _seed_standard_definitions(applied_at)
     _backfill_records(applied_at, event_type_ids)
 

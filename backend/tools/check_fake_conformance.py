@@ -139,7 +139,7 @@ def _is_overridden(cls: type[object], member_name: str) -> bool:
 def analyze_module(module_name: str) -> tuple[Violation, ...]:
     """1モジュールを import し、未実装メンバを列挙する。"""
     try:
-        module = importlib.import_module(module_name)
+        module = importlib.import_module(module_name)  # noqa: TID251 -- 検査対象のProtocol継承を実行時に解決する。
     except Exception as error:  # import 不能そのものが違反である
         raise FakeConformanceError(
             f"{module_name} を import できません: {type(error).__name__}: {error}"

@@ -420,8 +420,6 @@ def check(root: Path, *, context: str | None = None) -> list[Finding]:
                     )
 
     def validate_dependency(s: Source, node: ast.AST, target: str) -> None:
-        if target.endswith(".*"):
-            emit(s.path, node, "DOM006", "ワイルドカードimportは禁止です")
         top = target.split(".")[0]
         if target.startswith("app.domain."):
             parts = target.split(".")

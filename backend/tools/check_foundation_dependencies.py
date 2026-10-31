@@ -1,4 +1,4 @@
-"""共通基盤の標準ライブラリ制限と、動的importによる検査回避を確認する。"""
+"""共通基盤の標準ライブラリと内部依存の許可範囲を確認する。"""
 
 import ast
 import sys
@@ -35,31 +35,3 @@ def forbidden_imports(
                 continue
             violations.append(f"{node.lineno}:{name}")
     return tuple(violations)
-
-
-def dynamic_import_calls(source: str) -> tuple[int, ...]:
-    """直接・別名の動的import呼出しを返す。"""
-    tree = ast.parse(source)
-    aliases: dict[str, str] = {}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                aliases[alias.asname or alias.name] = alias.name
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            for alias in node.names:
-                aliases[alias.asname or alias.name] = f"{node.module}.{alias.name}"
-
-    def qualified(node: ast.expr) -> str:
-        if isinstance(node, ast.Name):
-            return aliases.get(node.id, node.id)
-        if isinstance(node, ast.Attribute):
-            return f"{qualified(node.value)}.{node.attr}"
-        return ""
-
-    return tuple(
-        node.lineno
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and qualified(node.func)
-        in {"__import__", "builtins.__import__", "importlib.import_module"}
-    )

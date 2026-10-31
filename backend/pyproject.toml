@@ -48,6 +48,8 @@ select = [
     "SIM",    # 条件分岐等の簡素化
     "TID251", # 指定APIの使用禁止
     "TID252", # 相対importの禁止
+    "PGH003", # コードを指定しない型検査抑制の禁止
+    "PGH004", # コードを指定しないリンター抑制の禁止
     "RUF012", # 可変なクラス属性の初期値
     "RUF100", # 不要なnoqa
 ]
@@ -56,9 +58,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["TID251", "TID252"]
-"tools/**" = ["TID251", "TID252"]
-"migrations/**" = ["TID251", "TID252"]
+"tests/**" = ["TID251"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
