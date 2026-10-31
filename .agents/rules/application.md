@@ -62,7 +62,11 @@ backend/application-architecture.tomlのdepends_onとpublic_modulesを両方満�
 
 認証基盤が生成したActorContextと、操作対象のcorporate_idを分離する。ResolveActorUseCaseはReaderのget_by_subjectからアカウント・本人・所属の不変な参照事実を受け取り、停止状態・対応の整合を検証してResolvedActorContextを構築する。Readerへ有効性判定やロール付与を移さない。HTTP入力から信頼済み操作者を組み立てない。ベンダー管理者は全法人、法人管理者は自法人だけを操作できる。他テナントや未存在は404相当の例外へ畳み込み、参照BoundaryのRaisesに明記する。
 
+**Actorの排他整合性と監査制約**: `ResolvedActorContext` において、`operator_id`（ベンダー運営者）と `person_id` / `account_id`（法人所属者）は厳密に排他とする。DBの `ck_operation_audits_audit_actor` 制約により、両方が非NULL、または両方がNULLの状態で保存（UoWコミット）すると即座に整合性例外で失敗する。ベンダー専用操作（閉局取消など）のドメインモデルや状態履歴は、`person_id`/`account_id` の代わりに `operator_id` を保持できる型設計にする。
+
 無効法人の通常操作はCorporateAccessServiceで拒否し、法人状態変更はベンダー管理者専用とする。店舗ロールはApplicationの権限表とRepositoryReadScopeによるSQLの取得条件の両方で制限する。宣言の無いテーブルは読めない。取得後のフィルタだけで代替しない。
+
+**店舗セッションスコープと選択要件**: 店舗ロールを持つActorは `require_store_selection=True` となり、店舗選択（`selected_store_id`）が未完了のまま店舗業務権限を要求すると `StoreContextRequiredError` (409) となる。また、スタッフActor（`staff_id` を持つユーザー）が選択可能な店舗は、法人の許可店舗とスタッフ自身の当日有効な所属店舗（`StoreAffiliation`）の積集合に限る。テストで店舗業務を実行する際は、Actorに `selected_store_id` を付与し、スタッフには該当店舗の所属（主所属または兼務）を必ずセットアップする。
 
 ユーザーの権限は一般ユーザー（店舗単位）・管理薬剤師（有効な任命の一店舗）・法人管理者（法人単位）として加算する。法人管理権限と店舗の利用範囲を分け、法人管理者に店舗利用権限を付与できる。管理薬剤師は自店舗を利用するユーザーの自店舗分だけを編集・停止・再開でき、複数店舗利用者や法人管理者も対象に含める。他店舗の付与内容、法人管理権限、法人アクセス権全体の状態、アカウント全体の状態は変更できない。有効な管理薬剤師本人の店舗権限は法人管理者が変更する。アカウント全体の停止はベンダーと自法人の法人管理者に限り、最後の有効管理者の保護と他法人の404隠蔽を維持する。管理権限は注入時計の業務日と確定任命から解決し、更新時も同じ法人ロック内で任命・本人・所属を再確認する。
 

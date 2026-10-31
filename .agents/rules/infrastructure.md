@@ -19,6 +19,8 @@ Infrastructure層はPostgreSQLへの永続化アダプタとユースケース�
 
 - **1行1集約**: 集約は JSONB の `payload` 列を正とし、検索・一意性制約に必要な値だけを列へ複製する。読み込み時に列と payload の食い違いを検出して復元を拒否する。
 - **列の導出は1度だけ書く**: 集約から検索列を導く処理は `app/infrastructure/postgres/repository_base.py` の `AggregateMapping.search_columns` にだけ置く。書き込み（`row_values`）も復元時の照合（`decode`）も同じ関数を使う。
+- **過去スキーマテストと最新列マッピングの分離**: 新しいカラムをスキーマに追加した際、過去のリビジョンまで戻してマイグレーションを検証するテスト（`test_medication_history_event_migration.py` 等）に最新の `AggregateMapping` を無条件で渡すと、対象リビジョン時点に存在しない未定義列で失敗する。過去スキーマ検証用のテストデータ投入では、当時存在しなかった列を除外する。
+- **外部キー制約とシードデータ保存順**: 初期データ投入（`seed_dev_data.py` 等）の保存順序は外部キー制約の依存順（`corporates` → `stores` → `account_people` → `user_accounts` → `staff` → `staff_person_links` 等）を厳守する。参照先を後に保存すると外部キー違反で失敗する。
 - **集約の読み書きは基底経由に限る**: 読み取りは `PostgresRepositoryBase.find_one` / `find_all`、保存は `save_aggregate` を通す。行の世代（`version`）記録と `upsert` は非公開とし、Repositoryから直接呼べない。
 - **列の食い違いを実行前に落とす**: `tests/infrastructure/postgres/test_schema_migration_consistency.py` が、マイグレーションのDDLとスキーマ定義DDLを比較し、Repositoryが書く列がテーブルに存在することをDBなしで検査する。
 

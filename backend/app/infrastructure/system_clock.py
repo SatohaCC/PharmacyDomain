@@ -8,4 +8,4 @@ class SystemUtcClock:
 
     def now(self) -> datetime:
         """現在のUTC時刻を返す。"""
-        return datetime.now(UTC)
+        return datetime.now(UTC)  # noqa: TID251 -- 実時計アダプタだけで環境日時を取得する。
