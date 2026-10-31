@@ -18,7 +18,9 @@ def _administrator(
     corporate_id: CorporateId,
 ) -> tuple[UserAccount, CorporateMembership]:
     account = UserAccount(
-        id=UserAccountId.generate(), person_id=AccountPersonId.generate()
+        id=UserAccountId.generate(),
+        corporate_id=corporate_id,
+        person_id=AccountPersonId.generate(),
     )
     membership = CorporateMembership(
         id=CorporateMembershipId.generate(),

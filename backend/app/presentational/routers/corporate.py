@@ -22,6 +22,10 @@ from app.application.corporate.commands.change_representative import (
     ChangeRepresentativeCommand,
 )
 from app.application.corporate.commands.models import RegisterCorporateCommand
+from app.application.corporate.commands.update_corporate_policy import (
+    PolicySettingInput,
+    UpdateCorporatePolicyCommand,
+)
 from app.application.corporate.queries.dtos.get_corporate import CorporateResponseDto
 from app.application.corporate.queries.dtos.list_corporates import CorporatePageDto
 from app.application.corporate.queries.models import ListCorporatesQuery
@@ -72,6 +76,20 @@ class ChangeCorporateStatusRequest(RequestModel):
     """法人の利用状態変更の入力。"""
 
     is_active: bool
+
+
+class PolicySettingRequest(RequestModel):
+    """ポリシー項目のリクエストモデル。"""
+
+    value: bool
+    overridable: bool
+
+
+class UpdateCorporatePolicyRequest(RequestModel):
+    """法人ポリシー更新のリクエストモデル。"""
+
+    require_prescription_audit: PolicySettingRequest
+    prohibit_self_verification: PolicySettingRequest
 
 
 @router.post(
@@ -176,6 +194,33 @@ async def change_corporate_status(
         ChangeCorporateStatusCommand(
             corporate_id=corporate_id,
             is_active=body.is_active,
+        )
+    )
+
+
+@router.put(
+    "/{corporate_id}/policy",
+    status_code=HTTPStatus.NO_CONTENT,
+    response_class=Response,
+    responses=error_responses(HTTPStatus.NOT_FOUND, HTTPStatus.CONFLICT),
+)
+async def update_corporate_policy(
+    corporate_id: str,
+    body: UpdateCorporatePolicyRequest,
+    use_cases: CorporateUseCasesDep,
+) -> None:
+    """法人ポリシーを更新する。"""
+    await use_cases.update_policy.execute(
+        UpdateCorporatePolicyCommand(
+            corporate_id=corporate_id,
+            require_prescription_audit=PolicySettingInput(
+                value=body.require_prescription_audit.value,
+                overridable=body.require_prescription_audit.overridable,
+            ),
+            prohibit_self_verification=PolicySettingInput(
+                value=body.prohibit_self_verification.value,
+                overridable=body.prohibit_self_verification.overridable,
+            ),
         )
     )
 

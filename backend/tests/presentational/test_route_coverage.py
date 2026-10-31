@@ -60,14 +60,7 @@ def test_登録簿の全コンテキストに_ルータがある() -> None:
 
 
 #: ``use_cases.<項目>`` を経由せずHTTPへ繋がっているユースケースと、その呼び出し。
-#:
-#: 招待の受諾はアカウントがその操作で初めて生まれるため、リクエストのスコープを
-#: 作る前に実行する必要がある（スコープは本人特定済みのActorを要求する）。
-#: 単なる除外欄にすると、ルートごと消えても気づけない。呼び出しの式を書かせて、
-#: そちらもルータの中に在り続けることを確かめる。
-_REACHED_THROUGH_COMPOSITION_ROOT: dict[str, str] = {
-    "identity.accept": "root.accept_invitation(",
-}
+_REACHED_THROUGH_COMPOSITION_ROOT: dict[str, str] = {}
 
 # URL上は受付の業務フローに属するが、保険資格の適用選択を所有するユースケース。
 # APIの公開境界とドメインの所有コンテキストを同一ルータへ固定しない。

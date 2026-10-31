@@ -12,7 +12,6 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 from datetime import date
 
 import pytest
@@ -34,13 +33,8 @@ from app.domain.dispensing.primitives import (
     DispensingCompletionType,
     DispensingProcessStatus,
 )
-from app.domain.identity.entities import UserAccount
 from app.domain.prescription.entities import Prescription
 from app.domain.prescription.primitives import PrescriptionStatus
-from app.domain.shared.actor import UserAccountId
-from app.infrastructure.di.repositories import (
-    PostgresRepositorySet,
-)
 from app.infrastructure.di.root import PostgresCompositionRoot
 from app.infrastructure.dispensing.postgres.dispensing_process import (
     PostgresDispensingProcessRepository,
@@ -51,30 +45,32 @@ from app.infrastructure.prescription.postgres.prescription import (
 )
 from tests.factories.dispensing_factory import create_dispensing, verify_passed
 from tests.factories.prescription_factory import create_prescription
-from tests.factories.store_factory import create_store
-from tests.infrastructure.postgres.helpers import create_corporate
-from tests.integration.test_identity_persistence import _person
-
-_PERSON = _person()
-_ACCOUNT = UserAccount(
-    id=UserAccountId.generate(), person_id=_PERSON.id, is_vendor_admin=True
+from tests.integration.organization_helpers import (
+    Organization,
+    appoint_manager,
+    setup_organization,
 )
 
 
-def _authorization() -> AuthorizationService:
+def _authorization(organization: Organization) -> AuthorizationService:
     """全法人を操作できるベンダーシステム管理者。"""
     return AuthorizationService(
         ResolvedActorContext(
             principal_id="integration-vendor-admin",
             roles=frozenset({ActorRole.VENDOR_SYSTEM_ADMIN}),
-            person_id=_PERSON.id,
-            account_id=_ACCOUNT.id,
+            person_id=organization.accounts[0].person_id,
+            account_id=organization.accounts[0].id,
+            corporate_id=organization.corporate.id,
+            staff_id=organization.staff[0].id,
+            store_ids=frozenset({organization.store.id}),
+            selected_store_id=organization.store.id,
         )
     )
 
 
 async def _save_corporate_and_dispensing(
     session_factory: async_sessionmaker[AsyncSession],
+    organization: Organization,
     *,
     with_prescription: bool,
 ) -> tuple[CorporateId, Prescription, DispensingProcess]:
@@ -83,30 +79,22 @@ async def _save_corporate_and_dispensing(
     ``with_prescription`` を ``False`` にすると、調剤完了時に処方箋の更新だけが
     失敗する状態を作れる。
     """
-    corporate = create_corporate("調剤完了トランザクション薬局")
-    # 受付済のままでは調剤済へ遷移できない。実運用でも調剤開始前に確定させる。
-    prescription = create_prescription(corporate_id=corporate.id).ready_for_dispensing()
+    corporate = organization.corporate
+    store = organization.store
+    staff = organization.staff[0]
+    prescription = create_prescription(
+        corporate_id=corporate.id, store_id=store.id
+    ).ready_for_dispensing()
     process = verify_passed(
         create_dispensing(
             corporate_id=corporate.id,
+            store_id=store.id,
             prescription_id=prescription.id,
+            dispenser_id=staff.id,
         )
     )
-
-    store = create_store(corporate_id=corporate.id)
-    prescription = replace(prescription, store_id=store.id)
-    process = replace(process, store_id=store.id)
     unit_of_work = PostgresUnitOfWork(session_factory)
     async with unit_of_work:
-        from app.infrastructure.corporate.postgres.corporate import (
-            PostgresCorporateRepository,
-        )
-
-        await PostgresCorporateRepository(unit_of_work).save(corporate)
-        repositories = PostgresRepositorySet.create(unit_of_work)
-        await repositories.store.save(store)
-        await repositories.account_person.save(_PERSON)
-        await repositories.user_account.save(_ACCOUNT)
         if with_prescription:
             await PostgresPrescriptionRepository(unit_of_work).save(prescription)
         await PostgresDispensingProcessRepository(unit_of_work).save(process)
@@ -122,14 +110,18 @@ async def test_調剤完了が_調剤と処方箋を同じトランザクショ�
 ) -> None:
     """終了区分なら、調剤セッションの完了と処方箋の調剤済が両方残る。"""
     # Arrange
+    organization = await setup_organization(engine, session_factory)
+    await appoint_manager(session_factory, organization)
     corporate_id, prescription, process = await _save_corporate_and_dispensing(
-        session_factory, with_prescription=True
+        session_factory, organization, with_prescription=True
     )
     root = PostgresCompositionRoot.from_settings(postgres_settings)
 
     # Act
     try:
-        async with root.request_scope(authorization=_authorization()) as scope:
+        async with root.request_scope(
+            authorization=_authorization(organization)
+        ) as scope:
             await scope.use_cases.dispensing.complete.execute(
                 CompleteDispensingCommand(
                     corporate_id=str(corporate_id.value),
@@ -165,15 +157,19 @@ async def test_処方箋の更新に失敗すると_調剤の保存も巻き戻�
 ) -> None:
     """順序で妥協していた頃は、調剤だけが完了して処方箋が取り残された。"""
     # Arrange: 処方箋を保存しないので、調剤の保存の後に必ず失敗する
+    organization = await setup_organization(engine, session_factory)
+    await appoint_manager(session_factory, organization)
     corporate_id, _, process = await _save_corporate_and_dispensing(
-        session_factory, with_prescription=False
+        session_factory, organization, with_prescription=False
     )
     root = PostgresCompositionRoot.from_settings(postgres_settings)
 
     # Act
     try:
         with pytest.raises(DispensingPrescriptionNotFoundError):
-            async with root.request_scope(authorization=_authorization()) as scope:
+            async with root.request_scope(
+                authorization=_authorization(organization)
+            ) as scope:
                 await scope.use_cases.dispensing.complete.execute(
                     CompleteDispensingCommand(
                         corporate_id=str(corporate_id.value),
@@ -209,14 +205,18 @@ async def test_継続区分なら_処方箋は調剤済にならない(
 ) -> None:
     """リフィル・分割の途中で処方箋を閉じると、残りの回が調剤できなくなる。"""
     # Arrange
+    organization = await setup_organization(engine, session_factory)
+    await appoint_manager(session_factory, organization)
     corporate_id, prescription, process = await _save_corporate_and_dispensing(
-        session_factory, with_prescription=True
+        session_factory, organization, with_prescription=True
     )
     root = PostgresCompositionRoot.from_settings(postgres_settings)
 
     # Act
     try:
-        async with root.request_scope(authorization=_authorization()) as scope:
+        async with root.request_scope(
+            authorization=_authorization(organization)
+        ) as scope:
             await scope.use_cases.dispensing.complete.execute(
                 CompleteDispensingCommand(
                     corporate_id=str(corporate_id.value),

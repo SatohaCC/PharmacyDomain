@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, time
 from typing import Self
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.entity import AggregateRoot
+from app.domain.identity.identifiers import VendorOperatorId
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.identifiers import StaffId
 from app.domain.store.exceptions import (
@@ -28,7 +29,9 @@ from app.domain.store.value_objects import (
     ContactInfo,
     ManagerAssignmentPeriod,
     StoreAddress,
+    StoreLicenses,
     StoreNames,
+    StorePolicy,
     StoreStatusChange,
 )
 
@@ -96,6 +99,18 @@ class Store(AggregateRoot[StoreId]):
     #: 開局時間。未登録を ``None`` で表し、「毎日定休」と区別する。既定を
     #: 「いつでも開いている」にも「いつも閉じている」にも倒さない。
     business_hours: BusinessHours | None = None
+    #: 店舗の許認可（薬局開設許可・麻薬小売業者免許）。未登録を許容する。
+    licenses: StoreLicenses | None = None
+    #: 店舗ポリシー（None は法人値を採用）。
+    policy: StorePolicy = field(default_factory=StorePolicy)
+
+    def update_licenses(self, licenses: StoreLicenses) -> Self:
+        """店舗の許認可情報を更新する。"""
+        return replace(self, licenses=licenses)
+
+    def change_policy(self, policy: StorePolicy) -> Self:
+        """店舗ポリシー設定を変更する。"""
+        return replace(self, policy=policy)
 
     def opening_state_at(self, *, on: date, at: time) -> StoreOpeningState:
         """その日時に開局しているか。
@@ -146,8 +161,9 @@ class Store(AggregateRoot[StoreId]):
         self,
         *,
         reason: StoreStatusReason,
-        person_id: AccountPersonId,
-        account_id: UserAccountId,
+        operator_id: VendorOperatorId | None = None,
+        person_id: AccountPersonId | None = None,
+        account_id: UserAccountId | None = None,
         recorded_at: datetime,
     ) -> Self:
         """誤って登録した閉局を取り消し、休止へ戻す。
@@ -171,6 +187,7 @@ class Store(AggregateRoot[StoreId]):
             before=self.status,
             after=StoreStatus.SUSPENDED,
             reason=reason,
+            operator_id=operator_id,
             person_id=person_id,
             account_id=account_id,
             recorded_at=recorded_at,

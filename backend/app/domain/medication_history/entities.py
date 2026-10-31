@@ -1416,6 +1416,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             MedicationHistoryNotFinalizedError: 未確定（下書き）の薬歴の場合。
             SoapContentRequiredError: 追記後の実効SOAPが白紙になる場合。
         """
+        # 確定済みでなければ追記できない
         if not self.is_finalized:
             raise MedicationHistoryNotFinalizedError()
         effective_amendment_id = amendment_id or str(uuid7())
@@ -1565,7 +1566,10 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         matched_prescription_id: PrescriptionId | None = None,
     ) -> Self:
         """外部処方訂正に対する薬剤師の対応判断（追記修正・再登録処方との照合等）を履歴に記録する。"""
-        if not self.is_finalized:
+        if not self.is_finalized and decision not in (
+            ExternalCorrectionDecision.NO_ACTION,
+            ExternalCorrectionDecision.INVESTIGATING,
+        ):
             raise MedicationHistoryNotFinalizedError()
         target = next(
             (

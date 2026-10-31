@@ -101,23 +101,34 @@ async def test_tc45_10_Event実施日時と登録日時は別の値を保持す�
     assert saved.created_at.value != saved_occurred_at.value
 
 
-async def test_tc45_13_同一患者の別店舗Eventを関連元にできる() -> None:
+async def test_tc45_13_同一店舗のEventを関連元にでき別店舗は隔離拒否される() -> None:
     fixture = create_fixture()
-    related = _existing_event(
+    same_store = _existing_event(
+        corporate_id=fixture.corporate_id,
+        patient_id=fixture.patient_id,
+        store_id=fixture.store_id,
+    )
+    cross_store = _existing_event(
         corporate_id=fixture.corporate_id,
         patient_id=fixture.patient_id,
         store_id=StoreId.generate(),
     )
-    await fixture.event_repository.save(related)
+    await fixture.event_repository.save(same_store)
+    await fixture.event_repository.save(cross_store)
 
     created = await fixture.create_event.execute(
-        create_command(fixture, related_event_id=str(related.id.value))
+        create_command(fixture, related_event_id=str(same_store.id.value))
     )
 
     saved = fixture.event_repository.items[EventId.parse(created.event_id)]
-    assert saved.related_event_id == related.id
+    assert saved.related_event_id == same_store.id
     assert saved.store_id == fixture.store_id
-    assert related.store_id != saved.store_id
+
+    # D7: 他店舗のEventを関連元に指定した場合は404相当（TenantBoundaryNotFoundError）で隔離
+    with pytest.raises(TenantBoundaryNotFoundError):
+        await fixture.create_event.execute(
+            create_command(fixture, related_event_id=str(cross_store.id.value))
+        )
 
 
 @pytest.mark.parametrize("wrong_scope", ["corporate", "patient", "missing"])

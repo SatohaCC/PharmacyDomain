@@ -5,7 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from app.application.access_control.boundary_models import ActorContext
+from app.application.access_control.boundary_models import (
+    ActorContext,
+    ActorRole,
+    ResolvedActorContext,
+)
 from app.application.access_control.policies import AuthorizationService
 from app.application.corporate.commands.services.corporate_access import (
     CorporateAccessService,
@@ -27,6 +31,10 @@ from app.application.dispensing.commands.start_dispensing import StartDispensing
 from app.application.dispensing.commands.verify_dispensing import (
     VerifyDispensingUseCase,
 )
+from app.application.dispensing.interfaces.references import (
+    DispensingPolicyBoundary,
+    StaffPersonBoundary,
+)
 from app.application.dispensing.queries.get_dispensing import GetDispensingUseCase
 from app.application.dispensing.queries.list_dispensings_by_prescription import (
     ListDispensingsByPrescriptionUseCase,
@@ -39,6 +47,7 @@ from app.domain.dispensing.services import (
     DispensingPharmacistService,
 )
 from app.domain.prescription.entities import Prescription
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import PharmacistLicenseNumber
 from app.domain.staff.value_objects import PharmacistProfile, StaffQualifications
@@ -49,7 +58,6 @@ from app.infrastructure.readers.dispensing_list_dispensings_by_prescription impo
 )
 from tests.application.access_helpers import (
     AutoProvisioningCorporateRepository,
-    create_vendor_corporate_access_for,
 )
 from tests.factories.dispensing_factory import (
     DISPENSED_ON,
@@ -187,14 +195,49 @@ class DispensingFixture:
     verifier_id: StaffId
 
 
-def create_fixture(*, prescription: Prescription | None = None) -> DispensingFixture:
+def create_resolved_actor(
+    *,
+    staff_id: StaffId | None,
+    role: ActorRole = ActorRole.VENDOR_SYSTEM_ADMIN,
+    corporate_id: CorporateId | None = None,
+    store_ids: frozenset[StoreId] = frozenset(),
+) -> ResolvedActorContext:
+    """信頼済みのテストActorをスタッフ解決状態つきで生成する。"""
+    return ResolvedActorContext(
+        principal_id="test-dispensing-actor",
+        roles=frozenset({role}),
+        corporate_id=corporate_id,
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+        staff_id=staff_id,
+        store_ids=store_ids,
+    )
+
+
+def create_fixture(
+    *,
+    prescription: Prescription | None = None,
+    policy_boundary: DispensingPolicyBoundary | None = None,
+    staff_person: StaffPersonBoundary | None = None,
+    actor: ActorContext | None = None,
+    verifier_actor: ActorContext | None = None,
+) -> DispensingFixture:
     """既定の依存を配線した Fixture を生成する。
 
     処方箋は既定で「調剤可能」状態にする。受付済のままでは調剤を開始できない
     （``PrescriptionNotReadyForDispensingError``）。
     """
-    dispenser_id = StaffId.generate()
-    verifier_id = StaffId.generate()
+    dispenser_id = (
+        actor.staff_id
+        if isinstance(actor, ResolvedActorContext) and actor.staff_id is not None
+        else StaffId.generate()
+    )
+    verifier_id = (
+        verifier_actor.staff_id
+        if isinstance(verifier_actor, ResolvedActorContext)
+        and verifier_actor.staff_id is not None
+        else StaffId.generate()
+    )
 
     if prescription is None:
         prescription = create_prescription(
@@ -221,12 +264,21 @@ def create_fixture(*, prescription: Prescription | None = None) -> DispensingFix
         )
     clock = FakeClock()
     corporate_repository = AutoProvisioningCorporateRepository()
-    corporate_access = create_vendor_corporate_access_for(corporate_repository)
+    dispenser_access = CorporateAccessService(
+        corporate_repository,
+        AuthorizationService(actor or create_resolved_actor(staff_id=dispenser_id)),
+    )
+    verifier_access = CorporateAccessService(
+        corporate_repository,
+        AuthorizationService(
+            verifier_actor or actor or create_resolved_actor(staff_id=verifier_id)
+        ),
+    )
 
     return DispensingFixture(
         start=StartDispensingUseCase(
             repository,
-            corporate_access,
+            dispenser_access,
             store_reference,
             prescription_source,
             staff_qualification,
@@ -237,34 +289,47 @@ def create_fixture(*, prescription: Prescription | None = None) -> DispensingFix
         ),
         record_content=RecordDispensedContentUseCase(
             repository,
-            corporate_access,
+            dispenser_access,
             prescription_source,
             DispensingConsistencyService(),
+            staff_qualification=staff_qualification,
+            pharmacist_service=DispensingPharmacistService(),
+            clock=clock,
         ),
         record_audit=RecordAuditUseCase(
             repository,
-            corporate_access,
+            verifier_access,
             staff_qualification,
             DispensingPharmacistService(),
             clock,
         ),
         verify=VerifyDispensingUseCase(
             repository,
-            corporate_access,
+            verifier_access,
             staff_qualification,
             DispensingPharmacistService(),
             clock,
+            policy_boundary=policy_boundary,
+            staff_person=staff_person,
         ),
         complete=CompleteDispensingUseCase(
-            repository, corporate_access, prescription_source, NullUnitOfWork(), clock
+            repository,
+            dispenser_access,
+            prescription_source,
+            NullUnitOfWork(),
+            clock,
+            policy_boundary=policy_boundary,
+            staff_person=staff_person,
+            staff_qualification=staff_qualification,
+            pharmacist_service=DispensingPharmacistService(),
         ),
         get=GetDispensingUseCase(
             reader=GetDispensingProjection(repository),
-            corporate_access=corporate_access,
+            corporate_access=dispenser_access,
         ),
         list_by_prescription=ListDispensingsByPrescriptionUseCase(
             reader=ListDispensingsByPrescriptionProjection(repository),
-            corporate_access=corporate_access,
+            corporate_access=dispenser_access,
         ),
         repository=repository,
         corporate_repository=corporate_repository,
@@ -300,9 +365,7 @@ def create_start_command(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
         prescription_id=str(fixture.prescription.id.value),
-        dispenser_id=str(
-            (dispenser_id if dispenser_id is not None else fixture.dispenser_id).value
-        ),
+        dispenser_id=str(dispenser_id.value) if dispenser_id is not None else None,
         iteration=iteration,
         dispensed_date=dispensed_on,
         dispensed_rps=(
@@ -316,13 +379,16 @@ def create_start_command(
 def create_actor_access(
     corporate_repository: AutoProvisioningCorporateRepository,
     corporate_id: CorporateId,
+    *,
+    staff_id: StaffId | None = None,
 ) -> CorporateAccessService:
     """自法人だけを操作できる法人管理者のアクセス境界を組み立てる。"""
     return CorporateAccessService(
         corporate_repository,
         AuthorizationService(
-            ActorContext.corporate_admin(
-                principal_id="test-corporate-admin",
+            create_resolved_actor(
+                staff_id=staff_id or StaffId.generate(),
+                role=ActorRole.CORPORATE_ADMIN,
                 corporate_id=corporate_id,
             )
         ),

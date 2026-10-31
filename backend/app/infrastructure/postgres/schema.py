@@ -38,10 +38,14 @@ account_people = Table(
     "account_people",
     metadata,
     Column("id", UUID(as_uuid=True), primary_key=True, nullable=False),
+    Column(
+        "corporate_id", UUID(as_uuid=True), ForeignKey("corporates.id"), nullable=False
+    ),
     Column("payload", JSONB, nullable=False),
     Column("version", Integer, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("id", "corporate_id", name="uq_account_people_id_corporate"),
 )
 
 user_accounts = Table(
@@ -49,17 +53,29 @@ user_accounts = Table(
     metadata,
     Column("id", UUID(as_uuid=True), primary_key=True, nullable=False),
     Column(
-        "person_id", UUID(as_uuid=True), ForeignKey("account_people.id"), nullable=False
+        "corporate_id", UUID(as_uuid=True), ForeignKey("corporates.id"), nullable=False
     ),
+    Column("person_id", UUID(as_uuid=True), nullable=False),
     Column("status", String(32), nullable=False),
     Column("external_subject", String(1000), nullable=True),
     Column("payload", JSONB, nullable=False),
     Column("version", Integer, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
-    UniqueConstraint("person_id", name="uq_user_accounts_person_id"),
-    UniqueConstraint("external_subject", name="uq_user_accounts_external_subject"),
+    ForeignKeyConstraint(
+        ["person_id", "corporate_id"],
+        ["account_people.id", "account_people.corporate_id"],
+        name="fk_user_accounts_person_corporate",
+    ),
+    UniqueConstraint("corporate_id", "person_id", name="uq_user_accounts_person_id"),
+    UniqueConstraint(
+        "corporate_id", "external_subject", name="uq_user_accounts_external_subject"
+    ),
     UniqueConstraint("id", "person_id", name="uq_user_accounts_id_person"),
+    UniqueConstraint("id", "corporate_id", name="uq_user_accounts_id_corporate"),
+    UniqueConstraint(
+        "id", "corporate_id", "person_id", name="uq_user_accounts_id_corporate_person"
+    ),
 )
 
 staff_person_links = Table(
@@ -75,16 +91,23 @@ staff_person_links = Table(
     Column(
         "corporate_id", UUID(as_uuid=True), ForeignKey("corporates.id"), nullable=False
     ),
-    Column(
-        "person_id", UUID(as_uuid=True), ForeignKey("account_people.id"), nullable=False
-    ),
+    Column("person_id", UUID(as_uuid=True), nullable=False),
     Column("payload", JSONB, nullable=False),
     Column("version", Integer, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
-    # 管理薬剤師の任命が「そのスタッフの本人」を写していることを、複合外部キーで
-    # 参照できるようにする。参照される側には一意制約が要る。
+    ForeignKeyConstraint(
+        ["person_id", "corporate_id"],
+        ["account_people.id", "account_people.corporate_id"],
+        name="fk_staff_person_links_person_corporate",
+    ),
     UniqueConstraint("id", "person_id", name="uq_staff_person_links_id_person"),
+    UniqueConstraint(
+        "id",
+        "person_id",
+        "corporate_id",
+        name="uq_staff_person_links_id_person_corporate",
+    ),
 )
 
 corporate_memberships = Table(
@@ -94,9 +117,7 @@ corporate_memberships = Table(
     Column(
         "corporate_id", UUID(as_uuid=True), ForeignKey("corporates.id"), nullable=False
     ),
-    Column(
-        "account_id", UUID(as_uuid=True), ForeignKey("user_accounts.id"), nullable=False
-    ),
+    Column("account_id", UUID(as_uuid=True), nullable=False),
     Column(
         "staff_id",
         UUID(as_uuid=True),
@@ -109,6 +130,11 @@ corporate_memberships = Table(
     Column("version", Integer, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
+    ForeignKeyConstraint(
+        ["account_id", "corporate_id"],
+        ["user_accounts.id", "user_accounts.corporate_id"],
+        name="fk_membership_account_corporate",
+    ),
     UniqueConstraint(
         "account_id", "corporate_id", name="uq_membership_account_corporate"
     ),
@@ -120,25 +146,6 @@ Index(
     postgresql_where=corporate_memberships.c.status == "active",
 )
 
-user_invitations = Table(
-    "user_invitations",
-    metadata,
-    Column("id", UUID(as_uuid=True), primary_key=True, nullable=False),
-    Column(
-        "person_id", UUID(as_uuid=True), ForeignKey("account_people.id"), nullable=False
-    ),
-    Column(
-        "corporate_id", UUID(as_uuid=True), ForeignKey("corporates.id"), nullable=False
-    ),
-    Column("secret_digest", String(64), nullable=False),
-    Column("status", String(32), nullable=False),
-    Column("expires_at", DateTime(timezone=True), nullable=False),
-    Column("payload", JSONB, nullable=False),
-    Column("version", Integer, nullable=False),
-    Column("created_at", DateTime(timezone=True), nullable=False),
-    Column("updated_at", DateTime(timezone=True), nullable=False),
-    UniqueConstraint("secret_digest", name="uq_user_invitations_digest"),
-)
 
 store_manager_assignments = Table(
     "store_manager_assignments",
@@ -160,8 +167,12 @@ store_manager_assignments = Table(
     # 無いスタッフを任命できず、写した本人が対応とずれることもない。スタッフの
     # 実在は staff_person_links.id 側の外部キーが引き続き保証する。
     ForeignKeyConstraint(
-        ["staff_id", "person_id"],
-        ["staff_person_links.id", "staff_person_links.person_id"],
+        ["staff_id", "person_id", "corporate_id"],
+        [
+            "staff_person_links.id",
+            "staff_person_links.person_id",
+            "staff_person_links.corporate_id",
+        ],
         name="fk_store_manager_assignments_staff_person",
     ),
     ExcludeConstraint(
@@ -175,9 +186,9 @@ store_manager_assignments = Table(
     # 一意に決まるので、同一スタッフの重複は人単位の制約が必ず捕らえる。両方を
     # 置くと、同一スタッフの重複でどちらの制約が報告されるかがサーバ任せになり、
     # 業務例外の型が揺れる。
-    # 専任義務は自然人にかかる。法人IDを鍵に含めてはならない（含めると、
-    # グループ内の別法人どうしで同じ人物が兼務できてしまう）。
+    # 専任義務は自然人にかかる。
     ExcludeConstraint(
+        ("corporate_id", "="),
         ("person_id", "="),
         ("period", "&&"),
         where=text("status = 'confirmed'"),
@@ -190,6 +201,7 @@ store_manager_assignments = Table(
 #: 増やすときは tests/infrastructure/postgres の表と揃える。
 NON_AGGREGATE_TABLES = frozenset(
     {
+        "vendor_operators",
         "local_credentials",
         "local_sessions",
         "patient_number_sequences",
@@ -199,15 +211,45 @@ NON_AGGREGATE_TABLES = frozenset(
     }
 )
 
+vendor_operators = Table(
+    "vendor_operators",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, nullable=False),
+    Column("email", String(255), nullable=False, unique=True),
+    Column("password_hash", String(256), nullable=False),
+    Column("external_subject", String(1000), nullable=False, unique=True),
+    Column("failed_attempts", Integer, nullable=False, server_default=text("0")),
+    Column("locked_until", DateTime(timezone=True), nullable=True),
+    Column("is_active", Boolean, nullable=False, server_default=text("true")),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    Column(
+        "updated_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+)
+
 # 認証の技術状態は業務集約と分離し、秘密はハッシュだけを保持する。
 local_credentials = Table(
     "local_credentials",
     metadata,
-    Column("login_id", String(64), primary_key=True),
+    Column(
+        "corporate_id",
+        UUID(as_uuid=True),
+        ForeignKey("corporates.id"),
+        primary_key=True,
+        nullable=False,
+    ),
+    Column("email", String(255), primary_key=True, nullable=False),
     Column(
         "subject",
         String(1000),
-        ForeignKey("user_accounts.external_subject"),
         nullable=False,
         unique=True,
     ),
@@ -220,11 +262,19 @@ local_sessions = Table(
     "local_sessions",
     metadata,
     Column("digest", String(64), primary_key=True),
-    Column(
-        "subject", String(1000), ForeignKey("local_credentials.subject"), nullable=False
-    ),
+    Column("subject", String(1000), nullable=False),
     Column("restricted", Boolean, nullable=False),
     Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column(
+        "selected_store_id",
+        UUID(as_uuid=True),
+        ForeignKey(
+            "stores.id",
+            ondelete="SET NULL",
+            name="fk_local_sessions_selected_store_id_stores",
+        ),
+        nullable=True,
+    ),
 )
 
 # 集約は payload（JSONB）を正とし、検索・一意性制約に要る値だけを列へ複製する。
@@ -318,6 +368,12 @@ stores = Table(
     Column("name", String(200), nullable=False),
     Column("code", String(64), nullable=True),
     Column("insurance_pharmacy_number", String(32), nullable=True),
+    Column("pharmacy_license_number", String(64), nullable=True),
+    Column("pharmacy_license_valid_from", Date, nullable=True),
+    Column("pharmacy_license_valid_to", Date, nullable=True),
+    Column("narcotics_license_number", String(64), nullable=True),
+    Column("narcotics_license_valid_from", Date, nullable=True),
+    Column("narcotics_license_valid_to", Date, nullable=True),
     Column("payload", JSONB, nullable=False),
     Column("version", Integer, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
@@ -945,16 +1001,26 @@ operation_audits = Table(
     "operation_audits",
     metadata,
     Column("id", UUID(as_uuid=True), primary_key=True, nullable=False),
-    Column("person_id", UUID(as_uuid=True), nullable=False),
-    Column("account_id", UUID(as_uuid=True), nullable=False),
+    Column(
+        "operator_id",
+        UUID(as_uuid=True),
+        ForeignKey("vendor_operators.id"),
+        nullable=True,
+    ),
+    Column("person_id", UUID(as_uuid=True), nullable=True),
+    Column("account_id", UUID(as_uuid=True), nullable=True),
     Column("operation", String(150), nullable=False),
     Column("resource_id", UUID(as_uuid=True), nullable=False),
     Column("corporate_id", UUID(as_uuid=True), nullable=True),
     Column("store_id", UUID(as_uuid=True), nullable=True),
     Column("recorded_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint(
+        "((operator_id IS NOT NULL AND account_id IS NULL AND person_id IS NULL) OR (operator_id IS NULL AND account_id IS NOT NULL AND person_id IS NOT NULL))",
+        name="audit_actor",
+    ),
     ForeignKeyConstraint(
-        ["account_id", "person_id"],
-        ["user_accounts.id", "user_accounts.person_id"],
+        ["account_id", "corporate_id", "person_id"],
+        ["user_accounts.id", "user_accounts.corporate_id", "user_accounts.person_id"],
         name="fk_audit_account_person",
     ),
 )
@@ -972,8 +1038,8 @@ operation_audits = Table(
 SCHEMA_ROUTINES: Final[tuple[str, ...]] = (
     """CREATE OR REPLACE FUNCTION prevent_account_person_change() RETURNS trigger LANGUAGE plpgsql AS $$
     BEGIN
-        IF NEW.person_id IS DISTINCT FROM OLD.person_id THEN
-            RAISE EXCEPTION 'アカウントの本人参照は変更できません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_user_accounts_person_immutable';
+        IF NEW.person_id IS DISTINCT FROM OLD.person_id OR NEW.corporate_id IS DISTINCT FROM OLD.corporate_id OR (OLD.external_subject IS NOT NULL AND NEW.external_subject IS DISTINCT FROM OLD.external_subject) THEN
+            RAISE EXCEPTION 'アカウントの本人参照・法人・外部主体は変更できません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_user_accounts_person_immutable';
         END IF;
         RETURN NEW;
     END;
@@ -997,7 +1063,7 @@ SCHEMA_ROUTINES: Final[tuple[str, ...]] = (
             RAISE EXCEPTION 'アクセス権の本人と法人は変更できません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_membership_identity_immutable';
         END IF;
         IF NEW.staff_id IS NOT NULL AND NOT EXISTS (
-            SELECT 1 FROM staff_person_links s JOIN user_accounts a ON a.person_id = s.person_id
+            SELECT 1 FROM staff_person_links s JOIN user_accounts a ON a.person_id = s.person_id AND a.corporate_id = s.corporate_id
             WHERE s.id = NEW.staff_id AND s.corporate_id = NEW.corporate_id AND a.id = NEW.account_id
         ) THEN
             RAISE EXCEPTION 'スタッフと本人の対応が一致しません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_membership_person';

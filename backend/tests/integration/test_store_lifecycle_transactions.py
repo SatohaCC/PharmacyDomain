@@ -7,6 +7,8 @@ from datetime import date
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.application.access_control.policies import AuthorizationService
+from app.application.identity.boundary_models import VerifiedSubject
 from app.application.store.commands.change_store_status import ChangeStoreStatusCommand
 from app.application.store.commands.revoke_store_closure import (
     RevokeStoreClosureCommand,
@@ -20,7 +22,11 @@ from app.infrastructure.di.repositories import (
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from tests.factories.dispensing_factory import create_dispensing
 from tests.factories.prescription_factory import create_prescription
-from tests.integration.organization_helpers import appoint_manager, setup_organization
+from tests.integration.organization_helpers import (
+    appoint_manager,
+    external_subject_of,
+    setup_organization,
+)
 
 
 @pytest.mark.asyncio
@@ -29,14 +35,17 @@ async def test_閉局と新規業務が競合しても閉局店舗に未完了�
     engine: AsyncEngine, session_factory: async_sessionmaker[AsyncSession], kind: str
 ) -> None:
     fixture = await setup_organization(engine, session_factory)
+    admin_auth = AuthorizationService(
+        await fixture.root.resolve_identity(
+            VerifiedSubject(principal_id=external_subject_of(0))
+        )
+    )
     # 在任していないと保存側が常に拒否され、競合を確かめないまま緑になる。
     await appoint_manager(session_factory, fixture)
     barrier = asyncio.Barrier(2)
 
     async def close() -> None:
-        async with fixture.root.request_scope(
-            authorization=fixture.authorization
-        ) as scope:
+        async with fixture.root.request_scope(authorization=admin_auth) as scope:
             await barrier.wait()
             await scope.use_cases.store.change_status.execute(
                 ChangeStoreStatusCommand(
@@ -159,8 +168,13 @@ async def test_閉局を取り消すと休止へ戻り管理薬剤師の任命�
     """
     # Arrange
     fixture = await setup_organization(engine, session_factory)
+    admin_auth = AuthorizationService(
+        await fixture.root.resolve_identity(
+            VerifiedSubject(principal_id=external_subject_of(0))
+        )
+    )
     appointed = await appoint_manager(session_factory, fixture)
-    async with fixture.root.request_scope(authorization=fixture.authorization) as scope:
+    async with fixture.root.request_scope(authorization=admin_auth) as scope:
         await scope.use_cases.store.change_status.execute(
             ChangeStoreStatusCommand(
                 corporate_id=str(fixture.corporate.id.value),

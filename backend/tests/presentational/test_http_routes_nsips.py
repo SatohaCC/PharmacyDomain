@@ -13,9 +13,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.application.composition.registry import IntegrationUseCases
+from app.application.integration.queries.get_nsips_source import GetNsipsSourceUseCase
 from app.bootstrap import create_app
+from app.infrastructure.readers.integration_nsips_source import (
+    PostgresGetNsipsSourceQueryReader,
+)
 from app.presentational.dependencies import get_integration_use_cases
 from app.presentational.errors import ErrorResponse
+from tests.application.access_helpers import create_vendor_corporate_access_for
 from tests.application.integration.nsips.helpers import NsipsFixture, create_fixture
 from tests.fakes.stub_actor_context_provider import (
     VALID_TOKEN,
@@ -35,7 +40,6 @@ def test_同受付の外部IDと属性不一致POST_409と保存不変とOpenAPI
     store_id = str(nsips_fixture.store_id.value)
     url = f"/corporates/{corporate_id}/stores/{store_id}/integrations/nsips"
     payload: dict[str, Any] = {
-        "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
         "reception_id": str(uuid.uuid7()),
         "structured_bundle": _valid_structured_bundle(),
     }
@@ -108,7 +112,20 @@ async def nsips_fixture() -> NsipsFixture:
 
 @pytest.fixture
 def client(nsips_fixture: NsipsFixture) -> Iterator[TestClient]:
-    bundle = IntegrationUseCases(ingest_nsips=nsips_fixture.use_case)
+    reader = PostgresGetNsipsSourceQueryReader(
+        reception_repository=nsips_fixture.reception_repo,
+        medication_history_repository=nsips_fixture.medication_history_repo,
+    )
+    get_nsips_source = GetNsipsSourceUseCase(
+        reader=reader,
+        corporate_access=create_vendor_corporate_access_for(
+            nsips_fixture.corporate_repo
+        ),
+    )
+    bundle = IntegrationUseCases(
+        ingest_nsips=nsips_fixture.use_case,
+        get_nsips_source=get_nsips_source,
+    )
     app = create_app(actor_provider=StubActorContextProvider(vendor_admin()))
     app.dependency_overrides[get_integration_use_cases] = lambda: bundle
     yield TestClient(app, raise_server_exceptions=False)
@@ -122,7 +139,6 @@ def test_tc45_未確認版raw形式のPOSTは422で拒否し書込みを行わ�
     corp_id = str(nsips_fixture.corporate_id.value)
     store_id = str(nsips_fixture.store_id.value)
     payload = {
-        "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
         "reception_id": str(uuid.uuid7()),
         "raw_nsips_text": "1,20260921,DOC-001,1310001,中央診療所,01,内科,佐藤医師\n2,P-1001,ヤマダタロウ,山田太郎,1,19800101\n4,20260921,REC-001,調剤花子\n5,1,内服,1日3回毎食後,14,1,610406001,アムロジピン,1,錠,0\n",
     }
@@ -142,7 +158,6 @@ def test_構造化JSONペイロードのPOSTが201を返す(
     corp_id = str(nsips_fixture.corporate_id.value)
     store_id = str(nsips_fixture.store_id.value)
     payload = {
-        "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
         "reception_id": str(uuid.uuid7()),
         "structured_bundle": {
             "header_version": "1.0",
@@ -188,7 +203,6 @@ def test_tc50_受付IDがないかUUIDv7でなければ書込み前に422(
 ) -> None:
     """受付IDは呼出元が発行したUUIDv7に限り、必須入力として扱う。"""
     payload: dict[str, Any] = {
-        "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
         "structured_bundle": _valid_structured_bundle(),
     }
     if invalid_kind == "malformed":
@@ -215,7 +229,6 @@ def test_重複処方の再送が200_OKを返す(
     structured_bundle = _valid_structured_bundle()
     structured_bundle["prescription"]["document_number"] = "DOC-DUP"
     payload = {
-        "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
         "reception_id": str(uuid.uuid7()),
         "structured_bundle": structured_bundle,
     }
@@ -242,7 +255,6 @@ def test_構文不正テキストのPOSTが422を返す(
     corp_id = str(nsips_fixture.corporate_id.value)
     store_id = str(nsips_fixture.store_id.value)
     payload = {
-        "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
         "reception_id": str(uuid.uuid7()),
         "raw_nsips_text": "INVALID SYNTAX TEXT",
     }
@@ -262,7 +274,6 @@ def test_未認証のPOSTが401を返す(
     corp_id = str(nsips_fixture.corporate_id.value)
     store_id = str(nsips_fixture.store_id.value)
     payload = {
-        "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
         "reception_id": str(uuid.uuid7()),
         "raw_nsips_text": "1,20260921,DOC-001,1310001,中央診療所,01,内科,佐藤医師\n",
     }
@@ -280,7 +291,6 @@ def test_tc40_構造化JSONによる保険_調剤日_加算の取込(
     corp_id = str(nsips_fixture.corporate_id.value)
     store_id = str(nsips_fixture.store_id.value)
     payload = {
-        "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
         "reception_id": str(uuid.uuid7()),
         "structured_bundle": {
             "header_version": "1.0",
@@ -340,8 +350,8 @@ def test_tc40_構造化JSONによる保険_調剤日_加算の取込(
     )
     assert response.status_code == HTTPStatus.CREATED
     data = response.json()
-    assert data["prescription_id"] is not None
-    assert data["dispensing_id"] is not None
+    assert data["prescription_id"] is None
+    assert data["dispensing_id"] is None
     assert data["medication_history_id"] is None
     assert nsips_fixture.medication_history_repo.items == {}
     assert data["coverage_selection_record_id"] is None
@@ -373,7 +383,6 @@ def test_tc48_構造化保険の必須値が空なら422で拒否する(
     response = client.post(
         f"/corporates/{nsips_fixture.corporate_id.value}/stores/{nsips_fixture.store_id.value}/integrations/nsips",
         json={
-            "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
             "reception_id": str(uuid.uuid7()),
             "structured_bundle": structured_bundle,
         },
@@ -471,7 +480,6 @@ def test_tc37_構造化JSONの必須項目欠損は422で拒否する(
     response = client.post(
         f"/corporates/{nsips_fixture.corporate_id.value}/stores/{nsips_fixture.store_id.value}/integrations/nsips",
         json={
-            "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
             "reception_id": str(uuid.uuid7()),
             "structured_bundle": structured_bundle,
         },
@@ -500,7 +508,6 @@ def test_tc38_構造化JSONの型と形式不正は422で拒否する(
     response = client.post(
         f"/corporates/{nsips_fixture.corporate_id.value}/stores/{nsips_fixture.store_id.value}/integrations/nsips",
         json={
-            "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
             "reception_id": str(uuid.uuid7()),
             "structured_bundle": structured_bundle,
         },
@@ -518,9 +525,7 @@ def test_tc39_rawと構造化入力はちょうど一方だけ受け付ける(
     source_mode: str,
 ) -> None:
     """rawテキストと構造化入力の両方指定・両方未指定を422にする。"""
-    payload: dict[str, Any] = {
-        "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
-    }
+    payload: dict[str, Any] = {}
     if source_mode == "both":
         payload["raw_nsips_text"] = "INVALID"
         payload["structured_bundle"] = _valid_structured_bundle()
@@ -549,3 +554,53 @@ def fixture_is_empty(fixture: NsipsFixture) -> bool:
             fixture.reception_repo.items,
         )
     )
+
+
+def test_tc115_廃止されたdispenser_staff_idを含むPOSTは422で拒否する(
+    client: TestClient, nsips_fixture: NsipsFixture
+) -> None:
+    """未知の項目 dispenser_staff_id はスキーマレベルで422として拒否する。"""
+    response = client.post(
+        f"/corporates/{nsips_fixture.corporate_id.value}/stores/{nsips_fixture.store_id.value}/integrations/nsips",
+        json={
+            "dispenser_staff_id": str(nsips_fixture.pharmacist_id.value),
+            "reception_id": str(uuid.uuid7()),
+            "structured_bundle": _valid_structured_bundle(),
+        },
+        headers=_HEADERS,
+    )
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_CONTENT
+    assert fixture_is_empty(nsips_fixture)
+
+
+def test_get_nsips_source_原本取得と404の振る舞い(
+    client: TestClient, nsips_fixture: NsipsFixture
+) -> None:
+    """GET /nsips/{reception_id} で原本DTOを取得でき、未存在は404となる。"""
+    reception_id = str(uuid.uuid7())
+    url = f"/corporates/{nsips_fixture.corporate_id.value}/stores/{nsips_fixture.store_id.value}/integrations/nsips/{reception_id}"
+
+    # 未存在は404
+    not_found_res = client.get(url, headers=_HEADERS)
+    assert not_found_res.status_code == HTTPStatus.NOT_FOUND
+
+    # 取込実行
+    ingest_res = client.post(
+        f"/corporates/{nsips_fixture.corporate_id.value}/stores/{nsips_fixture.store_id.value}/integrations/nsips",
+        json={
+            "reception_id": reception_id,
+            "structured_bundle": _valid_structured_bundle(),
+        },
+        headers=_HEADERS,
+    )
+    assert ingest_res.status_code == HTTPStatus.CREATED
+
+    # 取得成功 200
+    get_res = client.get(url, headers=_HEADERS)
+    assert get_res.status_code == HTTPStatus.OK
+    body = get_res.json()
+    assert body["reception_id"] == reception_id
+    assert body["source_status"] == "current"
+    assert "source_fingerprint" in body
+    assert "prescription" in body
+    assert "additions" in body

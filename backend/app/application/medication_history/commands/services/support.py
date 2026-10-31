@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from datetime import date
 
+from app.application.access_control.boundary_models import (
+    ActorContext,
+    ResolvedActorContext,
+)
+from app.application.common.exceptions import AuthorizationError
 from app.application.common.input_normalization import to_optional_text
 from app.application.common.optional_conversion import build_optional
 from app.application.medication_history.commands.models import (
@@ -64,6 +69,24 @@ from app.domain.medication_history.value_objects import (
     UpdateConditionStatusIntent,
 )
 from app.domain.staff.identifiers import StaffId
+
+
+def resolve_acting_pharmacist_id(
+    actor: ActorContext,
+    requested_staff_id: str | None = None,
+    *,
+    error_message: str = "薬歴業務にはスタッフを特定できるActorが必要です。",
+) -> StaffId:
+    """信頼済みActorから実施薬剤師のスタッフIDを解決し、他人指定のなりすましを拒否する。"""
+    if not isinstance(actor, ResolvedActorContext) or actor.staff_id is None:
+        raise AuthorizationError(error_message)
+    if requested_staff_id is not None:
+        parsed = StaffId.parse(requested_staff_id)
+        if parsed != actor.staff_id:
+            raise AuthorizationError(
+                "ログイン中のスタッフ以外のIDを実施者として指定することはできません。"
+            )
+    return actor.staff_id
 
 
 def _build_notes(sources: tuple[LabeledNoteInput, ...]) -> tuple[LabeledNote, ...]:

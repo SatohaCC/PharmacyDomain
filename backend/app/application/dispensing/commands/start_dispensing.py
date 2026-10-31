@@ -6,12 +6,15 @@ from app.application.access_control.boundary_models import Permission
 from app.application.access_control.interfaces.corporate_access import (
     CorporateAccessBoundary,
 )
-from app.application.common.clock import Clock
+from app.application.common.clock import Clock, business_date
 from app.application.common.input_normalization import to_optional_text
 from app.application.dispensing.commands.dtos.get_dispensing import DispensingProcessDto
 from app.application.dispensing.commands.models import StartDispensingCommand
 from app.application.dispensing.commands.services.start_dispensing import _find_previous
-from app.application.dispensing.commands.services.support import build_dispensed_rps
+from app.application.dispensing.commands.services.support import (
+    build_dispensed_rps,
+    resolve_acting_staff_id,
+)
 from app.application.dispensing.errors import (
     DispensingDateRequiredError,
     PrescriptionNotReadyForDispensingError,
@@ -39,7 +42,6 @@ from app.domain.dispensing.services import (
     DispensingPharmacistService,
 )
 from app.domain.prescription.identifiers import PrescriptionId
-from app.domain.staff.identifiers import StaffId
 from app.domain.store.identifiers import StoreId
 
 
@@ -85,9 +87,14 @@ class StartDispensingUseCase:
             corporate_id=corporate_id, prescription_id=prescription_id
         )
         self._ensure_prescription_is_ready(prescription.status)
-        dispenser_id = StaffId.parse(command.dispenser_id)
+        dispenser_id = resolve_acting_staff_id(
+            self._corporate_access.actor, command.dispenser_id
+        )
         qualifications = await self._staff_qualification.get_qualifications(
-            corporate_id=corporate_id, staff_id=dispenser_id
+            corporate_id=corporate_id,
+            staff_id=dispenser_id,
+            store_id=store_id,
+            as_of=business_date(self._clock),
         )
         self._pharmacist_service.ensure_dispenser(qualifications)
         process = DispensingProcess.start(

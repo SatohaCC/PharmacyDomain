@@ -9,11 +9,13 @@ from app.application.access_control.boundary_models import Permission
 from app.application.access_control.interfaces.corporate_access import (
     CorporateAccessBoundary,
 )
+from app.application.common.clock import Clock, business_date
 from app.application.staff.commands.services.support import load_staff_or_raise
 from app.application.staff.interfaces.access_revocation import (
     StaffAccessRevocationBoundary,
 )
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.repositories import StaffRepository
 
@@ -36,16 +38,20 @@ class DeactivateStaffUseCase:
         repository: StaffRepository,
         corporate_access: CorporateAccessBoundary,
         access_revocation: StaffAccessRevocationBoundary,
+        clock: Clock,
     ) -> None:
         self._repository = repository
         self._corporate_access = corporate_access
         self._access_revocation = access_revocation
+        self._clock = clock
 
     async def execute(self, command: DeactivateStaffCommand) -> None:
         corporate_id = CorporateId.parse(command.corporate_id)
         await self._corporate_access.require_active(
             corporate_id=corporate_id, permission=Permission.MANAGE_STAFF
         )
+        if command.retired_on > business_date(self._clock):
+            raise DomainValidationError("退職日に未来日は指定できません。")
         staff_id = StaffId.parse(command.staff_id)
         staff = await load_staff_or_raise(
             self._repository, corporate_id=corporate_id, staff_id=staff_id

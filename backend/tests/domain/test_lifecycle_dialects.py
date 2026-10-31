@@ -63,7 +63,7 @@ LIFECYCLE_DIALECTS: dict[str, str] = {
     "AccountPerson": "none",
     "UserAccount": "status_enum",
     "CorporateMembership": "status_enum",
-    "UserInvitation": "status_enum",
+    "VendorOperator": "active_flag",
     "StaffPersonLink": "none",
     "MedicationHistoryCategoryCatalog": "none",
     "EventDefinition": "active_flag",
@@ -81,6 +81,8 @@ ACTIVE_FLAG_KEY_REUSE: dict[str, bool] = {
     "Staff": False,
     # Eventには作成時の種別名を保持するため、無効化後の表示名再利用を許す。
     "EventDefinition": True,
+    # 運営者のメールアドレスは無効化後も一意制約を維持し再利用させない。
+    "VendorOperator": False,
 }
 
 #: ``dated_activation`` 方言として認めるフィールド名の組。

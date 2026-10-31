@@ -22,7 +22,11 @@ router = APIRouter(
     tags=["authentication"],
     route_class=ApplicationRoute,
     responses=error_responses(
-        HTTPStatus.UNAUTHORIZED, HTTPStatus.CONFLICT, HTTPStatus.UNPROCESSABLE_CONTENT
+        HTTPStatus.UNAUTHORIZED,
+        HTTPStatus.FORBIDDEN,
+        HTTPStatus.NOT_FOUND,
+        HTTPStatus.CONFLICT,
+        HTTPStatus.UNPROCESSABLE_CONTENT,
     ),
 )
 
@@ -43,7 +47,15 @@ Credentials = Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_sche
 class LoginRequest(RequestModel):
     """ログイン入力。秘密をモデルの文字列表現へ含めない。"""
 
-    login_id: str = Field(max_length=64)
+    corporate_id: str
+    email: str = Field(max_length=256)
+    password: str = Field(repr=False, max_length=128)
+
+
+class VendorLoginRequest(RequestModel):
+    """運営者のログイン入力。"""
+
+    email: str = Field(max_length=256)
     password: str = Field(repr=False, max_length=128)
 
 
@@ -53,12 +65,28 @@ class ChangePasswordRequest(RequestModel):
     password: str = Field(repr=False, min_length=15, max_length=128)
 
 
+class SelectStoreContextRequest(RequestModel):
+    """作業対象とする店舗の選択入力。"""
+
+    store_id: str
+
+
 @router.post("/login", response_model=LoginSession)
 async def login(body: LoginRequest, auth: Auth, response: Response) -> LoginSession:
     """初期パスワードでは変更専用セッションを返す。"""
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
-    return await auth.login(body.login_id, body.password)
+    return await auth.login(body.corporate_id, body.email, body.password)
+
+
+@router.post("/vendor/login", response_model=LoginSession)
+async def vendor_login(
+    body: VendorLoginRequest, auth: Auth, response: Response
+) -> LoginSession:
+    """運営者の資格情報を照合しセッションを発行する。"""
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return await auth.vendor_login(body.email, body.password)
 
 
 @router.post("/password", response_model=LoginSession)
@@ -73,6 +101,21 @@ async def change_password(
     if credentials is None:
         raise AuthenticationError()
     return await auth.change_password(credentials.credentials, body.password)
+
+
+@router.post("/store-context", response_model=LoginSession)
+async def select_store_context(
+    body: SelectStoreContextRequest,
+    auth: Auth,
+    credentials: Credentials,
+    response: Response,
+) -> LoginSession:
+    """許可・所属済みの店舗を選択した新しいセッションを発行する。"""
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    if credentials is None:
+        raise AuthenticationError()
+    return await auth.select_store(credentials.credentials, body.store_id)
 
 
 @router.post("/logout", status_code=204)

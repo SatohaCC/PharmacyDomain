@@ -115,9 +115,7 @@ async def get_actor_context(
     actor: ActorContext
     if state.local_authentication is not None:
         try:
-            subject = VerifiedSubject(
-                principal_id=await state.local_authentication.authenticate(credential)
-            )
+            subject = await state.local_authentication.authenticate_subject(credential)
         except LoginFailedError:
             actor = await state.actor_provider.authenticate(credential)
         else:

@@ -461,3 +461,17 @@ class InquiryNotAgreedError(DispensingDomainError):
         if result_type is not None:
             message = f"{message}結果区分: {result_type}。"
         super().__init__(message)
+
+
+class PrescriptionAuditRequiredConflictError(DispensingDomainError):
+    """処方鑑査必須ポリシーに反して、問題なしの処方鑑査記録がない場合の例外。"""
+
+    default_message = "処方鑑査必須ポリシーにより、問題なしの処方鑑査記録がない状態では最終鑑査および調剤完了はできません。"
+    default_code = "DISPENSING_PRESCRIPTION_AUDIT_REQUIRED"
+
+
+class SelfVerificationProhibitedConflictError(DispensingDomainError):
+    """自己鑑査禁止ポリシーに反して、調剤者と同じ自然人による最終鑑査を行おうとした場合の例外。"""
+
+    default_message = "自己鑑査禁止ポリシーにより、調剤者と同じ自然人による最終鑑査および調剤完了はできません。"
+    default_code = "DISPENSING_SELF_VERIFICATION_PROHIBITED"

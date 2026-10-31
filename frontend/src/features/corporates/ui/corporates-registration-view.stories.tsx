@@ -18,7 +18,7 @@ export const 通常: Story = {
     await userEvent.type(c.getByLabelText(/^管理者の名(?:必須| 必須)?$/), "花子");
     await userEvent.type(c.getByLabelText(/管理者の姓（カナ）/), "テスト");
     await userEvent.type(c.getByLabelText(/管理者の名（カナ）/), "ハナコ");
-    await userEvent.type(c.getByLabelText(/ログインID/), "test-admin");
+    await userEvent.type(c.getByLabelText(/メールアドレス/), "test-admin@example.com");
     await userEvent.type(c.getByLabelText(/初期パスワード/), "test-initial-password-12345");
     await userEvent.click(c.getByRole("button", { name: "登録する" }));
     await expect(args.onSubmit.submit).toHaveBeenCalledTimes(1);

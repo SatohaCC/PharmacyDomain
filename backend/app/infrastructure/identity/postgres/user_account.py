@@ -4,6 +4,7 @@ from collections.abc import Collection
 
 from sqlalchemy import select
 
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.entities import UserAccount
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.primitives import ExternalSubjectKey
@@ -21,6 +22,7 @@ USER_ACCOUNT_MAPPING = AggregateMapping(
     label="個人アカウント",
     search_columns=lambda account: {
         "id": account.id.value,
+        "corporate_id": account.corporate_id.value,
         "person_id": account.person_id.value,
         "status": account.status.value,
         "external_subject": account.external_subject.value
@@ -37,11 +39,28 @@ class PostgresUserAccountRepository(PostgresRepositoryBase, UserAccountRepositor
         """個人アカウントを取得する。"""
         return await self.get_by_id(USER_ACCOUNT_MAPPING, account_id)
 
-    async def get_by_person(self, person_id: AccountPersonId) -> UserAccount | None:
-        """本人から個人アカウントを取得する。"""
+    async def find_for_corporate(
+        self, corporate_id: CorporateId, account_id: UserAccountId
+    ) -> UserAccount | None:
+        """法人スコープ内で個人アカウントを取得する。"""
         return await self.find_one(
             USER_ACCOUNT_MAPPING,
-            select(user_accounts).where(user_accounts.c.person_id == person_id.value),
+            select(user_accounts).where(
+                user_accounts.c.id == account_id.value,
+                user_accounts.c.corporate_id == corporate_id.value,
+            ),
+        )
+
+    async def get_by_person(
+        self, corporate_id: CorporateId, person_id: AccountPersonId
+    ) -> UserAccount | None:
+        """法人内の本人に対応するアカウントを取得する。"""
+        return await self.find_one(
+            USER_ACCOUNT_MAPPING,
+            select(user_accounts).where(
+                user_accounts.c.person_id == person_id.value,
+                user_accounts.c.corporate_id == corporate_id.value,
+            ),
         )
 
     async def save(self, account: UserAccount) -> None:
@@ -53,6 +72,11 @@ class PostgresUserAccountRepository(PostgresRepositoryBase, UserAccountRepositor
                 "uq_user_accounts_person_id": IdentityConflictError,
                 "ck_user_accounts_person_immutable": IdentityConflictError,
                 "uq_user_accounts_external_subject": IdentityConflictError,
+                "fk_user_accounts_person_corporate": IdentityConflictError,
+                "fk_user_accounts_corporate_id_corporates": IdentityConflictError,
+                "uq_user_accounts_id_corporate": IdentityConflictError,
+                "uq_user_accounts_id_person": IdentityConflictError,
+                "uq_user_accounts_id_corporate_person": IdentityConflictError,
             },
         )
 

@@ -33,6 +33,23 @@ class StoreReferenceBoundary(Protocol):
         """
         ...
 
+    async def require_licensed(
+        self,
+        *,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+        business_on: date,
+        has_narcotics: bool = False,
+    ) -> None:
+        """店舗の許認可（薬局開設許可・麻薬小売業者免許）を確認する。
+
+        Raises:
+            PrescriptionStoreNotFoundError: 未存在または別法人の店舗である場合。
+            PharmacyLicenseRequiredConflictError: 薬局開設許可が未登録または期間外の場合。
+            NarcoticsLicenseRequiredConflictError: 麻薬処方で麻薬免許が未登録または期間外の場合。
+        """
+        ...
+
 
 class PatientReferenceBoundary(Protocol):
     """患者集約を保持せず、患者の法人境界だけを確認する境界。"""
@@ -58,7 +75,12 @@ class StaffQualificationBoundary(Protocol):
     """
 
     async def get_qualifications(
-        self, *, corporate_id: CorporateId, staff_id: StaffId
+        self,
+        *,
+        corporate_id: CorporateId,
+        staff_id: StaffId,
+        store_id: StoreId | None = None,
+        as_of: date | None = None,
     ) -> PharmacistQualification:
         """指定法人に在籍するスタッフの保有資格を返す。
 
@@ -67,6 +89,7 @@ class StaffQualificationBoundary(Protocol):
                 ある場合。他テナントの存在を隠すためAuthorizationErrorへ分けない。
                 資格を持たないだけのスタッフはここでは例外にせず、空の
                 ``PharmacistQualification`` を返す（存在はしているため）。
+            AuthorizationError: スタッフが停止中、または指定店舗・業務日に有効な所属がない場合。
         """
         ...
 

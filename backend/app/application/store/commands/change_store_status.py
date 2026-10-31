@@ -77,7 +77,11 @@ class ChangeStoreStatusUseCase:
             self._stores, corporate_id=corporate_id, store_id=store_id
         )
         actor = self._access.actor
-        if not isinstance(actor, ResolvedActorContext):
+        if (
+            not isinstance(actor, ResolvedActorContext)
+            or actor.person_id is None
+            or actor.account_id is None
+        ):
             raise AuthorizationError(
                 "店舗状態の変更には本人とアカウントの特定が必要です。"
             )

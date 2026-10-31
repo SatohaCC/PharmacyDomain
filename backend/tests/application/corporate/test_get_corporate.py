@@ -3,7 +3,11 @@ from __future__ import annotations
 import pytest
 
 from app.application.corporate.errors import CorporateNotFoundError
-from app.application.corporate.queries.dtos.get_corporate import CorporateResponseDto
+from app.application.corporate.queries.dtos.get_corporate import (
+    CorporatePolicyDto,
+    CorporateResponseDto,
+    PolicySettingDto,
+)
 from app.application.corporate.queries.get_corporate import GetCorporateUseCase
 from app.domain.foundation.exceptions import DomainValidationError
 from tests.application.access_helpers import create_vendor_corporate_access_for
@@ -27,6 +31,10 @@ async def test_get_corporate_returns_response_dto() -> None:
         name="テスト法人",
         representative_name="山田 太郎",
         is_active=True,
+        policy=CorporatePolicyDto(
+            require_prescription_audit=PolicySettingDto(value=False, overridable=False),
+            prohibit_self_verification=PolicySettingDto(value=False, overridable=False),
+        ),
     )
 
 

@@ -53,6 +53,23 @@ async def _setup(
                 store_ids=frozenset({fixture.store.id, other.id}),
             )
         )
+        target_staff = await repositories.staff.get(
+            corporate_id=fixture.corporate.id, staff_id=fixture.staff[1].id
+        )
+        assert target_staff is not None
+        await repositories.staff.save(
+            replace(
+                target_staff,
+                affiliations=(
+                    *target_staff.affiliations,
+                    StoreAffiliation(
+                        store_id=other.id,
+                        is_primary=False,
+                        period=AffiliationPeriod(start_date=date(2026, 1, 1)),
+                    ),
+                ),
+            )
+        )
         await repositories.manager_assignment.save(
             create_manager_assignment(
                 corporate_id=fixture.corporate.id,
@@ -117,14 +134,16 @@ async def test_管理薬剤師_実DBで複数店舗利用の法人管理者を�
         await repositories.prescription.save(available)
         await work.commit()
     async with fixture.root.request_scope(
-        authorization=AuthorizationService(target)
+        authorization=AuthorizationService(replace(target, selected_store_id=other))
     ) as scope:
         rows = await scope.repositories.prescription.list_by_patient(
             corporate_id=fixture.corporate.id, patient_id=patient.id
         )
         assert [item.id for item in rows] == [available.id]
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=identity_app(fixture, actor_index=1)),
+        transport=httpx.ASGITransport(
+            app=identity_app(fixture, actor_index=1, selected_store_id=other)
+        ),
         base_url="http://test",
         headers={"Authorization": "Bearer person"},
     ) as client:

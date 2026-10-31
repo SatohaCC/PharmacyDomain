@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from app.application.access_control.errors import TenantBoundaryNotFoundError
 from app.application.care_event.interfaces.get_event_query_reader import (
     GetEventQueryReader,
@@ -26,4 +28,11 @@ class GetEventProjection(GetEventQueryReader):
         )
         if event is None:
             raise TenantBoundaryNotFoundError()
-        return EventDto.from_entity(event)
+        dto = EventDto.from_entity(event)
+        if event.related_event_id is not None:
+            related = await self._event_repository.get(
+                corporate_id=corporate_id, event_id=event.related_event_id
+            )
+            if related is None or related.store_id != event.store_id:
+                dto = replace(dto, related_event_id=None)
+        return dto

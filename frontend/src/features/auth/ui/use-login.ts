@@ -23,7 +23,11 @@ export function useLogin(
       throw new Error("確認用パスワードが一致しません。");
     const session = passwordChangeRequired
       ? await changeInitialPassword(restrictedToken.current, password)
-      : await passwordLogin(text(d, "login_id"), password);
+      : await passwordLogin(
+          text(d, "corporate_id"),
+          text(d, "email"),
+          password,
+        );
     if (session.password_change_required) {
       restrictedToken.current = session.access_token;
       setPasswordChangeRequired(true);

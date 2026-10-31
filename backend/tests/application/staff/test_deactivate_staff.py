@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -29,6 +29,7 @@ from tests.application.staff.access_revocation_helpers import (
 )
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store
+from tests.fakes.fake_clock import FakeClock
 from tests.fakes.in_memory_staff_repository import InMemoryStaffRepository
 from tests.fakes.in_memory_store_repository import InMemoryStoreRepository
 
@@ -38,10 +39,12 @@ async def test_deactivate_and_activate_staff_success() -> None:
     # Arrange
     staff_repo = InMemoryStaffRepository()
     corporate_access = create_vendor_corporate_access()
+    clock = FakeClock(datetime(2026, 4, 1, tzinfo=UTC))
     deactivate_use_case = DeactivateStaffUseCase(
         repository=staff_repo,
         corporate_access=corporate_access,
         access_revocation=create_access_revocation(),
+        clock=clock,
     )
     activate_use_case = ActivateStaffUseCase(
         repository=staff_repo,
@@ -98,10 +101,12 @@ async def test_無効化した退職者は_退職日の翌日以降の主所属�
         assignment_service=StaffStoreAssignmentService(),
         corporate_access=corporate_access,
     )
+    clock = FakeClock(datetime(2026, 4, 1, 0, 0, tzinfo=UTC))
     deactivate_use_case = DeactivateStaffUseCase(
         repository=staff_repo,
         corporate_access=corporate_access,
         access_revocation=create_access_revocation(),
+        clock=clock,
     )
 
     corp_id = CorporateId.generate()

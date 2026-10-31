@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import date
 from enum import StrEnum
 from typing import Final, Protocol
 
@@ -58,7 +59,13 @@ class StoreOperationBoundary(Protocol):
     """他コンテキストは店舗集約を保持せず操作可否だけを問い合わせる。"""
 
     async def require_allowed(
-        self, *, corporate_id: CorporateId, store_id: StoreId, operation: StoreOperation
+        self,
+        *,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+        operation: StoreOperation,
+        has_narcotics: bool = False,
+        business_on: date | None = None,
     ) -> None:
-        """法人・店舗・操作を検証する。他法人・未存在は404相当で隠蔽する。"""
+        """法人・店舗・操作・許認可を検証する。他法人・未存在は404相当で隠蔽する。"""
         ...

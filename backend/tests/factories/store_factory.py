@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import cast
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.shared.actor import AccountPersonId
@@ -16,6 +17,8 @@ from app.domain.store.entities import Store, StoreManagerAssignment
 from app.domain.store.identifiers import StoreId, StoreManagerAssignmentId
 from app.domain.store.primitives import (
     InsurancePharmacyNumber,
+    NarcoticsLicenseNumber,
+    PharmacyLicenseNumber,
     StoreAddressLine,
     StoreCode,
     StoreEmailAddress,
@@ -29,7 +32,10 @@ from app.domain.store.primitives import (
 from app.domain.store.value_objects import (
     ContactInfo,
     ManagerAssignmentPeriod,
+    NarcoticsRetailerLicense,
+    PharmacyLicense,
     StoreAddress,
+    StoreLicenses,
     StoreNames,
 )
 
@@ -95,6 +101,39 @@ def create_manager_assignment(
     )
 
 
+_DEFAULT_LICENSES: object = object()
+
+
+def create_store_licenses(
+    *,
+    pharmacy_license_number: str = "薬-2026-001",
+    pharmacy_valid_from: date = date(2020, 1, 1),
+    pharmacy_valid_to: date = date(2035, 12, 31),
+    narcotics_license_number: str | None = None,
+    narcotics_valid_from: date | None = None,
+    narcotics_valid_to: date | None = None,
+) -> StoreLicenses:
+    """店舗の許認可（薬局許可・麻薬免許）を組み立てる。"""
+    pharmacy_license = PharmacyLicense(
+        number=PharmacyLicenseNumber(pharmacy_license_number),
+        valid_from=pharmacy_valid_from,
+        valid_to=pharmacy_valid_to,
+    )
+    narcotics_license = None
+    if narcotics_license_number is not None:
+        n_valid_from = narcotics_valid_from or date(2026, 10, 29)
+        n_valid_to = narcotics_valid_to or date(n_valid_from.year + 2, 12, 31)
+        narcotics_license = NarcoticsRetailerLicense(
+            number=NarcoticsLicenseNumber(narcotics_license_number),
+            valid_from=n_valid_from,
+            valid_to=n_valid_to,
+        )
+    return StoreLicenses(
+        pharmacy_license=pharmacy_license,
+        narcotics_retailer_license=narcotics_license,
+    )
+
+
 def create_store(
     *,
     corporate_id: CorporateId | None = None,
@@ -102,8 +141,14 @@ def create_store(
     kana: str = "サンプルヤッキョク",
     code: str | None = None,
     insurance_pharmacy_number: str | None = None,
+    licenses: StoreLicenses | None | object = _DEFAULT_LICENSES,
 ) -> Store:
     """既定値を持つ店舗を組み立てる（永続化はしない）。"""
+    actual_licenses = (
+        create_store_licenses()
+        if licenses is _DEFAULT_LICENSES
+        else cast(StoreLicenses | None, licenses)
+    )
     return Store(
         id=StoreId.generate(),
         corporate_id=corporate_id
@@ -116,4 +161,5 @@ def create_store(
         insurance_pharmacy_number=InsurancePharmacyNumber(insurance_pharmacy_number)
         if insurance_pharmacy_number
         else None,
+        licenses=actual_licenses,
     )

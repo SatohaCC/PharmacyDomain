@@ -1,5 +1,7 @@
 """店舗横断薬歴テスト用の店舗操作Boundary Fake。"""
 
+from datetime import date
+
 from app.application.access_control.interfaces.store_operations import (
     StoreOperation,
     StoreOperationBoundary,
@@ -21,6 +23,8 @@ class FakeMedicationHistoryStoreOperations(StoreOperationBoundary):
         corporate_id: CorporateId,
         store_id: StoreId,
         operation: StoreOperation,
+        has_narcotics: bool = False,
+        business_on: date | None = None,
     ) -> None:
         """店舗と業務を記録し、設定された失敗条件を再現する。"""
         self.calls.append((corporate_id, store_id, operation))

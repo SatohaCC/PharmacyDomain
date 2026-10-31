@@ -21,9 +21,11 @@ from types import ModuleType
 import pytest
 
 import app.application
-from app.application.staff.commands.register_staff import RegisterStaffUseCase
+from app.application.staff.commands.register_staff import (
+    BulkRegisteredStaffResult,
+    RegisterStaffUseCase,
+)
 from app.domain.foundation.entity import Entity
-from app.domain.staff.identifiers import StaffId
 
 
 def _use_case_classes(package: ModuleType) -> Iterator[type]:
@@ -98,13 +100,12 @@ def test_ユースケースは_集約を返さない(use_case: type) -> None:
 
 
 @pytest.mark.asyncio
-async def test_スタッフ登録は_採番されたIDだけを返す() -> None:
+async def test_スタッフ登録は_一括登録結果を返す() -> None:
     # Arrange & Act
     annotation = _return_annotation(RegisterStaffUseCase)
 
     # Assert
-    # 集約を返していた頃の呼び出し側は、適用日なしの導出を直接呼べていた。
-    assert annotation is StaffId
+    assert annotation is BulkRegisteredStaffResult
     assert inspect.iscoroutinefunction(RegisterStaffUseCase.execute)
 
 

@@ -383,6 +383,7 @@ async def test_実DB調剤開始_正当な代替_別スコープで全代替入�
         if row["resource_id"] == dispensing_id.value
     ]
     assert len(audit_rows) == 1
+    assert fixture.actor.person_id is not None and fixture.actor.account_id is not None
     assert audit_rows[0]["person_id"] == fixture.actor.person_id.value
     assert audit_rows[0]["account_id"] == fixture.actor.account_id.value
     assert audit_rows[0]["corporate_id"] == prescription.corporate_id.value

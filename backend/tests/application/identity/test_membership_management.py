@@ -10,7 +10,7 @@ from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.identifiers import CorporateMembershipId
 from app.domain.identity.primitives import AccountStatus, MembershipRole
 from app.domain.shared.actor import AccountPersonId, UserAccountId
-from tests.application.identity.test_invitation_management import _setup
+from tests.application.identity.helpers import _setup
 
 
 @pytest.mark.asyncio
@@ -20,8 +20,12 @@ async def test_実効的な最後の管理者を停止すると保存されな�
     whole_account: bool, other_admin: bool
 ) -> None:
     fixture = await _setup()
-    account = UserAccount(id=UserAccountId.generate(), person_id=fixture.person.id)
     corporate_id = CorporateId.parse(fixture.command.corporate_id)
+    account = UserAccount(
+        id=UserAccountId.generate(),
+        corporate_id=corporate_id,
+        person_id=fixture.person.id,
+    )
     membership = CorporateMembership(
         id=CorporateMembershipId.generate(),
         corporate_id=corporate_id,

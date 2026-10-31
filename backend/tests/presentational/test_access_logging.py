@@ -66,6 +66,7 @@ def test_閲覧ログへ信頼済み本人と対象と結果を記録する(
         )
     assert response.status_code == 200
     record = _records(caplog)[0]
+    assert actor.person_id is not None and actor.account_id is not None
     assert record.__dict__["person_id"] == str(actor.person_id.value)
     assert record.__dict__["account_id"] == str(actor.account_id.value)
     assert record.__dict__["status_code"] == 200
@@ -82,6 +83,7 @@ def test_未存在への要求でも本人と失敗結果がログへ残る(
         )
     assert response.status_code == 404
     record = _records(caplog)[0]
+    assert actor.person_id is not None
     assert record.__dict__["person_id"] == str(actor.person_id.value)
     assert record.__dict__["status_code"] == 404
 
@@ -125,5 +127,6 @@ def test_処理中の例外も失敗ログへ残す(
         )
     assert response.status_code == 500
     record = _records(caplog)[0]
+    assert actor.person_id is not None
     assert record.__dict__["person_id"] == str(actor.person_id.value)
     assert record.__dict__["status_code"] == 500

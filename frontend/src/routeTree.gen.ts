@@ -17,7 +17,6 @@ import { Route as LoginIndexRouteImport } from './routes/login/index'
 import { Route as AdminCorporatesIndexRouteImport } from './routes/admin/corporates/index'
 import { Route as AdminCorporatesCorporateIdRouteRouteImport } from './routes/admin/corporates/$corporateId/route'
 import { Route as AuthCallbackIndexRouteImport } from './routes/auth/callback/index'
-import { Route as InvitationsAcceptIndexRouteImport } from './routes/invitations/accept/index'
 import { Route as AdminCorporatesCorporateIdIndexRouteImport } from './routes/admin/corporates/$corporateId/index'
 import { Route as AdminCorporatesCorporateIdStoresRouteRouteImport } from './routes/admin/corporates/$corporateId/stores/route'
 import { Route as AdminCorporatesCorporateIdUsersRouteRouteImport } from './routes/admin/corporates/$corporateId/users/route'
@@ -66,11 +65,6 @@ const AdminCorporatesCorporateIdRouteRoute =
 const AuthCallbackIndexRoute = AuthCallbackIndexRouteImport.update({
   id: '/auth/callback/',
   path: '/auth/callback/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InvitationsAcceptIndexRoute = InvitationsAcceptIndexRouteImport.update({
-  id: '/invitations/accept/',
-  path: '/invitations/accept/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminCorporatesCorporateIdIndexRoute =
@@ -130,7 +124,6 @@ export interface FileRoutesByFullPath {
   '/admin/corporates/$corporateId': typeof AdminCorporatesCorporateIdRouteRouteWithChildren
   '/admin/corporates/': typeof AdminCorporatesIndexRoute
   '/auth/callback/': typeof AuthCallbackIndexRoute
-  '/invitations/accept/': typeof InvitationsAcceptIndexRoute
   '/admin/corporates/$corporateId/stores': typeof AdminCorporatesCorporateIdStoresRouteRouteWithChildren
   '/admin/corporates/$corporateId/users': typeof AdminCorporatesCorporateIdUsersRouteRouteWithChildren
   '/admin/corporates/$corporateId/': typeof AdminCorporatesCorporateIdIndexRoute
@@ -146,7 +139,6 @@ export interface FileRoutesByTo {
   '/login': typeof LoginIndexRoute
   '/admin/corporates': typeof AdminCorporatesIndexRoute
   '/auth/callback': typeof AuthCallbackIndexRoute
-  '/invitations/accept': typeof InvitationsAcceptIndexRoute
   '/admin/corporates/$corporateId': typeof AdminCorporatesCorporateIdIndexRoute
   '/admin/corporates/new': typeof AdminCorporatesNewIndexRoute
   '/admin/corporates/$corporateId/stores': typeof AdminCorporatesCorporateIdStoresIndexRoute
@@ -164,7 +156,6 @@ export interface FileRoutesById {
   '/admin/corporates/$corporateId': typeof AdminCorporatesCorporateIdRouteRouteWithChildren
   '/admin/corporates/': typeof AdminCorporatesIndexRoute
   '/auth/callback/': typeof AuthCallbackIndexRoute
-  '/invitations/accept/': typeof InvitationsAcceptIndexRoute
   '/admin/corporates/$corporateId/stores': typeof AdminCorporatesCorporateIdStoresRouteRouteWithChildren
   '/admin/corporates/$corporateId/users': typeof AdminCorporatesCorporateIdUsersRouteRouteWithChildren
   '/admin/corporates/$corporateId/': typeof AdminCorporatesCorporateIdIndexRoute
@@ -185,7 +176,6 @@ export interface FileRouteTypes {
     | '/admin/corporates/$corporateId'
     | '/admin/corporates/'
     | '/auth/callback/'
-    | '/invitations/accept/'
     | '/admin/corporates/$corporateId/stores'
     | '/admin/corporates/$corporateId/users'
     | '/admin/corporates/$corporateId/'
@@ -201,7 +191,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/admin/corporates'
     | '/auth/callback'
-    | '/invitations/accept'
     | '/admin/corporates/$corporateId'
     | '/admin/corporates/new'
     | '/admin/corporates/$corporateId/stores'
@@ -218,7 +207,6 @@ export interface FileRouteTypes {
     | '/admin/corporates/$corporateId'
     | '/admin/corporates/'
     | '/auth/callback/'
-    | '/invitations/accept/'
     | '/admin/corporates/$corporateId/stores'
     | '/admin/corporates/$corporateId/users'
     | '/admin/corporates/$corporateId/'
@@ -234,7 +222,6 @@ export interface RootRouteChildren {
   AdminRouteRoute: typeof AdminRouteRouteWithChildren
   LoginIndexRoute: typeof LoginIndexRoute
   AuthCallbackIndexRoute: typeof AuthCallbackIndexRoute
-  InvitationsAcceptIndexRoute: typeof InvitationsAcceptIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -293,13 +280,6 @@ declare module '@tanstack/react-router' {
       path: '/auth/callback'
       fullPath: '/auth/callback/'
       preLoaderRoute: typeof AuthCallbackIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/invitations/accept/': {
-      id: '/invitations/accept/'
-      path: '/invitations/accept'
-      fullPath: '/invitations/accept/'
-      preLoaderRoute: typeof InvitationsAcceptIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/corporates/$corporateId/': {
@@ -452,7 +432,6 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRouteRoute: AdminRouteRouteWithChildren,
   LoginIndexRoute: LoginIndexRoute,
   AuthCallbackIndexRoute: AuthCallbackIndexRoute,
-  InvitationsAcceptIndexRoute: InvitationsAcceptIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

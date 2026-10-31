@@ -67,9 +67,9 @@ class StartDispensingCommand:
     corporate_id: str
     store_id: str
     prescription_id: str
-    dispenser_id: str
     iteration: int
     dispensed_date: date | None
     dispensed_rps: tuple[DispensedRpInput, ...]
+    dispenser_id: str | None = None
     split_reason: str | None = None
     total_split_count: int | None = None

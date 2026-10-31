@@ -5,15 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
-from app.application.access_control.boundary_models import (
-    Permission,
-    ResolvedActorContext,
-)
+from app.application.access_control.boundary_models import Permission
 from app.application.access_control.interfaces.corporate_access import (
     CorporateAccessBoundary,
 )
-from app.application.common.clock import BUSINESS_TIMEZONE, Clock, business_now
-from app.application.common.exceptions import AuthorizationError
+from app.application.common.clock import (
+    BUSINESS_TIMEZONE,
+    Clock,
+    business_now,
+)
 from app.application.common.organization_lock import OrganizationLock
 from app.application.common.unit_of_work import UnitOfWork
 from app.application.medication_history.commands.dtos.get_medication_history import (
@@ -24,6 +24,7 @@ from app.application.medication_history.commands.services.profile_projection_ser
 )
 from app.application.medication_history.commands.services.support import (
     load_record_or_raise,
+    resolve_acting_pharmacist_id,
 )
 from app.application.medication_history.interfaces.references import (
     MedicationHistoryEventOccurrenceBoundary,
@@ -142,21 +143,26 @@ class FinalizeMedicationHistoryUseCase:
         review_result = parse_enum(
             MedicationHistoryReviewResult, command.review_result, "薬歴レビュー結果"
         )
-        actor = self._corporate_access.actor
-        if not isinstance(actor, ResolvedActorContext) or actor.staff_id is None:
-            raise AuthorizationError(
-                "薬歴の確認にはスタッフを特定できるActorが必要です。"
-            )
-        finalizer_id = actor.staff_id
+        finalizer_id = resolve_acting_pharmacist_id(
+            self._corporate_access.actor,
+            error_message="薬歴の確認にはスタッフを特定できるActorが必要です。",
+        )
         counselor_id = record.counselor_id
         counseled_at = record.counseled_at
         qualified_staff_ids: set[StaffId] = set()
+        business_instant = (
+            business_now(self._clock) if self._clock is not None else None
+        )
+        today = business_instant.date() if business_instant is not None else None
         if (
             self._staff_qualification is not None
             and self._counselor_service is not None
         ):
             qualifications = await self._staff_qualification.get_qualifications(
-                corporate_id=corporate_id, staff_id=finalizer_id
+                corporate_id=corporate_id,
+                staff_id=finalizer_id,
+                store_id=record.store_id,
+                as_of=today,
             )
             self._counselor_service.ensure_pharmacist(qualifications)
             qualified_staff_ids.add(finalizer_id)
@@ -195,14 +201,16 @@ class FinalizeMedicationHistoryUseCase:
             and (finalizer_id not in qualified_staff_ids)
         ):
             qualifications = await self._staff_qualification.get_qualifications(
-                corporate_id=corporate_id, staff_id=finalizer_id
+                corporate_id=corporate_id,
+                staff_id=finalizer_id,
+                store_id=record.store_id,
+                as_of=today,
             )
             self._counselor_service.ensure_pharmacist(qualifications)
-        if self._clock is None:
+        if business_instant is None:
             raise MedicationHistoryDomainError(
                 "薬歴確定日時を記録するClockが必要です。"
             )
-        business_instant = business_now(self._clock)
         now = business_instant.astimezone(UTC)
         finalized_at = FinalizedTimestamp(now)
         if use_clock_as_counseling_time:

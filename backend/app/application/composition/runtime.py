@@ -28,7 +28,6 @@ from app.application.composition.registry import (
     StoreUseCases,
 )
 from app.application.identity.boundary_models import VerifiedSubject
-from app.application.identity.commands.dtos.identity_views import AccountDto
 
 
 class UseCaseRegistry(Protocol):
@@ -120,12 +119,6 @@ class CompositionRoot(Protocol):
 
     async def resolve_identity(self, subject: VerifiedSubject) -> ResolvedActorContext:
         """外部主体から信頼済みの内部操作者を解決する。"""
-        ...
-
-    async def accept_invitation(
-        self, subject: VerifiedSubject, secret: str
-    ) -> AccountDto:
-        """通常の認可文脈を作る前に招待を受諾する。"""
         ...
 
     async def dispose(self) -> None:

@@ -11,10 +11,10 @@ from app.domain.identity.entities import (
     CorporateMembership,
     StaffPersonLink,
     UserAccount,
-    UserInvitation,
+    VendorOperator,
 )
-from app.domain.identity.identifiers import CorporateMembershipId, UserInvitationId
-from app.domain.identity.primitives import ExternalSubjectKey, InvitationDigest
+from app.domain.identity.identifiers import CorporateMembershipId, VendorOperatorId
+from app.domain.identity.primitives import CorporateUserEmail, ExternalSubjectKey
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.identifiers import StaffId
 
@@ -24,6 +24,12 @@ class AccountPersonRepository(Protocol):
 
     async def get(self, person_id: AccountPersonId) -> AccountPerson | None:
         """本人IDに一致する人を返す。"""
+        ...
+
+    async def find_for_corporate(
+        self, corporate_id: CorporateId, person_id: AccountPersonId
+    ) -> AccountPerson | None:
+        """法人スコープ内で本人情報を取得する。"""
         ...
 
     async def save(self, person: AccountPerson) -> None:
@@ -38,8 +44,16 @@ class UserAccountRepository(Protocol):
         """アカウントIDで取得する。"""
         ...
 
-    async def get_by_person(self, person_id: AccountPersonId) -> UserAccount | None:
-        """本人に対応するアカウントを返す。"""
+    async def find_for_corporate(
+        self, corporate_id: CorporateId, account_id: UserAccountId
+    ) -> UserAccount | None:
+        """法人スコープ内で個人アカウントを取得する。"""
+        ...
+
+    async def get_by_person(
+        self, corporate_id: CorporateId, person_id: AccountPersonId
+    ) -> UserAccount | None:
+        """法人内の本人に対応するアカウントを返す。"""
         ...
 
     async def save(self, account: UserAccount) -> None:
@@ -98,22 +112,34 @@ class StaffPersonLinkRepository(Protocol):
         """スタッフIDで本人対応を取得する。"""
         ...
 
+    async def find_for_corporate(
+        self, corporate_id: CorporateId, staff_id: StaffId
+    ) -> StaffPersonLink | None:
+        """法人スコープ内でスタッフと本人の対応を取得する。"""
+        ...
+
     async def save(self, link: StaffPersonLink) -> None:
         """別人への付け替えを原子的に拒否する。"""
         ...
 
 
-class UserInvitationRepository(Protocol):
-    """秘密をハッシュとして保持する招待の保存境界。"""
+class VendorOperatorRepository(Protocol):
+    """運営者集約の永続化Protocol。"""
 
-    async def get(self, invitation_id: UserInvitationId) -> UserInvitation | None:
-        """招待IDで取得する。"""
+    async def get(self, operator_id: VendorOperatorId) -> VendorOperator | None:
+        """運営者IDで取得する。"""
         ...
 
-    async def find_by_digest(self, digest: InvitationDigest) -> UserInvitation | None:
-        """照合用ハッシュで招待を取得する。"""
+    async def get_by_subject(
+        self, subject: ExternalSubjectKey
+    ) -> VendorOperator | None:
+        """外部主体で運営者を取得する。"""
         ...
 
-    async def save(self, invitation: UserInvitation) -> None:
-        """招待を保存する。同時受諾は世代の不一致として拒否する。"""
+    async def get_by_email(self, email: CorporateUserEmail) -> VendorOperator | None:
+        """メールアドレスで運営者を取得する。"""
+        ...
+
+    async def save(self, operator: VendorOperator) -> None:
+        """運営者を保存する。"""
         ...

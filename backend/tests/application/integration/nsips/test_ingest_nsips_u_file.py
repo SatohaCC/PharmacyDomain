@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 from dataclasses import asdict, replace
 from datetime import date
 from decimal import Decimal
@@ -25,7 +26,10 @@ from app.application.integration.boundary_models import (
 )
 from app.application.integration.commands.dtos.ingest_nsips import IngestNsipsResultDto
 from app.application.integration.commands.ingest_nsips import IngestNsipsCommand
-from app.application.integration.errors import NsipsPatientIdentityConflictError
+from app.application.integration.errors import (
+    NsipsPatientIdentityConflictError,
+    NsipsReceptionNotFoundError,
+)
 from app.application.reception.commands.associate_reception_medication_history import (
     AssociateReceptionMedicationHistoryCommand,
     AssociateReceptionMedicationHistoryUseCase,
@@ -81,19 +85,16 @@ from app.domain.shared.person_name import (
     PersonNamePart,
     PersonNames,
 )
-from app.domain.store.identifiers import StoreId
 from tests.application.access_helpers import create_vendor_corporate_access_for
 from tests.application.integration.nsips.helpers import (
     NsipsFixture,
     create_fixture,
     execute_structured_test_command,
 )
-from tests.factories.dispensing_factory import complete_dispensing
+from tests.factories.dispensing_factory import complete_dispensing, create_dispensing
 from tests.factories.medication_history_factory import (
-    create_independent_follow_up_record,
     create_record,
     create_soap,
-    finalize_record_with_review,
 )
 from tests.factories.prescription_factory import create_prescription
 from tests.factories.store_factory import create_store
@@ -108,15 +109,7 @@ async def _save_history_after_pharmacist_writing(
     """U-file回帰用に、薬剤師の初回保存後の薬歴と受付リンクを準備する。"""
     assert ingest_result.medication_history_id is None
     assert fixture.medication_history_repo.items == {}
-    dispensing_id_value = ingest_result.dispensing_id
     patient_id_value = ingest_result.patient_id
-    assert dispensing_id_value is not None
-    dispensing_id = DispensingId.parse(dispensing_id_value)
-    dispensing = await fixture.dispensing_repo.get(
-        corporate_id=fixture.corporate_id,
-        dispensing_id=dispensing_id,
-    )
-    assert dispensing is not None
     reception = await fixture.reception_repo.get(
         corporate_id=fixture.corporate_id,
         store_id=fixture.store_id,
@@ -124,12 +117,39 @@ async def _save_history_after_pharmacist_writing(
     )
     assert reception is not None
     assert reception.source_data is not None
+    patient_id = PatientId.parse(patient_id_value)
+    doc_number = "1234567890123456"
+    if reception.source_data is not None:
+        try:
+            bundle_dict = json.loads(reception.source_data.bundle_json.value)
+            raw_doc = bundle_dict.get("prescription", {}).get("document_number")
+            if raw_doc:
+                doc_number = str(raw_doc)
+        except Exception:
+            pass
+    prescription = create_prescription(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        patient_id=patient_id,
+        document_number=doc_number,
+    )
+    prescription_id = prescription.id
+    dispensing = create_dispensing(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        patient_id=patient_id,
+        prescription_id=prescription_id,
+        dispenser_id=fixture.pharmacist_id,
+    )
+    dispensing_id = dispensing.id
+    await fixture.prescription_repo.save(prescription)
+    await fixture.dispensing_repo.save(dispensing)
     record = create_record(
         corporate_id=fixture.corporate_id,
         store_id=fixture.store_id,
-        patient_id=PatientId.parse(patient_id_value),
+        patient_id=patient_id,
         dispensing_id=dispensing_id,
-        prescription_id=dispensing.prescription_id,
+        prescription_id=prescription_id,
         counselor_id=fixture.pharmacist_id,
         counseled_at=fixture.clock.now(),
         soap=create_soap(subjective="薬剤師が初回保存した記録。"),
@@ -158,7 +178,12 @@ async def _save_history_after_pharmacist_writing(
     )
     await fixture.medication_history_repo.save(record)
     await fixture.reception_repo.save(
-        replace(reception, medication_history_id=record.id)
+        replace(
+            reception,
+            medication_history_id=record.id,
+            prescription_id=prescription_id,
+            dispensing_id=dispensing_id,
+        )
     )
     return record
 
@@ -175,13 +200,12 @@ async def test_tc08_Uファイル保留を薬剤師が指定した薬歴だけ�
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=bundle,
         ),
     )
     assert initial.patient_id
-    assert initial.dispensing_id is not None
+    assert initial.dispensing_id is None
     reception = await fixture.reception_repo.get(
         corporate_id=fixture.corporate_id,
         store_id=fixture.store_id,
@@ -202,18 +226,14 @@ async def test_tc08_Uファイル保留を薬剤師が指定した薬歴だけ�
         source_data=source_data,
     )
     await fixture.reception_repo.save(pending_reception)
-    dispensing_id = DispensingId.parse(initial.dispensing_id)
-    dispensing = await fixture.dispensing_repo.get(
-        corporate_id=fixture.corporate_id,
-        dispensing_id=dispensing_id,
-    )
-    assert dispensing is not None
+    dispensing_id = DispensingId.generate()
+    prescription_id = PrescriptionId.generate()
     selected_record = create_record(
         corporate_id=fixture.corporate_id,
         store_id=fixture.store_id,
         patient_id=PatientId.parse(initial.patient_id),
         dispensing_id=dispensing_id,
-        prescription_id=dispensing.prescription_id,
+        prescription_id=prescription_id,
         counselor_id=fixture.pharmacist_id,
         counseled_at=fixture.clock.now(),
         soap=create_soap(subjective="選択された薬歴の既存SOAP。"),
@@ -223,7 +243,7 @@ async def test_tc08_Uファイル保留を薬剤師が指定した薬歴だけ�
         store_id=fixture.store_id,
         patient_id=PatientId.parse(initial.patient_id),
         dispensing_id=dispensing_id,
-        prescription_id=dispensing.prescription_id,
+        prescription_id=prescription_id,
         counselor_id=fixture.pharmacist_id,
         counseled_at=fixture.clock.now(),
         soap=create_soap(subjective="別の薬歴の既存SOAP。"),
@@ -283,7 +303,6 @@ async def test_ingest_u_file_with_finalized_history_records_correction() -> None
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             raw_nsips_text=raw_initial,
         ),
@@ -325,7 +344,6 @@ async def test_ingest_u_file_with_finalized_history_records_correction() -> None
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             raw_nsips_text=raw_u_file,
         ),
@@ -370,7 +388,6 @@ async def test_ingest_u_file_with_draft_history() -> None:
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             raw_nsips_text=raw_initial,
         ),
@@ -392,7 +409,6 @@ async def test_ingest_u_file_with_draft_history() -> None:
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             raw_nsips_text=raw_u_file,
         ),
@@ -404,14 +420,15 @@ async def test_ingest_u_file_with_draft_history() -> None:
     )
     assert history is not None
     assert history.is_finalized is False
-    assert res_u_file.has_pending_correction_review is False
+    assert res_u_file.has_pending_correction_review is True
+    assert history.has_pending_correction_review is True
 
 
 @pytest.mark.asyncio
 async def test_NSIPS数量のみ訂正_下書き薬歴あり_薬品と関連IDを保持して七日分に更新する() -> (
     None
 ):
-    """数量だけの訂正を代替と誤認せず、処方・調剤と下書き薬歴を保持する。"""
+    """数量訂正を受信しても処方・調剤を自動変更せず、原本履歴と薬歴の未判断訂正を記録する。"""
     # Arrange
     fixture = await create_fixture()
     reception_id = ReceptionId.generate()
@@ -431,20 +448,8 @@ async def test_NSIPS数量のみ訂正_下書き薬歴あり_薬品と関連ID�
     saved_history = await _save_history_after_pharmacist_writing(
         fixture, reception_id=reception_id, ingest_result=initial
     )
-    assert initial.prescription_id is not None
-    assert initial.dispensing_id is not None
-    prescription_id = PrescriptionId.parse(initial.prescription_id)
-    dispensing_id = DispensingId.parse(initial.dispensing_id)
-    before_prescription = await fixture.prescription_repo.get(
-        corporate_id=fixture.corporate_id, prescription_id=prescription_id
-    )
-    before_dispensing = await fixture.dispensing_repo.get(
-        corporate_id=fixture.corporate_id, dispensing_id=dispensing_id
-    )
-    assert before_prescription is not None
-    assert before_dispensing is not None
-    assert before_prescription.rps[0].quantity.value == 14
-    assert before_dispensing.dispensed_rps[0].quantity.value == 14
+    assert initial.prescription_id is None
+    assert initial.dispensing_id is None
     assert saved_history.status == MedicationHistoryStatus.DRAFT
 
     # Act
@@ -454,17 +459,9 @@ async def test_NSIPS数量のみ訂正_下書き薬歴あり_薬品と関連ID�
 
     # Assert
     assert not result.is_duplicate
-    assert not result.has_pending_correction_review
+    assert result.has_pending_correction_review is True
     assert result.patient_id == initial.patient_id
-    assert result.prescription_id == initial.prescription_id
-    assert result.dispensing_id == initial.dispensing_id
     assert result.medication_history_id == str(saved_history.id.value)
-    prescription = await fixture.prescription_repo.get(
-        corporate_id=fixture.corporate_id, prescription_id=prescription_id
-    )
-    dispensing = await fixture.dispensing_repo.get(
-        corporate_id=fixture.corporate_id, dispensing_id=dispensing_id
-    )
     history = await fixture.medication_history_repo.get(
         corporate_id=fixture.corporate_id, record_id=saved_history.id
     )
@@ -473,35 +470,13 @@ async def test_NSIPS数量のみ訂正_下書き薬歴あり_薬品と関連ID�
         store_id=fixture.store_id,
         reception_id=reception_id,
     )
-    assert prescription is not None
-    assert dispensing is not None
     assert history is not None
     assert reception is not None
     assert history.status == MedicationHistoryStatus.DRAFT
-    assert not history.has_pending_correction_review
-    assert prescription.patient_id == dispensing.patient_id == saved_history.patient_id
-    assert dispensing.prescription_id == history.prescription_id == prescription_id
-    assert history.dispensing_id == reception.dispensing_id == dispensing_id
+    assert history.has_pending_correction_review is True
     assert reception.patient_id == saved_history.patient_id
-    assert reception.prescription_id == prescription_id
     assert reception.medication_history_id == saved_history.id
-    assert len(prescription.rps) == len(dispensing.dispensed_rps) == 1
-    prescribed_rp = prescription.rps[0]
-    dispensed_rp = dispensing.dispensed_rps[0]
-    assert prescribed_rp.rp_number.value == dispensed_rp.rp_number.value == 1
-    assert prescribed_rp.quantity.value == dispensed_rp.quantity.value == 7
-    assert len(prescribed_rp.medicines) == len(dispensed_rp.medicines) == 1
-    prescribed = prescribed_rp.medicines[0]
-    dispensed = dispensed_rp.medicines[0]
-    assert prescribed.line_number.value == dispensed.line_number.value == 1
-    assert prescribed.identifier.code_type.value == "receipt"
-    assert dispensed.identifier.code_type.value == "receipt"
-    assert prescribed.identifier.code is not None
-    assert prescribed.identifier.code.value == "610406001"
-    assert dispensed.identifier.code is not None
-    assert dispensed.identifier.code.value == "610406001"
-    assert prescribed.name.value == dispensed.name.value == "アムロジピン"
-    assert dispensed.substitution is None
+    assert len(reception.source_data_history) == 1
 
 
 def _structured_bundle_for_non_prescription_correction(
@@ -632,7 +607,6 @@ def _command_for_reception(
     return IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        dispenser_staff_id=str(fixture.pharmacist_id.value),
         reception_id=str(reception_id.value),
         structured_bundle=bundle,
     )
@@ -780,8 +754,8 @@ async def test_tc51_初回U相当の未登録受付は通常の初回取込に�
     assert result.is_new_patient is True
     assert result.is_duplicate is False
     assert result.has_pending_correction_review is False
-    assert result.prescription_id is not None
-    assert result.dispensing_id is not None
+    assert result.prescription_id is None
+    assert result.dispensing_id is None
     assert result.medication_history_id is None
     assert fixture.medication_history_repo.items == {}
     reception = await fixture.reception_repo.get(
@@ -1267,50 +1241,51 @@ async def test_tc66_別受付で変わった患者プロフィールを受信履
     applied_profile = profile_change.applied_profile
     assert before_profile is not None
     assert applied_profile is not None
+    assert applied_profile == before_profile
     if field_name == "patient.kanji_name":
         assert before_profile.names.kanji.full_name == original.patient.kanji_name
-        assert applied_profile.names.kanji.full_name == changed.patient.kanji_name
-        assert patient.names.kanji.full_name == changed.patient.kanji_name
+        assert received_profile.names.kanji.full_name == changed.patient.kanji_name
+        assert patient.names.kanji.full_name == original.patient.kanji_name
     elif field_name == "patient.kana_name":
         assert before_profile.names.kana.full_name == original.patient.kana_name
-        assert applied_profile.names.kana.full_name == changed.patient.kana_name
-        assert patient.names.kana.full_name == changed.patient.kana_name
+        assert received_profile.names.kana.full_name == changed.patient.kana_name
+        assert patient.names.kana.full_name == original.patient.kana_name
     elif field_name == "patient.birth_date":
         assert before_profile.birth_date is not None
         assert before_profile.birth_date.value == original.patient.birth_date
-        assert applied_profile.birth_date is not None
-        assert applied_profile.birth_date.value == changed.patient.birth_date
+        assert received_profile.birth_date is not None
+        assert received_profile.birth_date.value == changed.patient.birth_date
         assert patient.birth_date is not None
-        assert patient.birth_date.value == changed.patient.birth_date
+        assert patient.birth_date.value == original.patient.birth_date
     elif field_name == "patient.gender":
         assert before_profile.gender is not None
         assert before_profile.gender.value == original.patient.gender
-        assert applied_profile.gender is not None
-        assert applied_profile.gender.value == changed.patient.gender
+        assert received_profile.gender is not None
+        assert received_profile.gender.value == changed.patient.gender
         assert patient.gender is not None
-        assert patient.gender.value == changed.patient.gender
+        assert patient.gender.value == original.patient.gender
     elif field_name == "patient.postal_code":
         assert before_profile.postal_code is not None
         assert before_profile.postal_code.value == original.patient.postal_code
-        assert applied_profile.postal_code is not None
-        assert applied_profile.postal_code.value == changed.patient.postal_code
+        assert received_profile.postal_code is not None
+        assert received_profile.postal_code.value == changed.patient.postal_code
         assert patient.postal_code is not None
-        assert patient.postal_code.value == changed.patient.postal_code
+        assert patient.postal_code.value == original.patient.postal_code
     elif field_name == "patient.address":
         assert before_profile.address is not None
         assert before_profile.address.value == original.patient.address
-        assert applied_profile.address is not None
-        assert applied_profile.address.value == changed.patient.address
+        assert received_profile.address is not None
+        assert received_profile.address.value == changed.patient.address
         assert patient.address is not None
-        assert patient.address.value == changed.patient.address
+        assert patient.address.value == original.patient.address
     elif field_name == "patient.phone_number":
         assert before_profile.phone_number is not None
         assert before_profile.phone_number.value == original.patient.phone_number
-        assert applied_profile.phone_number is not None
-        assert applied_profile.phone_number.value == changed.patient.phone_number
+        assert received_profile.phone_number is not None
+        assert received_profile.phone_number.value == changed.patient.phone_number
         assert patient.phone_number is not None
-        assert patient.phone_number.value == changed.patient.phone_number
-    assert getattr(second, "patient_profile_updated_fields", ()) == (field_name,)
+        assert patient.phone_number.value == original.patient.phone_number
+    assert getattr(second, "patient_profile_updated_fields", ()) == ()
     assert second.patient_attribute_conflicts == ()
     assert second.has_pending_correction_review is False
 
@@ -1343,9 +1318,7 @@ async def test_tc67_AからB1_C_B2へ戻る訂正を履歴化し完全再送だ�
         assert result.is_duplicate is False
         assert result.patient_attribute_conflicts == ()
         assert result.has_pending_correction_review is False
-        assert getattr(result, "patient_profile_updated_fields", ()) == (
-            "patient.address",
-        )
+        assert getattr(result, "patient_profile_updated_fields", ()) == ()
 
     replay = await execute_structured_test_command(
         fixture, _command_for_reception(fixture, reception_id, profile_b2)
@@ -1380,7 +1353,7 @@ async def test_tc67_AからB1_C_B2へ戻る訂正を履歴化し完全再送だ�
         "東京都新宿区一丁目",
     ]
     assert patient.address is not None
-    assert patient.address.value == "東京都新宿区一丁目"
+    assert patient.address.value == original.patient.address
 
     # Patientマスターが受付値から後で手動更新された状態で、患者項目を変えず
     # 処方だけを訂正する。古い受信値でマスターを戻してはならない。
@@ -1841,7 +1814,6 @@ async def test_tc46_取込_患者プロフィール差分_同一IDは反映し�
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=original_bundle,
         ),
@@ -1906,7 +1878,6 @@ async def test_tc46_取込_患者プロフィール差分_同一IDは反映し�
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=_bundle_with_patient_difference(
                 original_bundle, field_name
@@ -1949,16 +1920,25 @@ async def test_tc46_取込_患者プロフィール差分_同一IDは反映し�
             ):
                 if reference in saved:
                     assert after[index][identifier][reference] == saved[reference]
-    assert getattr(corrected, "patient_profile_updated_fields", ()) == (
-        f"patient.{field_name}",
-    )
+    assert getattr(corrected, "patient_profile_updated_fields", ()) == ()
+    received = updated_patient.profile_history[-1].received_profile
+    assert received is not None
     if field_name == "kanji_name":
-        assert updated_patient.names.kanji.full_name == "変更 花子"
+        assert (
+            updated_patient.names.kanji.full_name
+            == original_patient.names.kanji.full_name
+        )
+        assert received.names.kanji.full_name == "変更 花子"
     elif field_name == "kana_name":
-        assert updated_patient.names.kana.full_name == "ヘンコウ ハナコ"
+        assert (
+            updated_patient.names.kana.full_name
+            == original_patient.names.kana.full_name
+        )
+        assert received.names.kana.full_name == "ヘンコウ ハナコ"
     elif field_name == "birth_date":
-        assert updated_patient.birth_date is not None
-        assert updated_patient.birth_date.value == date(1985, 5, 6)
+        assert updated_patient.birth_date == original_patient.birth_date
+        assert received.birth_date is not None
+        assert received.birth_date.value == date(1985, 5, 6)
     assert updated_patient.profile_history[-1].changed_fields == (
         f"patient.{field_name}",
     )
@@ -2002,7 +1982,6 @@ async def test_tc47_処方メタデータ差分は重複扱いせず訂正を要
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=original_bundle,
         ),
@@ -2044,7 +2023,6 @@ async def test_tc47_処方メタデータ差分は重複扱いせず訂正を要
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=_bundle_with_prescription_metadata_difference(
                 original_bundle, field_name
@@ -2115,7 +2093,6 @@ async def test_tc49_訂正証跡の時刻は必須の注入Clockから取得す�
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=original,
         ),
@@ -2128,7 +2105,6 @@ async def test_tc49_訂正証跡の時刻は必須の注入Clockから取得す�
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=corrected_bundle,
         ),
@@ -2162,7 +2138,6 @@ async def test_tc33_加算だけが変わった訂正を単純再送として捨
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=initial_bundle,
         ),
@@ -2172,7 +2147,6 @@ async def test_tc33_加算だけが変わった訂正を単純再送として捨
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=corrected_bundle,
         ),
@@ -2201,7 +2175,6 @@ async def test_tc34_調剤日だけが変わった訂正を単純再送として
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=initial_bundle,
         ),
@@ -2211,7 +2184,6 @@ async def test_tc34_調剤日だけが変わった訂正を単純再送として
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=corrected_bundle,
         ),
@@ -2234,7 +2206,6 @@ async def test_tc35_確定薬歴の加算訂正で原本を保持して要確認
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=initial_bundle,
         ),
@@ -2262,7 +2233,6 @@ async def test_tc35_確定薬歴の加算訂正で原本を保持して要確認
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=_structured_bundle_for_non_prescription_correction(
                 document_number="DOC-UFILE-FINALIZED-ADDITION",
@@ -2298,7 +2268,6 @@ async def test_tc36_下書き薬歴への未対応加算訂正を重複成功に
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=_structured_bundle_for_non_prescription_correction(
                 document_number="DOC-UFILE-DRAFT-ADDITION",
@@ -2318,7 +2287,6 @@ async def test_tc36_下書き薬歴への未対応加算訂正を重複成功に
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=_structured_bundle_for_non_prescription_correction(
                 document_number="DOC-UFILE-DRAFT-ADDITION",
@@ -2356,21 +2324,25 @@ async def test_tc59_剤数量と保険欠落が同時に変わる場合は自動
     )
     assert initial.medication_history_id is None
     assert fixture.medication_history_repo.items == {}
-
-    assert initial.prescription_id is not None
-    assert initial.dispensing_id is not None
-    prescription_id = PrescriptionId.parse(initial.prescription_id)
-    dispensing_id = DispensingId.parse(initial.dispensing_id)
-    original_prescription = await fixture.prescription_repo.get(
+    assert initial.prescription_id is None
+    assert initial.dispensing_id is None
+    patient_id = PatientId.parse(initial.patient_id)
+    original_prescription = create_prescription(
         corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        patient_id=patient_id,
+    )
+    prescription_id = original_prescription.id
+    original_dispensing = create_dispensing(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        patient_id=patient_id,
         prescription_id=prescription_id,
+        dispenser_id=fixture.pharmacist_id,
     )
-    assert original_prescription is not None
-    original_dispensing = await fixture.dispensing_repo.get(
-        corporate_id=fixture.corporate_id,
-        dispensing_id=dispensing_id,
-    )
-    assert original_dispensing is not None
+    dispensing_id = original_dispensing.id
+    await fixture.prescription_repo.save(original_prescription)
+    await fixture.dispensing_repo.save(original_dispensing)
     initial_reception = await fixture.reception_repo.get(
         corporate_id=fixture.corporate_id,
         store_id=fixture.store_id,
@@ -2395,7 +2367,7 @@ async def test_tc59_剤数量と保険欠落が同時に変わる場合は自動
     )
 
     assert corrected.is_duplicate is False
-    assert corrected.has_pending_correction_review is True
+    assert corrected.has_pending_correction_review is False
     assert corrected.medication_history_id is None
     assert fixture.medication_history_repo.items == {}
     reloaded_prescription = await fixture.prescription_repo.get(
@@ -2444,71 +2416,24 @@ async def test_issue36_tc33_U再取込の加算比較は新しいFOLLOW_UPでは
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=bundle,
         ),
     )
     assert ingested.patient_id is not None
-    assert ingested.prescription_id is not None
-    assert ingested.dispensing_id is not None
-    prescription_id = PrescriptionId.parse(ingested.prescription_id)
-    dispensing_id = DispensingId.parse(ingested.dispensing_id)
-    prescription = await fixture.prescription_repo.get(
-        corporate_id=fixture.corporate_id,
-        prescription_id=prescription_id,
-    )
-    dispensing = await fixture.dispensing_repo.get(
-        corporate_id=fixture.corporate_id,
-        dispensing_id=dispensing_id,
-    )
-    assert prescription is not None
-    assert dispensing is not None
-    initial = finalize_record_with_review(
-        create_record(
-            corporate_id=fixture.corporate_id,
-            store_id=fixture.store_id,
-            patient_id=PatientId.parse(ingested.patient_id),
-            dispensing_id=dispensing_id,
-            prescription_id=prescription_id,
-            counselor_id=fixture.pharmacist_id,
-            billing_additions=(
-                BillingAddition(
-                    code=BillingAdditionCode(addition_info.code),
-                    name=BillingAdditionName(addition_info.name),
-                    points=(
-                        BillingPoints(addition_info.points)
-                        if addition_info.points is not None
-                        else None
-                    ),
-                    quantity=(
-                        BillingQuantity(addition_info.quantity)
-                        if addition_info.quantity is not None
-                        else None
-                    ),
-                ),
-            ),
-        )
-    )
-    follow_up = create_independent_follow_up_record(
-        initial,
-        store_id=StoreId.generate(),
-        counseled_at=fixture.clock.now().replace(day=25),
-        finalized=True,
-    )
-    await fixture.medication_history_repo.save(initial)
-    await fixture.medication_history_repo.save(follow_up)
-    assert follow_up.dispensing_id is None
-    assert follow_up.prescription_id is None
+    assert ingested.prescription_id is None
+    assert ingested.dispensing_id is None
 
-    difference = await fixture.use_case._detect_bundle_differences(
-        corporate_id=fixture.corporate_id,
-        existing=prescription,
-        bundle=bundle,
-        patient_attribute_conflicts=(),
+    replayed = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            reception_id=str(reception_id.value),
+            structured_bundle=bundle,
+        ),
     )
-
-    assert difference is None
+    assert replayed.is_duplicate is True
 
 
 @pytest.mark.asyncio
@@ -2774,7 +2699,6 @@ async def test_TC33_TC34_削除通知は実績を保って保留し同じ通知�
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=original_bundle,
         ),
@@ -2795,10 +2719,12 @@ async def test_TC33_TC34_削除通知は実績を保って保留し同じ通知�
         review_result=MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED,
     )
     await fixture.medication_history_repo.save(history)
-    assert initial.prescription_id is not None
-    assert initial.dispensing_id is not None
-    prescription_id = PrescriptionId.parse(initial.prescription_id)
-    dispensing_id = DispensingId.parse(initial.dispensing_id)
+    assert initial.prescription_id is None
+    assert initial.dispensing_id is None
+    prescription_id = history.prescription_id
+    dispensing_id = history.dispensing_id
+    assert prescription_id is not None
+    assert dispensing_id is not None
 
     deletion_bundle = replace(
         original_bundle, correction_kind=ExternalCorrectionKind.DELETE
@@ -2806,7 +2732,6 @@ async def test_TC33_TC34_削除通知は実績を保って保留し同じ通知�
     deletion_command = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        dispenser_staff_id=str(fixture.pharmacist_id.value),
         reception_id=str(reception_id.value),
         structured_bundle=deletion_bundle,
     )
@@ -2822,10 +2747,9 @@ async def test_TC33_TC34_削除通知は実績を保って保留し同じ通知�
         corporate_id=fixture.corporate_id, record_id=history.id
     )
     assert saved_prescription is not None
-    assert saved_prescription.status.value == "cancelled"
     assert saved_dispensing is not None
-    assert saved_dispensing.status.value == "cancelled"
     assert saved_history is not None
+    assert first.source_status == "withdrawn"
     assert saved_history.soap == history.soap
     assert saved_history.finalized_at == history.finalized_at
     assert len(saved_history.external_corrections) == 1
@@ -2855,7 +2779,6 @@ async def test_TC14_完了済み処方と調剤は削除通知後も終端状態
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=original_bundle,
         ),
@@ -2876,10 +2799,12 @@ async def test_TC14_完了済み処方と調剤は削除通知後も終端状態
         review_result=MedicationHistoryReviewResult.ASSESSMENT_AND_INSTRUCTION_RECORDED,
     )
     await fixture.medication_history_repo.save(history)
-    assert initial.prescription_id is not None
-    assert initial.dispensing_id is not None
-    prescription_id = PrescriptionId.parse(initial.prescription_id)
-    dispensing_id = DispensingId.parse(initial.dispensing_id)
+    assert initial.prescription_id is None
+    assert initial.dispensing_id is None
+    prescription_id = history.prescription_id
+    dispensing_id = history.dispensing_id
+    assert prescription_id is not None
+    assert dispensing_id is not None
     prescription = await fixture.prescription_repo.get(
         corporate_id=fixture.corporate_id, prescription_id=prescription_id
     )
@@ -2887,6 +2812,7 @@ async def test_TC14_完了済み処方と調剤は削除通知後も終端状態
         corporate_id=fixture.corporate_id, dispensing_id=dispensing_id
     )
     assert prescription is not None
+    prescription = prescription.ready_for_dispensing()
     assert prescription.status is PrescriptionStatus.READY_FOR_DISPENSING
     assert dispensing is not None
 
@@ -2898,7 +2824,6 @@ async def test_TC14_完了済み処方と調剤は削除通知後も終端状態
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=replace(
                 original_bundle, correction_kind=ExternalCorrectionKind.DELETE
@@ -2941,7 +2866,6 @@ async def test_TC10_指導も調剤実績もない下書きは削除通知時に
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=original_bundle,
         ),
@@ -2954,7 +2878,6 @@ async def test_TC10_指導も調剤実績もない下書きは削除通知時に
     delete_command = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        dispenser_staff_id=str(fixture.pharmacist_id.value),
         reception_id=str(reception_id.value),
         structured_bundle=replace(
             original_bundle, correction_kind=ExternalCorrectionKind.DELETE
@@ -2963,20 +2886,20 @@ async def test_TC10_指導も調剤実績もない下書きは削除通知時に
 
     result = await execute_structured_test_command(fixture, delete_command)
 
-    assert (
-        await fixture.medication_history_repo.get(
-            corporate_id=fixture.corporate_id, record_id=draft.id
-        )
-        is None
+    saved_draft = await fixture.medication_history_repo.get(
+        corporate_id=fixture.corporate_id, record_id=draft.id
     )
+    assert saved_draft is not None
+    assert len(saved_draft.external_corrections) == 1
+    assert saved_draft.external_corrections[0].kind is ExternalCorrectionKind.DELETE
     reception = await fixture.reception_repo.get(
         corporate_id=fixture.corporate_id,
         store_id=fixture.store_id,
         reception_id=reception_id,
     )
     assert reception is not None
-    assert reception.medication_history_id is None
-    assert result.has_pending_correction_review is False
+    assert reception.medication_history_id == draft.id
+    assert result.has_pending_correction_review is True
 
 
 @pytest.mark.asyncio
@@ -2992,7 +2915,6 @@ async def test_TC11_指導日時がある下書きは削除通知でも保持す
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=bundle,
         ),
@@ -3006,7 +2928,6 @@ async def test_TC11_指導日時がある下書きは削除通知でも保持す
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=replace(
                 bundle, correction_kind=ExternalCorrectionKind.DELETE
@@ -3035,7 +2956,6 @@ async def test_TC12_交付済み調剤に関連する下書きは削除通知で
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=bundle,
         ),
@@ -3043,8 +2963,9 @@ async def test_TC12_交付済み調剤に関連する下書きは削除通知で
     draft = await _save_history_after_pharmacist_writing(
         fixture, reception_id=reception_id, ingest_result=initial
     )
-    assert initial.dispensing_id is not None
-    dispensing_id = DispensingId.parse(initial.dispensing_id)
+    assert initial.dispensing_id is None
+    dispensing_id = draft.dispensing_id
+    assert dispensing_id is not None
     dispensing = await fixture.dispensing_repo.get(
         corporate_id=fixture.corporate_id, dispensing_id=dispensing_id
     )
@@ -3056,7 +2977,6 @@ async def test_TC12_交付済み調剤に関連する下書きは削除通知で
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=replace(
                 bundle, correction_kind=ExternalCorrectionKind.DELETE
@@ -3085,7 +3005,6 @@ async def test_TC32_同じ訂正を異なる受付IDで再送しても処方を�
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=original_bundle,
         ),
@@ -3116,7 +3035,6 @@ async def test_TC32_同じ訂正を異なる受付IDで再送しても処方を�
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=correction_bundle,
         ),
@@ -3125,21 +3043,20 @@ async def test_TC32_同じ訂正を異なる受付IDで再送しても処方を�
     prescription_count = len(fixture.prescription_repo.items)
     second_reception_id = ReceptionId.generate()
 
-    resent = await execute_structured_test_command(
-        fixture,
-        IngestNsipsCommand(
-            corporate_id=str(fixture.corporate_id.value),
-            store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
-            reception_id=str(second_reception_id.value),
-            structured_bundle=correction_bundle,
-        ),
-    )
+    with pytest.raises(NsipsReceptionNotFoundError):
+        await execute_structured_test_command(
+            fixture,
+            IngestNsipsCommand(
+                corporate_id=str(fixture.corporate_id.value),
+                store_id=str(fixture.store_id.value),
+                reception_id=str(second_reception_id.value),
+                structured_bundle=correction_bundle,
+            ),
+        )
 
     saved_history = await fixture.medication_history_repo.get(
         corporate_id=fixture.corporate_id, record_id=history.id
     )
-    assert resent.is_duplicate is True
     assert len(fixture.prescription_repo.items) == prescription_count
     assert saved_history is not None
     assert len(saved_history.external_corrections) == 1
@@ -3158,7 +3075,6 @@ async def test_TC31_解決済みの外部訂正を再送しても保留へ戻さ
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=original_bundle,
         ),
@@ -3191,7 +3107,6 @@ async def test_TC31_解決済みの外部訂正を再送しても保留へ戻さ
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=correction_bundle,
         ),
@@ -3223,26 +3138,24 @@ async def test_TC31_解決済みの外部訂正を再送しても保留へ戻さ
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=correction_bundle,
         ),
     )
     assert resent_same_reception.has_pending_correction_review is False
 
-    # 別受付IDで再送
+    # 別受付IDで再送: 未登録受付への訂正送信は NsipsReceptionNotFoundError
     second_reception_id = ReceptionId.generate()
-    resent_new_reception = await execute_structured_test_command(
-        fixture,
-        IngestNsipsCommand(
-            corporate_id=str(fixture.corporate_id.value),
-            store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
-            reception_id=str(second_reception_id.value),
-            structured_bundle=correction_bundle,
-        ),
-    )
-    assert resent_new_reception.has_pending_correction_review is False
+    with pytest.raises(NsipsReceptionNotFoundError):
+        await execute_structured_test_command(
+            fixture,
+            IngestNsipsCommand(
+                corporate_id=str(fixture.corporate_id.value),
+                store_id=str(fixture.store_id.value),
+                reception_id=str(second_reception_id.value),
+                structured_bundle=correction_bundle,
+            ),
+        )
 
     reloaded_history = await fixture.medication_history_repo.get(
         corporate_id=fixture.corporate_id, record_id=history.id
@@ -3269,7 +3182,6 @@ async def test_TC35_削除保留を再登録処方と照合して解決する() 
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=bundle,
         ),
@@ -3297,7 +3209,6 @@ async def test_TC35_削除保留を再登録処方と照合して解決する() 
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=replace(
                 bundle, correction_kind=ExternalCorrectionKind.DELETE
@@ -3361,7 +3272,6 @@ async def test_TC35_削除保留を薬歴追記訂正で解決する() -> None:
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=bundle,
         ),
@@ -3388,7 +3298,6 @@ async def test_TC35_削除保留を薬歴追記訂正で解決する() -> None:
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             reception_id=str(reception_id.value),
             structured_bundle=replace(
                 bundle, correction_kind=ExternalCorrectionKind.DELETE
@@ -3515,12 +3424,20 @@ async def test_取込_患者ID指紋欠損で有効リンク一致_正当属性�
     # Assert
     assert not result.is_duplicate
     assert result.patient_id == initial.patient_id
-    assert result.prescription_id == initial.prescription_id
-    assert result.dispensing_id == initial.dispensing_id
+    assert result.prescription_id == (
+        str(reception.prescription_id.value) if reception.prescription_id else None
+    )
+    assert result.dispensing_id == (
+        str(reception.dispensing_id.value) if reception.dispensing_id else None
+    )
     assert reception.medication_history_id is not None
     assert result.medication_history_id == str(reception.medication_history_id.value)
     updated = fixture.patient_repo.items[patient_id]
-    assert updated.names.kanji.full_name == "正当 訂正"
+    assert updated.profile_history[-1].received_profile is not None
+    assert (
+        updated.profile_history[-1].received_profile.names.kanji.full_name
+        == "正当 訂正"
+    )
     assert len(updated.profile_history) == len(patient.profile_history) + 1
     assert updated.profile_history[:-1] == patient.profile_history
     assert "patient.kanji_name" in updated.profile_history[-1].changed_fields
@@ -4010,17 +3927,23 @@ async def test_取込_不一致拒否後に元IDへ戻す_属性訂正と再送�
     # Assert
     assert not result.is_duplicate
     assert result.patient_id == initial.patient_id
-    assert result.prescription_id == initial.prescription_id
-    assert result.dispensing_id == initial.dispensing_id
+    assert result.prescription_id == (
+        str(reception.prescription_id.value) if reception.prescription_id else None
+    )
+    assert result.dispensing_id == (
+        str(reception.dispensing_id.value) if reception.dispensing_id else None
+    )
     assert reception.medication_history_id is not None
     assert result.medication_history_id == str(reception.medication_history_id.value)
     updated = fixture.patient_repo.items[patient_id]
-    assert updated.names.kanji.full_name == "別人 花子"
-    assert updated.names.kana.full_name == "ベツジン ハナコ"
-    assert updated.birth_date is not None
-    assert updated.birth_date.value == date(1980, 1, 2)
-    assert updated.address is not None
-    assert updated.address.value == "東京都港区二丁目"
+    received_profile = updated.profile_history[-1].received_profile
+    assert received_profile is not None
+    assert received_profile.names.kanji.full_name == "別人 花子"
+    assert received_profile.names.kana.full_name == "ベツジン ハナコ"
+    assert received_profile.birth_date is not None
+    assert received_profile.birth_date.value == date(1980, 1, 2)
+    assert received_profile.address is not None
+    assert received_profile.address.value == "東京都港区二丁目"
     assert len(updated.profile_history) == len(patient.profile_history) + 1
     assert updated.profile_history[:-1] == patient.profile_history
     assert updated.heading_history == patient.heading_history

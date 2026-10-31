@@ -1,0 +1,1 @@
+"""Integration クエリ DTO パッケージ。"""

@@ -11,6 +11,7 @@ class LoginSession:
 
     access_token: str = field(repr=False)
     password_change_required: bool
+    selected_store_id: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -24,3 +25,4 @@ class VerifiedSubject:
     """
 
     principal_id: str
+    selected_store_id: str | None = None

@@ -16,6 +16,9 @@ from app.application.composition.adapters.dispensing_references import (
     DispensingStoreReferenceAdapter,
     PrescriptionSourceAdapter,
 )
+from app.application.composition.adapters.effective_policy_resolver import (
+    EffectivePolicyResolver,
+)
 from app.application.composition.adapters.medication_history_patient_profile import (
     MedicationHistoryPatientProfileAdapter,
 )
@@ -35,6 +38,9 @@ from app.application.composition.adapters.prescription_references import (
     PrescriptionPatientReferenceAdapter,
     PrescriptionStaffQualificationAdapter,
     PrescriptionStoreReferenceAdapter,
+)
+from app.application.composition.adapters.staff_person_adapter import (
+    StaffPersonAdapter,
 )
 from app.application.composition.adapters.store_operation_adapter import (
     StoreOperationAdapter,
@@ -219,6 +225,7 @@ def build_prescription_use_cases(
             NarcoticPrescriptionService(),
             RefillEligibilityService(),
             PublicExpenseBurdenService(),
+            clock=clock,
         ),
         get=GetPrescriptionUseCase(
             reader=GetPrescriptionProjection(repository),
@@ -233,7 +240,15 @@ def build_prescription_use_cases(
             InquiryPharmacistService(),
             clock,
         ),
-        resolve_inquiry=ResolveInquiryUseCase(repository, corporate_access, clock),
+        resolve_inquiry=ResolveInquiryUseCase(
+            repository,
+            corporate_access,
+            clock,
+            staff_qualification=PrescriptionStaffQualificationAdapter(
+                repositories.staff
+            ),
+            pharmacist_service=InquiryPharmacistService(),
+        ),
         audit_interactions=AuditDrugInteractionsUseCase(
             authorization_service=AuthorizationService(corporate_access.actor),
             data_source=interaction_data_source or BlackBoxDrugInteractionDataSource(),
@@ -276,10 +291,24 @@ def build_dispensing_use_cases(
             clock,
         ),
         record_dispensed_content=RecordDispensedContentUseCase(
-            repository, corporate_access, prescription_source, consistency
+            repository,
+            corporate_access,
+            prescription_source,
+            consistency,
+            staff_qualification=staff_qualification,
+            pharmacist_service=pharmacist,
+            clock=clock,
         ),
         verify=VerifyDispensingUseCase(
-            repository, corporate_access, staff_qualification, pharmacist, clock
+            repository,
+            corporate_access,
+            staff_qualification,
+            pharmacist,
+            clock,
+            policy_boundary=EffectivePolicyResolver(
+                repositories.corporate, repositories.store
+            ),
+            staff_person=StaffPersonAdapter(repositories.staff_person_link),
         ),
         record_audit=RecordAuditUseCase(
             repository, corporate_access, staff_qualification, pharmacist, clock
@@ -290,6 +319,12 @@ def build_dispensing_use_cases(
             prescription_source,
             unit_of_work,
             clock,
+            policy_boundary=EffectivePolicyResolver(
+                repositories.corporate, repositories.store
+            ),
+            staff_person=StaffPersonAdapter(repositories.staff_person_link),
+            staff_qualification=staff_qualification,
+            pharmacist_service=pharmacist,
         ),
         get=GetDispensingUseCase(
             reader=GetDispensingProjection(repository),
@@ -445,6 +480,7 @@ def build_medication_history_use_cases(
             corporate_access,
             counselor_qualification,
             counselor,
+            clock=clock,
         ),
         record_tracing_report_response=RecordTracingReportResponseUseCase(
             record_repository,

@@ -14,7 +14,7 @@ import pkgutil
 from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, date, datetime
-from typing import Any
+from typing import Any, Final
 from unittest.mock import patch
 
 import pytest
@@ -33,15 +33,15 @@ from app.domain.care_event.primitives import (
     EventTypeName,
     EventTypeStandardCode,
 )
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.entities import (
     AccountPerson,
     CorporateMembership,
     StaffPersonLink,
     UserAccount,
-    UserInvitation,
 )
-from app.domain.identity.identifiers import CorporateMembershipId, UserInvitationId
-from app.domain.identity.primitives import InvitationDigest, MembershipRole
+from app.domain.identity.identifiers import CorporateMembershipId
+from app.domain.identity.primitives import MembershipRole
 from app.domain.medication_history.entities import MedicationHistoryCategoryCatalog
 from app.domain.medication_history.primitives import FollowUpRecordedTimestamp
 from app.domain.reception.entities import Reception
@@ -82,7 +82,6 @@ from app.infrastructure.identity.postgres.staff_person_link import (
     STAFF_PERSON_LINK_MAPPING,
 )
 from app.infrastructure.identity.postgres.user_account import USER_ACCOUNT_MAPPING
-from app.infrastructure.identity.postgres.user_invitation import INVITATION_MAPPING
 from app.infrastructure.medication_history.postgres.medication_history import (
     MEDICATION_HISTORY_RECORD_MAPPING,
 )
@@ -147,8 +146,10 @@ def _case[AggregateT](
 
 def _row_value_cases() -> list[tuple[AggregateMapping[Any], Mapping[str, object]]]:
     """各Repositoryが1行に書く値を、対応と組にして返す。"""
+    corporate_id = CorporateId.generate()
     person = AccountPerson(
         id=AccountPersonId.generate(),
+        corporate_id=corporate_id,
         names=PersonNames(
             kanji=PersonName(
                 last_name=PersonNamePart("山田"), first_name=PersonNamePart("太郎")
@@ -159,7 +160,11 @@ def _row_value_cases() -> list[tuple[AggregateMapping[Any], Mapping[str, object]
             ),
         ),
     )
-    account = UserAccount(id=UserAccountId.generate(), person_id=person.id)
+    account = UserAccount(
+        id=UserAccountId.generate(),
+        corporate_id=corporate_id,
+        person_id=person.id,
+    )
     store = create_store()
     patient = create_patient()
     reception_store = create_store(corporate_id=patient.corporate_id)
@@ -186,18 +191,6 @@ def _row_value_cases() -> list[tuple[AggregateMapping[Any], Mapping[str, object]
             STAFF_PERSON_LINK_MAPPING,
             StaffPersonLink(
                 id=staff.id, person_id=person.id, corporate_id=staff.corporate_id
-            ),
-        ),
-        _case(
-            INVITATION_MAPPING,
-            UserInvitation(
-                id=UserInvitationId.generate(),
-                person_id=person.id,
-                corporate_id=store.corporate_id,
-                role=MembershipRole.CORPORATE_ADMIN,
-                store_ids=frozenset(),
-                secret_digest=InvitationDigest("a" * 64),
-                expires_at=datetime(2026, 9, 20, tzinfo=UTC),
             ),
         ),
         _case(
@@ -418,6 +411,95 @@ _CARE_EVENT_TRANSFORM_PREFIXES = (
     "ALTER TABLE medication_history_records ADD CONSTRAINT ck_medication_history_records_dispensing_requires_prescription CHECK",
 )
 
+# 店舗許認可（薬局開設許可・麻薬小売業者免許）の検索列を追加する前進DDL。
+_STORE_LICENSE_TRANSFORM_PREFIXES = (
+    "ALTER TABLE stores ADD COLUMN pharmacy_license_number VARCHAR(64)",
+    "ALTER TABLE stores ADD COLUMN pharmacy_license_valid_from DATE",
+    "ALTER TABLE stores ADD COLUMN pharmacy_license_valid_to DATE",
+    "ALTER TABLE stores ADD COLUMN narcotics_license_number VARCHAR(64)",
+    "ALTER TABLE stores ADD COLUMN narcotics_license_valid_from DATE",
+    "ALTER TABLE stores ADD COLUMN narcotics_license_valid_to DATE",
+)
+
+# identity各集約へのcorporate_id必須化と法人整合制約の強化。
+_IDENTITY_CORPORATE_SCOPE_TRANSFORM_PREFIXES = (
+    "ALTER TABLE account_people ADD COLUMN corporate_id UUID NOT NULL",
+    "ALTER TABLE account_people ADD CONSTRAINT fk_account_people_corporate_id_corporates FOREIGN KEY",
+    "ALTER TABLE account_people ADD CONSTRAINT uq_account_people_id_corporate UNIQUE",
+    "ALTER TABLE user_accounts ADD COLUMN corporate_id UUID NOT NULL",
+    "ALTER TABLE user_accounts ADD CONSTRAINT fk_user_accounts_corporate_id_corporates FOREIGN KEY",
+    "ALTER TABLE user_accounts DROP CONSTRAINT fk_user_accounts_person_id_account_people",
+    "ALTER TABLE user_accounts ADD CONSTRAINT fk_user_accounts_person_corporate FOREIGN KEY",
+    "ALTER TABLE local_credentials DROP CONSTRAINT fk_local_credentials_subject_user_accounts",
+    "ALTER TABLE user_accounts DROP CONSTRAINT uq_user_accounts_person_id",
+    "ALTER TABLE user_accounts DROP CONSTRAINT uq_user_accounts_external_subject",
+    "ALTER TABLE user_accounts ADD CONSTRAINT uq_user_accounts_person_id UNIQUE",
+    "ALTER TABLE user_accounts ADD CONSTRAINT uq_user_accounts_external_subject UNIQUE",
+    "ALTER TABLE user_accounts ADD CONSTRAINT uq_user_accounts_id_corporate UNIQUE",
+    "ALTER TABLE user_accounts ADD CONSTRAINT uq_user_accounts_id_corporate_person UNIQUE",
+    "ALTER TABLE staff_person_links DROP CONSTRAINT fk_staff_person_links_person_id_account_people",
+    "ALTER TABLE staff_person_links ADD CONSTRAINT fk_staff_person_links_person_corporate FOREIGN KEY",
+    "ALTER TABLE staff_person_links ADD CONSTRAINT uq_staff_person_links_id_person_corporate UNIQUE",
+    "ALTER TABLE corporate_memberships DROP CONSTRAINT fk_corporate_memberships_account_id_user_accounts",
+    "ALTER TABLE corporate_memberships ADD CONSTRAINT fk_membership_account_corporate FOREIGN KEY",
+    "ALTER TABLE store_manager_assignments DROP CONSTRAINT fk_store_manager_assignments_staff_person",
+    "ALTER TABLE store_manager_assignments ADD CONSTRAINT fk_store_manager_assignments_staff_person FOREIGN KEY",
+    "ALTER TABLE store_manager_assignments DROP CONSTRAINT ex_manager_person_period",
+    "ALTER TABLE store_manager_assignments ADD CONSTRAINT ex_manager_person_period EXCLUDE",
+    "ALTER TABLE operation_audits DROP CONSTRAINT fk_audit_account_person",
+    "ALTER TABLE operation_audits ADD CONSTRAINT fk_audit_account_person FOREIGN KEY",
+)
+
+# 認証資格情報の法人スコープ化、運営者専用テーブル新設、および招待機能テーブル削除。
+_IDENTITY_AUTH_AND_DROP_INVITATIONS_TRANSFORM_PREFIXES = (
+    "DROP TABLE user_invitations",
+    "ALTER TABLE operation_audits ADD COLUMN operator_id UUID",
+    "ALTER TABLE operation_audits ADD CONSTRAINT fk_operation_audits_operator_id_vendor_operators FOREIGN KEY",
+    "ALTER TABLE operation_audits ALTER COLUMN person_id DROP NOT NULL",
+    "ALTER TABLE operation_audits ALTER COLUMN account_id DROP NOT NULL",
+    "ALTER TABLE operation_audits ADD CONSTRAINT ck_operation_audits_audit_actor CHECK",
+    "ALTER TABLE local_sessions DROP CONSTRAINT fk_local_sessions_subject_local_credentials",
+    "DELETE FROM local_sessions",
+    "DELETE FROM local_credentials",
+    "ALTER TABLE local_credentials DROP CONSTRAINT pk_local_credentials",
+    "ALTER TABLE local_credentials DROP COLUMN login_id",
+    "ALTER TABLE local_credentials ADD COLUMN corporate_id UUID NOT NULL",
+    "ALTER TABLE local_credentials ADD CONSTRAINT fk_local_credentials_corporate_id_corporates FOREIGN KEY",
+    "ALTER TABLE local_credentials ADD COLUMN email VARCHAR(255) NOT NULL",
+    "ALTER TABLE local_credentials ADD CONSTRAINT pk_local_credentials PRIMARY KEY",
+)
+
+# ローカル認証セッションへの選択店舗ID列の追加。
+_LOCAL_SESSIONS_SELECTED_STORE_TRANSFORM_PREFIXES = (
+    "ALTER TABLE local_sessions ADD COLUMN selected_store_id UUID",
+    "ALTER TABLE local_sessions ADD CONSTRAINT fk_local_sessions_selected_store_id_stores FOREIGN KEY",
+)
+
+_SUPERSEDED_ROUTINES: Final[tuple[str, ...]] = (
+    _normalized_statement("""CREATE OR REPLACE FUNCTION prevent_account_person_change() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+        IF NEW.person_id IS DISTINCT FROM OLD.person_id THEN
+            RAISE EXCEPTION 'アカウントの本人参照は変更できません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_user_accounts_person_immutable';
+        END IF;
+        RETURN NEW;
+    END;
+    $$"""),
+    _normalized_statement("""CREATE OR REPLACE FUNCTION check_membership_person() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+        IF TG_OP = 'UPDATE' AND (NEW.account_id IS DISTINCT FROM OLD.account_id OR NEW.corporate_id IS DISTINCT FROM OLD.corporate_id) THEN
+            RAISE EXCEPTION 'アクセス権の本人と法人は変更できません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_membership_identity_immutable';
+        END IF;
+        IF NEW.staff_id IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM staff_person_links s JOIN user_accounts a ON a.person_id = s.person_id
+            WHERE s.id = NEW.staff_id AND s.corporate_id = NEW.corporate_id AND a.id = NEW.account_id
+        ) THEN
+            RAISE EXCEPTION 'スタッフと本人の対応が一致しません。' USING ERRCODE = '23514', CONSTRAINT = 'ck_membership_person';
+        END IF;
+        RETURN NEW;
+    END;
+    $$"""),
+)
+
 
 def _split_statements(sql: str) -> list[str]:
     """``$$`` で囲まれた本体の中の ``;`` で切らずに文へ分ける。
@@ -500,6 +582,20 @@ def _migration_ddl() -> set[str]:
                 + ", CONSTRAINT uq_prescriptions_scope_identity UNIQUE "
                 "(id, corporate_id, store_id, patient_id)" + statement[close_index:]
             )
+        elif statement.startswith("CREATE TABLE stores "):
+            close_index = statement.rfind(")")
+            assert close_index > 0
+            additions = (
+                "narcotics_license_number VARCHAR(64), "
+                "narcotics_license_valid_from DATE, "
+                "narcotics_license_valid_to DATE, "
+                "pharmacy_license_number VARCHAR(64), "
+                "pharmacy_license_valid_from DATE, "
+                "pharmacy_license_valid_to DATE"
+            )
+            statement = _normalized_statement(
+                statement[:close_index] + ", " + additions + statement[close_index:]
+            )
         elif statement.startswith("CREATE TABLE dispensing_processes "):
             close_index = statement.rfind(")")
             assert close_index > 0
@@ -509,6 +605,121 @@ def _migration_ddl() -> set[str]:
                 "(id, corporate_id, store_id, patient_id, prescription_id)"
                 + statement[close_index:]
             )
+        elif statement.startswith("CREATE TABLE account_people "):
+            close_index = statement.rfind(")")
+            assert close_index > 0
+            additions = (
+                "CONSTRAINT fk_account_people_corporate_id_corporates FOREIGN KEY(corporate_id) REFERENCES corporates (id), "
+                "CONSTRAINT uq_account_people_id_corporate UNIQUE (id, corporate_id), "
+                "corporate_id UUID NOT NULL"
+            )
+            statement = _normalized_statement(
+                statement[:close_index] + ", " + additions + statement[close_index:]
+            )
+        elif statement.startswith("CREATE TABLE user_accounts "):
+            statement = statement.replace(
+                "CONSTRAINT fk_user_accounts_person_id_account_people FOREIGN KEY(person_id) REFERENCES account_people (id)",
+                "CONSTRAINT fk_user_accounts_corporate_id_corporates FOREIGN KEY(corporate_id) REFERENCES corporates (id), "
+                "CONSTRAINT fk_user_accounts_person_corporate FOREIGN KEY(person_id, corporate_id) REFERENCES account_people (id, corporate_id)",
+            )
+            statement = statement.replace(
+                "CONSTRAINT uq_user_accounts_external_subject UNIQUE (external_subject)",
+                "CONSTRAINT uq_user_accounts_external_subject UNIQUE (corporate_id, external_subject)",
+            )
+            statement = statement.replace(
+                "CONSTRAINT uq_user_accounts_person_id UNIQUE (person_id)",
+                "CONSTRAINT uq_user_accounts_id_corporate UNIQUE (id, corporate_id), "
+                "CONSTRAINT uq_user_accounts_id_corporate_person UNIQUE (id, corporate_id, person_id), "
+                "CONSTRAINT uq_user_accounts_person_id UNIQUE (corporate_id, person_id)",
+            )
+            close_index = statement.rfind(")")
+            assert close_index > 0
+            statement = _normalized_statement(
+                statement[:close_index]
+                + ", corporate_id UUID NOT NULL"
+                + statement[close_index:]
+            )
+        elif statement.startswith("CREATE TABLE staff_person_links "):
+            statement = statement.replace(
+                "CONSTRAINT fk_staff_person_links_person_id_account_people FOREIGN KEY(person_id) REFERENCES account_people (id)",
+                "CONSTRAINT fk_staff_person_links_person_corporate FOREIGN KEY(person_id, corporate_id) REFERENCES account_people (id, corporate_id)",
+            )
+            close_index = statement.rfind(")")
+            assert close_index > 0
+            statement = _normalized_statement(
+                statement[:close_index]
+                + ", CONSTRAINT uq_staff_person_links_id_person_corporate UNIQUE (id, person_id, corporate_id)"
+                + statement[close_index:]
+            )
+        elif statement.startswith("CREATE TABLE corporate_memberships "):
+            statement = statement.replace(
+                "CONSTRAINT fk_corporate_memberships_account_id_user_accounts FOREIGN KEY(account_id) REFERENCES user_accounts (id)",
+                "CONSTRAINT fk_membership_account_corporate FOREIGN KEY(account_id, corporate_id) REFERENCES user_accounts (id, corporate_id)",
+            )
+            statement = _normalized_statement(statement)
+        elif statement.startswith("CREATE TABLE store_manager_assignments "):
+            statement = statement.replace(
+                "CONSTRAINT fk_store_manager_assignments_staff_person FOREIGN KEY(staff_id, person_id) REFERENCES staff_person_links (id, person_id)",
+                "CONSTRAINT fk_store_manager_assignments_staff_person FOREIGN KEY(staff_id, person_id, corporate_id) REFERENCES staff_person_links (id, person_id, corporate_id)",
+            )
+            statement = statement.replace(
+                "CONSTRAINT ex_manager_person_period EXCLUDE USING gist (person_id WITH =, period WITH &&) WHERE (status = 'confirmed')",
+                "CONSTRAINT ex_manager_person_period EXCLUDE USING gist (corporate_id WITH =, person_id WITH =, period WITH &&) WHERE (status = 'confirmed')",
+            )
+            statement = _normalized_statement(statement)
+        elif statement.startswith("CREATE TABLE operation_audits "):
+            statement = statement.replace(
+                "CONSTRAINT fk_audit_account_person FOREIGN KEY(account_id, person_id) REFERENCES user_accounts (id, person_id)",
+                "CONSTRAINT fk_audit_account_person FOREIGN KEY(account_id, corporate_id, person_id) REFERENCES user_accounts (id, corporate_id, person_id)",
+            )
+            statement = statement.replace(
+                "person_id UUID NOT NULL",
+                "person_id UUID",
+            ).replace(
+                "account_id UUID NOT NULL",
+                "account_id UUID",
+            )
+            close_index = statement.rfind(")")
+            assert close_index > 0
+            additions = (
+                "CONSTRAINT ck_operation_audits_audit_actor CHECK (((operator_id IS NOT NULL AND account_id IS NULL AND person_id IS NULL) OR (operator_id IS NULL AND account_id IS NOT NULL AND person_id IS NOT NULL))), "
+                "CONSTRAINT fk_operation_audits_operator_id_vendor_operators FOREIGN KEY(operator_id) REFERENCES vendor_operators (id), "
+                "operator_id UUID"
+            )
+            statement = _normalized_statement(
+                statement[:close_index] + ", " + additions + statement[close_index:]
+            )
+        elif statement.startswith("CREATE TABLE local_credentials "):
+            statement = statement.replace(
+                "CONSTRAINT fk_local_credentials_subject_user_accounts FOREIGN KEY(subject) REFERENCES user_accounts (external_subject), ",
+                "",
+            )
+            statement = statement.replace(
+                "login_id VARCHAR(64) NOT NULL, ",
+                "corporate_id UUID NOT NULL, email VARCHAR(255) NOT NULL, ",
+            )
+            statement = statement.replace(
+                "CONSTRAINT pk_local_credentials PRIMARY KEY (login_id)",
+                "CONSTRAINT pk_local_credentials PRIMARY KEY (corporate_id, email), CONSTRAINT fk_local_credentials_corporate_id_corporates FOREIGN KEY(corporate_id) REFERENCES corporates (id)",
+            )
+            statement = _normalized_statement(statement)
+        elif statement.startswith("CREATE TABLE local_sessions "):
+            statement = statement.replace(
+                "CONSTRAINT fk_local_sessions_subject_local_credentials FOREIGN KEY(subject) REFERENCES local_credentials (subject), ",
+                "",
+            )
+            close_index = statement.rfind(")")
+            assert close_index > 0
+            additions = (
+                "CONSTRAINT fk_local_sessions_selected_store_id_stores FOREIGN KEY(selected_store_id) "
+                "REFERENCES stores (id) ON DELETE SET NULL, "
+                "selected_store_id UUID"
+            )
+            statement = _normalized_statement(
+                statement[:close_index] + ", " + additions + statement[close_index:]
+            )
+        elif statement.startswith("CREATE TABLE user_invitations "):
+            continue
         elif statement.startswith("CREATE TABLE medication_history_records "):
             statement = statement.replace(
                 "counseled_at TIMESTAMP WITH TIME ZONE NOT NULL",
@@ -594,11 +805,48 @@ def test_マイグレーションの全DDLが_検査の対象になっている(
         and not statement.startswith(_MEDICATION_HISTORY_RECORDED_AT_TRANSFORM_PREFIXES)
         and not statement.startswith(_MEDICATION_HISTORY_RECORD_KIND_TRANSFORM_PREFIXES)
         and not statement.startswith(_CARE_EVENT_TRANSFORM_PREFIXES)
+        and not statement.startswith(_STORE_LICENSE_TRANSFORM_PREFIXES)
+        and not statement.startswith(_IDENTITY_CORPORATE_SCOPE_TRANSFORM_PREFIXES)
+        and not statement.startswith(
+            _IDENTITY_AUTH_AND_DROP_INVITATIONS_TRANSFORM_PREFIXES
+        )
+        and not statement.startswith(_LOCAL_SESSIONS_SELECTED_STORE_TRANSFORM_PREFIXES)
         and statement not in routines
+        and statement not in _SUPERSEDED_ROUTINES
     ]
 
     # Assert
     assert not unclassified, f"検査の対象になっていないDDL: {unclassified}"
+
+
+def test_ローカルセッションへの選択店舗ID列追加が_前進マイグレーションにある() -> None:
+    """local_sessionsへのselected_store_id列と外部キー追加がマイグレーションに含まれる。"""
+    statements = _upgrade_statements()
+    for prefix in _LOCAL_SESSIONS_SELECTED_STORE_TRANSFORM_PREFIXES:
+        assert any(statement.startswith(prefix) for statement in statements)
+
+
+def test_認証資格情報の法人スコープ化と運営者専用テーブル新設が_前進マイグレーションにある() -> (
+    None
+):
+    """local_credentialsの(corporate_id, email)化、vendor_operators新設、招待削除がマイグレーションに含まれる。"""
+    statements = _upgrade_statements()
+    for prefix in _IDENTITY_AUTH_AND_DROP_INVITATIONS_TRANSFORM_PREFIXES:
+        assert any(statement.startswith(prefix) for statement in statements)
+
+
+def test_identity各集約へのcorporate_id必須化が_前進マイグレーションにある() -> None:
+    """identity集約と関連表へのcorporate_id追加・制約強化がマイグレーションに含まれる。"""
+    statements = _upgrade_statements()
+    for prefix in _IDENTITY_CORPORATE_SCOPE_TRANSFORM_PREFIXES:
+        assert any(statement.startswith(prefix) for statement in statements)
+
+
+def test_店舗許認可の検索列追加が_前進マイグレーションにある() -> None:
+    """店舗テーブルへの薬局開設許可・麻薬小売業者免許の検索列追加がマイグレーションに含まれる。"""
+    statements = _upgrade_statements()
+    for prefix in _STORE_LICENSE_TRANSFORM_PREFIXES:
+        assert any(statement.startswith(prefix) for statement in statements)
 
 
 def test_患者外部IDの店舗スコープ変更が_前進マイグレーションにある() -> None:
@@ -706,6 +954,7 @@ def test_スキーマ定義の関数とトリガが_マイグレーションと�
         statement
         for statement in _upgrade_statements()
         if statement.startswith(("CREATE OR REPLACE FUNCTION", "CREATE TRIGGER"))
+        and statement not in _SUPERSEDED_ROUTINES
     }
 
     # Assert
@@ -826,6 +1075,7 @@ def test_集約でないテーブルの一覧が_明示的に宣言されてい�
 
     # Assert
     assert declared == {
+        "vendor_operators",
         "local_credentials",
         "local_sessions",
         "patient_number_sequences",

@@ -27,7 +27,6 @@ from app.application.integration.commands.ingest_nsips import IngestNsipsCommand
 from app.application.integration.errors import NsipsPatientIdentityConflictError
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.coverage.identifiers import PatientCoverageId
-from app.domain.dispensing.identifiers import DispensingId
 from app.domain.dispensing.primitives import DispensingProcessStatus
 from app.domain.foundation.exceptions import ConcurrentModificationError
 from app.domain.medication_history.entities import MedicationHistoryRecord
@@ -55,7 +54,6 @@ from app.domain.patient.value_objects import (
     PatientProfileChange,
     PatientProfileSnapshot,
 )
-from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.prescription.primitives import PrescriptionStatus
 from app.domain.reception.entities import Reception
 from app.domain.reception.identifiers import ReceptionId
@@ -66,6 +64,7 @@ from app.infrastructure.di.repositories import (
 )
 from app.infrastructure.postgres.codec import decode_aggregate
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
+from tests.factories.dispensing_factory import create_dispensing
 from tests.factories.medication_history_factory import (
     create_record,
     create_soap,
@@ -73,6 +72,7 @@ from tests.factories.medication_history_factory import (
 )
 from tests.factories.medicine_catalog_factory import create_medicine
 from tests.factories.persistence_factory import create_patient
+from tests.factories.prescription_factory import create_prescription
 from tests.integration.medication_history_helpers import save_history_with_event
 from tests.integration.organization_helpers import appoint_manager, setup_organization
 
@@ -82,8 +82,8 @@ _EXPECTED_INGEST_ROW_COUNTS: dict[str, int] = {
     "patient_coverages": 0,
     "coverage_selection_records": 0,
     "receptions": 1,
-    "prescriptions": 1,
-    "dispensing_processes": 1,
+    "prescriptions": 0,
+    "dispensing_processes": 0,
     "care_events": 0,
     "medication_history_records": 0,
 }
@@ -159,7 +159,16 @@ class _FailAfterReceptionSave:
         assert isinstance(patient_payload, dict)
         assert patient_payload["profile_history"]
         persisted_patient = decode_aggregate(patient_payload, Patient)
-        self.observed_patient_kanji_name = persisted_patient.names.kanji.full_name
+        received = (
+            persisted_patient.profile_history[-1].received_profile
+            if persisted_patient.profile_history
+            else None
+        )
+        self.observed_patient_kanji_name = (
+            received.names.kanji.full_name
+            if received is not None
+            else persisted_patient.names.kanji.full_name
+        )
         assert isinstance(reception_payload, dict)
         assert reception_payload["correction_history"]
         raise _LateIngestionFailure("受付保存後の障害を注入した。")
@@ -239,6 +248,37 @@ def _bundle() -> NsipsBundle:
     )
 
 
+async def _execute_ingest(
+    target: Any,
+    command: IngestNsipsCommand,
+) -> Any:
+    """既存受付への更新で correction_kind や expected_fingerprint が未指定の場合に補完して実行する。"""
+    use_case = getattr(target, "use_cases", target)
+    if hasattr(use_case, "integration"):
+        use_case = use_case.integration.ingest_nsips
+    bundle = command.structured_bundle
+    if command.reception_id is not None:
+        rec_id = ReceptionId.parse(command.reception_id)
+        target_store_id = StoreId.parse(command.store_id)
+        target_corporate_id = CorporateId.parse(command.corporate_id)
+        existing = await use_case._reception_repo.get(
+            corporate_id=target_corporate_id,
+            store_id=target_store_id,
+            reception_id=rec_id,
+        )
+        if existing is not None:
+            if bundle is not None and bundle.correction_kind is None:
+                bundle = replace(bundle, correction_kind=ExternalCorrectionKind.UPDATE)
+            if command.expected_fingerprint is None:
+                command = replace(
+                    command,
+                    expected_fingerprint=existing.latest_fingerprint.value,
+                )
+    if bundle is not command.structured_bundle:
+        command = replace(command, structured_bundle=bundle)
+    return await use_case.execute(command)
+
+
 @pytest.mark.asyncio
 async def test_受付取込_保険変更と訂正再送_既存資格を変えず原本履歴を再取得できる(
     engine: AsyncEngine,
@@ -263,14 +303,13 @@ async def test_受付取込_保険変更と訂正再送_既存資格を変えず
     command = IngestNsipsCommand(
         corporate_id=str(organization.corporate.id.value),
         store_id=str(organization.store.id.value),
-        dispenser_staff_id=str(organization.staff[0].id.value),
         reception_id=str(first_id.value),
         structured_bundle=bundle,
     )
     async with organization.root.request_scope(
         authorization=organization.authorization
     ) as scope:
-        first = await scope.use_cases.integration.ingest_nsips.execute(command)
+        first = await _execute_ingest(scope, command)
         coverage = await scope.use_cases.coverage.register.execute(
             RegisterPatientCoverageCommand(
                 corporate_id=command.corporate_id,
@@ -302,7 +341,7 @@ async def test_受付取込_保険変更と訂正再送_既存資格を変えず
     async with organization.root.request_scope(
         authorization=organization.authorization
     ) as scope:
-        second = await scope.use_cases.integration.ingest_nsips.execute(second_command)
+        second = await _execute_ingest(scope, second_command)
     corrected_insurance = replace(
         changed_insurance, branch_number="02", benefit_ratio=None
     )
@@ -313,21 +352,17 @@ async def test_受付取込_保険変更と訂正再送_既存資格を変えず
     async with organization.root.request_scope(
         authorization=organization.authorization
     ) as scope:
-        corrected = await scope.use_cases.integration.ingest_nsips.execute(
-            corrected_command
-        )
+        corrected = await _execute_ingest(scope, corrected_command)
     async with organization.root.request_scope(
         authorization=organization.authorization
     ) as scope:
-        resent = await scope.use_cases.integration.ingest_nsips.execute(
-            corrected_command
-        )
+        resent = await _execute_ingest(scope, corrected_command)
 
     # Assert
     assert second.patient_id == first.patient_id
-    assert second.prescription_id is not None and second.dispensing_id is not None
+    assert second.prescription_id is None and second.dispensing_id is None
     assert second.coverage_selection_record_id is None
-    assert corrected.prescription_id == resent.prescription_id == second.prescription_id
+    assert corrected.prescription_id is None and resent.prescription_id is None
     assert corrected.coverage_review_required is True
     assert resent.is_duplicate is True and resent.coverage_review_required is True
     async with PostgresUnitOfWork(session_factory) as work:
@@ -369,8 +404,8 @@ async def test_受付取込_保険変更と訂正再送_既存資格を変えず
             ("patient_coverages", 1),
             ("coverage_selection_records", 0),
             ("receptions", 2),
-            ("prescriptions", 2),
-            ("dispensing_processes", 2),
+            ("prescriptions", 0),
+            ("dispensing_processes", 0),
         ):
             count = await work.session.scalar(
                 text(
@@ -406,7 +441,6 @@ async def test_tc74_受付保存後の失敗で取込と変更履歴を一括rol
     command = IngestNsipsCommand(
         corporate_id=str(organization.corporate.id.value),
         store_id=str(organization.store.id.value),
-        dispenser_staff_id=str(organization.staff[0].id.value),
         reception_id=str(ReceptionId.generate().value),
         structured_bundle=_bundle(),
     )
@@ -416,7 +450,7 @@ async def test_tc74_受付保存後の失敗で取込と変更履歴を一括rol
     async with organization.root.request_scope(
         authorization=organization.authorization
     ) as scope:
-        await scope.use_cases.integration.ingest_nsips.execute(command)
+        await _execute_ingest(scope, command)
 
     async with PostgresUnitOfWork(session_factory) as work:
         repositories = PostgresRepositorySet.create(work)
@@ -462,7 +496,7 @@ async def test_tc74_受付保存後の失敗で取込と変更履歴を一括rol
                 "_reception_repo",
                 fail_after_save,
             )
-            await use_case.execute(changed_command)
+            await _execute_ingest(use_case, changed_command)
     assert fail_after_save is not None
     assert fail_after_save.observed_patient_kanji_name == "山田 花子"
 
@@ -626,7 +660,6 @@ async def test_TC36_削除通知処理中の失敗で処方と調剤と薬歴を
     command = IngestNsipsCommand(
         corporate_id=str(organization.corporate.id.value),
         store_id=str(organization.store.id.value),
-        dispenser_staff_id=str(organization.staff[0].id.value),
         reception_id=reception_id_value,
         structured_bundle=_bundle(),
     )
@@ -634,12 +667,10 @@ async def test_TC36_削除通知処理中の失敗で処方と調剤と薬歴を
     async with organization.root.request_scope(
         authorization=organization.authorization
     ) as scope:
-        res = await scope.use_cases.integration.ingest_nsips.execute(command)
+        res = await _execute_ingest(scope, command)
 
-    assert res.prescription_id is not None
-    assert res.dispensing_id is not None
-    prescription_id = PrescriptionId.parse(res.prescription_id)
-    dispensing_id = DispensingId.parse(res.dispensing_id)
+    assert res.prescription_id is None
+    assert res.dispensing_id is None
 
     # 薬歴を作成して確定し、受付に紐付ける
     history_id = MedicationHistoryRecordId.generate()
@@ -652,6 +683,28 @@ async def test_TC36_削除通知処理中の失敗で処方と調剤と薬歴を
             reception_id=ReceptionId.parse(reception_id_value),
         )
         assert reception is not None
+        rx = create_prescription(
+            corporate_id=organization.corporate.id,
+            store_id=organization.store.id,
+            patient_id=reception.patient_id,
+            document_number="NSIPS-TC44-DOCUMENT",
+        )
+        disp = create_dispensing(
+            corporate_id=organization.corporate.id,
+            store_id=organization.store.id,
+            patient_id=reception.patient_id,
+            prescription_id=rx.id,
+            dispenser_id=organization.staff[0].id,
+        )
+        prescription_id = rx.id
+        dispensing_id = disp.id
+        await repos.prescription.save(rx)
+        await repos.dispensing.save(disp)
+        reception = replace(
+            reception,
+            prescription_id=prescription_id,
+            dispensing_id=dispensing_id,
+        )
         draft = create_record(
             corporate_id=organization.corporate.id,
             store_id=organization.store.id,
@@ -693,7 +746,7 @@ async def test_TC36_削除通知処理中の失敗で処方と調剤と薬歴を
                 "_medication_history_repo",
                 fail_after_save,
             )
-            await use_case.execute(delete_command)
+            await _execute_ingest(use_case, delete_command)
 
     assert fail_after_save is not None
     assert fail_after_save.saved_calls == 1
@@ -772,22 +825,22 @@ async def test_実DB取込_外部患者IDと属性不一致を二度拒否_全�
     command = IngestNsipsCommand(
         corporate_id=str(organization.corporate.id.value),
         store_id=str(organization.store.id.value),
-        dispenser_staff_id=str(organization.staff[0].id.value),
         reception_id=str(reception_id.value),
         structured_bundle=original,
     )
     async with organization.root.request_scope(
         authorization=organization.authorization
     ) as scope:
-        await scope.use_cases.integration.ingest_nsips.execute(command)
+        await _execute_ingest(scope, command)
     legitimate = replace(
         original, patient=replace(original.patient, address="東京都品川区三丁目")
     )
     async with organization.root.request_scope(
         authorization=organization.authorization
     ) as scope:
-        await scope.use_cases.integration.ingest_nsips.execute(
-            replace(command, structured_bundle=legitimate)
+        await _execute_ingest(
+            scope,
+            replace(command, structured_bundle=legitimate),
         )
     now = datetime(2026, 9, 17, 12, tzinfo=UTC)
     async with PostgresUnitOfWork(session_factory) as work:
@@ -817,6 +870,22 @@ async def test_実DB取込_外部患者IDと属性不一致を二度拒否_全�
         )
         assert patient.heading_history
         await repos.patient.save(patient)
+        rx = create_prescription(
+            corporate_id=organization.corporate.id,
+            store_id=organization.store.id,
+            patient_id=reception.patient_id,
+            document_number=original.prescription.document_number,
+        )
+        disp = create_dispensing(
+            corporate_id=organization.corporate.id,
+            store_id=organization.store.id,
+            patient_id=reception.patient_id,
+            prescription_id=rx.id,
+            dispenser_id=organization.staff[0].id,
+        )
+        await repos.prescription.save(rx)
+        await repos.dispensing.save(disp)
+        reception = replace(reception, prescription_id=rx.id, dispensing_id=disp.id)
         assert reception.dispensing_id is not None
         assert reception.prescription_id is not None
         record = finalize_record_with_review(
@@ -870,8 +939,9 @@ async def test_実DB取込_外部患者IDと属性不一致を二度拒否_全�
             async with organization.root.request_scope(
                 authorization=organization.authorization
             ) as scope:
-                await scope.use_cases.integration.ingest_nsips.execute(
-                    replace(command, structured_bundle=conflicting)
+                await _execute_ingest(
+                    scope,
+                    replace(command, structured_bundle=conflicting),
                 )
         # Assert
         assert await _persisted_nsips_state(engine, organization.corporate.id) == before
@@ -900,22 +970,22 @@ async def test_実DB取込_旧患者ID指紋欠損_別患者拒否後に元ID訂
     command = IngestNsipsCommand(
         corporate_id=str(organization.corporate.id.value),
         store_id=str(organization.store.id.value),
-        dispenser_staff_id=str(organization.staff[0].id.value),
         reception_id=str(reception_id.value),
         structured_bundle=original,
     )
     async with organization.root.request_scope(
         authorization=organization.authorization
     ) as scope:
-        await scope.use_cases.integration.ingest_nsips.execute(command)
+        await _execute_ingest(scope, command)
     legitimate = replace(
         original, patient=replace(original.patient, address="東京都品川区三丁目")
     )
     async with organization.root.request_scope(
         authorization=organization.authorization
     ) as scope:
-        await scope.use_cases.integration.ingest_nsips.execute(
-            replace(command, structured_bundle=legitimate)
+        await _execute_ingest(
+            scope,
+            replace(command, structured_bundle=legitimate),
         )
     now = datetime(2026, 9, 17, 12, tzinfo=UTC)
     async with PostgresUnitOfWork(session_factory) as work:
@@ -945,6 +1015,22 @@ async def test_実DB取込_旧患者ID指紋欠損_別患者拒否後に元ID訂
         )
         assert patient.heading_history
         await repos.patient.save(patient)
+        rx = create_prescription(
+            corporate_id=organization.corporate.id,
+            store_id=organization.store.id,
+            patient_id=reception.patient_id,
+            document_number=original.prescription.document_number,
+        )
+        disp = create_dispensing(
+            corporate_id=organization.corporate.id,
+            store_id=organization.store.id,
+            patient_id=reception.patient_id,
+            prescription_id=rx.id,
+            dispenser_id=organization.staff[0].id,
+        )
+        await repos.prescription.save(rx)
+        await repos.dispensing.save(disp)
+        reception = replace(reception, prescription_id=rx.id, dispensing_id=disp.id)
         assert reception.dispensing_id is not None
         assert reception.prescription_id is not None
         record = finalize_record_with_review(
@@ -1036,8 +1122,9 @@ async def test_実DB取込_旧患者ID指紋欠損_別患者拒否後に元ID訂
         async with organization.root.request_scope(
             authorization=organization.authorization
         ) as scope:
-            await scope.use_cases.integration.ingest_nsips.execute(
-                replace(command, structured_bundle=conflicting)
+            await _execute_ingest(
+                scope,
+                replace(command, structured_bundle=conflicting),
             )
     # Assert: 拒否後に別transactionで全保存値を読み直す。
     assert await _persisted_nsips_state(engine, organization.corporate.id) == before
@@ -1049,8 +1136,9 @@ async def test_実DB取込_旧患者ID指紋欠損_別患者拒否後に元ID訂
     async with organization.root.request_scope(
         authorization=organization.authorization
     ) as scope:
-        accepted = await scope.use_cases.integration.ingest_nsips.execute(
-            replace(command, structured_bundle=restored)
+        accepted = await _execute_ingest(
+            scope,
+            replace(command, structured_bundle=restored),
         )
     # Assert: 新しいUoWで訂正と各参照を復元する。
     async with PostgresUnitOfWork(session_factory) as work:
@@ -1065,7 +1153,10 @@ async def test_実DB取込_旧患者ID指紋欠損_別患者拒否後に元ID訂
             corporate_id=organization.corporate.id, patient_id=patient.id
         )
         assert updated_patient is not None
-        assert updated_patient.names.kanji.full_name == "正当 訂正"
+        assert updated_patient.names.kanji.full_name == patient.names.kanji.full_name
+        received = updated_patient.profile_history[-1].received_profile
+        assert received is not None
+        assert received.names.kanji.full_name == "正当 訂正"
         assert len(updated_patient.profile_history) == len(patient.profile_history) + 1
         assert updated_patient.profile_history[:-1] == patient.profile_history
         assert updated_patient.heading_history == patient.heading_history
@@ -1116,8 +1207,9 @@ async def test_実DB取込_旧患者ID指紋欠損_別患者拒否後に元ID訂
     async with organization.root.request_scope(
         authorization=organization.authorization
     ) as scope:
-        resend_accepted = await scope.use_cases.integration.ingest_nsips.execute(
-            replace(command, structured_bundle=restored)
+        resend_accepted = await _execute_ingest(
+            scope,
+            replace(command, structured_bundle=restored),
         )
     assert resend_accepted.is_duplicate is True
     assert resend_accepted.patient_id == accepted.patient_id

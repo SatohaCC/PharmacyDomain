@@ -184,6 +184,19 @@ class NarcoticPrescriptionService:
             if prescription.management_info.narcotic is None:
                 raise NarcoticPrescriptionDetailsRequiredError()
 
+    def ensure_classified(
+        self,
+        prescription: Prescription,
+        classifications: Mapping[MedicineIdentifier, MedicineClassification],
+    ) -> None:
+        """すべての薬品がマスタに存在し、規制区分が確定していることを検証する。"""
+        for medicine in self._all_medicines(prescription):
+            classification = _resolve_classification(medicine, classifications)
+            if classification.is_narcotic.is_unknown:
+                raise MedicineClassificationUnknownError(
+                    medicine_name=medicine.name.value
+                )
+
     @staticmethod
     def _all_medicines(prescription: Prescription) -> tuple[PrescriptionMedicine, ...]:
         """処方箋に含まれるすべての薬品明細を平坦に返す。"""

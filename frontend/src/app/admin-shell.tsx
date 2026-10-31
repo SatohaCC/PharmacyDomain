@@ -3,13 +3,22 @@ import { AdminFrame } from "../shared/ui/layout/elements";
 import { Button } from "../shared/ui/controls/button";
 import { Link } from "../shared/ui/navigation/link";
 import { logout } from "../features/auth/api/session";
+
+export interface AdminShellProps {
+  actor: {
+    roles: string[];
+    corporate_id: string | null;
+    selected_store_id?: string | null;
+  };
+  storeSelector?: ReactNode;
+  children: ReactNode;
+}
+
 export function AdminShell({
   actor,
+  storeSelector,
   children,
-}: {
-  actor: { roles: string[]; corporate_id: string | null };
-  children: ReactNode;
-}) {
+}: AdminShellProps) {
   const corporatePath = actor.corporate_id
     ? `/admin/corporates/${encodeURIComponent(actor.corporate_id)}`
     : "/admin/corporates";
@@ -22,6 +31,7 @@ export function AdminShell({
       }
       navigation={
         <>
+          {storeSelector}
           {actor.roles.includes("vendor_system_admin") ? (
             <Link href="/admin/corporates">法人管理</Link>
           ) : (

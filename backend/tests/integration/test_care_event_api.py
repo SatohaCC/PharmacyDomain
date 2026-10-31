@@ -83,9 +83,10 @@ async def _save_store_viewer(
     corporate_id: CorporateId,
     store_id: StoreId,
 ) -> FastAPI:
-    person = _person()
+    person = _person(corporate_id=corporate_id)
     account = UserAccount(
         id=UserAccountId.generate(),
+        corporate_id=corporate_id,
         person_id=person.id,
         external_subject=ExternalSubjectKey(
             f"issuer/integration-care-event-viewer-{uuid4()}"
@@ -147,10 +148,11 @@ async def _save_unique_corporate_admin(
     store_ids: frozenset[StoreId],
 ) -> FastAPI:
     """他のテストActorと衝突しない法人管理者を保存する。"""
-    person = _person()
+    person = _person(corporate_id=corporate_id)
     subject = ExternalSubjectKey(f"issuer/care-event-admin-{uuid4()}")
     account = UserAccount(
         id=UserAccountId.generate(),
+        corporate_id=corporate_id,
         person_id=person.id,
         external_subject=subject,
     )
@@ -185,7 +187,7 @@ async def _save_secondary_store(
     corporate_id: CorporateId,
 ) -> Store:
     store = create_store(corporate_id=corporate_id, name="別店舗")
-    person = _person()
+    person = _person(corporate_id=corporate_id)
     staff = replace(
         create_staff(corporate_id=corporate_id, code=f"MGR{uuid4().hex[:6].upper()}"),
         qualifications=StaffQualifications.from_profiles(
@@ -792,7 +794,6 @@ async def test_tc45_全Event種別で共通薬歴を更新確定できる(
             f"{corporate_path}/medication-histories/{consultation_record_id}"
             "/tracing-reports",
             json={
-                "reporter_id": str(operator.staff_id.value),
                 "provided_at": datetime(2026, 9, 20, 3, 15, tzinfo=UTC).isoformat(),
                 "medical_institution_name": "地域医療センター",
                 "physician_name": "佐藤医師",

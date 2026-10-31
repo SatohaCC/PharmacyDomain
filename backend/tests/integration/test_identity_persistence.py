@@ -6,6 +6,8 @@ from dataclasses import replace
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.domain.corporate.entities import Corporate
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import ConcurrentModificationError
 from app.domain.identity.entities import AccountPerson, UserAccount
 from app.domain.identity.exceptions import IdentityConflictError
@@ -18,6 +20,7 @@ from app.domain.shared.person_name import (
     PersonNamePart,
     PersonNames,
 )
+from app.infrastructure.corporate.postgres.corporate import PostgresCorporateRepository
 from app.infrastructure.identity.postgres.account_person import (
     PostgresAccountPersonRepository,
 )
@@ -25,11 +28,21 @@ from app.infrastructure.identity.postgres.user_account import (
     PostgresUserAccountRepository,
 )
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
+from tests.infrastructure.postgres.helpers import create_corporate
 
 
-def _person() -> AccountPerson:
+async def _saved_corporate(factory: async_sessionmaker[AsyncSession]) -> Corporate:
+    corporate = create_corporate()
+    async with PostgresUnitOfWork(factory) as work:
+        await PostgresCorporateRepository(work).save(corporate)
+        await work.commit()
+    return corporate
+
+
+def _person(corporate_id: CorporateId | None = None) -> AccountPerson:
     return AccountPerson(
         id=AccountPersonId.generate(),
+        corporate_id=corporate_id or CorporateId.generate(),
         names=PersonNames(
             kanji=PersonName(
                 last_name=PersonNamePart("山田"), first_name=PersonNamePart("太郎")
@@ -42,8 +55,14 @@ def _person() -> AccountPerson:
     )
 
 
-async def _saved_person(factory: async_sessionmaker[AsyncSession]) -> AccountPerson:
-    person = _person()
+async def _saved_person(
+    factory: async_sessionmaker[AsyncSession],
+    corporate_id: CorporateId | None = None,
+) -> AccountPerson:
+    if corporate_id is None:
+        corporate = await _saved_corporate(factory)
+        corporate_id = corporate.id
+    person = _person(corporate_id)
     async with PostgresUnitOfWork(factory) as work:
         await PostgresAccountPersonRepository(work).save(person)
         await work.commit()
@@ -55,7 +74,11 @@ async def test_本人と個人アカウントを保存して別トランザク�
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     person = await _saved_person(session_factory)
-    account = UserAccount(id=UserAccountId.generate(), person_id=person.id)
+    account = UserAccount(
+        id=UserAccountId.generate(),
+        corporate_id=person.corporate_id,
+        person_id=person.id,
+    )
     async with PostgresUnitOfWork(session_factory) as work:
         await PostgresUserAccountRepository(work).save(account)
         await work.commit()
@@ -64,6 +87,7 @@ async def test_本人と個人アカウントを保存して別トランザク�
         actual = await PostgresUserAccountRepository(work).get(account.id)
         assert actual is not None
         assert actual.person_id == person.id
+        assert actual.corporate_id == person.corporate_id
         assert actual.status == AccountStatus.ACTIVE
 
 
@@ -75,7 +99,11 @@ async def test_同じ本人へのアカウント同時作成は一方だけ確�
     barrier = asyncio.Barrier(2)
 
     async def save() -> UserAccountId:
-        account = UserAccount(id=UserAccountId.generate(), person_id=person.id)
+        account = UserAccount(
+            id=UserAccountId.generate(),
+            corporate_id=person.corporate_id,
+            person_id=person.id,
+        )
         async with PostgresUnitOfWork(session_factory) as work:
             await barrier.wait()
             await PostgresUserAccountRepository(work).save(account)
@@ -93,9 +121,14 @@ async def test_同じ本人へのアカウント同時作成は一方だけ確�
 async def test_既存アカウントを別人へ付け替えようとしても元の本人が残る(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    first = await _saved_person(session_factory)
-    second = await _saved_person(session_factory)
-    account = UserAccount(id=UserAccountId.generate(), person_id=first.id)
+    corporate = await _saved_corporate(session_factory)
+    first = await _saved_person(session_factory, corporate_id=corporate.id)
+    second = await _saved_person(session_factory, corporate_id=corporate.id)
+    account = UserAccount(
+        id=UserAccountId.generate(),
+        corporate_id=corporate.id,
+        person_id=first.id,
+    )
     async with PostgresUnitOfWork(session_factory) as work:
         await PostgresUserAccountRepository(work).save(account)
         await work.commit()
@@ -119,7 +152,11 @@ async def test_古い世代のアカウント保存は同時更新エラーに�
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     person = await _saved_person(session_factory)
-    account = UserAccount(id=UserAccountId.generate(), person_id=person.id)
+    account = UserAccount(
+        id=UserAccountId.generate(),
+        corporate_id=person.corporate_id,
+        person_id=person.id,
+    )
     async with PostgresUnitOfWork(session_factory) as work:
         await PostgresUserAccountRepository(work).save(account)
         await work.commit()

@@ -710,7 +710,9 @@ class TestNSIPS取込後の指導実績:
         record_id = await _start(fixture)
         await _finalize(fixture, record_id)
         clerk_id = StaffId.generate()
-        fixture.staff_qualification.register(
+        clerk_fixture = create_fixture(actor=create_resolved_actor(staff_id=clerk_id))
+        clerk_fixture.record_repository.items.update(fixture.record_repository.items)
+        clerk_fixture.staff_qualification.register(
             corporate_id=fixture.corporate_id,
             staff_id=clerk_id,
             qualifications=StaffQualifications.empty(),
@@ -718,11 +720,10 @@ class TestNSIPS取込後の指導実績:
 
         # Act / Assert
         with pytest.raises(CounselorQualificationError):
-            await fixture.amend.execute(
+            await clerk_fixture.amend.execute(
                 AmendMedicationHistoryCommand(
                     corporate_id=str(fixture.corporate_id.value),
                     record_id=record_id,
-                    amended_by=str(clerk_id.value),
                     reason="記載漏れがあったため。",
                     amended_soap=create_soap_input(),
                 )

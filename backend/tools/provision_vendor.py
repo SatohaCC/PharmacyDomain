@@ -4,9 +4,7 @@ import argparse
 import asyncio
 from getpass import getpass
 
-from app.domain.identity.entities import AccountPerson, UserAccount
-from app.domain.identity.primitives import ExternalSubjectKey
-from app.domain.shared.actor import AccountPersonId, UserAccountId
+from app.domain.identity.identifiers import VendorOperatorId
 from app.domain.shared.person_name import (
     PersonName,
     PersonNameKana,
@@ -14,7 +12,6 @@ from app.domain.shared.person_name import (
     PersonNamePart,
     PersonNames,
 )
-from app.infrastructure.di.repositories import PostgresRepositorySet
 from app.infrastructure.identity.postgres.local_authentication import (
     PostgresCredentialWriter,
 )
@@ -31,21 +28,11 @@ async def provision(login_id: str, password: str, names: PersonNames) -> None:
     engine = create_async_engine_from_settings(PostgresSettings.from_environment())
     try:
         async with PostgresUnitOfWork(create_session_factory(engine)) as work:
-            repositories = PostgresRepositorySet.create(work)
-            person_id, account_id = AccountPersonId.generate(), UserAccountId.generate()
-            subject = f"local:{account_id.value}"
-            await repositories.account_person.save(
-                AccountPerson(id=person_id, names=names)
+            operator_id = VendorOperatorId.generate()
+            subject = f"vendor:{operator_id.value}"
+            await PostgresCredentialWriter(work).issue_vendor_operator(
+                email=login_id, password=password, subject=subject
             )
-            await repositories.user_account.save(
-                UserAccount(
-                    id=account_id,
-                    person_id=person_id,
-                    external_subject=ExternalSubjectKey(subject),
-                    is_vendor_admin=True,
-                )
-            )
-            await PostgresCredentialWriter(work).issue(login_id, password, subject)
             await work.commit()
     finally:
         await engine.dispose()

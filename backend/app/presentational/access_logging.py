@@ -32,12 +32,18 @@ async def log_access(
         _LOGGER.info(
             "API要求",
             extra={
-                "person_id": str(actor.person_id.value)
-                if isinstance(actor, ResolvedActorContext)
-                else None,
-                "account_id": str(actor.account_id.value)
-                if isinstance(actor, ResolvedActorContext)
-                else None,
+                "person_id": (
+                    str(actor.person_id.value)
+                    if isinstance(actor, ResolvedActorContext)
+                    and actor.person_id is not None
+                    else None
+                ),
+                "account_id": (
+                    str(actor.account_id.value)
+                    if isinstance(actor, ResolvedActorContext)
+                    and actor.account_id is not None
+                    else None
+                ),
                 "resource_id": resource_id,
                 "status_code": status_code,
                 "method": request.method,

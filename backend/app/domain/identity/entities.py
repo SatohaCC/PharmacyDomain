@@ -3,19 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import datetime
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.entity import AggregateRoot
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.identity.exceptions import IdentityConflictError
-from app.domain.identity.identifiers import CorporateMembershipId, UserInvitationId
+from app.domain.identity.identifiers import CorporateMembershipId, VendorOperatorId
 from app.domain.identity.primitives import (
     AccountStatus,
+    CorporateUserEmail,
     ExternalSubjectKey,
-    InvitationAddressee,
-    InvitationDigest,
-    InvitationStatus,
     MembershipRole,
 )
 from app.domain.shared.actor import AccountPersonId, UserAccountId
@@ -26,9 +22,10 @@ from app.domain.store.identifiers import StoreId
 
 @dataclass(frozen=True, eq=False, kw_only=True)
 class AccountPerson(AggregateRoot[AccountPersonId]):
-    """アカウントを使用する一人の人。"""
+    """特定法人に所属するアカウントを使用する一人の人。"""
 
     id: AccountPersonId
+    corporate_id: CorporateId
     names: PersonNames
 
     def change_names(self, names: PersonNames) -> AccountPerson:
@@ -37,44 +34,21 @@ class AccountPerson(AggregateRoot[AccountPersonId]):
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)
-class UserInvitation(AggregateRoot[UserInvitationId]):
-    """本人と予定権限を固定した招待。"""
+class VendorOperator(AggregateRoot[VendorOperatorId]):
+    """運営者（システム管理者）集約。特定法人に属さず独立して存在する。"""
 
-    id: UserInvitationId
-    person_id: AccountPersonId
-    corporate_id: CorporateId
-    role: MembershipRole
-    store_ids: frozenset[StoreId]
-    secret_digest: InvitationDigest
-    expires_at: datetime
-    staff_id: StaffId | None = None
-    status: InvitationStatus = InvitationStatus.PENDING
-    addressee: InvitationAddressee | None = None
+    id: VendorOperatorId
+    email: CorporateUserEmail
+    external_subject: ExternalSubjectKey
+    is_active: bool = True
 
-    def validate(self) -> None:
-        """期限にタイムゾーンを要求する。"""
-        if self.expires_at.utcoffset() is None:
-            raise DomainValidationError("招待期限にはタイムゾーンが必要です。")
+    def deactivate(self) -> VendorOperator:
+        """運営者を停止する。"""
+        return replace(self, is_active=False)
 
-    def accept(self, *, now: datetime) -> UserInvitation:
-        """受諾を記録する。受諾できる本人は ``person_id`` として招待自身が持つ。
-
-        受諾者が名乗る本人を引数で受け取らない。外部の本人確認基盤が知っているのは
-        自分が発行した主体までで、このシステムの本人IDは知らないため、呼び出し側は
-        この招待の ``person_id`` しか渡せない。渡せない値との照合を残すと、恒真な
-        判定が「守られているように見えて守られていない」表になる。
-        """
-        if self.status != InvitationStatus.PENDING or now >= self.expires_at:
-            raise IdentityConflictError(
-                "招待は使用済み、取消済み、または期限切れです。"
-            )
-        return replace(self, status=InvitationStatus.ACCEPTED)
-
-    def cancel(self) -> UserInvitation:
-        """未受諾の招待を取り消す。"""
-        if self.status == InvitationStatus.ACCEPTED:
-            raise IdentityConflictError("受諾済みの招待は取り消せません。")
-        return replace(self, status=InvitationStatus.CANCELLED)
+    def reactivate(self) -> VendorOperator:
+        """運営者を再開する。"""
+        return replace(self, is_active=True)
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)
@@ -136,6 +110,14 @@ class CorporateMembership(AggregateRoot[CorporateMembershipId]):
         )
         return replace(self, suspended_store_ids=suspended)
 
+    def assign_staff(self, staff_id: StaffId) -> CorporateMembership:
+        """初期管理者などに後からスタッフ参照を紐付ける。"""
+        if self.staff_id is not None:
+            raise DomainValidationError("スタッフは既に設定されています。")
+        updated = replace(self, staff_id=staff_id)
+        updated.validate()
+        return updated
+
 
 @dataclass(frozen=True, eq=False, kw_only=True)
 class StaffPersonLink(AggregateRoot[StaffId]):
@@ -148,9 +130,10 @@ class StaffPersonLink(AggregateRoot[StaffId]):
 
 @dataclass(frozen=True, eq=False, kw_only=True)
 class UserAccount(AggregateRoot[UserAccountId]):
-    """法人ではなく操作する本人に帰属するアカウント。"""
+    """特定法人内の個人アカウント。"""
 
     id: UserAccountId
+    corporate_id: CorporateId
     person_id: AccountPersonId
     status: AccountStatus = AccountStatus.ACTIVE
     external_subject: ExternalSubjectKey | None = None

@@ -103,7 +103,6 @@ def create_app(
     for router in (
         identity.router,
         local_authentication.router,
-        identity.acceptance_router,
         system.router,
         corporate.router,
         store.router,

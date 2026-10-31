@@ -14,15 +14,15 @@ from app.application.access_control.boundary_models import (
 from app.application.access_control.policies import AuthorizationService
 from app.application.corporate.commands.models import RegisterCorporateCommand
 from app.application.identity.errors import UnavailableIdentityError
-from app.domain.identity.entities import UserAccount
-from app.domain.shared.actor import UserAccountId
+from app.domain.identity.entities import VendorOperator
+from app.domain.identity.identifiers import VendorOperatorId
+from app.domain.identity.primitives import CorporateUserEmail, ExternalSubjectKey
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
 from app.infrastructure.di.root import PostgresCompositionRoot
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from tests.fakes.fake_clock import FakeClock
-from tests.integration.test_identity_persistence import _person
 
 
 @pytest.mark.asyncio
@@ -32,20 +32,20 @@ async def test_法人登録と実在する本人監査は同時に確定する(
     session_factory: async_sessionmaker[AsyncSession],
     audit_failure: bool,
 ) -> None:
-    person = _person()
-    account = UserAccount(
-        id=UserAccountId.generate(), person_id=person.id, is_vendor_admin=True
+    vendor_operator = VendorOperator(
+        id=VendorOperatorId.generate(),
+        email=CorporateUserEmail("vendor@example.test"),
+        external_subject=ExternalSubjectKey("verified"),
+        is_active=True,
     )
     async with PostgresUnitOfWork(session_factory) as work:
         repos = PostgresRepositorySet.create(work)
-        await repos.account_person.save(person)
-        await repos.user_account.save(account)
+        await repos.vendor_operator.save(vendor_operator)
         await work.commit()
     actor = ResolvedActorContext(
         principal_id="verified",
         roles=frozenset({ActorRole.VENDOR_SYSTEM_ADMIN}),
-        person_id=person.id,
-        account_id=account.id,
+        operator_id=vendor_operator.id,
     )
     clock = FakeClock(datetime(2026, 9, 17, tzinfo=UTC))
     root = PostgresCompositionRoot(engine, session_factory, clock)
@@ -83,7 +83,7 @@ async def test_法人登録と実在する本人監査は同時に確定する(
             (
                 await connection.execute(
                     text(
-                        "SELECT person_id, account_id, resource_id, recorded_at FROM operation_audits"
+                        "SELECT operator_id, person_id, account_id, resource_id, recorded_at FROM operation_audits"
                     )
                 )
             )
@@ -99,8 +99,9 @@ async def test_法人登録と実在する本人監査は同時に確定する(
     else:
         assert caught is None
         assert count == 1 and len(rows) == 1
-        assert rows[0]["person_id"] == person.id.value
-        assert rows[0]["account_id"] == account.id.value
+        assert rows[0]["operator_id"] == vendor_operator.id.value
+        assert rows[0]["person_id"] is None
+        assert rows[0]["account_id"] is None
         assert rows[0]["recorded_at"] == clock.now()
 
 
@@ -110,8 +111,7 @@ async def test_法人登録と実在する本人監査は同時に確定する(
     [
         "UPDATE operation_audits SET operation = '改変'",
         "DELETE FROM operation_audits",
-        "DELETE FROM user_accounts",
-        "DELETE FROM account_people",
+        "DELETE FROM vendor_operators",
     ],
 )
 async def test_監査と監査が参照する本人を削除できない(

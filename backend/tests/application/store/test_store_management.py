@@ -104,6 +104,7 @@ async def test_閉局時の残業務確認と任命整理を日本の業務日�
         unchanged = await managers.get(current.id)
         assert unchanged is not None and unchanged.period == current.period
     else:
+        assert actor.person_id is not None and actor.account_id is not None
         result = await use_case.execute(command)
         assert result.status == StoreStatus.CLOSED
         assert result.status_history[0].person_id == str(actor.person_id.value)

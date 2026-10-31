@@ -18,6 +18,7 @@ from app.application.corporate.commands.services.corporate_access import (
     CorporateAccessService,
 )
 from app.application.corporate.errors import CorporateInactiveError
+from app.application.medication_history.commands.models import SoapInput
 from app.application.medication_history.commands.review_external_prescription_correction import (
     ReviewExternalPrescriptionCorrectionCommand,
     ReviewExternalPrescriptionCorrectionUseCase,
@@ -30,6 +31,7 @@ from app.application.medication_history.queries.models import (
     ListPendingExternalCorrectionsQuery,
 )
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.exceptions import (
     CounselorQualificationError,
@@ -201,7 +203,10 @@ async def test_TC20_未完了一覧は保留と調査中だけをページで返
 
 
 @pytest.mark.asyncio
-async def test_TC21_DRAFT薬歴は外部訂正レビュー対象にできない() -> None:
+@pytest.mark.asyncio
+async def test_TC138_下書き薬歴の外部訂正レビューはno_actionとinvestigatingを許可する() -> (
+    None
+):
     fixture = create_fixture()
     draft = replace(
         create_record(
@@ -216,28 +221,127 @@ async def test_TC21_DRAFT薬歴は外部訂正レビュー対象にできない(
         external_corrections=(_pending_correction(),),
     )
     await fixture.record_repository.save(draft)
-    command = ReviewExternalPrescriptionCorrectionCommand(
+    use_case = ReviewExternalPrescriptionCorrectionUseCase(
+        repository=fixture.record_repository,
+        corporate_access=fixture.corporate_access,
+        staff_qualification=fixture.staff_qualification,
+        prescription_repository=InMemoryPrescriptionRepository(),
+        clock=fixture.clock,
+    )
+
+    # investigating
+    inv_command = ReviewExternalPrescriptionCorrectionCommand(
+        corporate_id=str(fixture.corporate_id.value),
+        record_id=str(draft.id.value),
+        correction_id="corr-usecase-001",
+        decision=ExternalCorrectionDecision.INVESTIGATING.value,
+        reason="内容調査中。",
+    )
+    res_inv = await use_case.execute(inv_command)
+    assert res_inv.id == str(draft.id.value)
+    saved_inv = await fixture.record_repository.get(
+        corporate_id=fixture.corporate_id, record_id=draft.id
+    )
+    assert saved_inv is not None
+    assert len(saved_inv.external_corrections[0].review_events) == 1
+    assert (
+        saved_inv.external_corrections[0].review_events[0].decision
+        is ExternalCorrectionDecision.INVESTIGATING
+    )
+    assert not saved_inv.is_finalized
+
+    # no_action
+    no_action_command = ReviewExternalPrescriptionCorrectionCommand(
         corporate_id=str(fixture.corporate_id.value),
         record_id=str(draft.id.value),
         correction_id="corr-usecase-001",
         decision=ExternalCorrectionDecision.NO_ACTION.value,
-        reason="下書き拒否を確認。",
+        reason="下書き確認済み、変更不要。",
     )
-
-    with pytest.raises(MedicationHistoryNotFinalizedError):
-        await ReviewExternalPrescriptionCorrectionUseCase(
-            repository=fixture.record_repository,
-            corporate_access=fixture.corporate_access,
-            staff_qualification=fixture.staff_qualification,
-            prescription_repository=InMemoryPrescriptionRepository(),
-            clock=fixture.clock,
-        ).execute(command)
-
-    saved = await fixture.record_repository.get(
+    res_no_action = await use_case.execute(no_action_command)
+    assert res_no_action.id == str(draft.id.value)
+    saved_done = await fixture.record_repository.get(
         corporate_id=fixture.corporate_id, record_id=draft.id
     )
-    assert saved is not None
-    assert saved.external_corrections[0].review_events == ()
+    assert saved_done is not None
+    assert len(saved_done.external_corrections[0].review_events) == 2
+    assert (
+        saved_done.external_corrections[0].review_events[1].decision
+        is ExternalCorrectionDecision.NO_ACTION
+    )
+    assert not saved_done.is_finalized
+
+
+@pytest.mark.asyncio
+async def test_TC139_下書き薬歴へのamendや不適合入力は拒否する() -> None:
+    fixture = create_fixture()
+    draft = replace(
+        create_record(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            patient_id=fixture.patient_id,
+            counselor_id=fixture.counselor_id,
+            dispensing_id=fixture.dispensing.id,
+            prescription_id=fixture.dispensing.prescription_id,
+            counseled_at=COUNSELED_AT,
+        ),
+        external_corrections=(_pending_correction(),),
+    )
+    await fixture.record_repository.save(draft)
+    use_case = ReviewExternalPrescriptionCorrectionUseCase(
+        repository=fixture.record_repository,
+        corporate_access=fixture.corporate_access,
+        staff_qualification=fixture.staff_qualification,
+        prescription_repository=InMemoryPrescriptionRepository(),
+        clock=fixture.clock,
+    )
+
+    # amend on draft -> 409 MedicationHistoryNotFinalizedError
+    amend_command = ReviewExternalPrescriptionCorrectionCommand(
+        corporate_id=str(fixture.corporate_id.value),
+        record_id=str(draft.id.value),
+        correction_id="corr-usecase-001",
+        decision=ExternalCorrectionDecision.AMEND.value,
+        reason="下書きを修正したい。",
+        amended_soap=SoapInput(),
+    )
+    with pytest.raises(MedicationHistoryNotFinalizedError):
+        await use_case.execute(amend_command)
+
+    # match_reregistered_prescription on draft -> 409 MedicationHistoryNotFinalizedError
+    match_command = ReviewExternalPrescriptionCorrectionCommand(
+        corporate_id=str(fixture.corporate_id.value),
+        record_id=str(draft.id.value),
+        correction_id="corr-usecase-001",
+        decision=ExternalCorrectionDecision.MATCH_REREGISTERED_PRESCRIPTION.value,
+        reason="照合したい。",
+        matched_prescription_id=str(fixture.dispensing.prescription_id.value),
+    )
+    with pytest.raises(MedicationHistoryNotFinalizedError):
+        await use_case.execute(match_command)
+
+    # no_action with amended_soap -> 422 DomainValidationError
+    invalid_no_action = ReviewExternalPrescriptionCorrectionCommand(
+        corporate_id=str(fixture.corporate_id.value),
+        record_id=str(draft.id.value),
+        correction_id="corr-usecase-001",
+        decision=ExternalCorrectionDecision.NO_ACTION.value,
+        reason="確認。",
+        amended_soap=SoapInput(),
+    )
+    with pytest.raises(DomainValidationError):
+        await use_case.execute(invalid_no_action)
+
+    # no_action with empty reason -> 422 DomainValidationError
+    empty_reason = ReviewExternalPrescriptionCorrectionCommand(
+        corporate_id=str(fixture.corporate_id.value),
+        record_id=str(draft.id.value),
+        correction_id="corr-usecase-001",
+        decision=ExternalCorrectionDecision.NO_ACTION.value,
+        reason="   ",
+    )
+    with pytest.raises(DomainValidationError):
+        await use_case.execute(empty_reason)
 
 
 @pytest.mark.asyncio

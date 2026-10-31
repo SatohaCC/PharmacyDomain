@@ -6,17 +6,6 @@ import uuid
 from dataclasses import dataclass, replace
 from datetime import date
 
-from app.application.composition.adapters.dispensing_references import (
-    DispensingStaffQualificationAdapter,
-    DispensingStoreReferenceAdapter,
-    PrescriptionSourceAdapter,
-)
-from app.application.composition.adapters.prescription_references import (
-    CoverageSelectionPublicExpenseAdapter,
-    PrescriptionPatientReferenceAdapter,
-    PrescriptionStoreReferenceAdapter,
-)
-from app.application.dispensing.commands.start_dispensing import StartDispensingUseCase
 from app.application.integration.commands.dtos.ingest_nsips import IngestNsipsResultDto
 from app.application.integration.commands.ingest_nsips import (
     IngestNsipsCommand,
@@ -28,33 +17,18 @@ from app.application.patient.commands.register_patient import RegisterPatientUse
 from app.application.patient.commands.register_patient_external_identifier import (
     RegisterPatientExternalIdentifierUseCase,
 )
-from app.application.prescription.commands.ready_for_dispensing import (
-    ReadyForDispensingUseCase,
-)
-from app.application.prescription.commands.register_prescription import (
-    RegisterPrescriptionUseCase,
-)
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.dispensing.services import (
-    DispensingConsistencyService,
-    DispensingIterationUniquenessService,
-    DispensingPharmacistService,
-)
+from app.domain.medication_history.primitives import ExternalCorrectionKind
 from app.domain.prescription.primitives import (
     MedicineCode,
     MedicineCodeType,
     MedicineRestrictionFlag,
 )
-from app.domain.prescription.services import (
-    NarcoticPrescriptionService,
-    PrescriptionDocumentNumberUniquenessService,
-    PublicExpenseBurdenService,
-    RefillEligibilityService,
-)
 from app.domain.prescription.value_objects import (
     MedicineClassification,
     MedicineIdentifier,
 )
+from app.domain.reception.identifiers import ReceptionId
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import PharmacistLicenseNumber
 from app.domain.staff.value_objects import (
@@ -68,6 +42,7 @@ from tests.application.access_helpers import (
     AutoProvisioningCorporateRepository,
     create_vendor_corporate_access_for,
 )
+from tests.application.dispensing.helpers import create_resolved_actor
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store
 from tests.fakes.fake_clock import FakeClock
@@ -115,6 +90,7 @@ class NsipsFixture:
     """NSIPS取込テスト用Fixture。"""
 
     use_case: IngestNsipsUseCase
+    unqualified_use_case: IngestNsipsUseCase | None = None
     corporate_id: CorporateId
     store_id: StoreId
     pharmacist_id: StaffId
@@ -136,7 +112,11 @@ class NsipsFixture:
 
 
 async def execute_structured_test_command(
-    fixture: NsipsFixture, command: IngestNsipsCommand
+    fixture: NsipsFixture,
+    command: IngestNsipsCommand,
+    *,
+    use_unqualified: bool = False,
+    auto_correction: bool = True,
 ) -> IngestNsipsResultDto:
     """合成raw Fixtureを解析してから、構造化入力経路で取込む。
 
@@ -148,17 +128,39 @@ async def execute_structured_test_command(
         # このHelperを呼ぶ側を受付呼出元として扱い、同じCommandの再送では
         # 初回送信時に割り当てた受付IDを再利用する。
         object.__setattr__(command, "reception_id", str(uuid.uuid7()))
-    if command.structured_bundle is not None:
-        return await fixture.use_case.execute(command)
-    if command.raw_nsips_text is None:
-        return await fixture.use_case.execute(command)
-    bundle = NsipsParser().parse(command.raw_nsips_text)
-    structured_command = replace(
-        command,
-        raw_nsips_text=None,
-        structured_bundle=bundle,
+    use_case = (
+        fixture.unqualified_use_case
+        if (fixture.unqualified_use_case is not None and use_unqualified)
+        else fixture.use_case
     )
-    return await fixture.use_case.execute(structured_command)
+    bundle = command.structured_bundle
+    if bundle is None and command.raw_nsips_text is not None:
+        bundle = NsipsParser().parse(command.raw_nsips_text)
+
+    if auto_correction and command.reception_id is not None:
+        rec_id = ReceptionId.parse(command.reception_id)
+        target_store_id = StoreId.parse(command.store_id)
+        existing = await fixture.reception_repo.get(
+            corporate_id=fixture.corporate_id,
+            store_id=target_store_id,
+            reception_id=rec_id,
+        )
+        if existing is not None:
+            if bundle is not None and bundle.correction_kind is None:
+                bundle = replace(bundle, correction_kind=ExternalCorrectionKind.UPDATE)
+            if command.expected_fingerprint is None:
+                command = replace(
+                    command, expected_fingerprint=existing.latest_fingerprint.value
+                )
+
+    if bundle is not None:
+        structured_command = replace(
+            command,
+            raw_nsips_text=None,
+            structured_bundle=bundle,
+        )
+        return await use_case.execute(structured_command)
+    return await use_case.execute(command)
 
 
 async def create_fixture() -> NsipsFixture:
@@ -167,7 +169,6 @@ async def create_fixture() -> NsipsFixture:
     store_id = StoreId.generate()
 
     corporate_repo = AutoProvisioningCorporateRepository()
-    corporate_access = create_vendor_corporate_access_for(corporate_repo)
 
     store_repo = InMemoryStoreRepository()
     store = create_store(corporate_id=corporate_id)
@@ -192,13 +193,31 @@ async def create_fixture() -> NsipsFixture:
     )
     await staff_repo.save(pharmacist)
     pharmacist_id = pharmacist.id
+    corporate_access = create_vendor_corporate_access_for(
+        corporate_repo,
+        actor=create_resolved_actor(staff_id=pharmacist_id),
+    )
 
     unqualified_staff = create_staff(
         corporate_id=corporate_id,
         qualifications=None,
     )
+    unqualified_staff = replace(
+        unqualified_staff,
+        affiliations=(
+            StoreAffiliation(
+                store_id=store_id,
+                is_primary=True,
+                period=AffiliationPeriod(start_date=date(2026, 1, 1)),
+            ),
+        ),
+    )
     await staff_repo.save(unqualified_staff)
     unqualified_staff_id = unqualified_staff.id
+    unqualified_corporate_access = create_vendor_corporate_access_for(
+        corporate_repo,
+        actor=create_resolved_actor(staff_id=unqualified_staff_id),
+    )
 
     patient_repo = InMemoryPatientRepository()
     patient_external_id_repo = InMemoryPatientExternalIdentifierRepository()
@@ -232,50 +251,30 @@ async def create_fixture() -> NsipsFixture:
         patient_repo, patient_external_id_repo, corporate_access
     )
 
-    register_prescription = RegisterPrescriptionUseCase(
-        repository=prescription_repo,
-        corporate_access=corporate_access,
-        store_reference=PrescriptionStoreReferenceAdapter(store_repo),
-        patient_reference=PrescriptionPatientReferenceAdapter(patient_repo),
-        medicine_restriction=medicine_restriction,
-        public_expense_availability=CoverageSelectionPublicExpenseAdapter(
-            coverage_selection_repo
-        ),
-        uniqueness_service=PrescriptionDocumentNumberUniquenessService(),
-        narcotic_service=NarcoticPrescriptionService(),
-        refill_service=RefillEligibilityService(),
-        public_expense_service=PublicExpenseBurdenService(),
-    )
-
-    ready_for_dispensing = ReadyForDispensingUseCase(
-        prescription_repo, corporate_access
-    )
-
-    start_dispensing = StartDispensingUseCase(
-        repository=dispensing_repo,
-        corporate_access=corporate_access,
-        store_reference=DispensingStoreReferenceAdapter(store_repo),
-        prescription_reference=PrescriptionSourceAdapter(prescription_repo),
-        staff_qualification=DispensingStaffQualificationAdapter(staff_repo),
-        consistency_service=DispensingConsistencyService(),
-        uniqueness_service=DispensingIterationUniquenessService(),
-        pharmacist_service=DispensingPharmacistService(),
-        clock=clock,
-    )
-
     use_case = IngestNsipsUseCase(
         corporate_access=corporate_access,
         unit_of_work=unit_of_work,
         patient_external_id_repo=patient_external_id_repo,
         patient_repo=patient_repo,
-        prescription_repo=prescription_repo,
-        dispensing_repo=dispensing_repo,
         reception_repo=reception_repo,
+        store_repo=store_repo,
         register_patient_use_case=register_patient,
         register_patient_external_id_use_case=register_patient_ext,
-        register_prescription_use_case=register_prescription,
-        ready_for_dispensing_use_case=ready_for_dispensing,
-        start_dispensing_use_case=start_dispensing,
+        medication_history_repo=medication_history_repo,
+        parser=NsipsParser(),
+        mapper=NsipsDataMapper(),
+        clock=clock,
+    )
+
+    unqualified_use_case = IngestNsipsUseCase(
+        corporate_access=unqualified_corporate_access,
+        unit_of_work=unit_of_work,
+        patient_external_id_repo=patient_external_id_repo,
+        patient_repo=patient_repo,
+        reception_repo=reception_repo,
+        store_repo=store_repo,
+        register_patient_use_case=register_patient,
+        register_patient_external_id_use_case=register_patient_ext,
         medication_history_repo=medication_history_repo,
         parser=NsipsParser(),
         mapper=NsipsDataMapper(),
@@ -284,6 +283,7 @@ async def create_fixture() -> NsipsFixture:
 
     return NsipsFixture(
         use_case=use_case,
+        unqualified_use_case=unqualified_use_case,
         corporate_id=corporate_id,
         store_id=store_id,
         pharmacist_id=pharmacist_id,

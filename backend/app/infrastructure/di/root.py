@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Self
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
@@ -29,6 +30,9 @@ from app.application.composition.adapters.corporate_activity_guard import (
 from app.application.composition.adapters.manager_membership_guard import (
     ManagerMembershipWriteGuard,
 )
+from app.application.composition.adapters.medicine_restriction_adapter import (
+    MedicineCatalogRestrictionAdapter,
+)
 from app.application.composition.adapters.resolved_actor_guard import (
     CompositeWriteGuard,
     ResolvedActorWriteGuard,
@@ -44,11 +48,7 @@ from app.application.corporate.commands.services.corporate_access import (
     CorporateAccessService,
 )
 from app.application.identity.boundary_models import VerifiedSubject
-from app.application.identity.commands.dtos.identity_views import AccountDto
-from app.application.identity.commands.services.invitation_access import (
-    InvitationOnlyAccess,
-)
-from app.infrastructure.di.bundles.identity import build_identity_use_cases
+from app.application.identity.queries.resolve_actor import ResolveActorUseCase
 from app.infrastructure.di.registry import PostgresUseCaseRegistry
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
@@ -62,6 +62,7 @@ from app.infrastructure.postgres.connection import (
 from app.infrastructure.postgres.operation_audit import append_pending_audits
 from app.infrastructure.postgres.organization_lock import PostgresOrganizationLock
 from app.infrastructure.postgres.read_scope import RepositoryReadScope
+from app.infrastructure.readers.identity_resolve_actor import ResolveActorProjection
 from app.infrastructure.system_clock import SystemUtcClock
 
 # --------------------------------------------------------------------------
@@ -99,8 +100,15 @@ class PostgresRequestScope(RequestScope):
             isinstance(actor, ResolvedActorContext)
             and ActorRole.VENDOR_SYSTEM_ADMIN not in actor.roles
         ):
-            # 法人の有無は ResolvedActorContext が構築時に保証する。
+            # 法人と本人の有無は ResolvedActorContext が構築時に保証する。
             assert actor.corporate_id is not None
+            assert actor.person_id is not None
+            assert actor.account_id is not None
+            selected_store_ids: tuple[UUID, ...] | None = None
+            if actor.selected_store_id is not None:
+                selected_store_ids = (actor.selected_store_id.value,)
+            elif actor.require_store_selection:
+                selected_store_ids = ()
             unit_of_work.read_scope = RepositoryReadScope(
                 actor.corporate_id.value,
                 tuple(item.value for item in actor.store_ids),
@@ -109,6 +117,7 @@ class PostgresRequestScope(RequestScope):
                 actor.account_id.value,
                 tuple(item.value for item in actor.managed_store_ids),
                 corporate_administration=ActorRole.CORPORATE_ADMIN in actor.roles,
+                selected_store_ids=selected_store_ids,
             )
         repositories = PostgresRepositorySet.create(unit_of_work)
         corporate_access = CorporateAccessService(repositories.corporate, authorization)
@@ -127,6 +136,13 @@ class PostgresRequestScope(RequestScope):
                     ),
                     authorization,
                     lock,
+                    medicine_restriction=MedicineCatalogRestrictionAdapter(
+                        repositories.medicine_catalog
+                    ),
+                    clock=clock,
+                    accounts=repositories.user_account,
+                    memberships=repositories.membership,
+                    staffs=repositories.staff,
                 ).check,
                 StaffAssignmentWriteGuard(
                     repositories.store, repositories.manager_assignment, clock, lock
@@ -246,25 +262,19 @@ class PostgresCompositionRoot(CompositionRoot):
         """確認済みの外部主体を毎リクエスト現在のアカウントと権限へ接続する。"""
         async with PostgresUnitOfWork(self.session_factory) as work:
             repositories = PostgresRepositorySet.create(work)
-            use_cases = build_identity_use_cases(
-                repositories, InvitationOnlyAccess(), self.clock, work
+            resolver = ResolveActorUseCase(
+                reader=ResolveActorProjection(
+                    people=repositories.account_person,
+                    accounts=repositories.user_account,
+                    memberships=repositories.membership,
+                    managers=repositories.manager_assignment,
+                    vendor_operators=repositories.vendor_operator,
+                    staffs=repositories.staff,
+                    stores=repositories.store,
+                ),
+                clock=self.clock,
             )
-            return await use_cases.resolve_actor.execute(subject)
-
-    async def accept_invitation(
-        self, subject: VerifiedSubject, secret: str
-    ) -> AccountDto:
-        """通常業務Actorを作る前に本人指定の招待を受諾する。"""
-        async with PostgresUnitOfWork(self.session_factory) as work:
-            repositories = PostgresRepositorySet.create(work)
-            use_cases = build_identity_use_cases(
-                repositories, InvitationOnlyAccess(), self.clock, work
-            )
-            account = await use_cases.accept.execute(secret, subject)
-            actor = await use_cases.resolve_actor.execute(subject)
-            await append_pending_audits(work, actor, self.clock)
-            await work.commit()
-            return account
+            return await resolver.execute(subject)
 
     async def close(self) -> None:
         """プロセスの終了時にコネクションプールを破棄する。"""

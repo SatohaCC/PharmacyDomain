@@ -19,46 +19,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/corporates/{corporate_id}/local-users": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /**
-     * Register Local User
-     * @description 招待受諾を待たず、対象法人の利用者登録を完了する。
-     */
-    post: operations["register_local_user_corporates__corporate_id__local_users_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/corporates/{corporate_id}/user-invitations": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /**
-     * Invite User
-     * @description 本人指定の招待を発行し、秘密を一度だけ返す。
-     */
-    post: operations["invite_user_corporates__corporate_id__user_invitations_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/corporates/{corporate_id}/users/{membership_id}": {
     parameters: {
       query?: never;
@@ -115,6 +75,26 @@ export interface paths {
      * @description 現在有効な本人・アカウント・法人アクセス範囲を返す。
      */
     get: operations["get_me_me_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/me/stores": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get My Stores
+     * @description 現在選択可能な店舗一覧（有効Membership許可店舗と当日Staff所属の積集合）を返す。
+     */
+    get: operations["get_my_stores_me_stores_get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -183,7 +163,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/corporates/{corporate_id}/user-invitations/{invitation_id}/cancellation": {
+  "/corporates/{corporate_id}/users/{membership_id}/staff-registration": {
     parameters: {
       query?: never;
       header?: never;
@@ -193,30 +173,10 @@ export interface paths {
     get?: never;
     put?: never;
     /**
-     * Cancel Invitation
-     * @description 未受諾の招待を取り消す。
+     * Register Staff For Admin
+     * @description 初期管理者にスタッフを紐付ける。
      */
-    post: operations["cancel_invitation_corporates__corporate_id__user_invitations__invitation_id__cancellation_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/corporates/{corporate_id}/user-invitations/{invitation_id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * Get Invitation
-     * @description 招待の秘密を再取得させず状態を返す。
-     */
-    get: operations["get_invitation_corporates__corporate_id__user_invitations__invitation_id__get"];
-    put?: never;
-    post?: never;
+    post: operations["register_staff_for_admin_corporates__corporate_id__users__membership_id__staff_registration_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -234,7 +194,7 @@ export interface paths {
     put?: never;
     /**
      * Register Person
-     * @description 自法人への招待に必要な本人を登録する。
+     * @description 自法人の本人を登録する。
      */
     post: operations["register_person_corporates__corporate_id__people_post"];
     delete?: never;
@@ -303,6 +263,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/auth/vendor/login": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Vendor Login
+     * @description 運営者の資格情報を照合しセッションを発行する。
+     */
+    post: operations["vendor_login_auth_vendor_login_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/auth/password": {
     parameters: {
       query?: never;
@@ -323,6 +303,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/auth/store-context": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Select Store Context
+     * @description 許可・所属済みの店舗を選択した新しいセッションを発行する。
+     */
+    post: operations["select_store_context_auth_store_context_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/auth/logout": {
     parameters: {
       query?: never;
@@ -337,26 +337,6 @@ export interface paths {
      * @description サーバー上のセッションを削除する。
      */
     post: operations["logout_auth_logout_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/user-invitations/acceptance": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /**
-     * Accept Invitation
-     * @description 内部アカウント未作成でも検証済みの外部主体で招待を受諾できる。
-     */
-    post: operations["accept_invitation_user_invitations_acceptance_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -490,6 +470,26 @@ export interface paths {
     patch: operations["change_corporate_status_corporates__corporate_id__status_patch"];
     trace?: never;
   };
+  "/corporates/{corporate_id}/policy": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Update Corporate Policy
+     * @description 法人ポリシーを更新する。
+     */
+    put: operations["update_corporate_policy_corporates__corporate_id__policy_put"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/corporates/{corporate_id}/stores": {
     parameters: {
       query?: never;
@@ -592,6 +592,66 @@ export interface paths {
      * @description 店舗所在地を変更する。
      */
     patch: operations["change_store_address_corporates__corporate_id__stores__store_id__address_patch"];
+    trace?: never;
+  };
+  "/corporates/{corporate_id}/stores/{store_id}/licenses": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Update Store Licenses
+     * @description 店舗の薬局開設許可および麻薬小売業者免許を更新する。
+     */
+    put: operations["update_store_licenses_corporates__corporate_id__stores__store_id__licenses_put"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/corporates/{corporate_id}/stores/{store_id}/policy": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Update Store Policy
+     * @description 店舗ポリシーを更新する。
+     */
+    put: operations["update_store_policy_corporates__corporate_id__stores__store_id__policy_put"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/corporates/{corporate_id}/stores/{store_id}/effective-policy": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Effective Policy
+     * @description 店舗の実効ポリシーを取得する。
+     */
+    get: operations["get_effective_policy_corporates__corporate_id__stores__store_id__effective_policy_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/corporates/{corporate_id}/stores/{store_id}/contact-info": {
@@ -881,7 +941,7 @@ export interface paths {
     put?: never;
     /**
      * Register Staff
-     * @description スタッフを新規登録する。
+     * @description スタッフおよびアカウントを新規一括登録する。
      */
     post: operations["register_staff_corporates__corporate_id__staffs_post"];
     delete?: never;
@@ -2315,14 +2375,6 @@ export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
     /**
-     * AcceptInvitationRequest
-     * @description 受諾の秘密だけを受け、本人は認証境界で決める。
-     */
-    AcceptInvitationRequest: {
-      /** Secret */
-      secret: string;
-    };
-    /**
      * AccountStatus
      * @description アクセス権変更で指定できる状態。
      * @enum {string}
@@ -2343,8 +2395,6 @@ export interface components {
       store_id: string;
       /** Patient Id */
       patient_id: string;
-      /** Counselor Id */
-      counselor_id: string;
       /**
        * Followed Up At
        * Format: date-time
@@ -2352,6 +2402,8 @@ export interface components {
       followed_up_at: string;
       /** Method */
       method: string;
+      /** Counselor Id */
+      counselor_id?: string | null;
       soap?: components["schemas"]["SoapInput"];
       /**
        * Additional Notes
@@ -2419,8 +2471,6 @@ export interface components {
      * @description 確定済み薬歴の訂正の入力。元の記載は残り、訂正が積まれる。
      */
     AmendMedicationHistoryRequest: {
-      /** Amended By */
-      amended_by: string;
       /** Reason */
       reason: string;
       amended_soap: components["schemas"]["SoapInput"];
@@ -2510,6 +2560,24 @@ export interface components {
       points?: number | null;
       /** Quantity */
       quantity?: number | null;
+    };
+    /**
+     * BulkRegisteredStaffResponse
+     * @description スタッフ一括登録の応答。
+     */
+    BulkRegisteredStaffResponse: {
+      /** Id */
+      id: string;
+      /** Staff Id */
+      staff_id: string;
+      /** Person Id */
+      person_id: string;
+      /** Account Id */
+      account_id: string;
+      /** Membership Id */
+      membership_id: string;
+      /** Email */
+      email: string;
     };
     /**
      * BusinessDayExceptionDto
@@ -2924,6 +2992,14 @@ export interface components {
       next_cursor: string | null;
     };
     /**
+     * CorporatePolicyDto
+     * @description 法人ポリシーの出力データ。
+     */
+    CorporatePolicyDto: {
+      require_prescription_audit: components["schemas"]["PolicySettingDto"];
+      prohibit_self_verification: components["schemas"]["PolicySettingDto"];
+    };
+    /**
      * CorporateResponseDto
      * @description 取得結果として画面やAPIに返すデータ構造（DTO）
      */
@@ -2936,6 +3012,7 @@ export interface components {
       representative_name: string;
       /** Is Active */
       is_active: boolean;
+      policy: components["schemas"]["CorporatePolicyDto"];
     };
     /**
      * CorrectMedicationHistoryFactRequest
@@ -3027,9 +3104,9 @@ export interface components {
      */
     CurrentActorDto: {
       /** Person Id */
-      person_id: string;
+      person_id: string | null;
       /** Account Id */
-      account_id: string;
+      account_id: string | null;
       /** Membership Id */
       membership_id: string | null;
       /** Corporate Id */
@@ -3044,6 +3121,8 @@ export interface components {
       managed_store_ids: string[];
       /** Permissions */
       permissions: components["schemas"]["UserPermissionDto"][];
+      /** Selected Store Id */
+      selected_store_id?: string | null;
     };
     /**
      * DeactivateCoverageRequest
@@ -3362,6 +3441,27 @@ export interface components {
       mechanism: string;
       /** Recommendation */
       recommendation: string;
+    };
+    /**
+     * EffectivePolicyDto
+     * @description 店舗の実効ポリシー投影。
+     */
+    EffectivePolicyDto: {
+      require_prescription_audit: components["schemas"]["EffectivePolicyItemDto"];
+      prohibit_self_verification: components["schemas"]["EffectivePolicyItemDto"];
+    };
+    /**
+     * EffectivePolicyItemDto
+     * @description 単一ポリシー項目の実効値と解決元。
+     */
+    EffectivePolicyItemDto: {
+      /** Value */
+      value: boolean;
+      /**
+       * Source
+       * @enum {string}
+       */
+      source: "corporate" | "store";
     };
     /**
      * EndManagerRequest
@@ -3691,64 +3791,6 @@ export interface components {
       benefit_ratio: number;
     };
     /**
-     * InvitationStatus
-     * @description 招待の受諾状態。
-     * @enum {string}
-     */
-    InvitationStatus: "pending" | "accepted" | "cancelled";
-    /**
-     * InvitationViewDto
-     * @description 招待の状態。ダイジェストも秘密も含めない。
-     */
-    InvitationViewDto: {
-      /** Id */
-      id: string;
-      /** Person Id */
-      person_id: string;
-      /** Corporate Id */
-      corporate_id: string;
-      status: components["schemas"]["InvitationStatus"];
-      role: components["schemas"]["MembershipRole-Output"];
-      /**
-       * Expires At
-       * Format: date-time
-       */
-      expires_at: string;
-    };
-    /**
-     * InviteUserRequest
-     * @description 本人IDを必須とする招待。本人確認結果やベンダー権限は受けない。
-     */
-    InviteUserRequest: {
-      /** Person Id */
-      person_id: string;
-      /** Addressee */
-      addressee: string;
-      role: components["schemas"]["MembershipRole-Input"];
-      /**
-       * Expires At
-       * Format: date-time
-       */
-      expires_at: string;
-      /**
-       * Store Ids
-       * @default []
-       */
-      store_ids: string[];
-      /** Staff Id */
-      staff_id?: string | null;
-    };
-    /**
-     * IssuedInvitation
-     * @description 発行時だけ返す招待秘密。
-     */
-    IssuedInvitation: {
-      /** Id */
-      id: string;
-      /** Secret */
-      secret: string;
-    };
-    /**
      * LabeledNoteDto
      * @description ラベル付き記述1件の出力DTO。
      */
@@ -3804,8 +3846,10 @@ export interface components {
      * @description ログイン入力。秘密をモデルの文字列表現へ含めない。
      */
     LoginRequest: {
-      /** Login Id */
-      login_id: string;
+      /** Corporate Id */
+      corporate_id: string;
+      /** Email */
+      email: string;
       /** Password */
       password: string;
     };
@@ -3818,6 +3862,8 @@ export interface components {
       access_token: string;
       /** Password Change Required */
       password_change_required: boolean;
+      /** Selected Store Id */
+      selected_store_id?: string | null;
     };
     /**
      * MajorCategoryDto
@@ -4239,7 +4285,7 @@ export interface components {
      *
      *     法人アクセス権の状態と、その土台にある個人アカウントの状態は別物である。
      *     片方だけを返すと「権限は有効だがアカウントが停止中」という組み合わせを
-     *     呼び出し側が区別できない。外部主体識別子と招待の秘密は含めない。
+     *     呼び出し側が区別できない。外部主体識別子は含めない。
      */
     MembershipViewDto: {
       /** Id */
@@ -4287,6 +4333,42 @@ export interface components {
        * Format: date-time
        */
       merged_at: string;
+    };
+    /**
+     * NarcoticsRetailerLicenseDto
+     * @description 麻薬小売業者免許の出力データ。
+     */
+    NarcoticsRetailerLicenseDto: {
+      /** Number */
+      number: string;
+      /**
+       * Valid From
+       * Format: date
+       */
+      valid_from: string;
+      /**
+       * Valid To
+       * Format: date
+       */
+      valid_to: string;
+    };
+    /**
+     * NarcoticsRetailerLicenseRequest
+     * @description 麻薬小売業者免許の入力モデル。
+     */
+    NarcoticsRetailerLicenseRequest: {
+      /** Number */
+      number: string;
+      /**
+       * Valid From
+       * Format: date
+       */
+      valid_from: string;
+      /**
+       * Valid To
+       * Format: date
+       */
+      valid_to: string;
     };
     /**
      * NsipsAdditionRequest
@@ -4795,6 +4877,62 @@ export interface components {
       first_name_kana: string;
     };
     /**
+     * PharmacyLicenseDto
+     * @description 薬局開設許可の出力データ。
+     */
+    PharmacyLicenseDto: {
+      /** Number */
+      number: string;
+      /**
+       * Valid From
+       * Format: date
+       */
+      valid_from: string;
+      /**
+       * Valid To
+       * Format: date
+       */
+      valid_to: string;
+    };
+    /**
+     * PharmacyLicenseRequest
+     * @description 薬局開設許可の入力モデル。
+     */
+    PharmacyLicenseRequest: {
+      /** Number */
+      number: string;
+      /**
+       * Valid From
+       * Format: date
+       */
+      valid_from: string;
+      /**
+       * Valid To
+       * Format: date
+       */
+      valid_to: string;
+    };
+    /**
+     * PolicySettingDto
+     * @description ポリシー単一項目の出力データ。
+     */
+    PolicySettingDto: {
+      /** Value */
+      value: boolean;
+      /** Overridable */
+      overridable: boolean;
+    };
+    /**
+     * PolicySettingRequest
+     * @description ポリシー項目のリクエストモデル。
+     */
+    PolicySettingRequest: {
+      /** Value */
+      value: boolean;
+      /** Overridable */
+      overridable: boolean;
+    };
+    /**
      * PrescriberDto
      * @description 処方医の出力DTO。
      */
@@ -5171,8 +5309,6 @@ export interface components {
      * @description 監査の入力。
      */
     RecordAuditRequest: {
-      /** Auditor Id */
-      auditor_id: string;
       /** Has Issues */
       has_issues: boolean;
       /** Notes */
@@ -5208,8 +5344,6 @@ export interface components {
      * @description トレーシングレポート記録の入力。
      */
     RecordTracingReportRequest: {
-      /** Reporter Id */
-      reporter_id: string;
       /**
        * Provided At
        * Format: date-time
@@ -5259,8 +5393,8 @@ export interface components {
       /** Representative First Name */
       representative_first_name: string;
       administrator: components["schemas"]["PersonNamesInput"];
-      /** Login Id */
-      login_id: string;
+      /** Email */
+      email: string;
       /** Initial Password */
       initial_password: string;
     };
@@ -5333,26 +5467,6 @@ export interface components {
       store_id?: string | null;
     };
     /**
-     * RegisterLocalUserRequest
-     * @description 本人のログイン資格情報と法人権限を確定する入力。
-     */
-    RegisterLocalUserRequest: {
-      /** Person Id */
-      person_id: string;
-      /** Login Id */
-      login_id: string;
-      /** Initial Password */
-      initial_password: string;
-      role: components["schemas"]["MembershipRole-Input"];
-      /**
-       * Store Ids
-       * @default []
-       */
-      store_ids: string[];
-      /** Staff Id */
-      staff_id?: string | null;
-    };
-    /**
      * RegisterMedicineRequest
      * @description 医薬品の取り込みの入力。収載期間は終了日を含む閉区間として扱う。
      */
@@ -5423,7 +5537,7 @@ export interface components {
     };
     /**
      * RegisterPersonRequest
-     * @description 招待の対象となる本人を登録する。
+     * @description 自法人の本人を登録する。
      */
     RegisterPersonRequest: {
       /** Last Name */
@@ -5466,6 +5580,47 @@ export interface components {
       coverage_selection_record_id?: string | null;
     };
     /**
+     * RegisterStaffForAdminRequest
+     * @description 初期管理者へのスタッフ登録入力。
+     */
+    RegisterStaffForAdminRequest: {
+      /** Last Name */
+      last_name?: string | null;
+      /** First Name */
+      first_name?: string | null;
+      /** Last Name Kana */
+      last_name_kana?: string | null;
+      /** First Name Kana */
+      first_name_kana?: string | null;
+      /** Code */
+      code?: string | null;
+      /** Job Title */
+      job_title?: string | null;
+      /** Phone Number */
+      phone_number?: string | null;
+      /** Email */
+      email?: string | null;
+      /** Initial Home Store Id */
+      initial_home_store_id?: string | null;
+      /** Initial Start Date */
+      initial_start_date?: string | null;
+      /** Pharmacist License Number */
+      pharmacist_license_number?: string | null;
+      /** Insurance Pharmacist Registration Number */
+      insurance_pharmacist_registration_number?: string | null;
+      /** Insurance Pharmacist Registration Date */
+      insurance_pharmacist_registration_date?: string | null;
+      /** Registered Seller Number */
+      registered_seller_number?: string | null;
+      /** Dietitian Registration Number */
+      dietitian_registration_number?: string | null;
+      /**
+       * Is Registered Dietitian
+       * @default true
+       */
+      is_registered_dietitian: boolean;
+    };
+    /**
      * RegisterStaffRequest
      * @description スタッフ登録の入力。
      */
@@ -5493,6 +5648,7 @@ export interface components {
       last_name_kana: string;
       /** First Name Kana */
       first_name_kana: string;
+      account: components["schemas"]["StaffAccountRequest"];
       /** Job Title */
       job_title?: string | null;
       /** Code */
@@ -5541,8 +5697,8 @@ export interface components {
       id: string;
       /** Account Id */
       account_id: string;
-      /** Login Id */
-      login_id: string;
+      /** Email */
+      email: string;
     };
     /**
      * RegisteredIdResponse
@@ -5551,16 +5707,6 @@ export interface components {
     RegisteredIdResponse: {
       /** Id */
       id: string;
-    };
-    /**
-     * RegisteredLocalUser
-     * @description 登録完了したアカウント。パスワードは再表示しない。
-     */
-    RegisteredLocalUser: {
-      /** Id */
-      id: string;
-      /** Login Id */
-      login_id: string;
     };
     /**
      * RelatedEventCandidateDto
@@ -5715,6 +5861,26 @@ export interface components {
       dosage_supplements: components["schemas"]["DosageSupplementInput"][];
     };
     /**
+     * SelectStoreContextRequest
+     * @description 作業対象とする店舗の選択入力。
+     */
+    SelectStoreContextRequest: {
+      /** Store Id */
+      store_id: string;
+    };
+    /**
+     * SelectableStoreDto
+     * @description 現在選択可能な店舗の表示値。
+     */
+    SelectableStoreDto: {
+      /** Id */
+      id: string;
+      /** Name */
+      name: string;
+      /** Code */
+      code?: string | null;
+    };
+    /**
      * ServiceStatusResponse
      * @description 稼働状態の応答。
      */
@@ -5749,6 +5915,23 @@ export interface components {
       assessment?: components["schemas"]["LabeledNoteInput"][];
       /** Plan */
       plan?: components["schemas"]["LabeledNoteInput"][];
+    };
+    /**
+     * StaffAccountRequest
+     * @description スタッフと同時に生成するアカウントの入力。
+     */
+    StaffAccountRequest: {
+      /** Email */
+      email: string;
+      /** Password */
+      password: string;
+      /**
+       * Role
+       * @default store_operator
+       */
+      role: string;
+      /** Store Ids */
+      store_ids?: string[] | null;
     };
     /**
      * StaffDto
@@ -5821,8 +6004,6 @@ export interface components {
       store_id: string;
       /** Prescription Id */
       prescription_id: string;
-      /** Dispenser Id */
-      dispenser_id: string;
       /** Iteration */
       iteration: number;
       /**
@@ -5855,8 +6036,6 @@ export interface components {
        * @default []
        */
       additional_notes: components["schemas"]["CategorizedNoteInput"][];
-      /** Counselor Id */
-      counselor_id?: string | null;
       /** Counseled At */
       counseled_at?: string | null;
     };
@@ -5865,8 +6044,6 @@ export interface components {
      * @description 疑義照会の開始の入力。
      */
     StartInquiryRequest: {
-      /** Pharmacist Id */
-      pharmacist_id: string;
       /** Category */
       category: string;
       /** Content */
@@ -5891,8 +6068,6 @@ export interface components {
       /** Information Sheet Provided */
       information_sheet_provided?: boolean | null;
       profile_updates?: components["schemas"]["ProfileUpdateInput"] | null;
-      /** Counselor Id */
-      counselor_id?: string | null;
       /** Counseled At */
       counseled_at?: string | null;
       /**
@@ -5994,6 +6169,17 @@ export interface components {
       /** Status History */
       status_history: components["schemas"]["StoreStatusChangeDto"][];
       business_hours: components["schemas"]["BusinessHoursDto"] | null;
+      licenses?: components["schemas"]["StoreLicensesDto"] | null;
+      policy?: components["schemas"]["StorePolicyDto"] | null;
+    };
+    /**
+     * StoreLicensesDto
+     * @description 店舗許認可の出力データ。
+     */
+    StoreLicensesDto: {
+      pharmacy_license: components["schemas"]["PharmacyLicenseDto"];
+      narcotics_retailer_license?:
+        components["schemas"]["NarcoticsRetailerLicenseDto"] | null;
     };
     /**
      * StoreOpeningStatusDto
@@ -6019,6 +6205,16 @@ export interface components {
       at: string;
       /** Slots */
       slots: components["schemas"]["BusinessHourSlotDto"][];
+    };
+    /**
+     * StorePolicyDto
+     * @description 店舗ポリシーの出力データ。
+     */
+    StorePolicyDto: {
+      /** Require Prescription Audit */
+      require_prescription_audit?: boolean | null;
+      /** Prohibit Self Verification */
+      prohibit_self_verification?: boolean | null;
     };
     /**
      * StoreStatusChangeDto
@@ -6218,6 +6414,14 @@ export interface components {
       is_contraindication_target?: boolean | null;
     };
     /**
+     * UpdateCorporatePolicyRequest
+     * @description 法人ポリシー更新のリクエストモデル。
+     */
+    UpdateCorporatePolicyRequest: {
+      require_prescription_audit: components["schemas"]["PolicySettingRequest"];
+      prohibit_self_verification: components["schemas"]["PolicySettingRequest"];
+    };
+    /**
      * UpdateEventDefinitionRequest
      * @description 法人独自イベント種別の変更入力。
      */
@@ -6247,6 +6451,25 @@ export interface components {
         components["schemas"]["BillingAdditionRequest"][] | null;
     };
     /**
+     * UpdateStoreLicensesRequest
+     * @description 店舗許認可更新の入力モデル。
+     */
+    UpdateStoreLicensesRequest: {
+      pharmacy_license: components["schemas"]["PharmacyLicenseRequest"];
+      narcotics_retailer_license?:
+        components["schemas"]["NarcoticsRetailerLicenseRequest"] | null;
+    };
+    /**
+     * UpdateStorePolicyRequest
+     * @description 店舗ポリシー更新の入力モデル。
+     */
+    UpdateStorePolicyRequest: {
+      /** Require Prescription Audit */
+      require_prescription_audit?: boolean | null;
+      /** Prohibit Self Verification */
+      prohibit_self_verification?: boolean | null;
+    };
+    /**
      * UserPermissionDto
      * @description 本人へ付与された権限の種類と法人・店舗の範囲。
      */
@@ -6265,12 +6488,20 @@ export interface components {
     UserPermissionType:
       "general_user" | "managing_pharmacist" | "corporate_admin";
     /**
+     * VendorLoginRequest
+     * @description 運営者のログイン入力。
+     */
+    VendorLoginRequest: {
+      /** Email */
+      email: string;
+      /** Password */
+      password: string;
+    };
+    /**
      * VerifyDispensingRequest
      * @description 鑑査の入力。
      */
     VerifyDispensingRequest: {
-      /** Verifier Id */
-      verifier_id: string;
       /** Result */
       result: string;
       /** Notes */
@@ -6327,148 +6558,6 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["RegisteredContract"];
-        };
-      };
-      /** @description 資格情報が無い、または検証できない。 */
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-      /** @description 主体は判明したが、その操作の権限が無い。 */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-      /** @description 対象が存在しない、または他テナントのため隠されている。 */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-      /** @description 入力値が形式またはドメイン規則を満たさない。 */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-    };
-  };
-  register_local_user_corporates__corporate_id__local_users_post: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        corporate_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["RegisterLocalUserRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["RegisteredLocalUser"];
-        };
-      };
-      /** @description 資格情報が無い、または検証できない。 */
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-      /** @description 主体は判明したが、その操作の権限が無い。 */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-      /** @description 対象が存在しない、または他テナントのため隠されている。 */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-      /** @description 入力値が形式またはドメイン規則を満たさない。 */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-    };
-  };
-  invite_user_corporates__corporate_id__user_invitations_post: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        corporate_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["InviteUserRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["IssuedInvitation"];
         };
       };
       /** @description 資格情報が無い、または検証できない。 */
@@ -6790,6 +6879,71 @@ export interface operations {
       };
     };
   };
+  get_my_stores_me_stores_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SelectableStoreDto"][];
+        };
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
   list_users_corporates__corporate_id__users_get: {
     parameters: {
       query?: {
@@ -6996,93 +7150,29 @@ export interface operations {
       };
     };
   };
-  cancel_invitation_corporates__corporate_id__user_invitations__invitation_id__cancellation_post: {
+  register_staff_for_admin_corporates__corporate_id__users__membership_id__staff_registration_post: {
     parameters: {
       query?: never;
       header?: never;
       path: {
         corporate_id: string;
-        invitation_id: string;
+        membership_id: string;
       };
       cookie?: never;
     };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": unknown;
-        };
-      };
-      /** @description 資格情報が無い、または検証できない。 */
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-      /** @description 主体は判明したが、その操作の権限が無い。 */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-      /** @description 対象が存在しない、または他テナントのため隠されている。 */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-      /** @description 入力値が形式またはドメイン規則を満たさない。 */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RegisterStaffForAdminRequest"];
       };
     };
-  };
-  get_invitation_corporates__corporate_id__user_invitations__invitation_id__get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        corporate_id: string;
-        invitation_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
     responses: {
       /** @description Successful Response */
-      200: {
+      201: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["InvitationViewDto"];
+          "application/json": components["schemas"]["RegisteredIdResponse"];
         };
       };
       /** @description 資格情報が無い、または検証できない。 */
@@ -7373,6 +7463,93 @@ export interface operations {
           "application/json": components["schemas"]["ErrorResponse"];
         };
       };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  vendor_login_auth_vendor_login_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["VendorLoginRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LoginSession"];
+        };
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
       /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
       409: {
         headers: {
@@ -7417,6 +7594,93 @@ export interface operations {
       };
       /** @description 資格情報が無い、または検証できない。 */
       401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  select_store_context_auth_store_context_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SelectStoreContextRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LoginSession"];
+        };
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -7469,8 +7733,8 @@ export interface operations {
           "application/json": components["schemas"]["ErrorResponse"];
         };
       };
-      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
-      409: {
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
         headers: {
           [name: string]: unknown;
         };
@@ -7478,41 +7742,8 @@ export interface operations {
           "application/json": components["schemas"]["ErrorResponse"];
         };
       };
-      /** @description 入力値が形式またはドメイン規則を満たさない。 */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-    };
-  };
-  accept_invitation_user_invitations_acceptance_post: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["AcceptInvitationRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["RegisteredIdResponse"];
-        };
-      };
-      /** @description 資格情報が無い、または検証できない。 */
-      401: {
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -7880,6 +8111,75 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["ChangeCorporateStatusRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  update_corporate_policy_corporates__corporate_id__policy_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateCorporatePolicyRequest"];
       };
     };
     responses: {
@@ -8305,6 +8605,214 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  update_store_licenses_corporates__corporate_id__stores__store_id__licenses_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+        store_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateStoreLicensesRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  update_store_policy_corporates__corporate_id__stores__store_id__policy_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+        store_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateStorePolicyRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  get_effective_policy_corporates__corporate_id__stores__store_id__effective_policy_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+        store_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["EffectivePolicyDto"];
+        };
       };
       /** @description 資格情報が無い、または検証できない。 */
       401: {
@@ -9429,7 +9937,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["RegisteredIdResponse"];
+          "application/json": components["schemas"]["BulkRegisteredStaffResponse"];
         };
       };
       /** @description 資格情報が無い、または検証できない。 */

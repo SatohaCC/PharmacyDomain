@@ -10,12 +10,15 @@ from typing import ClassVar, Final
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.value_object import ValueObject
+from app.domain.identity.identifiers import VendorOperatorId
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.identifiers import StaffId
 from app.domain.store.identifiers import StoreId
 from app.domain.store.primitives import (
     BusinessHoursNote,
     BusinessWeekday,
+    NarcoticsLicenseNumber,
+    PharmacyLicenseNumber,
     StoreAddressLine,
     StoreEmailAddress,
     StoreFaxNumber,
@@ -199,14 +202,25 @@ class StoreStatusChange(ValueObject):
     before: StoreStatus
     after: StoreStatus
     reason: StoreStatusReason
-    person_id: AccountPersonId
-    account_id: UserAccountId
     recorded_at: datetime
+    person_id: AccountPersonId | None = None
+    account_id: UserAccountId | None = None
+    operator_id: VendorOperatorId | None = None
 
     def validate(self) -> None:
         """記録日時にタイムゾーンを要求する。"""
         if self.recorded_at.utcoffset() is None:
             raise DomainValidationError("記録日時にはタイムゾーンが必要です。")
+        if (
+            self.operator_id is None
+            and (self.person_id is None or self.account_id is None)
+        ) or (
+            self.operator_id is not None
+            and (self.person_id is not None or self.account_id is not None)
+        ):
+            raise DomainValidationError(
+                "店舗状態履歴の操作者には、運営者IDまたは本人・アカウントが必要です。"
+            )
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -301,3 +315,81 @@ class ContactInfo(ValueObject):
         """必須の電話番号が空でないことを検証する。"""
         if not self.phone_number.value:
             raise DomainValidationError("電話番号は空にできません。")
+
+
+@dataclass(frozen=True, kw_only=True)
+class PharmacyLicense(ValueObject):
+    """薬局開設許可情報（薬機法対応）。"""
+
+    number: PharmacyLicenseNumber
+    valid_from: date
+    valid_to: date
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "number": "薬局開設許可番号",
+        "valid_from": "許可有効期間開始日",
+        "valid_to": "許可有効期間満了日",
+    }
+
+    def validate(self) -> None:
+        """開始日が満了日以前であることを検証する。"""
+        if self.valid_from > self.valid_to:
+            raise DomainValidationError(
+                "薬局開設許可の有効期間開始日は満了日以前である必要があります。"
+            )
+
+    def is_effective_on(self, target_date: date) -> bool:
+        """指定された業務日に許可が有効（両端を含む）であるかを判定する。"""
+        return self.valid_from <= target_date <= self.valid_to
+
+
+@dataclass(frozen=True, kw_only=True)
+class NarcoticsRetailerLicense(ValueObject):
+    """麻薬小売業者免許情報（麻薬及び向精神薬取締法対応）。"""
+
+    number: NarcoticsLicenseNumber
+    valid_from: date
+    valid_to: date
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "number": "麻薬小売業者免許番号",
+        "valid_from": "免許有効期間開始日",
+        "valid_to": "免許有効期間満了日",
+    }
+
+    def validate(self) -> None:
+        """原本満了日が免許日の属する年の翌々年12月31日であることを検証する。"""
+        if self.valid_from > self.valid_to:
+            raise DomainValidationError(
+                "麻薬小売業者免許の有効期間開始日は満了日以前である必要があります。"
+            )
+        statutory_expiry = date(self.valid_from.year + 2, 12, 31)
+        if self.valid_to != statutory_expiry:
+            raise DomainValidationError(
+                f"麻薬小売業者免許の満了日は免許日の翌々年12月31日（{statutory_expiry}）である必要があります。"
+            )
+
+    def is_effective_on(self, target_date: date) -> bool:
+        """指定された業務日に免許が有効（両端を含む）であるかを判定する。"""
+        return self.valid_from <= target_date <= self.valid_to
+
+
+@dataclass(frozen=True, kw_only=True)
+class StoreLicenses(ValueObject):
+    """店舗の許認可一式。"""
+
+    pharmacy_license: PharmacyLicense
+    narcotics_retailer_license: NarcoticsRetailerLicense | None = None
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "pharmacy_license": "薬局開設許可",
+        "narcotics_retailer_license": "麻薬小売業者免許",
+    }
+
+
+@dataclass(frozen=True, kw_only=True)
+class StorePolicy(ValueObject):
+    """店舗ポリシー設定（None は法人値を採用）。"""
+
+    require_prescription_audit: bool | None = None
+    prohibit_self_verification: bool | None = None

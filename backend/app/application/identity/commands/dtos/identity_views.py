@@ -105,8 +105,8 @@ class UserPermissionDto:
 class CurrentActorDto:
     """いま操作している本人・アカウント・権限の範囲。"""
 
-    person_id: str
-    account_id: str
+    person_id: str | None
+    account_id: str | None
     membership_id: str | None
     corporate_id: str | None
     roles: tuple[str, ...]
@@ -114,6 +114,7 @@ class CurrentActorDto:
     store_ids: tuple[str, ...]
     managed_store_ids: tuple[str, ...]
     permissions: tuple[UserPermissionDto, ...]
+    selected_store_id: str | None = None
 
     @classmethod
     def from_actor(cls, actor: ResolvedActorContext) -> CurrentActorDto:
@@ -142,8 +143,8 @@ class CurrentActorDto:
                     )
                 )
         return cls(
-            str(actor.person_id.value),
-            str(actor.account_id.value),
+            optional_id(actor.person_id),
+            optional_id(actor.account_id),
             optional_id(actor.membership_id),
             optional_id(actor.corporate_id),
             tuple(sorted(role.value for role in actor.roles)),
@@ -157,4 +158,5 @@ class CurrentActorDto:
                 for item in sorted(actor.managed_store_ids, key=lambda item: item.value)
             ),
             tuple(permissions),
+            optional_id(actor.selected_store_id),
         )

@@ -8,10 +8,11 @@ from app.application.access_control.boundary_models import Permission
 from app.application.access_control.interfaces.corporate_access import (
     CorporateAccessBoundary,
 )
-from app.application.common.clock import Clock
+from app.application.common.clock import Clock, business_date
 from app.application.prescription.commands.dtos.get_prescription import PrescriptionDto
 from app.application.prescription.commands.services.support import (
     load_prescription_or_raise,
+    resolve_acting_pharmacist_id,
 )
 from app.application.prescription.interfaces.references import (
     StaffQualificationBoundary,
@@ -26,7 +27,6 @@ from app.domain.prescription.primitives import (
 )
 from app.domain.prescription.repositories import PrescriptionRepository
 from app.domain.prescription.services import InquiryPharmacistService
-from app.domain.staff.identifiers import StaffId
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -35,9 +35,9 @@ class StartInquiryCommand:
 
     corporate_id: str
     prescription_id: str
-    pharmacist_id: str
     category: str
     content: str
+    pharmacist_id: str | None = None
 
 
 class StartInquiryUseCase:
@@ -72,9 +72,14 @@ class StartInquiryUseCase:
             corporate_id=corporate_id,
             prescription_id=PrescriptionId.parse(command.prescription_id),
         )
-        pharmacist_id = StaffId.parse(command.pharmacist_id)
+        pharmacist_id = resolve_acting_pharmacist_id(
+            self._corporate_access.actor, command.pharmacist_id
+        )
         qualifications = await self._staff_qualification.get_qualifications(
-            corporate_id=corporate_id, staff_id=pharmacist_id
+            corporate_id=corporate_id,
+            staff_id=pharmacist_id,
+            store_id=prescription.store_id,
+            as_of=business_date(self._clock),
         )
         self._pharmacist_service.ensure_pharmacist(qualifications)
         prescription = prescription.start_inquiry(

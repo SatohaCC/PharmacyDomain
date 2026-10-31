@@ -41,16 +41,26 @@ from app.application.store.commands.register_store import RegisterStoreCommand
 from app.application.store.commands.revoke_store_closure import (
     RevokeStoreClosureCommand,
 )
+from app.application.store.commands.update_licenses import (
+    NarcoticsRetailerLicenseInput,
+    PharmacyLicenseInput,
+    UpdateStoreLicensesCommand,
+)
+from app.application.store.commands.update_store_policy import (
+    UpdateStorePolicyCommand,
+)
 from app.application.store.queries.dtos.business_hours import (
     BusinessHoursDto as QueryBusinessHoursDto,
 )
 from app.application.store.queries.dtos.business_hours import StoreOpeningStatusDto
+from app.application.store.queries.dtos.get_effective_policy import EffectivePolicyDto
 from app.application.store.queries.dtos.get_store import StoreDto as QueryStoreDto
 from app.application.store.queries.dtos.get_store import (
     StoreStatusChangeDto as QueryStoreStatusChangeDto,
 )
 from app.application.store.queries.dtos.list_stores import StoreSummaryDto
 from app.application.store.queries.models import (
+    GetEffectivePolicyQuery,
     GetStoreQuery,
     ListStoresQuery,
     StoreOpeningStatusQuery,
@@ -132,6 +142,36 @@ class ChangeInsurancePharmacyNumberRequest(RequestModel):
     """保険薬局指定番号変更の入力。``None``・空文字・空白はいずれも解除を意味する。"""
 
     insurance_pharmacy_number: str | None = None
+
+
+class PharmacyLicenseRequest(RequestModel):
+    """薬局開設許可の入力モデル。"""
+
+    number: str
+    valid_from: date
+    valid_to: date
+
+
+class NarcoticsRetailerLicenseRequest(RequestModel):
+    """麻薬小売業者免許の入力モデル。"""
+
+    number: str
+    valid_from: date
+    valid_to: date
+
+
+class UpdateStoreLicensesRequest(RequestModel):
+    """店舗許認可更新の入力モデル。"""
+
+    pharmacy_license: PharmacyLicenseRequest
+    narcotics_retailer_license: NarcoticsRetailerLicenseRequest | None = None
+
+
+class UpdateStorePolicyRequest(RequestModel):
+    """店舗ポリシー更新の入力モデル。"""
+
+    require_prescription_audit: bool | None = None
+    prohibit_self_verification: bool | None = None
 
 
 @router.post(
@@ -255,6 +295,80 @@ async def change_store_address(
             postal_code=body.postal_code,
             address=body.address,
         )
+    )
+
+
+@router.put(
+    "/{store_id}/licenses",
+    status_code=HTTPStatus.NO_CONTENT,
+    response_class=Response,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def update_store_licenses(
+    corporate_id: str,
+    store_id: str,
+    body: UpdateStoreLicensesRequest,
+    use_cases: StoreUseCasesDep,
+) -> None:
+    """店舗の薬局開設許可および麻薬小売業者免許を更新する。"""
+    await use_cases.update_licenses.execute(
+        UpdateStoreLicensesCommand(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            pharmacy_license=PharmacyLicenseInput(
+                number=body.pharmacy_license.number,
+                valid_from=body.pharmacy_license.valid_from,
+                valid_to=body.pharmacy_license.valid_to,
+            ),
+            narcotics_retailer_license=(
+                NarcoticsRetailerLicenseInput(
+                    number=body.narcotics_retailer_license.number,
+                    valid_from=body.narcotics_retailer_license.valid_from,
+                    valid_to=body.narcotics_retailer_license.valid_to,
+                )
+                if body.narcotics_retailer_license is not None
+                else None
+            ),
+        )
+    )
+
+
+@router.put(
+    "/{store_id}/policy",
+    status_code=HTTPStatus.NO_CONTENT,
+    response_class=Response,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def update_store_policy(
+    corporate_id: str,
+    store_id: str,
+    body: UpdateStorePolicyRequest,
+    use_cases: StoreUseCasesDep,
+) -> None:
+    """店舗ポリシーを更新する。"""
+    await use_cases.update_policy.execute(
+        UpdateStorePolicyCommand(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            require_prescription_audit=body.require_prescription_audit,
+            prohibit_self_verification=body.prohibit_self_verification,
+        )
+    )
+
+
+@router.get(
+    "/{store_id}/effective-policy",
+    response_model=EffectivePolicyDto,
+    responses=error_responses(HTTPStatus.NOT_FOUND),
+)
+async def get_effective_policy(
+    corporate_id: str,
+    store_id: str,
+    use_cases: StoreUseCasesDep,
+) -> EffectivePolicyDto:
+    """店舗の実効ポリシーを取得する。"""
+    return await use_cases.effective_policy.execute(
+        GetEffectivePolicyQuery(corporate_id=corporate_id, store_id=store_id)
     )
 
 

@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
 from app.application.store.errors import StoreNotFoundError
-from app.application.store.queries.dtos.get_store import StoreDto
+from app.application.store.queries.dtos.get_store import (
+    PharmacyLicenseDto,
+    StoreDto,
+    StoreLicensesDto,
+    StorePolicyDto,
+)
 from app.application.store.queries.get_store import GetStoreUseCase
 from app.application.store.queries.models import GetStoreQuery
 from app.domain.corporate.identifiers import CorporateId
@@ -58,6 +65,15 @@ async def test_get_store_returns_dto() -> None:
         email=None,
         code="ST-001",
         insurance_pharmacy_number=VALID_INSURANCE_NUMBER,
+        licenses=StoreLicensesDto(
+            pharmacy_license=PharmacyLicenseDto(
+                number="薬-2026-001",
+                valid_from=date(2020, 1, 1),
+                valid_to=date(2035, 12, 31),
+            ),
+            narcotics_retailer_license=None,
+        ),
+        policy=StorePolicyDto(),
     )
 
 

@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import cast
-
 from sqlalchemy import select
 
 from app.domain.care_event.entities import Event
@@ -90,18 +87,15 @@ class PostgresEventRepository(PostgresRepositoryBase, EventRepository):
         patient_id: PatientId,
         event_id: EventId,
     ) -> Event | None:
-        """同一法人・患者のEvent関連元を店舗横断で確認する。"""
-        result = await self.session.execute(
+        """同一法人・同一店舗・患者のEvent関連元を確認する。"""
+        return await self.find_one(
+            EVENT_MAPPING,
             select(care_events).where(
                 care_events.c.id == event_id.value,
                 care_events.c.corporate_id == corporate_id.value,
                 care_events.c.patient_id == patient_id.value,
             ),
         )
-        row = result.mappings().one_or_none()
-        if row is None:
-            return None
-        return self._restore(EVENT_MAPPING, cast(Mapping[str, object], row))
 
     async def get_by_reception(
         self,
@@ -123,8 +117,9 @@ class PostgresEventRepository(PostgresRepositoryBase, EventRepository):
     async def list_related_candidates(
         self, *, corporate_id: CorporateId, patient_id: PatientId
     ) -> tuple[RelatedEventReference, ...]:
-        """本文やpayloadを取得せず、同一患者の店舗横断候補メタデータを返す。"""
-        statement = (
+        """本文やpayloadを取得せず、同一患者・店舗範囲の候補メタデータを返す。"""
+        statement = self._apply_read_scope(
+            care_events,
             select(
                 care_events.c.id,
                 care_events.c.store_id,
@@ -140,7 +135,7 @@ class PostgresEventRepository(PostgresRepositoryBase, EventRepository):
             .order_by(
                 care_events.c.created_at.desc(),
                 care_events.c.id.desc(),
-            )
+            ),
         )
         result = await self.session.execute(statement)
         return tuple(

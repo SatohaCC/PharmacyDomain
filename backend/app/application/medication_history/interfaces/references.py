@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Protocol
 
 from app.application.medication_history.commands.dtos.reference import (
@@ -103,7 +103,12 @@ class StaffQualificationBoundary(Protocol):
     """
 
     async def get_qualifications(
-        self, *, corporate_id: CorporateId, staff_id: StaffId
+        self,
+        *,
+        corporate_id: CorporateId,
+        staff_id: StaffId,
+        store_id: StoreId | None = None,
+        as_of: date | None = None,
     ) -> PharmacistQualification:
         """指定法人に在籍するスタッフの保有資格を返す。
 
@@ -111,6 +116,7 @@ class StaffQualificationBoundary(Protocol):
             MedicationHistoryStaffNotFoundError: 未存在または別法人のスタッフで
                 ある場合。資格を持たないだけのスタッフはここでは例外にせず、
                 資格非保有の ``PharmacistQualification`` を返す（存在はしているため）。
+            AuthorizationError: スタッフが停止中、または指定店舗・業務日に有効な所属がない場合。
         """
         ...
 

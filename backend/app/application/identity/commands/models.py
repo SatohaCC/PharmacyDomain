@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 
 
@@ -14,19 +14,6 @@ class PersonNamesInput:
     first_name: str
     last_name_kana: str
     first_name_kana: str
-
-
-@dataclass(frozen=True, kw_only=True)
-class RegisterLocalUserCommand:
-    """本人と利用範囲を指定し、初期資格情報を発行する入力。"""
-
-    corporate_id: str
-    person_id: str
-    login_id: str
-    initial_password: str = field(repr=False)
-    role: str = "corporate_admin"
-    store_ids: tuple[str, ...] = ()
-    staff_id: str | None = None
 
 
 class AccountStatus(StrEnum):

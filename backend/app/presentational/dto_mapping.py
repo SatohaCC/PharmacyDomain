@@ -351,7 +351,19 @@ from app.application.store.commands.dtos.business_hours import (
     WeekdayBusinessHoursDto as Command_store_business_hours_WeekdayBusinessHoursDto,
 )
 from app.application.store.commands.dtos.get_store import (
+    NarcoticsRetailerLicenseDto as Command_store_get_store_NarcoticsRetailerLicenseDto,
+)
+from app.application.store.commands.dtos.get_store import (
+    PharmacyLicenseDto as Command_store_get_store_PharmacyLicenseDto,
+)
+from app.application.store.commands.dtos.get_store import (
     StoreDto as Command_store_get_store_StoreDto,
+)
+from app.application.store.commands.dtos.get_store import (
+    StoreLicensesDto as Command_store_get_store_StoreLicensesDto,
+)
+from app.application.store.commands.dtos.get_store import (
+    StorePolicyDto as Command_store_get_store_StorePolicyDto,
 )
 from app.application.store.commands.dtos.get_store import (
     StoreStatusChangeDto as Command_store_get_store_StoreStatusChangeDto,
@@ -1634,6 +1646,34 @@ def to_http_store_get_store__store_dto(
         )
         if value.business_hours is not None
         else None,
+        licenses=(
+            Command_store_get_store_StoreLicensesDto(
+                pharmacy_license=Command_store_get_store_PharmacyLicenseDto(
+                    number=value.licenses.pharmacy_license.number,
+                    valid_from=value.licenses.pharmacy_license.valid_from,
+                    valid_to=value.licenses.pharmacy_license.valid_to,
+                ),
+                narcotics_retailer_license=(
+                    Command_store_get_store_NarcoticsRetailerLicenseDto(
+                        number=value.licenses.narcotics_retailer_license.number,
+                        valid_from=value.licenses.narcotics_retailer_license.valid_from,
+                        valid_to=value.licenses.narcotics_retailer_license.valid_to,
+                    )
+                    if value.licenses.narcotics_retailer_license is not None
+                    else None
+                ),
+            )
+            if value.licenses is not None
+            else None
+        ),
+        policy=(
+            Command_store_get_store_StorePolicyDto(
+                require_prescription_audit=value.policy.require_prescription_audit,
+                prohibit_self_verification=value.policy.prohibit_self_verification,
+            )
+            if value.policy is not None
+            else None
+        ),
     )
 
 
@@ -1650,6 +1690,7 @@ def to_http_store_get_store__store_status_change_dto(
         reason=value.reason,
         person_id=value.person_id,
         account_id=value.account_id,
+        operator_id=value.operator_id,
         recorded_at=value.recorded_at,
     )
 

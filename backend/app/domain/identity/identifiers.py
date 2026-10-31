@@ -11,7 +11,7 @@ class CorporateMembershipId(EntityUUID):
     identifier_name = "法人アクセス権ID"
 
 
-class UserInvitationId(EntityUUID):
-    """本人を指定した招待の識別子。"""
+class VendorOperatorId(EntityUUID):
+    """運営者（システム管理者）の識別子。"""
 
-    identifier_name = "招待ID"
+    identifier_name = "運営者ID"

@@ -61,6 +61,7 @@ async def test_固定トークンと一致したときだけ_主体を返す() -
     assert actor.principal_id == "dev-actor"
     # 本人未特定の主体では、保存が ResolvedActorWriteGuard に拒否される。
     assert isinstance(actor, ResolvedActorContext)
+    assert actor.person_id is not None and actor.account_id is not None
     assert str(actor.person_id.value) == _PERSON_ID
     assert str(actor.account_id.value) == _ACCOUNT_ID
 

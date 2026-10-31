@@ -18,12 +18,18 @@ from app.application.composition.adapters.coverage_references import (
     CoveragePatientReferenceAdapter,
     CoverageStoreReferenceAdapter,
 )
+from app.application.composition.adapters.effective_policy_resolver import (
+    EffectivePolicyResolver,
+)
 from app.application.composition.adapters.organization_snapshot_mapping import (
     ManagerStaffAdapter,
     StaffStoreAdapter,
 )
 from app.application.composition.adapters.reception_medication_history import (
     ReceptionMedicationHistoryAssociationAdapter,
+)
+from app.application.composition.adapters.staff_account_registration import (
+    StaffAccountRegistrationAdapter,
 )
 from app.application.composition.adapters.staff_person_adapter import StaffPersonAdapter
 from app.application.composition.registry import (
@@ -49,6 +55,9 @@ from app.application.corporate.commands.register_corporate import (
 )
 from app.application.corporate.commands.services.corporate_access import (
     CorporateAccessService,
+)
+from app.application.corporate.commands.update_corporate_policy import (
+    UpdateCorporatePolicyUseCase,
 )
 from app.application.corporate.queries.get_corporate import GetCorporateUseCase
 from app.application.corporate.queries.list_corporates import ListCorporatesUseCase
@@ -161,6 +170,15 @@ from app.application.store.commands.register_store import RegisterStoreUseCase
 from app.application.store.commands.revoke_store_closure import (
     RevokeStoreClosureUseCase,
 )
+from app.application.store.commands.update_licenses import (
+    UpdateStoreLicensesUseCase,
+)
+from app.application.store.commands.update_store_policy import (
+    UpdateStorePolicyUseCase,
+)
+from app.application.store.queries.get_effective_policy import (
+    GetEffectivePolicyUseCase,
+)
 from app.application.store.queries.get_store import GetStoreUseCase
 from app.application.store.queries.get_store_opening_status import (
     GetStoreOpeningStatusUseCase,
@@ -209,6 +227,9 @@ from app.infrastructure.readers.patient_list_patient_external_identifiers import
 )
 from app.infrastructure.readers.staff_get_staff import GetStaffProjection
 from app.infrastructure.readers.staff_list_staffs import ListStaffsProjection
+from app.infrastructure.readers.store_get_effective_policy import (
+    GetEffectivePolicyProjection,
+)
 from app.infrastructure.readers.store_get_store import GetStoreProjection
 from app.infrastructure.readers.store_get_store_opening_status import (
     GetStoreOpeningStatusProjection,
@@ -227,7 +248,11 @@ from tests.fakes.in_memory_coverage_selection_record_repository import (
     InMemoryCoverageSelectionRecordRepository,
 )
 from tests.fakes.in_memory_identity_repositories import (
+    FakeCredentialWriter,
+    InMemoryAccountPersonRepository,
+    InMemoryCorporateMembershipRepository,
     InMemoryStaffPersonLinkRepository,
+    InMemoryUserAccountRepository,
 )
 from tests.fakes.in_memory_manager_assignment_repository import (
     InMemoryStoreManagerAssignmentRepository,
@@ -264,16 +289,22 @@ def vendor_admin() -> ActorContext:
     )
 
 
-def _access_for(repository: InMemoryCorporateRepository) -> CorporateAccessService:
-    return CorporateAccessService(repository, AuthorizationService(vendor_admin()))
+def _access_for(
+    repository: InMemoryCorporateRepository,
+    actor: ActorContext | None = None,
+) -> CorporateAccessService:
+    effective_actor = vendor_admin() if actor is None else actor
+    return CorporateAccessService(repository, AuthorizationService(effective_actor))
 
 
 def create_corporate_use_cases(
     repository: InMemoryCorporateRepository,
+    *,
+    actor: ActorContext | None = None,
 ) -> CorporateUseCases:
     """インメモリRepositoryの上に法人ユースケース束を組み立てる。"""
     uniqueness = CorporateNameUniquenessService(repository)
-    access = _access_for(repository)
+    access = _access_for(repository, actor=actor)
     return CorporateUseCases(
         list=ListCorporatesUseCase(
             reader=ListCorporatesProjection(repository),
@@ -286,18 +317,21 @@ def create_corporate_use_cases(
         change_status=ChangeCorporateStatusUseCase(
             repository, access, FakeOrganizationLock()
         ),
+        update_policy=UpdateCorporatePolicyUseCase(repository, access),
     )
 
 
 def create_store_use_cases(
     repository: InMemoryStoreRepository,
     corporate_repository: InMemoryCorporateRepository,
+    *,
+    actor: ActorContext | None = None,
 ) -> StoreUseCases:
     """インメモリRepositoryの上に店舗ユースケース束を組み立てる。"""
     names = StoreNameUniquenessService(repository)
     codes = StoreCodeUniquenessService(repository)
     numbers = InsurancePharmacyNumberUniquenessService(repository)
-    access = _access_for(corporate_repository)
+    access = _access_for(corporate_repository, actor=actor)
     return StoreUseCases(
         change_status=ChangeStoreStatusUseCase(
             repository,
@@ -344,6 +378,16 @@ def create_store_use_cases(
         change_insurance_pharmacy_number=ChangeInsurancePharmacyNumberUseCase(
             repository, numbers, access
         ),
+        update_licenses=UpdateStoreLicensesUseCase(repository, access),
+        update_policy=UpdateStorePolicyUseCase(
+            repository,
+            access,
+            EffectivePolicyResolver(corporate_repository, repository),
+        ),
+        effective_policy=GetEffectivePolicyUseCase(
+            reader=GetEffectivePolicyProjection(corporate_repository, repository),
+            corporate_access=access,
+        ),
     )
 
 
@@ -357,9 +401,24 @@ def create_staff_use_cases(
     access = _access_for(corporate_repository)
     code_uniqueness = StaffCodeUniquenessService(staffs)
     assignment = StaffStoreAssignmentService()
+    account_registration = StaffAccountRegistrationAdapter(
+        people=InMemoryAccountPersonRepository(),
+        accounts=InMemoryUserAccountRepository(),
+        memberships=InMemoryCorporateMembershipRepository(),
+        links=InMemoryStaffPersonLinkRepository(),
+        credentials=FakeCredentialWriter(),
+    )
     return StaffUseCases(
         register=RegisterStaffUseCase(
-            staffs, StaffStoreAdapter(stores), code_uniqueness, assignment, access
+            staff_repository=staffs,
+            store_repository=StaffStoreAdapter(stores),
+            uniqueness_service=code_uniqueness,
+            assignment_service=assignment,
+            corporate_access=access,
+            account_registration=account_registration,
+            unit_of_work=NullUnitOfWork(),
+            lock=FakeOrganizationLock(),
+            clock=clock,
         ),
         get=GetStaffUseCase(
             reader=GetStaffProjection(staffs),
@@ -382,7 +441,9 @@ def create_staff_use_cases(
             staffs, StaffStoreAdapter(stores), assignment, access
         ),
         activate=ActivateStaffUseCase(staffs, access),
-        deactivate=DeactivateStaffUseCase(staffs, access, create_access_revocation()),
+        deactivate=DeactivateStaffUseCase(
+            staffs, access, create_access_revocation(), clock
+        ),
     )
 
 

@@ -52,7 +52,11 @@ class MergePatientsUseCase:
             corporate_id=corporate_id, permission=Permission.MANAGE_PATIENT
         )
         actor = self._corporate_access.actor
-        if not isinstance(actor, ResolvedActorContext):
+        if (
+            not isinstance(actor, ResolvedActorContext)
+            or actor.person_id is None
+            or actor.account_id is None
+        ):
             raise AuthorizationError(
                 "患者名寄せ統合には本人とアカウントの特定が必要です。"
             )

@@ -143,9 +143,10 @@ async def setup_concurrency_fixture(
         create_patient(corporate_id=corporate.id),
         id=patient_id,
     )
-    person = _person()
+    person = _person(corporate_id=corporate.id)
     account = UserAccount(
         id=UserAccountId.generate(),
+        corporate_id=corporate.id,
         person_id=person.id,
         external_subject=ExternalSubjectKey(_PHARMACIST_SUBJECT),
     )

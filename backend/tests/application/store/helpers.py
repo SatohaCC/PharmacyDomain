@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.store.entities import Store
-from tests.factories.store_factory import create_store
+from tests.factories.store_factory import _DEFAULT_LICENSES, create_store
 from tests.fakes.in_memory_store_repository import InMemoryStoreRepository
 
 
@@ -16,6 +16,7 @@ async def save_store(
     kana: str = "サンプルヤッキョク",
     code: str | None = None,
     insurance_pharmacy_number: str | None = None,
+    licenses: object = _DEFAULT_LICENSES,
 ) -> Store:
     """既定値の店舗をリポジトリへ保存し、保存した集約を返す。"""
     store = create_store(
@@ -24,6 +25,7 @@ async def save_store(
         kana=kana,
         code=code,
         insurance_pharmacy_number=insurance_pharmacy_number,
+        licenses=licenses,
     )
     await repository.save(store)
     return store

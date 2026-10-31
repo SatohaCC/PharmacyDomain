@@ -199,8 +199,6 @@ class PostgresUseCaseRegistry(UseCaseRegistry):
                 self._repositories,
                 self._corporate_access,
                 self.patient,
-                self.prescription,
-                self.dispensing,
                 self._unit_of_work,
                 self._clock,
             )

@@ -40,7 +40,10 @@ export function LoginView({
         onSubmit={loginSubmission.submit}
       >
         {!passwordChangeRequired && (
-          <Field name="login_id" label="ログインID" required />
+          <>
+            <Field name="corporate_id" label="法人ID" required />
+            <Field name="email" label="メールアドレス" type="email" required />
+          </>
         )}
         <Field
           name="password"

@@ -8,6 +8,7 @@
 """
 
 from dataclasses import replace
+from datetime import date
 
 import pytest
 
@@ -55,7 +56,13 @@ class RecordingStoreOperationBoundary(StoreOperationBoundary):
         self.operations: list[StoreOperation] = []
 
     async def require_allowed(
-        self, *, corporate_id: CorporateId, store_id: StoreId, operation: StoreOperation
+        self,
+        *,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+        operation: StoreOperation,
+        has_narcotics: bool = False,
+        business_on: date | None = None,
     ) -> None:
         """判定せず、問い合わせ内容だけを残す。"""
         self.operations.append(operation)

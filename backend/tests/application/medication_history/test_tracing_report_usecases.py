@@ -29,6 +29,7 @@ from app.domain.staff.value_objects import StaffQualifications
 from tests.application.medication_history.helpers import (
     MedicationHistoryFixture,
     create_fixture,
+    create_resolved_actor,
     create_start_command,
 )
 from tests.factories.medication_history_factory import (
@@ -191,7 +192,13 @@ class TestRecordTracingReportUseCase:
 
         # 資格を持たないスタッフ
         unqualified_staff_id = StaffId.generate()
-        fixture.staff_qualification.register(
+        unqualified_fixture = create_fixture(
+            actor=create_resolved_actor(staff_id=unqualified_staff_id)
+        )
+        unqualified_fixture.record_repository.items.update(
+            fixture.record_repository.items
+        )
+        unqualified_fixture.staff_qualification.register(
             corporate_id=fixture.corporate_id,
             staff_id=unqualified_staff_id,
             qualifications=StaffQualifications(),  # 薬剤師なし
@@ -200,7 +207,6 @@ class TestRecordTracingReportUseCase:
         command = RecordTracingReportCommand(
             corporate_id=str(fixture.corporate_id.value),
             record_id=record_id,
-            reporter_id=str(unqualified_staff_id.value),
             provided_at=COUNSELED_AT + timedelta(days=1),
             medical_institution_name="総合医療センター",
             physician_name="山田太郎",
@@ -211,7 +217,7 @@ class TestRecordTracingReportUseCase:
         )
 
         with pytest.raises(CounselorQualificationError):
-            await fixture.record_tracing_report.execute(command)
+            await unqualified_fixture.record_tracing_report.execute(command)
 
 
 class TestRecordTracingReportResponseUseCase:

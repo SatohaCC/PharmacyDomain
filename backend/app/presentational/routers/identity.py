@@ -1,8 +1,7 @@
 """個人のアカウントと法人アクセス権のHTTP窓口。"""
 
-from datetime import datetime
+from datetime import date
 from http import HTTPStatus
-from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import Field
@@ -13,31 +12,24 @@ from app.application.composition.commands.register_contract import (
     RegisterContractCommand,
     RegisteredContract,
 )
-from app.application.composition.runtime import CompositionRoot
 from app.application.identity.boundary_models import VerifiedSubject
 from app.application.identity.commands.dtos.identity_views import CurrentActorDto
-from app.application.identity.commands.dtos.registration_results import (
-    IssuedInvitation,
-    RegisteredLocalUser,
-)
-from app.application.identity.commands.invite_user import InviteUserCommand
 from app.application.identity.commands.models import (
     AccountStatus,
     MembershipRole,
     PersonNamesInput,
-    RegisterLocalUserCommand,
+)
+from app.application.identity.commands.register_staff_for_admin import (
+    RegisterStaffForAdminCommand,
 )
 from app.application.identity.queries.dtos.identity_views import (
-    InvitationViewDto,
     MembershipViewDto,
+    SelectableStoreDto,
 )
 from app.presentational.dependencies import (
     Actor,
     IdentityUseCasesDep,
-    VerifiedSubjectDep,
     get_actor_context,
-    get_composition_root,
-    get_verified_subject,
 )
 from app.presentational.errors import error_responses
 from app.presentational.exceptions import AuthenticationError
@@ -62,44 +54,6 @@ router = APIRouter(
     ),
 )
 
-#: 招待の受諾だけは、内部アカウントがまだ無い本人も通す。
-#:
-#: 認証の種類が違うので同じルータには置けない。ルート単位で ``Depends`` を
-#: 書き分けると、本来Actorを要求すべきルートを間違えてこちらの認証で公開して
-#: しまう余地が残るため、ルータごと分ける。
-acceptance_router = APIRouter(
-    route_class=ApplicationRoute,
-    tags=["identity"],
-    dependencies=[Depends(get_verified_subject)],
-    responses=error_responses(
-        HTTPStatus.UNAUTHORIZED,
-        HTTPStatus.CONFLICT,
-        HTTPStatus.UNPROCESSABLE_CONTENT,
-    ),
-)
-
-
-class InviteUserRequest(RequestModel):
-    """本人IDを必須とする招待。本人確認結果やベンダー権限は受けない。"""
-
-    person_id: str
-    addressee: str
-    role: MembershipRole
-    expires_at: datetime
-    store_ids: tuple[str, ...] = ()
-    staff_id: str | None = None
-
-
-class RegisterLocalUserRequest(RequestModel):
-    """本人のログイン資格情報と法人権限を確定する入力。"""
-
-    person_id: str
-    login_id: str = Field(max_length=64)
-    initial_password: str = Field(repr=False, min_length=15, max_length=128)
-    role: MembershipRole
-    store_ids: tuple[str, ...] = ()
-    staff_id: str | None = None
-
 
 class RegisterContractRequest(RequestModel):
     """新規契約の法人と初期管理者を一括登録する入力。"""
@@ -108,7 +62,7 @@ class RegisterContractRequest(RequestModel):
     representative_last_name: str
     representative_first_name: str
     administrator: PersonNamesInput
-    login_id: str = Field(max_length=64)
+    email: str = Field(max_length=256)
     initial_password: str = Field(repr=False, min_length=15, max_length=128)
 
 
@@ -123,30 +77,10 @@ async def register_contract(
             representative_last_name=body.representative_last_name,
             representative_first_name=body.representative_first_name,
             administrator=body.administrator,
-            login_id=body.login_id,
+            email=body.email,
             initial_password=body.initial_password,
         )
     )
-
-
-@router.post(
-    "/corporates/{corporate_id}/local-users",
-    status_code=201,
-    response_model=RegisteredLocalUser,
-)
-async def register_local_user(
-    corporate_id: str, body: RegisterLocalUserRequest, use_cases: IdentityUseCasesDep
-) -> RegisteredLocalUser:
-    """招待受諾を待たず、対象法人の利用者登録を完了する。"""
-    return await use_cases.register_local_user.execute(
-        RegisterLocalUserCommand(corporate_id=corporate_id, **body.model_dump())
-    )
-
-
-class AcceptInvitationRequest(RequestModel):
-    """受諾の秘密だけを受け、本人は認証境界で決める。"""
-
-    secret: str
 
 
 class ChangeMembershipRequest(RequestModel):
@@ -157,34 +91,6 @@ class ChangeMembershipRequest(RequestModel):
     store_ids: tuple[str, ...] | None = None
     store_id: str | None = None
     store_is_active: bool | None = None
-
-
-@router.post(
-    "/corporates/{corporate_id}/user-invitations",
-    response_model=IssuedInvitation,
-    status_code=HTTPStatus.CREATED,
-)
-async def invite_user(
-    corporate_id: str, body: InviteUserRequest, use_cases: IdentityUseCasesDep
-) -> IssuedInvitation:
-    """本人指定の招待を発行し、秘密を一度だけ返す。"""
-    return await use_cases.invite.execute(
-        InviteUserCommand(corporate_id=corporate_id, **body.model_dump())
-    )
-
-
-@acceptance_router.post(
-    "/user-invitations/acceptance",
-    response_model=RegisteredIdResponse,
-)
-async def accept_invitation(
-    body: AcceptInvitationRequest,
-    subject: VerifiedSubjectDep,
-    root: Annotated[CompositionRoot, Depends(get_composition_root)],
-) -> RegisteredIdResponse:
-    """内部アカウント未作成でも検証済みの外部主体で招待を受諾できる。"""
-    account = await root.accept_invitation(subject, body.secret)
-    return RegisteredIdResponse(id=str(account.id.value))
 
 
 @router.patch(
@@ -228,19 +134,30 @@ async def get_me(actor: Actor, use_cases: IdentityUseCasesDep) -> CurrentActorDt
     if not isinstance(actor, ResolvedActorContext):
         raise AuthenticationError("本人を特定できません。")
     current = await use_cases.resolve_actor.execute(
-        VerifiedSubject(principal_id=actor.principal_id)
+        VerifiedSubject(
+            principal_id=actor.principal_id,
+            selected_store_id=str(actor.selected_store_id.value)
+            if actor.selected_store_id is not None
+            else None,
+        )
     )
     return CurrentActorDto.from_actor(current)
 
 
-# 停止・再開の理由は受け取らない。必須で受けて捨てていた時期があったが、
-# 保存先が無いので「必須項目を埋めたのにどこにも残らない」応答になっていた。
-# 理由を残すなら、StoreStatusChange と同じ形の履歴を CorporateMembership へ
-# 持たせる必要がある（操作者と記録時刻も要る）。本文を取らない操作として扱う。
+@router.get("/me/stores")
+async def get_my_stores(
+    actor: Actor, use_cases: IdentityUseCasesDep
+) -> tuple[SelectableStoreDto, ...]:
+    """現在選択可能な店舗一覧（有効Membership許可店舗と当日Staff所属の積集合）を返す。"""
+    if not isinstance(actor, ResolvedActorContext):
+        raise AuthenticationError("本人を特定できません。")
+    return await use_cases.resolve_actor.list_selectable_stores(
+        VerifiedSubject(principal_id=actor.principal_id)
+    )
 
 
 class RegisterPersonRequest(RequestModel):
-    """招待の対象となる本人を登録する。"""
+    """自法人の本人を登録する。"""
 
     last_name: str
     first_name: str
@@ -305,24 +222,47 @@ async def reactivate_membership(
     return RegisteredIdResponse(id=str(membership.id.value))
 
 
+class RegisterStaffForAdminRequest(RequestModel):
+    """初期管理者へのスタッフ登録入力。"""
+
+    last_name: str | None = None
+    first_name: str | None = None
+    last_name_kana: str | None = None
+    first_name_kana: str | None = None
+    code: str | None = None
+    job_title: str | None = None
+    phone_number: str | None = None
+    email: str | None = None
+    initial_home_store_id: str | None = None
+    initial_start_date: date | None = None
+    pharmacist_license_number: str | None = None
+    insurance_pharmacist_registration_number: str | None = None
+    insurance_pharmacist_registration_date: date | None = None
+    registered_seller_number: str | None = None
+    dietitian_registration_number: str | None = None
+    is_registered_dietitian: bool = True
+
+
 @router.post(
-    "/corporates/{corporate_id}/user-invitations/{invitation_id}/cancellation",
+    "/corporates/{corporate_id}/users/{membership_id}/staff-registration",
+    response_model=RegisteredIdResponse,
+    status_code=HTTPStatus.CREATED,
 )
-async def cancel_invitation(
-    corporate_id: str, invitation_id: str, use_cases: IdentityUseCasesDep
-) -> None:
-    """未受諾の招待を取り消す。"""
-    await use_cases.cancel_invitation.execute(corporate_id, invitation_id)
-
-
-@router.get(
-    "/corporates/{corporate_id}/user-invitations/{invitation_id}",
-)
-async def get_invitation(
-    corporate_id: str, invitation_id: str, use_cases: IdentityUseCasesDep
-) -> InvitationViewDto:
-    """招待の秘密を再取得させず状態を返す。"""
-    return await use_cases.get_invitation.execute(corporate_id, invitation_id)
+async def register_staff_for_admin(
+    corporate_id: str,
+    membership_id: str,
+    body: RegisterStaffForAdminRequest,
+    use_cases: IdentityUseCasesDep,
+) -> RegisteredIdResponse:
+    """初期管理者にスタッフを紐付ける。"""
+    staff_id = await use_cases.register_staff_for_admin.execute(
+        RegisterStaffForAdminCommand(
+            corporate_id=corporate_id,
+            membership_id=membership_id,
+            **body.model_dump(),
+        )
+    )
+    return RegisteredIdResponse(id=str(staff_id.value))
 
 
 @router.post(
@@ -332,7 +272,7 @@ async def get_invitation(
 async def register_person(
     corporate_id: str, body: RegisterPersonRequest, use_cases: IdentityUseCasesDep
 ) -> RegisteredIdResponse:
-    """自法人への招待に必要な本人を登録する。"""
+    """自法人の本人を登録する。"""
     person = await use_cases.register_person.execute(
         corporate_id, PersonNamesInput(**body.model_dump())
     )

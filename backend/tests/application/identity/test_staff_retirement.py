@@ -60,7 +60,9 @@ async def test_退職は法人アクセス権を停止し再雇用では権限�
     await staffs.save(staff)
     accounts = InMemoryUserAccountRepository()
     account = UserAccount(
-        id=UserAccountId.generate(), person_id=AccountPersonId.generate()
+        id=UserAccountId.generate(),
+        corporate_id=staff.corporate_id,
+        person_id=AccountPersonId.generate(),
     )
     await accounts.save(account)
     memberships = InMemoryCorporateMembershipRepository()
@@ -77,6 +79,7 @@ async def test_退職は法人アクセス権を停止し再雇用では権限�
         repository=staffs,
         corporate_access=create_vendor_corporate_access(),
         access_revocation=create_access_revocation(memberships, accounts),
+        clock=FakeClock(_NOW),
     )
 
     # Act
@@ -88,11 +91,14 @@ async def test_退職は法人アクセス権を停止し再雇用では権限�
         )
     )
 
-    # Assert: 法人アクセス権だけが止まり、個人アカウントは残る。
+    # Assert: 法人アクセス権とアカウントが停止する。
     revoked = await memberships.get(membership.id)
     assert revoked is not None and revoked.status == AccountStatus.SUSPENDED
-    unchanged = await accounts.get(account.id)
-    assert unchanged is not None and unchanged.status == AccountStatus.ACTIVE
+    suspended_account = await accounts.get(account.id)
+    assert (
+        suspended_account is not None
+        and suspended_account.status == AccountStatus.SUSPENDED
+    )
 
 
 @pytest.mark.asyncio
@@ -103,7 +109,9 @@ async def test_有効なスタッフの保存では_アクセス権を止めな�
     memberships = InMemoryCorporateMembershipRepository()
     staff = create_staff()
     account = UserAccount(
-        id=UserAccountId.generate(), person_id=AccountPersonId.generate()
+        id=UserAccountId.generate(),
+        corporate_id=staff.corporate_id,
+        person_id=AccountPersonId.generate(),
     )
     await accounts.save(account)
     membership = CorporateMembership(

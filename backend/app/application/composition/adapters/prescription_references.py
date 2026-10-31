@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import fields
+from datetime import date
 
+from app.application.common.exceptions import AuthorizationError
 from app.application.composition.adapters.reference_support import (
     load_store_in_corporate,
 )
@@ -29,6 +31,10 @@ from app.domain.shared.public_expense import PublicExpenseBurden
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.repositories import StaffRepository
 from app.domain.staff.value_objects import PharmacistProfile
+from app.domain.store.exceptions import (
+    NarcoticsLicenseRequiredConflictError,
+    PharmacyLicenseRequiredConflictError,
+)
 from app.domain.store.identifiers import StoreId
 from app.domain.store.repositories import StoreRepository
 
@@ -69,6 +75,39 @@ class PrescriptionStoreReferenceAdapter(StoreReferenceBoundary):
         if store is None:
             raise PrescriptionStoreNotFoundError()
 
+    async def require_licensed(
+        self,
+        *,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+        business_on: date,
+        has_narcotics: bool = False,
+    ) -> None:
+        """店舗の許認可（薬局開設許可・麻薬小売業者免許）を確認する。"""
+        store = await load_store_in_corporate(
+            self._repository, corporate_id=corporate_id, store_id=store_id
+        )
+        if store is None:
+            raise PrescriptionStoreNotFoundError()
+        if (
+            store.licenses is None
+            or store.licenses.pharmacy_license is None
+            or not store.licenses.pharmacy_license.is_effective_on(business_on)
+        ):
+            raise PharmacyLicenseRequiredConflictError(
+                "店舗の薬局開設許可が登録されていないか有効期間外のため、この操作を実行できません。"
+            )
+        if has_narcotics and (
+            store.licenses is None
+            or store.licenses.narcotics_retailer_license is None
+            or not store.licenses.narcotics_retailer_license.is_effective_on(
+                business_on
+            )
+        ):
+            raise NarcoticsLicenseRequiredConflictError(
+                "麻薬小売業者免許が登録されていないか有効期間外のため、麻薬に関する操作を実行できません。"
+            )
+
 
 class PrescriptionPatientReferenceAdapter(PatientReferenceBoundary):
     """患者の存在と法人境界だけを確認し、患者集約は渡さない。"""
@@ -94,7 +133,12 @@ class PrescriptionStaffQualificationAdapter(StaffQualificationBoundary):
         self._repository = repository
 
     async def get_qualifications(
-        self, *, corporate_id: CorporateId, staff_id: StaffId
+        self,
+        *,
+        corporate_id: CorporateId,
+        staff_id: StaffId,
+        store_id: StoreId | None = None,
+        as_of: date | None = None,
     ) -> PharmacistQualification:
         """未存在・別法人のスタッフを404相当へ畳み、利用側の資格保有事実へ変換する。
 
@@ -104,6 +148,15 @@ class PrescriptionStaffQualificationAdapter(StaffQualificationBoundary):
         staff = await self._repository.get(corporate_id=corporate_id, staff_id=staff_id)
         if staff is None:
             raise PrescriptionPharmacistNotFoundError()
+        if not staff.is_active:
+            raise AuthorizationError("停止中のスタッフは業務を実行できません。")
+        if (
+            store_id is not None
+            and as_of is not None
+            and staff.current_home_store_id(as_of) != store_id
+            and store_id not in staff.current_concurrent_store_ids(as_of)
+        ):
+            raise AuthorizationError("指定された店舗に当日有効な所属がありません。")
         return PharmacistQualification(
             has_pharmacist=staff.qualifications.has(PharmacistProfile)
         )

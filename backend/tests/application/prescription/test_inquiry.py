@@ -35,6 +35,7 @@ from tests.application.prescription.helpers import (
     PrescriptionFixture,
     create_fixture,
     create_register_command,
+    create_resolved_actor,
 )
 
 
@@ -60,11 +61,7 @@ def _start_command(
     return StartInquiryCommand(
         corporate_id=str(fixture.corporate_id.value),
         prescription_id=prescription_id,
-        pharmacist_id=str(
-            (
-                pharmacist_id if pharmacist_id is not None else fixture.pharmacist_id
-            ).value
-        ),
+        pharmacist_id=str(pharmacist_id.value) if pharmacist_id is not None else None,
         category="dosage",
         content=content,
     )
@@ -112,8 +109,8 @@ class Test疑義照会の開始:
     async def test_薬剤師資格が無いスタッフは_照会を開始できない(self) -> None:
         """薬剤師法第24条。医療事務・調剤補助が実施者になってはならない。"""
         # Arrange
-        fixture = create_fixture()
         clerk_id = StaffId.generate()
+        fixture = create_fixture(actor=create_resolved_actor(staff_id=clerk_id))
         fixture.staff_qualification.register(
             corporate_id=fixture.corporate_id,
             staff_id=clerk_id,
@@ -123,20 +120,17 @@ class Test疑義照会の開始:
 
         # Act / Assert
         with pytest.raises(InquiryPharmacistQualificationError):
-            await fixture.start_inquiry.execute(
-                _start_command(fixture, registered.id, pharmacist_id=clerk_id)
-            )
+            await fixture.start_inquiry.execute(_start_command(fixture, registered.id))
 
     async def test_在籍していないスタッフは_存在を隠して404相当になる(self) -> None:
         # Arrange
         fixture = create_fixture()
+        fixture.staff_qualification.qualifications.clear()
         registered = await _register(fixture)
 
         # Act / Assert
         with pytest.raises(PrescriptionPharmacistNotFoundError):
-            await fixture.start_inquiry.execute(
-                _start_command(fixture, registered.id, pharmacist_id=StaffId.generate())
-            )
+            await fixture.start_inquiry.execute(_start_command(fixture, registered.id))
 
     async def test_存在しない処方箋への照会は_404相当になる(self) -> None:
         # Arrange

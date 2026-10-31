@@ -11,8 +11,7 @@ export function useUserRegistration(corporateId: string) {
   >("corporate_admin");
   const [staffMode, setStaffMode] = useState("existing");
   const progress = useRef<RegistrationProgress>({});
-  const [snapshot, setSnapshot] = useState<RegistrationProgress>({});
-  const changed = () => setSnapshot({ ...progress.current });
+  const [snapshot] = useState<RegistrationProgress>({});
   const [issued, setIssued] = useState<{ id: string; login_id: string }>();
   const [frozen, setFrozen] = useState(false);
   const registrationSubmission = async (d: FormData) => {
@@ -22,11 +21,7 @@ export function useUserRegistration(corporateId: string) {
         await registerUser(
           corporateId,
           registrationInput(d, role),
-          personMode,
           role,
-          staffMode,
-          progress.current,
-          changed,
         ),
       );
     } finally {

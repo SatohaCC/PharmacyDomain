@@ -13,7 +13,7 @@ from app.application.composition.adapters.organization_snapshot_mapping import (
 from app.application.staff.interfaces.access_revocation import (
     StaffAccessRevocationBoundary,
 )
-from app.domain.identity.entities import CorporateMembership
+from app.domain.identity.entities import CorporateMembership, UserAccount
 from app.domain.identity.repositories import (
     CorporateMembershipRepository,
     UserAccountRepository,
@@ -97,6 +97,13 @@ def _replaced(
     return [updated if item.id == updated.id else item for item in memberships]
 
 
+def _replaced_account(
+    accounts: Iterable[UserAccount], updated: UserAccount
+) -> list[UserAccount]:
+    """一覧のうち、同じIDの要素だけを差し替える。"""
+    return [updated if item.id == updated.id else item for item in accounts]
+
+
 class StaffAccessRevocationService(StaffAccessRevocationBoundary):
     """退職したスタッフの法人アクセス権を、同じトランザクションで停止する。"""
 
@@ -111,7 +118,7 @@ class StaffAccessRevocationService(StaffAccessRevocationBoundary):
         self._lock = lock
 
     async def revoke_for(self, staff: Staff) -> None:
-        """退職済みのスタッフに対応する法人アクセス権を停止する。
+        """退職済みのスタッフに対応する法人アクセス権とアカウントを停止する。
 
         最後の有効な法人管理者を失う退職は拒否する。判定と停止を同じロックの
         内側で行わないと、2人の管理者が同時に退職して両方とも成立する。
@@ -124,15 +131,25 @@ class StaffAccessRevocationService(StaffAccessRevocationBoundary):
         if membership is None:
             return
         suspended = membership.suspend()
+        account = await self._accounts.get(membership.account_id)
+        suspended_account = account.suspend() if account is not None else None
+
         memberships = await self._memberships.list_by_corporate(staff.corporate_id)
         accounts = await self._accounts.list_by_ids(
             {item.account_id for item in memberships}
+        )
+        updated_accounts = (
+            _replaced_account(accounts, suspended_account)
+            if suspended_account is not None
+            else list(accounts)
         )
         LastAdministratorService().ensure_preserved(
             corporate_id=staff.corporate_id,
             previous_memberships=memberships,
             previous_accounts=accounts,
             updated_memberships=_replaced(memberships, suspended),
-            updated_accounts=accounts,
+            updated_accounts=updated_accounts,
         )
         await self._memberships.save(suspended)
+        if suspended_account is not None:
+            await self._accounts.save(suspended_account)

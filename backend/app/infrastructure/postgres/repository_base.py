@@ -205,14 +205,19 @@ class PostgresRepositoryBase:
         """現在の Unit of Work のセッションを返す。"""
         return self._unit_of_work.session
 
+    def _apply_read_scope(self, table: Table, statement: Select[Any]) -> Select[Any]:
+        """現在の Unit of Work に読取範囲が設定されていれば適用する。"""
+        if self._unit_of_work.read_scope is not None:
+            return self._unit_of_work.read_scope.apply(table, statement)
+        return statement
+
     async def find_one[AggregateT](
         self,
         mapping: AggregateMapping[AggregateT],
         statement: Select[Any],
     ) -> AggregateT | None:
         """1行を読み、集約へ復元する。該当が無ければ ``None``。"""
-        if self._unit_of_work.read_scope is not None:
-            statement = self._unit_of_work.read_scope.apply(mapping.table, statement)
+        statement = self._apply_read_scope(mapping.table, statement)
         result = await self.session.execute(statement)
         row = result.mappings().one_or_none()
         if row is None:

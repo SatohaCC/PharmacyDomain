@@ -33,6 +33,9 @@ from app.application.corporate.commands.change_representative import (
 from app.application.corporate.commands.register_corporate import (
     RegisterCorporateUseCase,
 )
+from app.application.corporate.commands.update_corporate_policy import (
+    UpdateCorporatePolicyUseCase,
+)
 from app.application.corporate.queries.get_corporate import GetCorporateUseCase
 from app.application.corporate.queries.list_corporates import ListCorporatesUseCase
 from app.application.coverage.commands.change_patient_coverage_period import (
@@ -71,24 +74,23 @@ from app.application.dispensing.queries.get_dispensing import GetDispensingUseCa
 from app.application.dispensing.queries.list_dispensings_by_prescription import (
     ListDispensingsByPrescriptionUseCase,
 )
-from app.application.identity.commands.accept_invitation import AcceptInvitationUseCase
-from app.application.identity.commands.cancel_invitation import CancelInvitationUseCase
 from app.application.identity.commands.change_membership import ChangeMembershipUseCase
-from app.application.identity.commands.invite_user import InviteUserUseCase
 from app.application.identity.commands.link_staff_person import LinkStaffPersonUseCase
 from app.application.identity.commands.reactivate_account import (
     ReactivateAccountUseCase,
 )
-from app.application.identity.commands.register_local_user import (
-    RegisterLocalUserUseCase,
-)
 from app.application.identity.commands.register_person import RegisterPersonUseCase
+from app.application.identity.commands.register_staff_for_admin import (
+    RegisterStaffForAdminUseCase,
+)
 from app.application.identity.commands.suspend_account import SuspendAccountUseCase
-from app.application.identity.queries.get_invitation import GetInvitationUseCase
 from app.application.identity.queries.get_user import GetUserUseCase
 from app.application.identity.queries.list_users import ListUsersUseCase
 from app.application.identity.queries.resolve_actor import ResolveActorUseCase
 from app.application.integration.commands.ingest_nsips import IngestNsipsUseCase
+from app.application.integration.queries.get_nsips_source import (
+    GetNsipsSourceUseCase,
+)
 from app.application.medication_history.commands.amend_medication_history import (
     AmendMedicationHistoryUseCase,
 )
@@ -243,6 +245,15 @@ from app.application.store.commands.register_store import RegisterStoreUseCase
 from app.application.store.commands.revoke_store_closure import (
     RevokeStoreClosureUseCase,
 )
+from app.application.store.commands.update_licenses import (
+    UpdateStoreLicensesUseCase,
+)
+from app.application.store.commands.update_store_policy import (
+    UpdateStorePolicyUseCase,
+)
+from app.application.store.queries.get_effective_policy import (
+    GetEffectivePolicyUseCase,
+)
 from app.application.store.queries.get_store import GetStoreUseCase
 from app.application.store.queries.get_store_opening_status import (
     GetStoreOpeningStatusUseCase,
@@ -316,20 +327,16 @@ class MedicationHistoryUseCases:
 class IdentityUseCases:
     """本人・アカウント管理と最新の権限解決。"""
 
-    register_local_user: RegisterLocalUserUseCase
     register_contract: RegisterContractUseCase
     register_person: RegisterPersonUseCase
     link_staff: LinkStaffPersonUseCase
-    invite: InviteUserUseCase
-    accept: AcceptInvitationUseCase
-    cancel_invitation: CancelInvitationUseCase
-    get_invitation: GetInvitationUseCase
     change_membership: ChangeMembershipUseCase
     list_users: ListUsersUseCase
     get_user: GetUserUseCase
     suspend_account: SuspendAccountUseCase
     reactivate_account: ReactivateAccountUseCase
     resolve_actor: ResolveActorUseCase
+    register_staff_for_admin: RegisterStaffForAdminUseCase
 
 
 @dataclass(frozen=True, slots=True)
@@ -337,6 +344,7 @@ class IntegrationUseCases:
     """外部連携コンテキストのユースケース一覧。"""
 
     ingest_nsips: IngestNsipsUseCase
+    get_nsips_source: GetNsipsSourceUseCase
 
 
 @dataclass(frozen=True, slots=True)
@@ -358,6 +366,7 @@ class CorporateUseCases:
     change_name: ChangeCorporateNameUseCase
     change_representative: ChangeRepresentativeUseCase
     change_status: ChangeCorporateStatusUseCase
+    update_policy: UpdateCorporatePolicyUseCase
 
 
 @dataclass(frozen=True, slots=True)
@@ -377,6 +386,9 @@ class StoreUseCases:
     change_insurance_pharmacy_number: ChangeInsurancePharmacyNumberUseCase
     change_business_hours: ChangeStoreBusinessHoursUseCase
     opening_status: GetStoreOpeningStatusUseCase
+    update_licenses: UpdateStoreLicensesUseCase
+    update_policy: UpdateStorePolicyUseCase
+    effective_policy: GetEffectivePolicyUseCase
 
 
 @dataclass(frozen=True, slots=True)

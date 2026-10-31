@@ -2,12 +2,29 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Protocol
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.shared.actor import AccountPersonId
 from app.domain.staff.identifiers import StaffId
 from app.domain.store.identifiers import StoreId
+
+
+@dataclass(frozen=True, kw_only=True)
+class CorporatePolicyOverridableSnapshot:
+    """法人ポリシーの上書き可否スナップショット。"""
+
+    require_prescription_audit_overridable: bool
+    prohibit_self_verification_overridable: bool
+
+
+class CorporatePolicyBoundary(Protocol):
+    """店舗ポリシー更新時に法人ポリシーの上書き可否を確認する境界。"""
+
+    async def get_overridable(
+        self, corporate_id: CorporateId
+    ) -> CorporatePolicyOverridableSnapshot: ...
 
 
 class StaffPersonBoundary(Protocol):

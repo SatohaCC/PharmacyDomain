@@ -1,14 +1,38 @@
 import { api } from "../../../shared/api/client";
 import { result } from "../../../shared/api/errors";
+import type { paths } from "../../../shared/api/generated/schema";
 
-export const passwordLogin = (loginId: string, password: string) =>
-  result(api.POST("/auth/login", { body: { login_id: loginId, password } }));
+export type LoginSessionDto =
+  paths["/auth/login"]["post"]["responses"]["200"]["content"]["application/json"];
 
-export const changeInitialPassword = (token: string, password: string) =>
+export const passwordLogin = (
+  corporateId: string,
+  email: string,
+  password: string,
+): Promise<LoginSessionDto> =>
+  result(
+    api.POST("/auth/login", {
+      body: { corporate_id: corporateId, email, password },
+    }),
+  );
+
+export const changeInitialPassword = (
+  token: string,
+  password: string,
+): Promise<LoginSessionDto> =>
   result(
     api.POST("/auth/password", {
       headers: { Authorization: `Bearer ${token}` },
       body: { password },
+    }),
+  );
+
+export const selectStoreContext = (
+  storeId: string,
+): Promise<LoginSessionDto> =>
+  result(
+    api.POST("/auth/store-context", {
+      body: { store_id: storeId },
     }),
   );
 

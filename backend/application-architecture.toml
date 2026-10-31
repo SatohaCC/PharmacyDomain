@@ -11,11 +11,11 @@ public_modules = ["commands.create_event", "commands.create_event_definition", "
 
 [features.composition]
 depends_on = ["access_control", "care_event", "corporate", "coverage", "dispensing", "identity", "integration", "medication_history", "medicine_catalog", "patient", "prescription", "reception", "staff", "store"]
-public_modules = ["adapters.care_event_references", "adapters.clinical_store_guard", "adapters.corporate_activity_guard", "adapters.coverage_references", "adapters.dispensing_references", "adapters.manager_membership_guard", "adapters.medication_history_patient_profile", "adapters.medication_history_references", "adapters.medicine_restriction_adapter", "adapters.organization_snapshot_mapping", "adapters.patient_references", "adapters.prescription_references", "adapters.reception_medication_history", "adapters.resolved_actor_guard", "adapters.staff_integrity", "adapters.staff_person_adapter", "adapters.store_operation_adapter", "commands.register_contract", "errors", "registry", "runtime"]
+public_modules = ["adapters.care_event_references", "adapters.clinical_store_guard", "adapters.contract_admin", "adapters.corporate_activity_guard", "adapters.coverage_references", "adapters.dispensing_references", "adapters.effective_policy_resolver", "adapters.manager_membership_guard", "adapters.medication_history_patient_profile", "adapters.medication_history_references", "adapters.medicine_restriction_adapter", "adapters.organization_snapshot_mapping", "adapters.patient_references", "adapters.prescription_references", "adapters.reception_medication_history", "adapters.resolved_actor_guard", "adapters.staff_account_registration", "adapters.staff_creator", "adapters.staff_integrity", "adapters.staff_person_adapter", "adapters.store_operation_adapter", "commands.register_contract", "errors", "registry", "runtime"]
 
 [features.corporate]
 depends_on = ["access_control"]
-public_modules = ["commands.change_corporate_name", "commands.change_corporate_status", "commands.change_representative", "commands.models", "commands.register_corporate", "commands.services.corporate_access", "commands.services.support", "interfaces.list_corporates_query_reader", "queries.dtos.get_corporate", "queries.dtos.list_corporates", "queries.get_corporate", "queries.list_corporates", "queries.models"]
+public_modules = ["commands.change_corporate_name", "commands.change_corporate_status", "commands.change_representative", "commands.models", "commands.register_corporate", "commands.services.corporate_access", "commands.services.support", "commands.update_corporate_policy", "interfaces.list_corporates_query_reader", "queries.dtos.get_corporate", "queries.dtos.list_corporates", "queries.get_corporate", "queries.list_corporates", "queries.models"]
 
 [features.coverage]
 depends_on = ["access_control"]
@@ -27,11 +27,20 @@ public_modules = ["commands.complete_dispensing", "commands.dtos.get_dispensing"
 
 [features.identity]
 depends_on = ["access_control"]
-public_modules = ["boundary_interfaces.local_authentication", "boundary_models", "commands.accept_invitation", "commands.cancel_invitation", "commands.change_membership", "commands.dtos.identity_views", "commands.dtos.registration_results", "commands.invite_user", "commands.link_staff_person", "commands.models", "commands.reactivate_account", "commands.register_local_user", "commands.register_person", "commands.services.invitation_access", "commands.services.repositories", "commands.suspend_account", "errors", "interfaces.get_invitation_query_reader", "interfaces.get_user_query_reader", "interfaces.list_users_query_reader", "interfaces.resolve_actor_query_reader", "queries.dtos.identity_resolution", "queries.dtos.identity_views", "queries.get_invitation", "queries.get_user", "queries.list_users", "queries.resolve_actor"]
+public_modules = ["boundary_interfaces.local_authentication", "boundary_models", "commands.change_membership", "commands.dtos.identity_views", "commands.link_staff_person", "commands.models", "commands.reactivate_account", "commands.register_person", "commands.register_staff_for_admin", "commands.services.repositories", "commands.suspend_account", "errors", "interfaces.get_user_query_reader", "interfaces.list_users_query_reader", "interfaces.resolve_actor_query_reader", "interfaces.staff_creator", "queries.dtos.identity_resolution", "queries.dtos.identity_views", "queries.get_user", "queries.list_users", "queries.resolve_actor"]
 
 [features.integration]
-depends_on = ["access_control", "dispensing", "patient", "prescription"]
-public_modules = ["boundary_models", "commands.dtos.ingest_nsips", "commands.ingest_nsips", "errors"]
+depends_on = ["access_control", "patient"]
+public_modules = [
+    "boundary_models",
+    "commands.dtos.ingest_nsips",
+    "commands.ingest_nsips",
+    "errors",
+    "interfaces.get_nsips_source_query_reader",
+    "queries.dtos.get_nsips_source",
+    "queries.get_nsips_source",
+    "queries.models",
+]
 
 [features.medication_history]
 depends_on = ["access_control"]
@@ -55,8 +64,8 @@ public_modules = ["commands.associate_reception_medication_history", "interfaces
 
 [features.staff]
 depends_on = ["access_control", "store"]
-public_modules = ["commands.activate_staff", "commands.assign_staff_concurrent_store", "commands.change_staff_job_title", "commands.change_staff_names", "commands.deactivate_staff", "commands.register_staff", "commands.remove_staff_concurrent_store", "commands.transfer_staff_home_store", "commands.update_staff_qualifications", "errors", "interfaces.access_revocation", "interfaces.get_staff_query_reader", "interfaces.list_staffs_query_reader", "interfaces.references", "queries.dtos.get_staff", "queries.dtos.list_staffs", "queries.get_staff", "queries.list_staffs", "queries.models"]
+public_modules = ["commands.activate_staff", "commands.assign_staff_concurrent_store", "commands.change_staff_job_title", "commands.change_staff_names", "commands.deactivate_staff", "commands.register_staff", "commands.remove_staff_concurrent_store", "commands.transfer_staff_home_store", "commands.update_staff_qualifications", "errors", "interfaces.access_revocation", "interfaces.account_registration", "interfaces.get_staff_query_reader", "interfaces.list_staffs_query_reader", "interfaces.references", "queries.dtos.get_staff", "queries.dtos.list_staffs", "queries.get_staff", "queries.list_staffs", "queries.models"]
 
 [features.store]
 depends_on = ["access_control"]
-public_modules = ["commands.change_insurance_pharmacy_number", "commands.change_store_address", "commands.change_store_business_hours", "commands.change_store_code", "commands.change_store_contact_info", "commands.change_store_names", "commands.change_store_status", "commands.dtos.business_hours", "commands.dtos.get_store", "commands.dtos.management", "commands.manage_store_manager", "commands.models", "commands.register_store", "commands.revoke_store_closure", "errors", "interfaces.get_store_opening_status_query_reader", "interfaces.get_store_query_reader", "interfaces.list_stores_query_reader", "interfaces.management", "interfaces.references", "queries.dtos.business_hours", "queries.dtos.get_store", "queries.dtos.list_stores", "queries.get_store", "queries.get_store_opening_status", "queries.list_stores", "queries.models", "queries.services.business_hours"]
+public_modules = ["commands.change_insurance_pharmacy_number", "commands.change_store_address", "commands.change_store_business_hours", "commands.change_store_code", "commands.change_store_contact_info", "commands.change_store_names", "commands.change_store_status", "commands.dtos.business_hours", "commands.dtos.get_store", "commands.dtos.management", "commands.manage_store_manager", "commands.models", "commands.register_store", "commands.revoke_store_closure", "commands.update_licenses", "commands.update_store_policy", "errors", "interfaces.get_effective_policy_query_reader", "interfaces.get_store_opening_status_query_reader", "interfaces.get_store_query_reader", "interfaces.list_stores_query_reader", "interfaces.management", "interfaces.references", "queries.dtos.business_hours", "queries.dtos.get_effective_policy", "queries.dtos.get_store", "queries.dtos.list_stores", "queries.get_effective_policy", "queries.get_store", "queries.get_store_opening_status", "queries.list_stores", "queries.models", "queries.services.business_hours"]

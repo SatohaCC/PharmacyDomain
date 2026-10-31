@@ -105,9 +105,10 @@ async def _save_store_operator(
 ) -> StoreOperatorFixture:
     """B店、薬剤師、店舗範囲を持つアカウント、管理薬剤師任命を保存する。"""
     store = create_store(corporate_id=corporate_id, name="フォローアップB店")
-    person = _person()
+    person = _person(corporate_id=corporate_id)
     account = UserAccount(
         id=UserAccountId.generate(),
+        corporate_id=corporate_id,
         person_id=person.id,
         external_subject=ExternalSubjectKey("issuer/integration-follow-up-b"),
     )
@@ -184,9 +185,10 @@ async def _save_corporate_admin(
     store_ids: frozenset[StoreId] = frozenset(),
 ) -> FastAPI:
     """法人全体を担当する法人管理者を保存してアプリを組み立てる。"""
-    person = _person()
+    person = _person(corporate_id=corporate_id)
     account = UserAccount(
         id=UserAccountId.generate(),
+        corporate_id=corporate_id,
         person_id=person.id,
         external_subject=ExternalSubjectKey("issuer/integration-follow-up-admin"),
     )
@@ -262,6 +264,44 @@ def _follow_up_body(operator: StoreOperatorFixture) -> dict[str, Any]:
     }
 
 
+async def _create_store_b_follow_up(
+    client: httpx.AsyncClient,
+    *,
+    corporate_id: CorporateId,
+    body: dict[str, Any],
+) -> httpx.Response:
+    """B店自身の独立フォローアップEventを作成して薬歴下書きを開始する。"""
+    defs_resp = await client.get(f"/corporates/{corporate_id.value}/event-definitions")
+    assert defs_resp.status_code == 200, defs_resp.text
+    follow_up_def = next(
+        item
+        for item in defs_resp.json()
+        if item["standard_code"] == "medication_period_follow_up"
+    )
+    event_resp = await client.post(
+        f"/corporates/{corporate_id.value}/events",
+        json={
+            "store_id": body["store_id"],
+            "patient_id": body["patient_id"],
+            "event_type_id": follow_up_def["id"],
+            "occurred_at": body["followed_up_at"],
+        },
+    )
+    assert event_resp.status_code == 201, event_resp.text
+    event_id = event_resp.json()["event_id"]
+    start_body: dict[str, Any] = {
+        "method": body["method"],
+        "soap": body["soap"],
+        "counseled_at": body["followed_up_at"],
+    }
+    if "profile_updates" in body:
+        start_body["profile_updates"] = body["profile_updates"]
+    return await client.post(
+        f"/corporates/{corporate_id.value}/events/{event_id}/medication-history",
+        json=start_body,
+    )
+
+
 async def _finalize_initial(
     fixture: ClinicalFixture,
     session_factory: async_sessionmaker[AsyncSession],
@@ -303,10 +343,10 @@ async def test_tc31_フォローアップ確定と頭書き投影が同じDBト�
         base_url="http://test",
         headers={"Authorization": f"Bearer {VALID_TOKEN}"},
     ) as client:
-        created = await client.post(
-            f"/corporates/{clinical.corporate_id.value}"
-            f"/medication-histories/{source.id.value}/follow-ups",
-            json=body,
+        created = await _create_store_b_follow_up(
+            client,
+            corporate_id=clinical.corporate_id,
+            body=body,
         )
     assert created.status_code == 201, created.text
     follow_up_id = created.json()["id"]
@@ -367,7 +407,7 @@ async def test_tc31_フォローアップ確定と頭書き投影が同じDBト�
 async def test_tc38_tc46_B店Actorは独立薬歴だけを読み_他店下書きは推測できない(
     engine: AsyncEngine, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
-    """候補は横断参照でき、本文読取と一覧はB店の範囲に限られる。"""
+    """候補・本文読取・一覧・フォローアップ作成はすべてB店の範囲に限られる（D7）。"""
     clinical = await setup_clinical(engine, session_factory)
     source = await _finalize_initial(clinical, session_factory)
     source_version = await _version(
@@ -391,20 +431,31 @@ async def test_tc38_tc46_B店Actorは独立薬歴だけを読み_他店下書き
         base_url="http://test",
         headers={"Authorization": f"Bearer {VALID_TOKEN}"},
     ) as client:
-        candidates = await client.get(
+        candidates_before = await client.get(
             f"/corporates/{clinical.corporate_id.value}"
             f"/patients/{source.patient_id.value}/events/related-candidates",
             params={"store_id": str(operator.store.id.value)},
         )
         body = _follow_up_body(operator)
         body["patient_id"] = str(source.patient_id.value)
-        created = await client.post(
+        cross_store_follow_up = await client.post(
             f"/corporates/{clinical.corporate_id.value}"
             f"/medication-histories/{source.id.value}/follow-ups",
             json=body,
         )
+        assert cross_store_follow_up.status_code == 404
+        created = await _create_store_b_follow_up(
+            client,
+            corporate_id=clinical.corporate_id,
+            body=body,
+        )
         assert created.status_code == 201, created.text
         follow_up_id = created.json()["id"]
+        candidates = await client.get(
+            f"/corporates/{clinical.corporate_id.value}"
+            f"/patients/{source.patient_id.value}/events/related-candidates",
+            params={"store_id": str(operator.store.id.value)},
+        )
         one = await client.get(
             f"/corporates/{clinical.corporate_id.value}"
             f"/medication-histories/{follow_up_id}"
@@ -428,11 +479,12 @@ async def test_tc38_tc46_B店Actorは独立薬歴だけを読み_他店下書き
             json=hidden_draft_body,
         )
 
+    assert candidates_before.status_code == 200, candidates_before.text
+    assert candidates_before.json() == []
     assert candidates.status_code == 200, candidates.text
     candidate_rows = candidates.json()
     assert {item["event_id"] for item in candidate_rows} == {
-        str(source.event_id.value),
-        str(hidden_draft.event_id.value),
+        one.json()["event_id"],
     }
     assert all(
         set(item)
@@ -449,7 +501,7 @@ async def test_tc38_tc46_B店Actorは独立薬歴だけを読み_他店下書き
     assert one.status_code == 200, one.text
     assert one.json()["store_id"] == str(operator.store.id.value)
     assert follow_up_event.status_code == 200, follow_up_event.text
-    assert follow_up_event.json()["related_event_id"] == str(source.event_id.value)
+    assert follow_up_event.json()["related_event_id"] is None
     assert one.json()["soap"]["subjective"][0]["text"] == "服用後の変化を確認した。"
     assert listed.status_code == 200, listed.text
     assert [item["id"] for item in listed.json()] == [follow_up_id]
@@ -512,10 +564,10 @@ async def test_tc47_店舗オペレータは頭書きを再構築できず_法�
         base_url="http://test",
         headers={"Authorization": f"Bearer {VALID_TOKEN}"},
     ) as client:
-        created = await client.post(
-            f"/corporates/{clinical.corporate_id.value}"
-            f"/medication-histories/{source.id.value}/follow-ups",
-            json=body,
+        created = await _create_store_b_follow_up(
+            client,
+            corporate_id=clinical.corporate_id,
+            body=body,
         )
     assert created.status_code == 201, created.text
     follow_up_id = created.json()["id"]
@@ -653,10 +705,10 @@ async def test_tc38_04_別店舗の後着遡及確定は全店舗再構築と一
         base_url="http://test",
         headers={"Authorization": f"Bearer {VALID_TOKEN}"},
     ) as client:
-        created = await client.post(
-            f"/corporates/{clinical.corporate_id.value}"
-            f"/medication-histories/{source.id.value}/follow-ups",
-            json=body,
+        created = await _create_store_b_follow_up(
+            client,
+            corporate_id=clinical.corporate_id,
+            body=body,
         )
     assert created.status_code == 201, created.text
     follow_up_id = created.json()["id"]
@@ -727,10 +779,10 @@ async def test_tc38_05_遡及取消で後続取消が不成立なら確定と監
         base_url="http://test",
         headers={"Authorization": f"Bearer {VALID_TOKEN}"},
     ) as client:
-        created = await client.post(
-            f"/corporates/{clinical.corporate_id.value}"
-            f"/medication-histories/{source.id.value}/follow-ups",
-            json=body,
+        created = await _create_store_b_follow_up(
+            client,
+            corporate_id=clinical.corporate_id,
+            body=body,
         )
     assert created.status_code == 201, created.text
     follow_up_id = created.json()["id"]

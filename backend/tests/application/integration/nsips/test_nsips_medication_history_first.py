@@ -52,12 +52,9 @@ from app.domain.care_event.primitives import (
     EventTypeName,
     EventTypeStandardCode,
 )
-from app.domain.dispensing.exceptions import DispensingOutsidePrescriptionPeriodError
-from app.domain.dispensing.identifiers import DispensingId
 from app.domain.medication_history.exceptions import MedicationHistoryDomainError
 from app.domain.medication_history.services import CounselorQualificationService
 from app.domain.patient.identifiers import PatientId
-from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.reception.identifiers import ReceptionId
 from app.infrastructure.readers.patient_get_patient import GetPatientProjection
 from tests.application.access_helpers import create_vendor_corporate_access_for
@@ -145,63 +142,10 @@ def test_合成入力で調剤日行が省略された場合は未設定のま�
 
 
 def test_処方日と調剤日の独立マッピング() -> None:
-    """処方日と調剤日を別々のコマンド項目へ写す。"""
+    """NSIPSデータマッパーは処方・調剤Commandを作らない。"""
     mapper = NsipsDataMapper()
-    bundle = NsipsBundle(
-        header_version="1.0",
-        patient=NsipsPatientInfo(
-            external_patient_id="P-1001",
-            kanji_name="山田太郎",
-            kana_name="ヤマダタロウ",
-            birth_date=date(1980, 1, 1),
-            gender="1",
-        ),
-        prescription=NsipsPrescriptionInfo(
-            document_number="DOC-001",
-            issued_date=date(2026, 9, 20),
-            institution_code="1310001",
-            institution_name="中央診療所",
-            department_code="01",
-            department_name="内科",
-            doctor_name="佐藤医師",
-            rps=(
-                NsipsRpInfo(
-                    rp_number=1,
-                    group_name="内服",
-                    instructions="1日3回毎食後",
-                    dispensing_quantity=14,
-                    medicines=(
-                        NsipsMedicineInfo(
-                            medicine_code="610406001",
-                            medicine_name="アムロジピン",
-                            dosage=Decimal("1"),
-                            unit="錠",
-                        ),
-                    ),
-                ),
-            ),
-        ),
-        dispensed_date=date(2026, 9, 22),
-    )
-
-    presc_cmd = mapper.to_prescription_command(
-        bundle,
-        corporate_id="corp-1",
-        store_id="store-1",
-        patient_id="pat-1",
-        coverage_selection_record_id="cov-rec-1",
-    )
-    assert presc_cmd.issued_date == date(2026, 9, 20)
-    assert presc_cmd.coverage_selection_record_id == "cov-rec-1"
-
-    disp_cmd = mapper.to_dispensing_command(
-        bundle,
-        corporate_id="corp-1",
-        store_id="store-1",
-        prescription_id="presc-1",
-        dispenser_id="disp-1",
-    )
-    assert disp_cmd.dispensed_date == date(2026, 9, 22)
+    assert not hasattr(mapper, "to_prescription_command")
+    assert not hasattr(mapper, "to_dispensing_command")
 
 
 def test_NSIPS入力から薬歴起票Commandを直接生成しない() -> None:
@@ -231,7 +175,6 @@ async def test_tc12_保険変更後の受付取込_原本を保持し薬剤師�
     cmd = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        dispenser_staff_id=str(fixture.pharmacist_id.value),
         raw_nsips_text=text,
     )
 
@@ -255,30 +198,14 @@ async def test_tc12_保険変更後の受付取込_原本を保持し薬剤師�
     assert result.patient_id == first.patient_id
 
     # 1. 結果DTOの検証
-    assert result.prescription_id is not None
-    assert result.dispensing_id is not None
+    assert result.prescription_id is None
+    assert result.dispensing_id is None
     assert result.medication_history_id is None
     assert result.coverage_selection_record_id is None
     assert result.dispensed_date == "2026-09-22"
     assert "特定薬剤管理指導加算２" in result.addition_names
 
-    # 2. 請求用資格を自動選択せず処方箋を登録する。
-    presc = await fixture.prescription_repo.get(
-        corporate_id=fixture.corporate_id,
-        prescription_id=PrescriptionId.parse(result.prescription_id),
-    )
-    assert presc is not None
-    assert presc.coverage_selection_record_id is None
-
-    # 3. 調剤日（使用期間内 9/20〜9/23）の検証
-    dispensing = await fixture.dispensing_repo.get(
-        corporate_id=fixture.corporate_id,
-        dispensing_id=DispensingId.parse(result.dispensing_id),
-    )
-    assert dispensing is not None
-    assert dispensing.dispensed_date.value == date(2026, 9, 22)
-
-    # 4. 受付は取込メタデータと構造化Bundleを保ち、薬歴は作らない。
+    # 2. 受付は取込メタデータと構造化Bundleを保ち、薬歴は作らない。
     assert fixture.medication_history_repo.items == {}
     reception = await fixture.reception_repo.get(
         corporate_id=fixture.corporate_id,
@@ -296,7 +223,7 @@ async def test_tc12_保険変更後の受付取込_原本を保持し薬剤師�
     assert "140000110" in source_data.bundle_json.value
     assert "特定薬剤管理指導加算２" in source_data.bundle_json.value
 
-    # 5. 薬剤師が本文を記載して初回保存した時点でのみ薬歴を作り、
+    # 3. 薬剤師が本文を記載して初回保存した時点でのみ薬歴を作り、
     #    受付の由来情報を引き継ぐ。記載者はActor由来で、指導実績とは別。
     reception_id = str(reception.id.value)
     event = Event(
@@ -312,8 +239,8 @@ async def test_tc12_保険変更後の受付取込_原本を保持し薬剤師�
         created_at=EventCreatedTimestamp(fixture.clock.now()),
         related_event_id=None,
         reception_id=reception.id,
-        prescription_id=PrescriptionId.parse(result.prescription_id),
-        dispensing_id=DispensingId.parse(result.dispensing_id),
+        prescription_id=None,
+        dispensing_id=None,
     )
     reception = replace(reception, event_id=event.id)
     await fixture.reception_repo.save(reception)
@@ -341,7 +268,7 @@ async def test_tc12_保険変更後の受付取込_原本を保持し薬剤師�
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
         event_id=str(event.id.value),
-        dispensing_id=result.dispensing_id,
+        dispensing_id=None,
         reception_id=reception_id,
         method=None,
         soap=SoapInput(
@@ -381,10 +308,10 @@ async def test_tc12_保険変更後の受付取込_原本を保持し薬剤師�
 
 
 @pytest.mark.asyncio
-async def test_処方箋の使用期間を過ぎた調剤日は拒否される() -> None:
-    """処方箋の使用期間を過ぎた調剤を拒否する。"""
+async def test_処方箋の使用期間を過ぎた調剤日でも原本受付は成功する() -> None:
+    """処方箋の使用期間を過ぎた調剤日でも原本受付としては受領し保存する。"""
     fixture = await create_fixture()
-    # 交付日 9/10 に対し、調剤日 9/22 は期限切れ（9/13まで有効）
+    # 交付日 9/10 に対し、調剤日 9/22
     text = (
         "1,20260910,DOC-EXPIRED-01,1310001,中央診療所,01,内科,佐藤医師\n"
         "2,P-2003,サトウジロウ,佐藤次郎,1,19750303\n"
@@ -394,17 +321,16 @@ async def test_処方箋の使用期間を過ぎた調剤日は拒否される()
     cmd = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        dispenser_staff_id=str(fixture.pharmacist_id.value),
         raw_nsips_text=text,
     )
-
-    with pytest.raises(DispensingOutsidePrescriptionPeriodError):
-        await execute_structured_test_command(fixture, cmd)
+    result = await execute_structured_test_command(fixture, cmd)
+    assert result.reception_id is not None
+    assert result.dispensed_date == "2026-09-22"
 
 
 @pytest.mark.asyncio
-async def test_tc17_調剤日欠損は書込み前に拒否される() -> None:
-    """調剤日が無いBundleは拒否し、患者や処方などを先行保存しない。"""
+async def test_tc17_tc112_調剤日欠損でも原本取込は受領される() -> None:
+    """TC-112: 調剤日欠落原本でも受付原本として受領し、処方調剤は作成しない。"""
     fixture = await create_fixture()
     bundle = _patient_bundle(
         external_patient_id="P-MISSING-DISPENSED-DATE",
@@ -416,24 +342,20 @@ async def test_tc17_調剤日欠損は書込み前に拒否される() -> None:
     )
     bundle = replace(bundle, dispensed_date=None)
 
-    with pytest.raises(Exception, match="調剤日"):
-        await execute_structured_test_command(
-            fixture,
-            IngestNsipsCommand(
-                corporate_id=str(fixture.corporate_id.value),
-                store_id=str(fixture.store_id.value),
-                dispenser_staff_id=str(fixture.pharmacist_id.value),
-                structured_bundle=bundle,
-            ),
-        )
-
-    assert fixture.patient_repo.items == {}
-    assert fixture.patient_external_id_repo.items == {}
-    assert fixture.patient_coverage_repo.items == {}
-    assert fixture.coverage_selection_repo.items == {}
+    result = await execute_structured_test_command(
+        fixture,
+        IngestNsipsCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            store_id=str(fixture.store_id.value),
+            structured_bundle=bundle,
+        ),
+    )
+    assert result.reception_id is not None
+    assert result.dispensed_date is None
+    assert fixture.patient_repo.items
+    assert fixture.reception_repo.items
     assert fixture.prescription_repo.items == {}
     assert fixture.dispensing_repo.items == {}
-    assert fixture.medication_history_repo.items == {}
 
 
 def _patient_bundle(
@@ -569,7 +491,6 @@ async def test_tc26_既存患者の非欠損プロフィール差分をマスタ
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             structured_bundle=first_bundle,
         ),
     )
@@ -578,39 +499,28 @@ async def test_tc26_既存患者の非欠損プロフィール差分をマスタ
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             structured_bundle=second_bundle,
         ),
     )
 
     assert second.patient_id == first.patient_id
-    assert second.patient_attribute_conflicts == ()
     assert second.has_pending_correction_review is False
-    assert getattr(second, "patient_profile_updated_fields", ()) == (
-        "patient.gender",
-        "patient.postal_code",
-        "patient.address",
-        "patient.phone_number",
-    )
     patient = await fixture.patient_repo.get(
         corporate_id=fixture.corporate_id,
         patient_id=PatientId.parse(first.patient_id),
     )
     assert patient is not None
-    assert patient.gender is not None and patient.gender.value == "2"
-    assert patient.postal_code is not None and patient.postal_code.value == "0098765"
+    # 既存患者の属性（性別1, 0012345, 千代田区, 03-1234-5678）は自動上書きされない
+    assert patient.gender is not None and patient.gender.value == "1"
+    assert patient.postal_code is not None and patient.postal_code.value == "0012345"
     assert (
         patient.address is not None
-        and patient.address.value == "東京都中央区三丁目4番地"
+        and patient.address.value == "東京都千代田区一丁目2番地"
     )
     assert (
         patient.phone_number is not None
-        and patient.phone_number.value == "03-9876-5432"
+        and patient.phone_number.value == "03-1234-5678"
     )
-    profile_change = patient.profile_history[-1]
-    assert profile_change.received_profile is not None
-    assert profile_change.received_profile.address is not None
-    assert profile_change.received_profile.address.value == "東京都中央区三丁目4番地"
 
 
 @pytest.mark.asyncio
@@ -640,7 +550,6 @@ async def test_tc10_給付割合不明を受付原本に保持し請求選択し
             IngestNsipsCommand(
                 corporate_id=str(fixture.corporate_id.value),
                 store_id=str(fixture.store_id.value),
-                dispenser_staff_id=str(fixture.pharmacist_id.value),
                 structured_bundle=bundle,
             ),
         )
@@ -682,7 +591,6 @@ async def test_tc14_公費の片側欠損を登録せず要確認理由を返す
         IngestNsipsCommand(
             corporate_id=str(fixture.corporate_id.value),
             store_id=str(fixture.store_id.value),
-            dispenser_staff_id=str(fixture.pharmacist_id.value),
             structured_bundle=bundle,
         ),
     )

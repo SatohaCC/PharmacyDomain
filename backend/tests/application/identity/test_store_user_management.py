@@ -58,7 +58,9 @@ async def _setup() -> Fixture:
     await service.stores.save(own)
     await service.stores.save(other)
     account = UserAccount(
-        id=UserAccountId.generate(), person_id=AccountPersonId.generate()
+        id=UserAccountId.generate(),
+        corporate_id=corporate,
+        person_id=AccountPersonId.generate(),
     )
     membership = CorporateMembership(
         id=CorporateMembershipId.generate(),
@@ -70,7 +72,9 @@ async def _setup() -> Fixture:
     await service.repositories.accounts.save(account)
     await service.repositories.memberships.save(membership)
     manager = UserAccount(
-        id=UserAccountId.generate(), person_id=AccountPersonId.generate()
+        id=UserAccountId.generate(),
+        corporate_id=corporate,
+        person_id=AccountPersonId.generate(),
     )
     manager_membership = CorporateMembership(
         id=CorporateMembershipId.generate(),

@@ -142,9 +142,10 @@ async def setup_clinical(
         create_patient(corporate_id=corporate.id),
         id=patient_id,
     )
-    person = _person()
+    person = _person(corporate_id=corporate.id)
     account = UserAccount(
         id=UserAccountId.generate(),
+        corporate_id=corporate.id,
         person_id=person.id,
         external_subject=ExternalSubjectKey(_PHARMACIST_SUBJECT),
     )
@@ -358,7 +359,6 @@ async def test_実HTTP実DB調剤開始_薬品対応不整合_422と別要求一
     body = StartDispensingRequest(
         store_id=str(prescription.store_id.value),
         prescription_id=str(prescription.id.value),
-        dispenser_id=str(actor.staff_id.value),
         iteration=1,
         dispensed_date=date(2026, 8, 24),
         dispensed_rps=[
@@ -451,7 +451,6 @@ async def test_実HTTP実DB調剤更新_薬品対応不整合_422と別GET全内
     start_body = StartDispensingRequest(
         store_id=str(prescription.store_id.value),
         prescription_id=str(prescription.id.value),
-        dispenser_id=str(actor.staff_id.value),
         iteration=1,
         dispensed_date=date(2026, 8, 24),
         dispensed_rps=[

@@ -49,13 +49,17 @@ class RegisterPersonUseCase:
             AuthorizationService(self._access.actor).require_vendor_system_admin(
                 permission=Permission.REGISTER_CORPORATE
             )
+            # ベンダー登録の場合でも、Actorの所属または対象法人が必要
+            target_corporate_id = CorporateId.generate()
         else:
+            target_corporate_id = CorporateId.parse(corporate_id)
             await self._access.require_active(
-                corporate_id=CorporateId.parse(corporate_id),
+                corporate_id=target_corporate_id,
                 permission=Permission.MANAGE_STAFF,
             )
         person = AccountPerson(
             id=AccountPersonId.generate(),
+            corporate_id=target_corporate_id,
             names=PersonNames(
                 kanji=PersonName(
                     last_name=PersonNamePart(names.last_name),

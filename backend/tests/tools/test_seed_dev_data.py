@@ -32,12 +32,12 @@ from tools.seed_dev_data import (
 #: 保存順序の期待値。テーブル名で書くのは、この順序が守っているのが
 #: 外部キーの向きそのものだからである。
 EXPECTED_SAVE_ORDER: tuple[str, ...] = (
-    "account_people",
-    "account_people",
-    "user_accounts",
-    "user_accounts",
     "corporates",
     "stores",
+    "account_people",
+    "account_people",
+    "user_accounts",
+    "user_accounts",
     "staff_members",
     "staff_person_links",
     "corporate_memberships",

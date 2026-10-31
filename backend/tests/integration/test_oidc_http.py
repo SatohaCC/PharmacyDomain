@@ -14,10 +14,9 @@ import pytest
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.identity.commands.invite_user import InviteUserCommand
 from app.bootstrap import create_app
 from app.domain.identity.entities import UserAccount
-from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole
+from app.domain.identity.primitives import ExternalSubjectKey
 from app.domain.shared.actor import UserAccountId
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
@@ -28,6 +27,7 @@ from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
 from app.presentational.oidc import OidcSettings, OidcVerifiedSubjectProvider
 from tests.factories.oidc_factory import issue_token, signing_key
 from tests.fakes.signing_key_resolver import StubSigningKeyResolver
+from tests.infrastructure.postgres.helpers import create_corporate
 from tests.integration.organization_helpers import (
     Organization,
     external_subject_of,
@@ -170,80 +170,6 @@ async def test_アカウントを停止すると同じトークンでも次の�
 
 
 @pytest.mark.asyncio
-async def test_検証済みの外部主体で招待を受諾するとアカウントが生まれる(
-    engine: AsyncEngine, session_factory: async_sessionmaker[AsyncSession]
-) -> None:
-    """本人は招待から、外部主体は提示されたトークンから取る。"""
-    # Arrange
-    fixture = await setup_organization(engine, session_factory)
-    invited = _person()
-    async with fixture.root.request_scope(authorization=fixture.authorization) as scope:
-        await scope.repositories.account_person.save(invited)
-        issued = await scope.use_cases.identity.invite.execute(
-            InviteUserCommand(
-                corporate_id=str(fixture.corporate.id.value),
-                person_id=str(invited.id.value),
-                addressee="invited@example.test",
-                role=MembershipRole.CORPORATE_ADMIN,
-                expires_at=fixture.root.clock.now() + timedelta(days=1),
-            )
-        )
-
-    # Act
-    async with _client(fixture, _token("新しい主体")) as client:
-        accepted = await client.post(
-            "/user-invitations/acceptance", json={"secret": issued.secret}
-        )
-        me = await client.get("/me")
-
-    # Assert
-    assert accepted.status_code == 200, accepted.text
-    assert me.status_code == 200, me.text
-    assert me.json()["person_id"] == str(invited.id.value)
-    async with PostgresUnitOfWork(session_factory) as work:
-        saved = await PostgresRepositorySet.create(work).user_account.get_by_person(
-            invited.id
-        )
-    assert saved is not None
-    assert saved.external_subject == ExternalSubjectKey(f"{_ISSUER}/新しい主体")
-
-
-@pytest.mark.asyncio
-async def test_他人に固定済みの外部主体ではHTTPでも受諾できない(
-    engine: AsyncEngine, session_factory: async_sessionmaker[AsyncSession]
-) -> None:
-    """招待の秘密を握っても、他人の主体で新しいアカウントは作れない。"""
-    # Arrange
-    fixture = await setup_organization(engine, session_factory)
-    invited = _person()
-    async with fixture.root.request_scope(authorization=fixture.authorization) as scope:
-        await scope.repositories.account_person.save(invited)
-        issued = await scope.use_cases.identity.invite.execute(
-            InviteUserCommand(
-                corporate_id=str(fixture.corporate.id.value),
-                person_id=str(invited.id.value),
-                addressee="invited@example.test",
-                role=MembershipRole.CORPORATE_ADMIN,
-                expires_at=fixture.root.clock.now() + timedelta(days=1),
-            )
-        )
-
-    # Act: person-0 の主体は既に別の本人のアカウントへ固定されている。
-    async with _client(fixture, _token("person-0")) as client:
-        response = await client.post(
-            "/user-invitations/acceptance", json={"secret": issued.secret}
-        )
-
-    # Assert
-    assert response.status_code == 409, response.text
-    async with PostgresUnitOfWork(session_factory) as work:
-        saved = await PostgresRepositorySet.create(work).user_account.get_by_person(
-            invited.id
-        )
-    assert saved is None
-
-
-@pytest.mark.asyncio
 async def test_外部主体を固定していないアカウントは実DBでも主体では引けない(
     engine: AsyncEngine, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
@@ -255,12 +181,18 @@ async def test_外部主体を固定していないアカウントは実DBでも
     """
     # Arrange
     del engine
-    person = _person()
+    corporate = create_corporate()
+    person = _person(corporate_id=corporate.id)
     async with PostgresUnitOfWork(session_factory) as work:
         repositories = PostgresRepositorySet.create(work)
+        await repositories.corporate.save(corporate)
         await repositories.account_person.save(person)
         await repositories.user_account.save(
-            UserAccount(id=UserAccountId.generate(), person_id=person.id)
+            UserAccount(
+                id=UserAccountId.generate(),
+                corporate_id=corporate.id,
+                person_id=person.id,
+            )
         )
         await work.commit()
 
@@ -270,7 +202,9 @@ async def test_外部主体を固定していないアカウントは実DBでも
         by_subject = await repositories.user_account.get_by_subject(
             ExternalSubjectKey(external_subject_of(9))
         )
-        by_person = await repositories.user_account.get_by_person(person.id)
+        by_person = await repositories.user_account.get_by_person(
+            corporate.id, person.id
+        )
 
     # Assert
     assert by_subject is None
