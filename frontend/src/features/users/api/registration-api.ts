@@ -19,7 +19,7 @@ export async function registerUser(
         initial_home_store_id: input.homeStore || undefined,
         initial_start_date: input.startDate || undefined,
         account: {
-          email: input.loginId,
+          email: input.email,
           password: input.initialPassword,
           role,
           store_ids: storeIds.length > 0 ? storeIds : undefined,
@@ -27,5 +27,5 @@ export async function registerUser(
       },
     }),
   );
-  return { id: res.staff_id, login_id: res.email };
+  return { id: res.staff_id, email: res.email };
 }

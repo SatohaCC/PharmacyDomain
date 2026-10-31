@@ -79,6 +79,9 @@ from tests.factories.medication_history_factory import (
     create_allergy_intent,
     create_record,
 )
+from tests.factories.medicine_catalog_factory import (
+    create_medicine as create_catalog_medicine,
+)
 from tests.factories.persistence_factory import create_patient
 from tests.factories.prescription_factory import (
     create_medicine,
@@ -221,6 +224,8 @@ async def setup_clinical(
         await repositories.membership.save(membership)
         if with_prescription:
             await repositories.prescription.save(prescription)
+        for code in ("2171022F1029", "2171022F1037", "2171022F1045"):
+            await repositories.medicine_catalog.save(create_catalog_medicine(code=code))
         await repositories.dispensing.save(process)
         await save_history_with_event(repositories, record)
         await work.commit()
@@ -870,3 +875,26 @@ async def test_tc39_事実訂正中の頭書き保存失敗は薬歴と監査も
         await _version(engine, "medication_history_records", fixture.record.id.value)
         == version_before + 1
     )
+
+
+@pytest.mark.asyncio
+async def test_HTTP調剤完了_実調剤薬のマスタ欠落_422で拒否し原本調剤監査を保持する(
+    engine: AsyncEngine, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    # Arrange
+    fixture = await setup_clinical(engine, session_factory)
+    async with engine.begin() as connection:
+        await connection.execute(text("DELETE FROM medicines"))
+    before = await snapshot_dispensing_persistence(engine)
+
+    # Act
+    async with _client(fixture) as client:
+        response = await client.post(
+            f"/corporates/{fixture.corporate_id.value}/dispensings/{fixture.process.id.value}/completion",
+            json={"completion_type": "completed"},
+        )
+
+    # Assert
+    assert response.status_code == 422, response.text
+    assert response.json()["code"] == "PRESCRIPTION_MEDICINE_CLASSIFICATION_MISSING"
+    assert await snapshot_dispensing_persistence(engine) == before

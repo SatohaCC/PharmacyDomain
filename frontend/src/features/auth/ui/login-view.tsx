@@ -9,13 +9,18 @@ import {
 import type { Submission } from "../../../shared/forms/submission";
 import { Form } from "../../../shared/ui/controls/form";
 import { TextField as Field } from "../../../shared/ui/controls/text-field";
+import { SelectField } from "../../../shared/ui/controls/select-field";
 export interface LoginViewProps {
+  loginKind: string;
+  setLoginKind: (kind: string) => void;
   loginSubmission: Submission;
   tokenSubmission: Submission;
   passwordChangeRequired: boolean;
   authenticated: boolean;
 }
 export function LoginView({
+  loginKind,
+  setLoginKind,
   loginSubmission,
   tokenSubmission,
   passwordChangeRequired,
@@ -29,7 +34,7 @@ export function LoginView({
       <Paragraph>
         {passwordChangeRequired
           ? "ご自身の新しいパスワードに変更すると利用を開始できます。"
-          : "発行されたログインIDとパスワードを入力してください。"}
+          : "発行されたメールアドレスとパスワードを入力してください。"}
       </Paragraph>
       <Form
         key={passwordChangeRequired ? "change" : "login"}
@@ -41,7 +46,19 @@ export function LoginView({
       >
         {!passwordChangeRequired && (
           <>
-            <Field name="corporate_id" label="法人ID" required />
+            <SelectField
+              label="ログイン種別"
+              value={loginKind}
+              onValueChange={setLoginKind}
+              disabled={loginSubmission.pending}
+              options={[
+                { value: "corporate", label: "法人ユーザー" },
+                { value: "vendor", label: "運営者" },
+              ]}
+            />
+            {loginKind === "corporate" && (
+              <Field name="corporate_id" label="法人ID" required />
+            )}
             <Field name="email" label="メールアドレス" type="email" required />
           </>
         )}

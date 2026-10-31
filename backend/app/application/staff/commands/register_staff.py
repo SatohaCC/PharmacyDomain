@@ -13,7 +13,7 @@ from app.application.access_control.boundary_models import (
 from app.application.access_control.interfaces.corporate_access import (
     CorporateAccessBoundary,
 )
-from app.application.common.clock import Clock
+from app.application.common.clock import Clock, business_date
 from app.application.common.exceptions import AuthorizationError, NotFoundError
 from app.application.common.input_normalization import to_optional_text
 from app.application.common.organization_lock import OrganizationLock
@@ -120,7 +120,7 @@ class RegisterStaffUseCase:
         unit_of_work: UnitOfWork,
         lock: OrganizationLock,
         clock: Clock,
-        store_managers: StoreManagerAssignmentRepository | None = None,
+        store_managers: StoreManagerAssignmentRepository,
     ) -> None:
         self._staff_repository = staff_repository
         self._store_repository = store_repository
@@ -216,6 +216,35 @@ class RegisterStaffUseCase:
 
         await self._lock.acquire("identity")
         await self._lock.acquire(f"corporate:{corporate_id.value}")
+
+        if not is_admin:
+            assert isinstance(actor, ResolvedActorContext)
+            assert command.initial_home_store_id is not None
+            home_store = StoreId.parse(command.initial_home_store_id)
+            today = business_date(self._clock)
+            appointment = await self._store_managers.find_effective(
+                corporate_id, home_store, today
+            )
+            staff = (
+                await self._staff_repository.get(
+                    corporate_id=corporate_id, staff_id=actor.staff_id
+                )
+                if actor.staff_id
+                else None
+            )
+            if (
+                appointment is None
+                or appointment.staff_id != actor.staff_id
+                or appointment.person_id != actor.person_id
+                or staff is None
+                or not staff.is_active
+                or not staff.is_pharmacist
+                or staff.current_home_store_id(today) != home_store
+            ):
+                raise AuthorizationError("現在有効な管理薬剤師の任命と所属が必要です。")
+            await self._account_registration.require_active_actor(
+                actor=actor, corporate_id=corporate_id, store_id=home_store
+            )
 
         raw_code = to_optional_text(command.code)
         code = StaffCode(raw_code) if raw_code else None

@@ -33,7 +33,11 @@ from app.domain.identity.repositories import (
 from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.exceptions import CounselorQualificationError
 from app.domain.prescription.entities import Prescription
-from app.domain.prescription.exceptions import InquiryPharmacistQualificationError
+from app.domain.prescription.exceptions import (
+    InquiryPharmacistQualificationError,
+    MedicineClassificationMissingError,
+    MedicineClassificationUnknownError,
+)
 from app.domain.prescription.primitives import (
     MedicineCode,
     MedicineCodeType,
@@ -248,6 +252,12 @@ class ClinicalStoreWriteGuard:
                     identifiers=dispensed_ids,
                     as_of=today,
                 )
+                for identifier in dispensed_ids:
+                    classification = classifications.get(identifier)
+                    if classification is None:
+                        raise MedicineClassificationMissingError()
+                    if classification.is_narcotic.is_unknown:
+                        raise MedicineClassificationUnknownError()
                 has_narcotics = any(
                     c.is_narcotic is MedicineRestrictionFlag.YES
                     for c in classifications.values()

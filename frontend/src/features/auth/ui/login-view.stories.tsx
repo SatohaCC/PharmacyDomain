@@ -10,6 +10,8 @@ const meta = {
     tokenSubmission: { submit: fn(), pending: false, blocked: false },
     passwordChangeRequired: false,
     authenticated: false,
+    loginKind: "corporate",
+    setLoginKind: fn(),
   },
 } satisfies Meta<typeof LoginView>;
 export default meta;
@@ -18,3 +20,5 @@ export const 通常: Story = {};
 export const 初回パスワード変更: Story = {
   args: { passwordChangeRequired: true },
 };
+
+export const 運営者: Story = { args: { loginKind: "vendor" } };

@@ -419,6 +419,7 @@ def create_staff_use_cases(
             unit_of_work=NullUnitOfWork(),
             lock=FakeOrganizationLock(),
             clock=clock,
+            store_managers=InMemoryStoreManagerAssignmentRepository(),
         ),
         get=GetStaffUseCase(
             reader=GetStaffProjection(staffs),

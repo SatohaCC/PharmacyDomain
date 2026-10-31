@@ -24,7 +24,7 @@ export const 正常表示: Story = {};
 export const 店舗切替操作: Story = {
   play: async ({ canvasElement, args }) => {
     const trigger = within(canvasElement).getByRole("button", {
-      name: "勤務店舗",
+      name: /勤務店舗/,
     });
     await userEvent.click(trigger);
     const option = within(document.body).getByRole("option", {

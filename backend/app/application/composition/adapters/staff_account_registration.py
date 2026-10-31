@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from app.application.access_control.boundary_models import ResolvedActorContext
+from app.application.common.exceptions import AuthorizationError
 from app.application.identity.boundary_interfaces.local_authentication import (
     CredentialWriter,
 )
@@ -51,6 +53,45 @@ class StaffAccountRegistrationAdapter(StaffAccountRegistrationBoundary):
         self._memberships = memberships
         self._links = links
         self._credentials = credentials
+
+    async def require_active_actor(
+        self,
+        *,
+        actor: ResolvedActorContext,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+    ) -> None:
+        """現在の保存済み状態から、本人と店舗の利用権限を検証する。"""
+        account = (
+            await self._accounts.get(actor.account_id) if actor.account_id else None
+        )
+        membership = (
+            await self._memberships.get(actor.membership_id)
+            if actor.membership_id
+            else None
+        )
+        link = await self._links.get(actor.staff_id) if actor.staff_id else None
+        person = await self._people.get(actor.person_id) if actor.person_id else None
+        if (
+            account is None
+            or account.status is not AccountStatus.ACTIVE
+            or account.corporate_id != corporate_id
+            or account.person_id != actor.person_id
+            or membership is None
+            or membership.status is not AccountStatus.ACTIVE
+            or membership.corporate_id != corporate_id
+            or membership.account_id != account.id
+            or membership.staff_id != actor.staff_id
+            or store_id not in membership.active_store_ids
+            or link is None
+            or link.corporate_id != corporate_id
+            or link.person_id != actor.person_id
+            or person is None
+            or person.corporate_id != corporate_id
+        ):
+            raise AuthorizationError(
+                "現在有効なアカウント・本人対応・店舗利用権限が必要です。"
+            )
 
     async def register_account(
         self,

@@ -41,6 +41,9 @@ from tests.fakes.in_memory_identity_repositories import (
     InMemoryStaffPersonLinkRepository,
     InMemoryUserAccountRepository,
 )
+from tests.fakes.in_memory_manager_assignment_repository import (
+    InMemoryStoreManagerAssignmentRepository,
+)
 from tests.fakes.in_memory_staff_repository import InMemoryStaffRepository
 from tests.fakes.in_memory_store_repository import InMemoryStoreRepository
 from tests.fakes.null_unit_of_work import NullUnitOfWork
@@ -73,6 +76,7 @@ def _build_use_case(
         unit_of_work=NullUnitOfWork(),
         lock=FakeOrganizationLock(),
         clock=FakeClock(datetime(2026, 4, 1, tzinfo=UTC)),
+        store_managers=InMemoryStoreManagerAssignmentRepository(),
     )
 
 

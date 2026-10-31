@@ -3,6 +3,7 @@ import { text } from "../../../shared/forms/values";
 import { setAccessToken } from "../api/session";
 import {
   passwordLogin,
+  vendorPasswordLogin,
   changeInitialPassword,
 } from "../api/local-authentication";
 import { useRef, useState } from "react";
@@ -11,6 +12,7 @@ export function useLogin(
   returnTo: string,
   navigate: (href: string) => Promise<void>,
 ) {
+  const [loginKind, setLoginKind] = useState("corporate");
   const restrictedToken = useRef("");
   const [passwordChangeRequired, setPasswordChangeRequired] = useState(false);
   const loginSubmission = async (d: FormData) => {
@@ -23,11 +25,13 @@ export function useLogin(
       throw new Error("確認用パスワードが一致しません。");
     const session = passwordChangeRequired
       ? await changeInitialPassword(restrictedToken.current, password)
-      : await passwordLogin(
-          text(d, "corporate_id"),
-          text(d, "email"),
-          password,
-        );
+      : loginKind === "vendor"
+        ? await vendorPasswordLogin(text(d, "email"), password)
+        : await passwordLogin(
+            text(d, "corporate_id"),
+            text(d, "email"),
+            password,
+          );
     if (session.password_change_required) {
       restrictedToken.current = session.access_token;
       setPasswordChangeRequired(true);
@@ -42,6 +46,8 @@ export function useLogin(
     await navigate(returnTo);
   };
   return {
+    loginKind,
+    setLoginKind,
     loginSubmission: useSubmission(loginSubmission),
     tokenSubmission: useSubmission(tokenSubmission),
     passwordChangeRequired,

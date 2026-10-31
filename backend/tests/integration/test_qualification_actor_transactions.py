@@ -64,6 +64,9 @@ from tests.factories.medication_history_factory import (
     create_record,
     finalize_record_with_review,
 )
+from tests.factories.medicine_catalog_factory import (
+    create_medicine as create_catalog_medicine,
+)
 from tests.factories.persistence_factory import create_patient
 from tests.factories.prescription_factory import create_prescription
 from tests.factories.staff_factory import create_staff
@@ -393,6 +396,7 @@ async def test_TC092_権限変更と業務保存の並行_停止先行なら403�
                 person_id=person.id,
             )
         )
+        await repos.medicine_catalog.save(create_catalog_medicine())
         await repos.prescription.save(prescription_1)
         await repos.dispensing.save(dispensing_1)
         await repos.prescription.save(prescription_2)

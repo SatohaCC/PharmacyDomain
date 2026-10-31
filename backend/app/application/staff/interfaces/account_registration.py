@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+from app.application.access_control.boundary_models import ResolvedActorContext
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.identifiers import CorporateMembershipId
 from app.domain.shared.actor import AccountPersonId, UserAccountId
@@ -25,6 +26,16 @@ class StaffAccountRegistrationResult:
 
 class StaffAccountRegistrationBoundary(Protocol):
     """スタッフ登録と同じUoW内で本人・アカウント・所属・資格情報を生成する。"""
+
+    async def require_active_actor(
+        self,
+        *,
+        actor: ResolvedActorContext,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+    ) -> None:
+        """法人ロック内で登録者のアカウント・所属・本人対応を再確認する。"""
+        ...
 
     async def register_account(
         self,

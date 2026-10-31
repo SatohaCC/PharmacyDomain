@@ -27,9 +27,7 @@ export const changeInitialPassword = (
     }),
   );
 
-export const selectStoreContext = (
-  storeId: string,
-): Promise<LoginSessionDto> =>
+export const selectStoreContext = (storeId: string): Promise<LoginSessionDto> =>
   result(
     api.POST("/auth/store-context", {
       body: { store_id: storeId },
@@ -37,3 +35,9 @@ export const selectStoreContext = (
   );
 
 export const endLocalSession = () => result(api.POST("/auth/logout"));
+
+export const vendorPasswordLogin = (
+  email: string,
+  password: string,
+): Promise<LoginSessionDto> =>
+  result(api.POST("/auth/vendor/login", { body: { email, password } }));

@@ -35,6 +35,7 @@ from app.domain.dispensing.primitives import (
 )
 from app.domain.prescription.entities import Prescription
 from app.domain.prescription.primitives import PrescriptionStatus
+from app.infrastructure.di.repositories import PostgresRepositorySet
 from app.infrastructure.di.root import PostgresCompositionRoot
 from app.infrastructure.dispensing.postgres.dispensing_process import (
     PostgresDispensingProcessRepository,
@@ -44,6 +45,9 @@ from app.infrastructure.prescription.postgres.prescription import (
     PostgresPrescriptionRepository,
 )
 from tests.factories.dispensing_factory import create_dispensing, verify_passed
+from tests.factories.medicine_catalog_factory import (
+    create_medicine as create_catalog_medicine,
+)
 from tests.factories.prescription_factory import create_prescription
 from tests.integration.organization_helpers import (
     Organization,
@@ -97,6 +101,9 @@ async def _save_corporate_and_dispensing(
     async with unit_of_work:
         if with_prescription:
             await PostgresPrescriptionRepository(unit_of_work).save(prescription)
+        await PostgresRepositorySet.create(unit_of_work).medicine_catalog.save(
+            create_catalog_medicine()
+        )
         await PostgresDispensingProcessRepository(unit_of_work).save(process)
         await unit_of_work.commit()
 

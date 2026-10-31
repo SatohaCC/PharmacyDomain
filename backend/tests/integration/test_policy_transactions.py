@@ -48,6 +48,9 @@ from app.infrastructure.prescription.postgres.prescription import (
 )
 from app.infrastructure.store.postgres.store import PostgresStoreRepository
 from tests.factories.dispensing_factory import create_dispensing, verify_passed
+from tests.factories.medicine_catalog_factory import (
+    create_medicine as create_catalog_medicine,
+)
 from tests.factories.prescription_factory import create_prescription
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store
@@ -253,6 +256,7 @@ async def test_TC080_自己鑑査禁止ポリシー強化と交付完了の並�
     async with uow_init:
         await PostgresCorporateRepository(uow_init).save(corporate)
         repos = PostgresRepositorySet.create(uow_init)
+        await repos.medicine_catalog.save(create_catalog_medicine())
         await repos.store.save(store)
         await repos.account_person.save(person)
         await repos.user_account.save(account)
