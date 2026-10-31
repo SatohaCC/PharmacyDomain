@@ -80,3 +80,50 @@ def test_行長_長い文字列は_リンターで拒否しない(tmp_path: Path
     result = _lint(tmp_path, "app/example.py", f'text = "{"a" * 120}"\n')
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from datetime import datetime\n\ndatetime.now()\n",
+        "import datetime\n\ndatetime.datetime.now()\n",
+        "from datetime import date\n\ndate.today()\n",
+        "import datetime\n\ndatetime.date.today()\n",
+        "import time\n\ntime.time()\n",
+        "from time import time\n\ntime()\n",
+        "import importlib\n\nimportlib.import_module('app.infrastructure')\n",
+        "from importlib import import_module\n\nimport_module('app.infrastructure')\n",
+    ],
+)
+def test_環境日時と動的import_本番で直接呼ぶと_禁止API違反になる(
+    tmp_path: Path, source: str
+) -> None:
+    result = _lint(tmp_path, "app/example.py", source)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "TID251" in result.stdout
+
+
+def test_相対import_本番で使うと_相対import禁止違反になる(tmp_path: Path) -> None:
+    result = _lint(
+        tmp_path, "app/example.py", "from .other import value\nprint(value)\n"
+    )
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "TID252" in result.stdout
+
+
+def test_環境日時_インフラやテストで使うと_禁止APIが除外される(tmp_path: Path) -> None:
+    infra_result = _lint(
+        tmp_path,
+        "app/infrastructure/system_clock.py",
+        "from datetime import UTC, datetime\n\nx = datetime.now(UTC)\n",
+    )
+    assert infra_result.returncode == 0, infra_result.stdout + infra_result.stderr
+
+    test_result = _lint(
+        tmp_path,
+        "tests/test_example.py",
+        "from datetime import date\n\nx = date.today()\n",
+    )
+    assert test_result.returncode == 0, test_result.stdout + test_result.stderr

@@ -47,6 +47,7 @@ select = [
     "C4",     # 内包表記の簡素化
     "SIM",    # 条件分岐等の簡素化
     "TID251", # 指定APIの使用禁止
+    "TID252", # 相対importの禁止
     "RUF012", # 可変なクラス属性の初期値
     "RUF100", # 不要なnoqa
 ]
@@ -55,10 +56,49 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["TID251"]
+"tests/**" = ["TID251", "TID252"]
+"tools/**" = ["TID251", "TID252"]
+"migrations/**" = ["TID251", "TID252"]
+"app/infrastructure/**" = ["TID251"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api."dataclasses.asdict"]
 msg = "公開JSONや辞書への変換に dataclasses.asdict() は使用せず、明示的なマッパーまたは .value 変換を使用してください。"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api."datetime.datetime.now"]
+msg = "業務層での環境日時の直接取得は禁止されています。注入された Clock (business_now / business_date) を使用してください。"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api."datetime.datetime.today"]
+msg = "業務層での環境日時の直接取得は禁止されています。注入された Clock (business_now / business_date) を使用してください。"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api."datetime.datetime.utcnow"]
+msg = "業務層での環境日時の直接取得は禁止されています。注入された Clock (business_now / business_date) を使用してください。"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api."datetime.datetime.utcfromtimestamp"]
+msg = "業務層での環境日時の直接取得は禁止されています。注入された Clock (business_now / business_date) を使用してください。"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api."datetime.date.today"]
+msg = "業務層での環境日時の直接取得は禁止されています。注入された Clock (business_now / business_date) を使用してください。"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api."time.time"]
+msg = "業務層での環境時刻の直接取得は禁止されています。注入された Clock を使用してください。"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api."time.time_ns"]
+msg = "業務層での環境時刻の直接取得は禁止されています。注入された Clock を使用してください。"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api."time.localtime"]
+msg = "業務層での環境時刻の直接取得は禁止されています。注入された Clock を使用してください。"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api."time.gmtime"]
+msg = "業務層での環境時刻の直接取得は禁止されています。注入された Clock を使用してください。"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api."builtins.__import__"]
+msg = "動的 import は禁止されています。静的な絶対 import を使用してください。"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api."importlib.import_module"]
+msg = "動的 import は禁止されています。静的な絶対 import を使用してください。"
 
 [tool.ruff.format]
 quote-style = "double"
@@ -366,7 +406,7 @@ include_external_packages = true
 
 [[tool.importlinter.contracts]]
 id = "domain-layers"
-name = "Domainは外側の層を参照しない"
+name = "Domainは外側の層と外部フレームワークを参照しない"
 type = "forbidden"
 source_modules = ["app.domain"]
 forbidden_modules = [
@@ -376,11 +416,13 @@ forbidden_modules = [
     "app.bootstrap",
     "app.main",
     "app.dev_main",
+    "fastapi",
+    "sqlalchemy",
 ]
 
 [[tool.importlinter.contracts]]
 id = "application-layers"
-name = "Applicationは技術実装とHTTP境界を参照しない"
+name = "Applicationは技術実装・HTTP境界・外部フレームワークを参照しない"
 type = "forbidden"
 source_modules = ["app.application"]
 forbidden_modules = [
@@ -389,6 +431,8 @@ forbidden_modules = [
     "app.bootstrap",
     "app.main",
     "app.dev_main",
+    "fastapi",
+    "sqlalchemy",
 ]
 
 [[tool.importlinter.contracts]]
@@ -402,7 +446,7 @@ allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
 id = "presentation-infrastructure"
-name = "PresentationはInfrastructureを直接参照しない"
+name = "PresentationはInfrastructureとSQLAlchemyを直接参照しない"
 type = "forbidden"
 source_modules = ["app.presentational", "app.presentational.**"]
 forbidden_modules = [
@@ -411,6 +455,7 @@ forbidden_modules = [
     "app.bootstrap",
     "app.main",
     "app.dev_main",
+    "sqlalchemy",
 ]
 as_packages = false
 allow_indirect_imports = true

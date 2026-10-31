@@ -93,8 +93,8 @@ This project has a knowledge graph at graphify-out/ with god nodes, community st
 - Domain内部は識別子・例外・Primitive、複合値、Entity、Repository抽象、Serviceの順で内側へ依存する。集約内の値はその集約の責務として扱い、独立した複合値や子Entityをprimitives/value_objectsへ混在させない。個別の役割モジュールを追加した場合はImport Linterの対応する契約にも登録する。
 - Domainの業務コンテキスト直下は `identifiers.py`・`exceptions.py`・`primitives.py`・`value_objects.py`・`entities.py`・`repositories.py`・`services.py` の役割名に統一する。必要な役割だけを置き、旧名の再公開Facadeや責務別ディレクトリは作らない。同じファイルに複数集約を置いても集約の整合性境界は維持する。基盤の `foundation` と共有語彙の `shared` はこのファイル名制約の対象外とする。配置は `tests/tools/test_domain_module_layout.py`、定義の責務は `test_domain_model_roles.py`、依存方向はImport Linterと違反注入テストで検証する。
 - 新しい業務コンテキストやUseCaseを追加したら、Applicationの許可方向と、入力・出力・参照契約の禁止先を更新する。契約の網羅性と違反注入テストを通し、未登録の名前で検査をすり抜けさせない。
-- RuffはE/W/F/I/B/UP/C4/SIM/TID251/RUF012/RUF100を有効にし、E501はformatへ任せる。公開JSON・保存JSONはdataclasses.asdictを使わず明示変換する。テストの比較用変換だけは除外する。
-- 業務層の現在日時は注入時計から得る。RuffのDTZ設定への依存をやめ、環境日時取得のAST検査をpytestから実行する。実時計はInfrastructureに置く。
+- RuffはE/W/F/I/B/UP/C4/SIM/TID251/TID252/RUF012/RUF100を有効にし、E501はformatへ任せる。公開JSON・保存JSONはdataclasses.asdictを使わず明示変換する。相対importを一律禁止し、テストの比較用変換だけは除外する。
+- 業務層の現在日時は注入時計から得る。環境日時の直接取得（datetime.now / date.today / time.time等）や動的importはRuffのTID251（banned-api）で拒否する。実時計はInfrastructureに置く。
 
 
 ## フロントエンドの品質ゲート

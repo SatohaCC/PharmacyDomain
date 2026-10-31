@@ -67,6 +67,7 @@ def _run_contract(
     lines = [
         "[tool.importlinter]",
         'root_package = "app"',
+        "include_external_packages = true",
         "[[tool.importlinter.contracts]]",
     ]
     for key, value in contract.items():
@@ -93,9 +94,14 @@ def _run_contract(
     ("contract_id", "source", "target"),
     [
         ("domain-layers", "app.domain.example", "app.application.example"),
+        ("domain-layers", "app.domain.example", "fastapi"),
+        ("domain-layers", "app.domain.example", "sqlalchemy"),
         ("application-layers", "app.application.example", "app.infrastructure.example"),
+        ("application-layers", "app.application.example", "fastapi"),
+        ("application-layers", "app.application.example", "sqlalchemy"),
         ("presentation-domain", "app.presentational.example", "app.domain.example"),
         ("presentation-infrastructure", "app.presentational.example", "app.bootstrap"),
+        ("presentation-infrastructure", "app.presentational.example", "sqlalchemy"),
         (
             "domain-primitives",
             "app.domain.example.primitives",
