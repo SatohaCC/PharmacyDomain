@@ -29,7 +29,7 @@ export const 失敗しても入力を保持する: StoryObj<typeof meta> = {
     );
     await userEvent.type(c.getByLabelText(/管理者の姓（カナ）/), "テスト");
     await userEvent.type(c.getByLabelText(/管理者の名（カナ）/), "ハナコ");
-    await userEvent.type(c.getByLabelText(/ログインID/), "test-admin");
+    await userEvent.type(c.getByLabelText(/メールアドレス/), "test-admin@example.com");
     await userEvent.type(
       c.getByLabelText(/初期パスワード/),
       "test-initial-password-12345",

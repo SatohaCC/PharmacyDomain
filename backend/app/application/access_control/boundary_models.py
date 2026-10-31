@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.identity.identifiers import CorporateMembershipId
+from app.domain.identity.identifiers import CorporateMembershipId, VendorOperatorId
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.identifiers import StaffId
 from app.domain.store.identifiers import StoreId
@@ -99,12 +99,15 @@ class ActorContext:
 class ResolvedActorContext(ActorContext):
     """本人と内部アカウントを照合済みの操作主体。"""
 
-    person_id: AccountPersonId
-    account_id: UserAccountId
+    person_id: AccountPersonId | None = None
+    account_id: UserAccountId | None = None
+    operator_id: VendorOperatorId | None = None
     membership_id: CorporateMembershipId | None = None
     staff_id: StaffId | None = None
     store_ids: frozenset[StoreId] = frozenset()
     managed_store_ids: frozenset[StoreId] = frozenset()
+    selected_store_id: StoreId | None = None
+    require_store_selection: bool = False
 
     def __post_init__(self) -> None:
         """店舗ロールが法人スコープを持つことを、構築の時点で確かめる。
@@ -114,6 +117,14 @@ class ResolvedActorContext(ActorContext):
         持ち主の側に置く。
         """
         super().__post_init__()
+        if ActorRole.VENDOR_SYSTEM_ADMIN in self.roles:
+            if self.operator_id is None and (
+                self.person_id is None or self.account_id is None
+            ):
+                raise ValueError("運営者には運営者IDまたは本人・アカウントが必要です。")
+            return
+        if self.person_id is None or self.account_id is None:
+            raise ValueError("法人利用者には本人とアカウントが必要です。")
         if (
             self.roles
             & {
@@ -130,3 +141,10 @@ class ResolvedActorContext(ActorContext):
             raise ValueError("管理薬剤師の管理対象は利用可能な一店舗に限ります。")
         if (ActorRole.STORE_MANAGER in self.roles) != bool(self.managed_store_ids):
             raise ValueError("管理薬剤師権限には管理対象店舗が必要です。")
+        if (
+            self.selected_store_id is not None
+            and self.selected_store_id not in self.store_ids
+        ):
+            raise ValueError(
+                "選択中の店舗は利用可能な店舗集合に含まれている必要があります。"
+            )

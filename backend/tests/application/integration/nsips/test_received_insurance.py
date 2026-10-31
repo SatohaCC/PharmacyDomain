@@ -19,6 +19,7 @@ from app.application.integration.boundary_models import NsipsBundle, NsipsInsura
 from app.application.integration.commands.ingest_nsips import IngestNsipsCommand
 from app.application.integration.commands.services.parser import NsipsParser
 from app.domain.coverage.services import PatientCoverageConflictService
+from app.domain.medication_history.primitives import ExternalCorrectionKind
 from app.domain.patient.identifiers import PatientId
 from app.domain.reception.identifiers import ReceptionId
 from tests.application.access_helpers import create_vendor_corporate_access_for
@@ -86,7 +87,6 @@ async def test_受付取込_保険情報を別受付で受信_原本を保存し
     first_command = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        dispenser_staff_id=str(fixture.pharmacist_id.value),
         reception_id=str(ReceptionId.generate().value),
         structured_bundle=_bundle(),
     )
@@ -110,13 +110,13 @@ async def test_受付取込_保険情報を別受付で受信_原本を保存し
 
     # Assert
     assert second.patient_id == first.patient_id
-    assert second.prescription_id is not None
-    assert second.dispensing_id is not None
+    assert second.prescription_id is None
+    assert second.dispensing_id is None
     assert second.coverage_selection_record_id is None
     assert resent.is_duplicate is True
-    assert resent.prescription_id == second.prescription_id
-    assert len(fixture.prescription_repo.items) == 2
-    assert len(fixture.dispensing_repo.items) == 2
+    assert resent.prescription_id is None
+    assert len(fixture.prescription_repo.items) == 0
+    assert len(fixture.dispensing_repo.items) == 0
     assert fixture.patient_coverage_repo.items == {}
     assert fixture.coverage_selection_repo.items == {}
     for key, reception in original.items():
@@ -143,7 +143,6 @@ async def test_受付取込_既存資格がある_変更せず受信情報を保
     command = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        dispenser_staff_id=str(fixture.pharmacist_id.value),
         reception_id=str(ReceptionId.generate().value),
         structured_bundle=_bundle(),
     )
@@ -192,7 +191,7 @@ async def test_受付取込_既存資格がある_変更せず受信情報を保
     )
 
     # Assert
-    assert result.prescription_id is not None and result.dispensing_id is not None
+    assert result.prescription_id is None and result.dispensing_id is None
     assert result.coverage_selection_record_id is None
     assert fixture.patient_coverage_repo.items == before
     assert fixture.coverage_selection_repo.items == {}
@@ -215,14 +214,19 @@ async def test_受付取込_同一受付の保険訂正_受信履歴を保持し
     command = IngestNsipsCommand(
         corporate_id=str(fixture.corporate_id.value),
         store_id=str(fixture.store_id.value),
-        dispenser_staff_id=str(fixture.pharmacist_id.value),
         reception_id=str(reception_id.value),
         structured_bundle=bundle,
     )
     first = await fixture.use_case.execute(command)
     changed_insurance = replace(_INSURANCE, insurer_number="138002", benefit_ratio=None)
     changed = replace(
-        command, structured_bundle=replace(bundle, insurance=changed_insurance)
+        command,
+        structured_bundle=replace(
+            bundle,
+            insurance=changed_insurance,
+            correction_kind=ExternalCorrectionKind.UPDATE,
+        ),
+        expected_fingerprint=first.source_fingerprint,
     )
 
     # Act
@@ -230,8 +234,8 @@ async def test_受付取込_同一受付の保険訂正_受信履歴を保持し
     resent = await fixture.use_case.execute(changed)
 
     # Assert
-    assert corrected.prescription_id == first.prescription_id
-    assert corrected.dispensing_id == first.dispensing_id
+    assert corrected.prescription_id is None
+    assert corrected.dispensing_id is None
     assert corrected.coverage_review_required is True
     assert resent.is_duplicate is True
     assert resent.coverage_review_required is True
@@ -251,7 +255,7 @@ async def test_受付取込_同一受付の保険訂正_受信履歴を保持し
     ] == asdict(_INSURANCE)
     assert len(stored.correction_history) == 1
     assert len(fixture.reception_repo.items) == 1
-    assert len(fixture.prescription_repo.items) == (0 if follow_up else 1)
-    assert len(fixture.dispensing_repo.items) == (0 if follow_up else 1)
+    assert len(fixture.prescription_repo.items) == 0
+    assert len(fixture.dispensing_repo.items) == 0
     assert fixture.patient_coverage_repo.items == {}
     assert fixture.coverage_selection_repo.items == {}

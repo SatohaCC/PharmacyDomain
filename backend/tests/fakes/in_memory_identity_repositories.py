@@ -2,27 +2,30 @@
 
 from collections.abc import Collection
 
+from app.application.identity.boundary_interfaces.local_authentication import (
+    CredentialWriter,
+)
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.entities import (
     AccountPerson,
     CorporateMembership,
     StaffPersonLink,
     UserAccount,
-    UserInvitation,
+    VendorOperator,
 )
 from app.domain.identity.exceptions import IdentityConflictError
-from app.domain.identity.identifiers import CorporateMembershipId, UserInvitationId
+from app.domain.identity.identifiers import CorporateMembershipId, VendorOperatorId
 from app.domain.identity.primitives import (
     AccountStatus,
+    CorporateUserEmail,
     ExternalSubjectKey,
-    InvitationDigest,
 )
 from app.domain.identity.repositories import (
     AccountPersonRepository,
     CorporateMembershipRepository,
     StaffPersonLinkRepository,
     UserAccountRepository,
-    UserInvitationRepository,
+    VendorOperatorRepository,
 )
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.identifiers import StaffId
@@ -37,6 +40,14 @@ class InMemoryAccountPersonRepository(AccountPersonRepository):
     async def get(self, person_id: AccountPersonId) -> AccountPerson | None:
         return self.items.get(person_id)
 
+    async def find_for_corporate(
+        self, corporate_id: CorporateId, person_id: AccountPersonId
+    ) -> AccountPerson | None:
+        person = self.items.get(person_id)
+        if person is not None and person.corporate_id == corporate_id:
+            return person
+        return None
+
     async def save(self, person: AccountPerson) -> None:
         self.items[person.id] = person
 
@@ -50,22 +61,48 @@ class InMemoryUserAccountRepository(UserAccountRepository):
     async def get(self, account_id: UserAccountId) -> UserAccount | None:
         return self.items.get(account_id)
 
-    async def get_by_person(self, person_id: AccountPersonId) -> UserAccount | None:
+    async def find_for_corporate(
+        self, corporate_id: CorporateId, account_id: UserAccountId
+    ) -> UserAccount | None:
+        account = self.items.get(account_id)
+        if account is not None and account.corporate_id == corporate_id:
+            return account
+        return None
+
+    async def get_by_person(
+        self, corporate_id: CorporateId, person_id: AccountPersonId
+    ) -> UserAccount | None:
         return next(
-            (item for item in self.items.values() if item.person_id == person_id), None
+            (
+                item
+                for item in self.items.values()
+                if item.corporate_id == corporate_id and item.person_id == person_id
+            ),
+            None,
         )
 
     async def save(self, account: UserAccount) -> None:
         previous = self.items.get(account.id)
-        if previous is not None and previous.person_id != account.person_id:
+        if previous is not None and (
+            previous.person_id != account.person_id
+            or previous.corporate_id != account.corporate_id
+            or (
+                previous.external_subject is not None
+                and previous.external_subject != account.external_subject
+            )
+        ):
             raise IdentityConflictError()
         if any(
-            item.person_id == account.person_id and item.id != account.id
+            item.corporate_id == account.corporate_id
+            and item.person_id == account.person_id
+            and item.id != account.id
             for item in self.items.values()
         ):
             raise IdentityConflictError()
         if account.external_subject is not None and any(
-            item.id != account.id and item.external_subject == account.external_subject
+            item.id != account.id
+            and item.corporate_id == account.corporate_id
+            and item.external_subject == account.external_subject
             for item in self.items.values()
         ):
             raise IdentityConflictError()
@@ -146,6 +183,14 @@ class InMemoryStaffPersonLinkRepository(StaffPersonLinkRepository):
     async def get(self, staff_id: StaffId) -> StaffPersonLink | None:
         return self.items.get(staff_id)
 
+    async def find_for_corporate(
+        self, corporate_id: CorporateId, staff_id: StaffId
+    ) -> StaffPersonLink | None:
+        link = self.items.get(staff_id)
+        if link is not None and link.corporate_id == corporate_id:
+            return link
+        return None
+
     async def save(self, link: StaffPersonLink) -> None:
         existing = self.items.get(link.id)
         if existing is not None and (
@@ -156,19 +201,50 @@ class InMemoryStaffPersonLinkRepository(StaffPersonLinkRepository):
         self.items[link.id] = link
 
 
-class InMemoryUserInvitationRepository(UserInvitationRepository):
-    """招待秘密の平文を保存しない。"""
+class InMemoryVendorOperatorRepository(VendorOperatorRepository):
+    """インメモリ運営者リポジトリ。"""
 
     def __init__(self) -> None:
-        self.items: dict[UserInvitationId, UserInvitation] = {}
+        self.items: dict[VendorOperatorId, VendorOperator] = {}
 
-    async def get(self, invitation_id: UserInvitationId) -> UserInvitation | None:
-        return self.items.get(invitation_id)
+    async def get(self, operator_id: VendorOperatorId) -> VendorOperator | None:
+        return self.items.get(operator_id)
 
-    async def find_by_digest(self, digest: InvitationDigest) -> UserInvitation | None:
+    async def get_by_subject(
+        self, subject: ExternalSubjectKey
+    ) -> VendorOperator | None:
         return next(
-            (item for item in self.items.values() if item.secret_digest == digest), None
+            (item for item in self.items.values() if item.external_subject == subject),
+            None,
         )
 
-    async def save(self, invitation: UserInvitation) -> None:
-        self.items[invitation.id] = invitation
+    async def get_by_email(self, email: CorporateUserEmail) -> VendorOperator | None:
+        return next(
+            (item for item in self.items.values() if item.email == email),
+            None,
+        )
+
+    async def save(self, operator: VendorOperator) -> None:
+        for existing in self.items.values():
+            if existing.id != operator.id:
+                if existing.email == operator.email:
+                    raise IdentityConflictError(
+                        "このメールアドレスの運営者は既に登録されています。"
+                    )
+                if existing.external_subject == operator.external_subject:
+                    raise IdentityConflictError(
+                        "この外部主体の運営者は既に登録されています。"
+                    )
+        self.items[operator.id] = operator
+
+
+class FakeCredentialWriter(CredentialWriter):
+    """インメモリ資格情報書き込み。"""
+
+    def __init__(self) -> None:
+        self.issued: list[tuple[CorporateId, str, str, str]] = []
+
+    async def issue(
+        self, corporate_id: CorporateId, email: str, password: str, subject: str
+    ) -> None:
+        self.issued.append((corporate_id, email, password, subject))

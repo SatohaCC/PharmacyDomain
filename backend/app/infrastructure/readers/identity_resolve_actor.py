@@ -7,14 +7,22 @@ from app.application.identity.queries.dtos.identity_resolution import (
     IdentityResolutionSnapshot,
     ManagerIdentitySnapshot,
     MembershipIdentitySnapshot,
+    StaffAffiliationIdentitySnapshot,
+    StoreIdentitySnapshot,
 )
-from app.domain.identity.primitives import ExternalSubjectKey
+from app.domain.identity.primitives import AccountStatus, ExternalSubjectKey
 from app.domain.identity.repositories import (
     AccountPersonRepository,
     CorporateMembershipRepository,
     UserAccountRepository,
+    VendorOperatorRepository,
 )
-from app.domain.store.repositories import StoreManagerAssignmentRepository
+from app.domain.staff.repositories import StaffRepository
+from app.domain.store.primitives import StoreStatus
+from app.domain.store.repositories import (
+    StoreManagerAssignmentRepository,
+    StoreRepository,
+)
 
 
 class ResolveActorProjection(ResolveActorQueryReader):
@@ -26,16 +34,34 @@ class ResolveActorProjection(ResolveActorQueryReader):
         accounts: UserAccountRepository,
         memberships: CorporateMembershipRepository,
         managers: StoreManagerAssignmentRepository,
+        vendor_operators: VendorOperatorRepository | None = None,
+        staffs: StaffRepository | None = None,
+        stores: StoreRepository | None = None,
     ) -> None:
         self._people = people
         self._accounts = accounts
         self._memberships = memberships
         self._managers = managers
+        self._vendor_operators = vendor_operators
+        self._staffs = staffs
+        self._stores = stores
 
     async def get_by_subject(
         self, subject: ExternalSubjectKey
     ) -> IdentityResolutionSnapshot | None:
         """主体からアカウントを引き、欠落を含む関連情報を不変の投影で返す。"""
+        if self._vendor_operators is not None and subject.value.startswith("vendor:"):
+            operator = await self._vendor_operators.get_by_subject(subject)
+            if operator is None:
+                return None
+            return IdentityResolutionSnapshot(
+                operator_id=operator.id,
+                external_subject=subject,
+                account_status=AccountStatus.ACTIVE
+                if operator.is_active
+                else AccountStatus.SUSPENDED,
+                is_vendor_admin=True,
+            )
         account = await self._accounts.get_by_subject(subject)
         if account is None:
             return None
@@ -48,6 +74,42 @@ class ResolveActorProjection(ResolveActorQueryReader):
             if membership is not None and membership.staff_id is not None
             else []
         )
+        staff_is_active: bool | None = None
+        staff_affiliations: tuple[StaffAffiliationIdentitySnapshot, ...] = ()
+        loaded_stores: list[StoreIdentitySnapshot] = []
+        if membership is not None and self._staffs is not None:
+            if membership.staff_id is not None:
+                staff = await self._staffs.get(
+                    corporate_id=membership.corporate_id,
+                    staff_id=membership.staff_id,
+                )
+                if staff is not None and staff.corporate_id == membership.corporate_id:
+                    staff_is_active = staff.is_active
+                    staff_affiliations = tuple(
+                        StaffAffiliationIdentitySnapshot(
+                            store_id=aff.store_id,
+                            starts_on=aff.period.start_date,
+                            ends_on=aff.period.end_date,
+                        )
+                        for aff in staff.affiliations
+                    )
+                else:
+                    staff_is_active = False
+            else:
+                staff_is_active = False
+        if membership is not None and self._stores is not None:
+            for store_id in sorted(membership.store_ids, key=lambda item: item.value):
+                store = await self._stores.get(store_id)
+                if store is not None:
+                    loaded_stores.append(
+                        StoreIdentitySnapshot(
+                            id=store.id,
+                            corporate_id=store.corporate_id,
+                            name=store.names.name.value,
+                            code=store.code.value if store.code is not None else None,
+                            is_active=store.status == StoreStatus.ACTIVE,
+                        )
+                    )
         membership_snapshot = (
             MembershipIdentitySnapshot(
                 id=membership.id,
@@ -70,6 +132,9 @@ class ResolveActorProjection(ResolveActorQueryReader):
                     )
                     for item in assignments
                 ),
+                staff_is_active=staff_is_active,
+                staff_affiliations=staff_affiliations,
+                stores=tuple(loaded_stores),
             )
             if membership is not None
             else None

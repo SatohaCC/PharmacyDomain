@@ -100,6 +100,7 @@ from tests.application.dispensing.helpers import (
     create_fixture,
     create_inquiry_substituted_medicine_input,
     create_medicine_input,
+    create_resolved_actor,
     create_rp_input,
     create_start_command,
     create_substituted_medicine_input,
@@ -426,7 +427,8 @@ class Test認可と法人境界:
     async def test_在籍していないスタッフは_404相当になる(self) -> None:
         # Arrange
         fixture = create_fixture()
-        command = create_start_command(fixture, dispenser_id=StaffId.generate())
+        fixture.staff_qualification.qualifications.clear()
+        command = create_start_command(fixture)
 
         # Act / Assert
         with pytest.raises(DispensingStaffNotFoundError):
@@ -452,8 +454,8 @@ class Test薬剤師資格:
 
     async def test_薬剤師資格が無いと_調剤できない(self) -> None:
         # Arrange
-        fixture = create_fixture()
         clerk_id = StaffId.generate()
+        fixture = create_fixture(actor=create_resolved_actor(staff_id=clerk_id))
         fixture.staff_qualification.register(
             corporate_id=fixture.corporate_id,
             staff_id=clerk_id,
@@ -462,15 +464,15 @@ class Test薬剤師資格:
 
         # Act / Assert
         with pytest.raises(DispensingPharmacistQualificationError, match="調剤者"):
-            await fixture.start.execute(
-                create_start_command(fixture, dispenser_id=clerk_id)
-            )
+            await fixture.start.execute(create_start_command(fixture))
 
     async def test_薬剤師資格が無いと_最終鑑査できない(self) -> None:
         # Arrange
-        fixture = create_fixture()
-        dispensing_id = await _start(fixture)
         clerk_id = StaffId.generate()
+        fixture = create_fixture(
+            verifier_actor=create_resolved_actor(staff_id=clerk_id)
+        )
+        dispensing_id = await _start(fixture)
         fixture.staff_qualification.register(
             corporate_id=fixture.corporate_id,
             staff_id=clerk_id,
@@ -483,7 +485,6 @@ class Test薬剤師資格:
                 VerifyDispensingCommand(
                     corporate_id=str(fixture.corporate_id.value),
                     dispensing_id=dispensing_id,
-                    verifier_id=str(clerk_id.value),
                     result="passed",
                 )
             )
@@ -496,7 +497,9 @@ class Test薬剤師資格:
         1人しかいない適法な体制で調剤を完了できなくなる。
         """
         # Arrange
-        fixture = create_fixture()
+        dispenser_id = StaffId.generate()
+        actor = create_resolved_actor(staff_id=dispenser_id)
+        fixture = create_fixture(actor=actor, verifier_actor=actor)
         dispensing_id = await _start(fixture)
 
         # Act
@@ -504,7 +507,6 @@ class Test薬剤師資格:
             VerifyDispensingCommand(
                 corporate_id=str(fixture.corporate_id.value),
                 dispensing_id=dispensing_id,
-                verifier_id=str(fixture.dispenser_id.value),
                 result="passed",
             )
         )
@@ -512,7 +514,7 @@ class Test薬剤師資格:
         # Assert
         assert actual.status == DispensingProcessStatus.VERIFIED.value
         assert actual.verification is not None
-        assert actual.verification.verifier_id == str(fixture.dispenser_id.value)
+        assert actual.verification.verifier_id == str(dispenser_id.value)
 
 
 class Test処方箋との整合:
@@ -1411,7 +1413,10 @@ async def _shared_prescription_fixtures() -> tuple[
     )
     start = StartDispensingUseCase(
         dispensing.repository,
-        create_vendor_corporate_access_for(dispensing.corporate_repository),
+        create_vendor_corporate_access_for(
+            dispensing.corporate_repository,
+            actor=create_resolved_actor(staff_id=dispensing.dispenser_id),
+        ),
         dispensing.store_reference,
         PrescriptionSourceAdapter(inquiry.repository),
         dispensing.staff_qualification,

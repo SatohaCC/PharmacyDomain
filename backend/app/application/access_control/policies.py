@@ -8,7 +8,10 @@ from app.application.access_control.boundary_models import (
     Permission,
     ResolvedActorContext,
 )
-from app.application.access_control.errors import TenantBoundaryNotFoundError
+from app.application.access_control.errors import (
+    StoreContextRequiredError,
+    TenantBoundaryNotFoundError,
+)
 from app.application.common.exceptions import AuthorizationError
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.store.identifiers import StoreId
@@ -140,8 +143,21 @@ class AuthorizationService:
         if (
             not isinstance(actor, ResolvedActorContext)
             or actor.corporate_id != target_corporate_id
-            or target_store_id not in actor.store_ids
         ):
+            raise TenantBoundaryNotFoundError()
+        if (
+            permission in _STORE_BUSINESS_PERMISSIONS
+            and actor.require_store_selection
+            and actor.selected_store_id is None
+        ):
+            raise StoreContextRequiredError()
+        if (
+            permission in _STORE_BUSINESS_PERMISSIONS
+            and actor.selected_store_id is not None
+            and target_store_id != actor.selected_store_id
+        ):
+            raise TenantBoundaryNotFoundError()
+        if target_store_id not in actor.store_ids:
             raise TenantBoundaryNotFoundError()
         if ActorRole.CORPORATE_ADMIN in actor.roles:
             self.require(permission=permission, target_corporate_id=target_corporate_id)
@@ -176,13 +192,20 @@ class AuthorizationService:
             and self._actor.corporate_id != target_corporate_id
         ):
             raise TenantBoundaryNotFoundError()
+        actor = self._actor
+        if (
+            isinstance(actor, ResolvedActorContext)
+            and permission in _STORE_BUSINESS_PERMISSIONS
+            and actor.require_store_selection
+            and actor.selected_store_id is None
+        ):
+            raise StoreContextRequiredError()
         if (
             ActorRole.CORPORATE_ADMIN in self._actor.roles
             and permission in _CORPORATE_ADMIN_PERMISSIONS
             and (self._actor.corporate_id == target_corporate_id)
         ):
             return
-        actor = self._actor
         if (
             isinstance(actor, ResolvedActorContext)
             and actor.corporate_id == target_corporate_id

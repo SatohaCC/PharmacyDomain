@@ -29,6 +29,24 @@ from app.infrastructure.postgres.schema import stores
 
 def _store_columns(store: Store) -> dict[str, object]:
     """検索・一意性制約に使う列を店舗から導く。"""
+    pharmacy_number = None
+    pharmacy_from = None
+    pharmacy_to = None
+    narcotics_number = None
+    narcotics_from = None
+    narcotics_to = None
+
+    if store.licenses is not None:
+        pl = store.licenses.pharmacy_license
+        pharmacy_number = pl.number.value
+        pharmacy_from = pl.valid_from
+        pharmacy_to = pl.valid_to
+        if store.licenses.narcotics_retailer_license is not None:
+            nl = store.licenses.narcotics_retailer_license
+            narcotics_number = nl.number.value
+            narcotics_from = nl.valid_from
+            narcotics_to = nl.valid_to
+
     return {
         "id": store.id.value,
         "corporate_id": store.corporate_id.value,
@@ -39,6 +57,12 @@ def _store_columns(store: Store) -> dict[str, object]:
             if store.insurance_pharmacy_number is None
             else store.insurance_pharmacy_number.value
         ),
+        "pharmacy_license_number": pharmacy_number,
+        "pharmacy_license_valid_from": pharmacy_from,
+        "pharmacy_license_valid_to": pharmacy_to,
+        "narcotics_license_number": narcotics_number,
+        "narcotics_license_valid_from": narcotics_from,
+        "narcotics_license_valid_to": narcotics_to,
     }
 
 

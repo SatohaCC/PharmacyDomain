@@ -48,6 +48,7 @@ class ReadScopeKind(StrEnum):
 READ_SCOPE_KINDS: Final[Mapping[str, ReadScopeKind]] = {
     "local_credentials": ReadScopeKind.DENIED,
     "local_sessions": ReadScopeKind.DENIED,
+    "vendor_operators": ReadScopeKind.DENIED,
     # 薬価基準は国が定めるので法人ごとに内容が違わない。
     "medicines": ReadScopeKind.GLOBAL,
     "corporates": ReadScopeKind.CORPORATE_ITSELF,
@@ -63,7 +64,6 @@ READ_SCOPE_KINDS: Final[Mapping[str, ReadScopeKind]] = {
     "patient_medical_profiles": ReadScopeKind.CORPORATE,
     "medication_history_category_catalogs": ReadScopeKind.CORPORATE,
     "corporate_memberships": ReadScopeKind.CORPORATE,
-    "user_invitations": ReadScopeKind.CORPORATE,
     "staff_person_links": ReadScopeKind.CORPORATE,
     # 店舗で発生する記録。
     "prescriptions": ReadScopeKind.STORE,
@@ -95,6 +95,7 @@ class RepositoryReadScope:
     account_id: UUID
     managed_store_ids: tuple[UUID, ...] = ()
     corporate_administration: bool = False
+    selected_store_ids: tuple[UUID, ...] | None = None
 
     def apply(self, table: Table, statement: Select[Any]) -> Select[Any]:
         """テーブルごとに宣言された範囲を取得条件へ足す。
@@ -160,7 +161,10 @@ class RepositoryReadScope:
             )
 
         statement = statement.where(table.c.corporate_id == self.corporate_id)
-        if self.corporate_administration and kind is not ReadScopeKind.STORE:
+        if self.corporate_administration and (
+            kind is not ReadScopeKind.STORE
+            or table.name in {"store_manager_assignments", "operation_audits"}
+        ):
             return statement
         if table.name == "corporate_memberships" and self.managed_store_ids:
             return statement.where(
@@ -174,7 +178,14 @@ class RepositoryReadScope:
         if kind is ReadScopeKind.STORE_ITSELF:
             return statement.where(table.c.id.in_(self.store_ids))
         if kind is ReadScopeKind.STORE:
-            return statement.where(table.c.store_id.in_(self.store_ids))
+            if table.name in {"store_manager_assignments", "operation_audits"}:
+                return statement.where(table.c.store_id.in_(self.store_ids))
+            effective_store_ids = (
+                self.selected_store_ids
+                if self.selected_store_ids is not None
+                else self.store_ids
+            )
+            return statement.where(table.c.store_id.in_(effective_store_ids))
         return statement.where(exists(self._visible_affiliation(table)))
 
     def _managed_store_condition(self, table: FromClause) -> Any:

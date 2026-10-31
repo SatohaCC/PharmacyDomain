@@ -66,6 +66,20 @@ class ManagerExclusiveDutyConflictError(DomainError):
     default_code = "MANAGER_EXCLUSIVE_DUTY_CONFLICT"
 
 
+class PharmacyLicenseRequiredConflictError(StoreDomainError):
+    """店舗の薬局開設許可が登録されていないか有効期間外のため、この操作を実行できません。"""
+
+    default_message = "店舗の薬局開設許可が登録されていないか有効期間外のため、この操作を実行できません。"
+    default_code = "PHARMACY_LICENSE_REQUIRED"
+
+
+class NarcoticsLicenseRequiredConflictError(StoreDomainError):
+    """麻薬小売業者免許が登録されていないか有効期間外のため、麻薬に関する操作を実行できません。"""
+
+    default_message = "麻薬小売業者免許が登録されていないか有効期間外のため、麻薬に関する操作を実行できません。"
+    default_code = "NARCOTICS_LICENSE_REQUIRED"
+
+
 class StoreNameAlreadyExistsError(StoreDomainError):
     """同一法人内に同名の店舗が既に存在する場合の例外"""
 
@@ -85,3 +99,12 @@ class InsurancePharmacyNumberAlreadyExistsError(StoreDomainError):
 
     default_message = "指定された保険薬局指定番号は既に別の店舗で登録されています。"
     default_code = "INSURANCE_PHARMACY_NUMBER_ALREADY_EXISTS"
+
+
+class StorePolicyOverrideConflictError(StoreDomainError):
+    """法人で上書きが禁止されているポリシー項目を店舗で上書きしようとした場合の例外。"""
+
+    default_message = (
+        "法人で上書きが禁止されているポリシー項目を店舗で上書きすることはできません。"
+    )
+    default_code = "STORE_POLICY_OVERRIDE_NOT_ALLOWED"

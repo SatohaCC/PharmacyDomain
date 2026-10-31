@@ -114,7 +114,11 @@ class ChangeMembershipUseCase:
                 if actor.membership_id is not None
                 else None
             )
-            own_account = await self._repositories.accounts.get(actor.account_id)
+            own_account = (
+                await self._repositories.accounts.get(actor.account_id)
+                if actor.account_id is not None
+                else None
+            )
             if (
                 appointment is None
                 or appointment.staff_id != actor.staff_id

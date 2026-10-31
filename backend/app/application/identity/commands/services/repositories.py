@@ -9,7 +9,7 @@ from app.domain.identity.repositories import (
     CorporateMembershipRepository,
     StaffPersonLinkRepository,
     UserAccountRepository,
-    UserInvitationRepository,
+    VendorOperatorRepository,
 )
 
 
@@ -21,4 +21,4 @@ class IdentityRepositories:
     accounts: UserAccountRepository
     memberships: CorporateMembershipRepository
     links: StaffPersonLinkRepository
-    invitations: UserInvitationRepository
+    vendor_operators: VendorOperatorRepository

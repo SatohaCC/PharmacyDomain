@@ -70,9 +70,16 @@ class RevokeStoreClosureUseCase:
         )
         actor = self._access.actor
         if not isinstance(actor, ResolvedActorContext):
-            raise AuthorizationError("閉局の取消には本人とアカウントの特定が必要です。")
+            raise AuthorizationError("閉局の取消には操作主体の特定が必要です。")
+        if actor.operator_id is None and (
+            actor.person_id is None or actor.account_id is None
+        ):
+            raise AuthorizationError(
+                "閉局の取消には運営者または本人とアカウントの特定が必要です。"
+            )
         updated = store.revoke_closure(
             reason=StoreStatusReason(command.reason),
+            operator_id=actor.operator_id,
             person_id=actor.person_id,
             account_id=actor.account_id,
             recorded_at=self._clock.now(),

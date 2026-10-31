@@ -14,9 +14,8 @@ export const listUsers = (
   );
 export const registrationOptions = async (id: string, signal?: AbortSignal) => {
   const options = { params: corporationParams(id), signal };
-  const [stores, staffs] = await Promise.all([
-    result(api.GET("/corporates/{corporate_id}/stores", options)),
-    result(api.GET("/corporates/{corporate_id}/staffs", options)),
-  ]);
-  return { stores, staffs };
+  const stores = await result(
+    api.GET("/corporates/{corporate_id}/stores", options),
+  );
+  return { stores };
 };

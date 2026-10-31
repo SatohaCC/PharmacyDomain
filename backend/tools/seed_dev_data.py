@@ -156,6 +156,7 @@ def build_seed_data() -> SeedData:
     return SeedData(
         vendor_person=AccountPerson(
             id=vendor_person_id,
+            corporate_id=corporate_id,
             names=PersonNames(
                 kanji=PersonName(
                     last_name=PersonNamePart("開発"),
@@ -169,12 +170,14 @@ def build_seed_data() -> SeedData:
         ),
         vendor_account=UserAccount(
             id=UserAccountId.parse(_VENDOR_ACCOUNT_ID),
+            corporate_id=corporate_id,
             person_id=vendor_person_id,
             external_subject=ExternalSubjectKey(_VENDOR_SUBJECT),
             is_vendor_admin=True,
         ),
         admin_person=AccountPerson(
             id=admin_person_id,
+            corporate_id=corporate_id,
             names=PersonNames(
                 kanji=PersonName(
                     last_name=PersonNamePart("調剤"), first_name=PersonNamePart("花子")
@@ -187,6 +190,7 @@ def build_seed_data() -> SeedData:
         ),
         admin_account=UserAccount(
             id=admin_account_id,
+            corporate_id=corporate_id,
             person_id=admin_person_id,
             external_subject=ExternalSubjectKey(_ADMIN_SUBJECT),
         ),
@@ -268,18 +272,16 @@ def build_seed_data() -> SeedData:
 def save_order(data: SeedData) -> tuple[tuple[str, object], ...]:
     """外部キーの向きに従った保存順を返す。
 
-    参照先を後に保存すると、最初の実行が外部キー違反で落ちる。向きは
-    ``account_people`` → ``user_accounts``、``staff_members`` →
-    ``staff_person_links`` → ``corporate_memberships``、そして
-    ``store_manager_assignments`` が ``staff_person_links`` を組で参照する。
+    参照先を後に保存すると、最初の実行が外部キー違反で落ちる。
+    法人・店舗を先に作り、本人・アカウント・スタッフ・所属・任命の順に保存する。
     """
     return (
+        ("corporates", data.corporate),
+        ("stores", data.store),
         ("account_people", data.vendor_person),
         ("account_people", data.admin_person),
         ("user_accounts", data.vendor_account),
         ("user_accounts", data.admin_account),
-        ("corporates", data.corporate),
-        ("stores", data.store),
         ("staff_members", data.staff),
         ("staff_person_links", data.staff_person_link),
         ("corporate_memberships", data.membership),

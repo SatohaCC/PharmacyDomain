@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from typing import Protocol
 
@@ -11,8 +12,37 @@ from app.domain.dispensing.value_objects import (
     PrescriptionSource,
 )
 from app.domain.prescription.identifiers import PrescriptionId
+from app.domain.shared.actor import AccountPersonId
 from app.domain.staff.identifiers import StaffId
 from app.domain.store.identifiers import StoreId
+
+
+@dataclass(frozen=True, kw_only=True)
+class DispensingPolicySnapshot:
+    """店舗の実効調剤ポリシーのスナップショット。"""
+
+    require_prescription_audit: bool = False
+    prohibit_self_verification: bool = False
+
+
+class DispensingPolicyBoundary(Protocol):
+    """調剤操作時に店舗の実効ポリシーを取得する境界。"""
+
+    async def get_effective_policy(
+        self, *, corporate_id: CorporateId, store_id: StoreId
+    ) -> DispensingPolicySnapshot:
+        """店舗の実効調剤ポリシーを取得する。"""
+        ...
+
+
+class StaffPersonBoundary(Protocol):
+    """スタッフに対応する自然人を引く境界。"""
+
+    async def person_of(
+        self, corporate_id: CorporateId, staff_id: StaffId
+    ) -> AccountPersonId | None:
+        """固定済みの本人を返す。未固定・他法人・未存在は None で隠す。"""
+        ...
 
 
 class StoreReferenceBoundary(Protocol):
@@ -26,6 +56,23 @@ class StoreReferenceBoundary(Protocol):
         Raises:
             DispensingStoreNotFoundError: 未存在または別法人の店舗である場合。
                 他テナントの存在を隠すためAuthorizationErrorへ分けない。
+        """
+        ...
+
+    async def require_licensed(
+        self,
+        *,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+        business_on: date,
+        has_narcotics: bool = False,
+    ) -> None:
+        """店舗の許認可（薬局開設許可・麻薬小売業者免許）を確認する。
+
+        Raises:
+            DispensingStoreNotFoundError: 未存在または別法人の店舗である場合。
+            PharmacyLicenseRequiredConflictError: 薬局開設許可が未登録または期間外の場合。
+            NarcoticsLicenseRequiredConflictError: 麻薬調剤で麻薬免許が未登録または期間外の場合。
         """
         ...
 
@@ -81,7 +128,12 @@ class StaffQualificationBoundary(Protocol):
     """
 
     async def get_qualifications(
-        self, *, corporate_id: CorporateId, staff_id: StaffId
+        self,
+        *,
+        corporate_id: CorporateId,
+        staff_id: StaffId,
+        store_id: StoreId | None = None,
+        as_of: date | None = None,
     ) -> PharmacistQualification:
         """指定法人に在籍するスタッフの保有資格を返す。
 
@@ -89,5 +141,6 @@ class StaffQualificationBoundary(Protocol):
             DispensingStaffNotFoundError: 未存在または別法人のスタッフである場合。
                 資格を持たないだけのスタッフはここでは例外にせず、空の
                 ``PharmacistQualification`` を返す（存在はしているため）。
+            AuthorizationError: スタッフが停止中、または指定店舗・業務日に有効な所属がない場合。
         """
         ...

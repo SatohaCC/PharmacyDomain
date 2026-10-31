@@ -31,8 +31,8 @@ from app.infrastructure.identity.postgres.staff_person_link import (
 from app.infrastructure.identity.postgres.user_account import (
     PostgresUserAccountRepository,
 )
-from app.infrastructure.identity.postgres.user_invitation import (
-    PostgresUserInvitationRepository,
+from app.infrastructure.identity.postgres.vendor_operator import (
+    PostgresVendorOperatorRepository,
 )
 from app.infrastructure.medication_history.postgres.medication_history import (
     PostgresMedicationHistoryRepository,
@@ -79,7 +79,7 @@ class PostgresRepositorySet:
     user_account: PostgresUserAccountRepository
     membership: PostgresCorporateMembershipRepository
     staff_person_link: PostgresStaffPersonLinkRepository
-    invitation: PostgresUserInvitationRepository
+    vendor_operator: PostgresVendorOperatorRepository
     store: PostgresStoreRepository
     staff: PostgresStaffRepository
     patient: PostgresPatientRepository
@@ -107,7 +107,7 @@ class PostgresRepositorySet:
             user_account=PostgresUserAccountRepository(unit_of_work),
             membership=PostgresCorporateMembershipRepository(unit_of_work),
             staff_person_link=PostgresStaffPersonLinkRepository(unit_of_work),
-            invitation=PostgresUserInvitationRepository(unit_of_work),
+            vendor_operator=PostgresVendorOperatorRepository(unit_of_work),
             corporate=PostgresCorporateRepository(unit_of_work),
             store=PostgresStoreRepository(unit_of_work),
             staff=PostgresStaffRepository(unit_of_work),

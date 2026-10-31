@@ -87,7 +87,6 @@ class RegisterPrescriptionRequest(RequestModel):
 class StartInquiryRequest(RequestModel):
     """疑義照会の開始の入力。"""
 
-    pharmacist_id: str
     category: str
     content: str
 
@@ -211,7 +210,6 @@ async def start_inquiry(
             StartInquiryCommand(
                 corporate_id=corporate_id,
                 prescription_id=prescription_id,
-                pharmacist_id=body.pharmacist_id,
                 category=body.category,
                 content=body.content,
             )

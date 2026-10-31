@@ -6,6 +6,7 @@ from app.application.access_control.boundary_models import Permission
 from app.application.access_control.interfaces.corporate_access import (
     CorporateAccessBoundary,
 )
+from app.application.common.clock import Clock, business_date
 from app.application.common.input_normalization import to_optional_text
 from app.application.prescription.commands.dtos.get_prescription import PrescriptionDto
 from app.application.prescription.commands.models import RegisterPrescriptionCommand
@@ -30,6 +31,7 @@ from app.domain.patient.identifiers import PatientId
 from app.domain.prescription.entities import Prescription
 from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.prescription.primitives import (
+    MedicineRestrictionFlag,
     PrescriptionDocumentNumber,
     PrescriptionStatus,
 )
@@ -59,6 +61,7 @@ class RegisterPrescriptionUseCase:
         narcotic_service: NarcoticPrescriptionService,
         refill_service: RefillEligibilityService,
         public_expense_service: PublicExpenseBurdenService,
+        clock: Clock | None = None,
     ) -> None:
         self._repository = repository
         self._corporate_access = corporate_access
@@ -70,6 +73,7 @@ class RegisterPrescriptionUseCase:
         self._narcotic_service = narcotic_service
         self._refill_service = refill_service
         self._public_expense_service = public_expense_service
+        self._clock = clock
 
     async def execute(self, command: RegisterPrescriptionCommand) -> PrescriptionDto:
         """境界と集約外の不変条件を確認して処方箋を保存する。"""
@@ -105,6 +109,7 @@ class RegisterPrescriptionUseCase:
             coverage_selection_record_id=record_id,
         )
         await self._verify_medicine_restrictions(prescription)
+        await self._verify_store_licenses(prescription)
         await self._verify_public_expense_burden(prescription, record_id=record_id)
         await self._verify_document_number_is_unique(prescription)
         await self._repository.save(prescription)
@@ -133,6 +138,32 @@ class RegisterPrescriptionUseCase:
             prescription, classifications
         )
         self._refill_service.ensure_refill_allowed(prescription, classifications)
+
+    async def _verify_store_licenses(self, prescription: Prescription) -> None:
+        """店舗の許認可（薬局開設許可・麻薬小売業者免許）を現在業務日で検証する。
+
+        原本の麻薬必須事項は交付日（issued_date）で引いたマスタで検証するが、
+        店舗の免許と実調剤薬分類は現在業務日（business_date）で判定する。
+        過去日の交付日を入力しても、現在失効している免許の回避はできない（fail-closed）。
+        """
+        if self._clock is None:
+            return
+        today = business_date(self._clock)
+        today_classifications = await self._medicine_restriction.classify(
+            identifiers=prescription.medicine_identifiers,
+            as_of=today,
+        )
+        self._narcotic_service.ensure_classified(prescription, today_classifications)
+        has_narcotics = any(
+            c.is_narcotic is MedicineRestrictionFlag.YES
+            for c in today_classifications.values()
+        )
+        await self._store_reference.require_licensed(
+            corporate_id=prescription.corporate_id,
+            store_id=prescription.store_id,
+            business_on=today,
+            has_narcotics=has_narcotics,
+        )
 
     async def _verify_public_expense_burden(
         self, prescription: Prescription, *, record_id: CoverageSelectionRecordId | None

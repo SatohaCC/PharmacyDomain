@@ -7,15 +7,8 @@ const meta = {
   args: {
     corporateId: "example",
     stores: [{ id: "example-store", name: "テスト薬局" }],
-    staffs: [],
-    personMode: "new",
-    setPersonMode: fn(),
     role: "corporate_admin",
     setRole: fn(),
-    staffMode: "existing",
-    setStaffMode: fn(),
-    snapshot: {},
-    frozen: false,
     registrationSubmission: { submit: fn(), pending: false, blocked: false },
   },
 } satisfies Meta<typeof UserRegistrationView>;
@@ -36,10 +29,8 @@ export const 法人管理者と店舗利用権限: Story = {
   },
 };
 export const 店舗ユーザー: Story = { args: { role: "store_viewer" } };
-export const 部分成功: Story = {
+export const 登録失敗: Story = {
   args: {
-    snapshot: { personId: "example-person" },
-    frozen: true,
     registrationSubmission: {
       submit: fn(),
       pending: false,
@@ -50,8 +41,6 @@ export const 部分成功: Story = {
 };
 export const 応答不明: Story = {
   args: {
-    snapshot: { personId: "example-person", uncertain: true },
-    frozen: true,
     registrationSubmission: {
       submit: fn(),
       pending: false,
@@ -61,5 +50,5 @@ export const 応答不明: Story = {
   },
 };
 export const 登録完了: Story = {
-  args: { issued: { id: "test-account", login_id: "test-admin" } },
+  args: { issued: { id: "test-account", email: "test-admin@example.test" } },
 };

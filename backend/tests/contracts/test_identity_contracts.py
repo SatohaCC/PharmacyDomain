@@ -25,21 +25,31 @@ from tests.fakes.in_memory_identity_repositories import (
 @pytest.mark.parametrize("status", list(AccountStatus))
 async def test_同じ人へ二つ目のアカウントを作れない(status: AccountStatus) -> None:
     repository = InMemoryUserAccountRepository()
+    corporate_id = CorporateId.generate()
     original = UserAccount(
-        id=UserAccountId.generate(), person_id=AccountPersonId.generate(), status=status
+        id=UserAccountId.generate(),
+        corporate_id=corporate_id,
+        person_id=AccountPersonId.generate(),
+        status=status,
     )
     await repository.save(original)
 
     with pytest.raises(IdentityConflictError):
         await repository.save(replace(original, id=UserAccountId.generate()))
-    assert await repository.get_by_person(original.person_id) == original
+    assert (
+        await repository.get_by_person(original.corporate_id, original.person_id)
+        == original
+    )
 
 
 @pytest.mark.asyncio
 async def test_保存済みアカウントを別人へ付け替えられない() -> None:
     repository = InMemoryUserAccountRepository()
+    corporate_id = CorporateId.generate()
     original = UserAccount(
-        id=UserAccountId.generate(), person_id=AccountPersonId.generate()
+        id=UserAccountId.generate(),
+        corporate_id=corporate_id,
+        person_id=AccountPersonId.generate(),
     )
     await repository.save(original)
 
@@ -116,8 +126,10 @@ async def test_同じスタッフを別アカウントへ紐付けられない()
 @pytest.mark.asyncio
 async def test_同じ外部主体を別の人に割り当てられない() -> None:
     repository = InMemoryUserAccountRepository()
+    corporate_id = CorporateId.generate()
     original = UserAccount(
         id=UserAccountId.generate(),
+        corporate_id=corporate_id,
         person_id=AccountPersonId.generate(),
         external_subject=ExternalSubjectKey("issuer/subject"),
     )
@@ -146,12 +158,70 @@ async def test_外部主体を固定していないアカウントは主体で�
     """
     # Arrange
     repository = InMemoryUserAccountRepository()
+    corporate_id = CorporateId.generate()
     await repository.save(
         UserAccount(
             id=UserAccountId.generate(),
+            corporate_id=corporate_id,
             person_id=AccountPersonId.generate(),
         )
     )
 
     # Act & Assert
     assert await repository.get_by_subject(ExternalSubjectKey("issuer/subject")) is None
+
+
+@pytest.mark.asyncio
+async def test_TC025_同法人の明示選択済み本人へ2件目のアカウント作成を拒否する() -> (
+    None
+):
+    """同一法人の同一本人に対して2つ目のアカウントは作成できない。"""
+    repository = InMemoryUserAccountRepository()
+    corporate_id = CorporateId.generate()
+    person_id = AccountPersonId.generate()
+    account1 = UserAccount(
+        id=UserAccountId.generate(),
+        corporate_id=corporate_id,
+        person_id=person_id,
+    )
+    await repository.save(account1)
+
+    account2 = UserAccount(
+        id=UserAccountId.generate(),
+        corporate_id=corporate_id,
+        person_id=person_id,
+    )
+    with pytest.raises(IdentityConflictError):
+        await repository.save(account2)
+
+
+@pytest.mark.asyncio
+async def test_TC036_別法人であれば同本人や同外部主体のアカウントが独立して保存できる() -> (
+    None
+):
+    """別法人であれば法人横断の一意制約に阻まれず独立して保存できる。"""
+    repository = InMemoryUserAccountRepository()
+    corp_a = CorporateId.generate()
+    corp_b = CorporateId.generate()
+    person_id = AccountPersonId.generate()
+    subject = ExternalSubjectKey("issuer/same_subject")
+
+    account_a = UserAccount(
+        id=UserAccountId.generate(),
+        corporate_id=corp_a,
+        person_id=person_id,
+        external_subject=subject,
+    )
+    account_b = UserAccount(
+        id=UserAccountId.generate(),
+        corporate_id=corp_b,
+        person_id=person_id,
+        external_subject=subject,
+    )
+    await repository.save(account_a)
+    await repository.save(account_b)
+
+    assert await repository.find_for_corporate(corp_a, account_a.id) == account_a
+    assert await repository.find_for_corporate(corp_b, account_b.id) == account_b
+    assert await repository.get_by_person(corp_a, person_id) == account_a
+    assert await repository.get_by_person(corp_b, person_id) == account_b

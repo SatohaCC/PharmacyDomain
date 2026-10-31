@@ -12,6 +12,7 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response
+from pydantic import Field
 
 from app.application.staff.commands.activate_staff import ActivateStaffCommand
 from app.application.staff.commands.assign_staff_concurrent_store import (
@@ -22,7 +23,10 @@ from app.application.staff.commands.change_staff_job_title import (
 )
 from app.application.staff.commands.change_staff_names import ChangeStaffNamesCommand
 from app.application.staff.commands.deactivate_staff import DeactivateStaffCommand
-from app.application.staff.commands.register_staff import RegisterStaffCommand
+from app.application.staff.commands.register_staff import (
+    BulkStaffAccountInput,
+    RegisterStaffCommand,
+)
 from app.application.staff.commands.remove_staff_concurrent_store import (
     RemoveStaffConcurrentStoreCommand,
 )
@@ -38,7 +42,7 @@ from app.application.staff.queries.models import GetStaffQuery, ListStaffsQuery
 from app.presentational.dependencies import StaffUseCasesDep, get_actor_context
 from app.presentational.errors import error_responses
 from app.presentational.routing import ApplicationRoute
-from app.presentational.schemas import RegisteredIdResponse, RequestModel
+from app.presentational.schemas import RequestModel
 
 router = APIRouter(
     route_class=ApplicationRoute,
@@ -65,6 +69,15 @@ class QualificationsRequest(RequestModel):
     is_registered_dietitian: bool = True
 
 
+class StaffAccountRequest(RequestModel):
+    """スタッフと同時に生成するアカウントの入力。"""
+
+    email: str = Field(max_length=256)
+    password: str = Field(repr=False, min_length=15, max_length=128)
+    role: str = "store_operator"
+    store_ids: tuple[str, ...] | None = None
+
+
 class RegisterStaffRequest(QualificationsRequest):
     """スタッフ登録の入力。"""
 
@@ -72,12 +85,24 @@ class RegisterStaffRequest(QualificationsRequest):
     first_name: str
     last_name_kana: str
     first_name_kana: str
+    account: StaffAccountRequest
     job_title: str | None = None
     code: str | None = None
     phone_number: str | None = None
     email: str | None = None
     initial_home_store_id: str | None = None
     initial_start_date: date | None = None
+
+
+class BulkRegisteredStaffResponse(RequestModel):
+    """スタッフ一括登録の応答。"""
+
+    id: str
+    staff_id: str
+    person_id: str
+    account_id: str
+    membership_id: str
+    email: str
 
 
 class ChangeStaffNamesRequest(RequestModel):
@@ -118,22 +143,28 @@ class RetireStaffRequest(RequestModel):
 @router.post(
     "",
     status_code=HTTPStatus.CREATED,
-    response_model=RegisteredIdResponse,
+    response_model=BulkRegisteredStaffResponse,
     responses=error_responses(HTTPStatus.CONFLICT),
 )
 async def register_staff(
     corporate_id: str,
     body: RegisterStaffRequest,
     use_cases: StaffUseCasesDep,
-) -> RegisteredIdResponse:
-    """スタッフを新規登録する。"""
-    staff_id = await use_cases.register.execute(
+) -> BulkRegisteredStaffResponse:
+    """スタッフおよびアカウントを新規一括登録する。"""
+    result = await use_cases.register.execute(
         RegisterStaffCommand(
             corporate_id=corporate_id,
             last_name=body.last_name,
             first_name=body.first_name,
             last_name_kana=body.last_name_kana,
             first_name_kana=body.first_name_kana,
+            account=BulkStaffAccountInput(
+                email=body.account.email,
+                password=body.account.password,
+                role=body.account.role,
+                store_ids=body.account.store_ids,
+            ),
             job_title=body.job_title,
             code=body.code,
             phone_number=body.phone_number,
@@ -152,7 +183,14 @@ async def register_staff(
             is_registered_dietitian=body.is_registered_dietitian,
         )
     )
-    return RegisteredIdResponse(id=str(staff_id.value))
+    return BulkRegisteredStaffResponse(
+        id=result.staff_id,
+        staff_id=result.staff_id,
+        person_id=result.person_id,
+        account_id=result.account_id,
+        membership_id=result.membership_id,
+        email=result.email,
+    )
 
 
 @router.get("", response_model=list[StaffSummaryDto])

@@ -91,6 +91,10 @@ def test_登録した法人を取得できる(api: Api) -> None:
         "name": "サンプル法人",
         "representative_name": "山田 太郎",
         "is_active": True,
+        "policy": {
+            "require_prescription_audit": {"value": False, "overridable": False},
+            "prohibit_self_verification": {"value": False, "overridable": False},
+        },
     }
 
 

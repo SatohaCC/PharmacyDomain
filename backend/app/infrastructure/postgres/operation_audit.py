@@ -32,8 +32,9 @@ async def append_pending_audits(
         await work.session.execute(
             insert(operation_audits).values(
                 id=uuid.uuid7(),
-                person_id=actor.person_id.value,
-                account_id=actor.account_id.value,
+                operator_id=actor.operator_id.value if actor.operator_id else None,
+                person_id=actor.person_id.value if actor.person_id else None,
+                account_id=actor.account_id.value if actor.account_id else None,
                 operation=operation,
                 resource_id=resource_id,
                 corporate_id=corporate_id,

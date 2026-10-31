@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from enum import StrEnum
 
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.primitives.base import DomainPrimitive
@@ -10,6 +11,13 @@ from app.domain.foundation.primitives.primitives import (
     BaseNonNegativeInt,
     BaseNormalizedString,
 )
+
+
+class ReceptionSourceStatus(StrEnum):
+    """受付原本の有効状態（通常有効または外部による取消・削除通知）。"""
+
+    CURRENT = "current"
+    WITHDRAWN = "withdrawn"
 
 
 class ReceptionFingerprint(DomainPrimitive[str]):

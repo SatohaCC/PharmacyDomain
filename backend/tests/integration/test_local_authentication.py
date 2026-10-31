@@ -12,12 +12,10 @@ from app.application.access_control.boundary_models import ResolvedActorContext
 from app.application.identity.commands.models import AccountStatus
 from app.bootstrap import create_app
 from app.dev_main import StaticTokenActorContextProvider
+from app.domain.identity.identifiers import VendorOperatorId
 from app.infrastructure.identity.postgres.local_authentication import (
     PostgresCredentialWriter,
     PostgresLocalAuthentication,
-)
-from app.infrastructure.identity.postgres.user_account import (
-    PostgresUserAccountRepository,
 )
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.schema import (
@@ -34,18 +32,18 @@ CHANGED = "test-personal-password-67890"
 
 
 @pytest.mark.asyncio
-async def test_ローカル認証_法人所属のない有効なベンダーは利用開始できる(
+async def test_ローカル認証_法人所属のない有効な運営者は利用開始できる(
     engine: AsyncEngine, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
     # Arrange
     fixture = await setup_organization(engine, session_factory)
     actor = fixture.authorization.actor
     assert isinstance(actor, ResolvedActorContext)
+    operator_id = VendorOperatorId.generate()
+    subject = f"vendor:{operator_id.value}"
     async with PostgresUnitOfWork(session_factory) as work:
-        account = await PostgresUserAccountRepository(work).get(actor.account_id)
-        assert account is not None and account.external_subject is not None
-        await PostgresCredentialWriter(work).issue(
-            "test-vendor", INITIAL, account.external_subject.value
+        await PostgresCredentialWriter(work).issue_vendor_operator(
+            "vendor@example.com", INITIAL, subject
         )
         await work.commit()
     async with httpx.AsyncClient(
@@ -53,18 +51,12 @@ async def test_ローカル認証_法人所属のない有効なベンダーは�
     ) as client:
         # Act
         login = await client.post(
-            "/auth/login", json={"login_id": "test-vendor", "password": INITIAL}
+            "/auth/vendor/login",
+            json={"email": "vendor@example.com", "password": INITIAL},
         )
         assert login.status_code == 200, login.text
-        changed = await client.post(
-            "/auth/password",
-            json={"password": CHANGED},
-            headers={"Authorization": f"Bearer {login.json()['access_token']}"},
-        )
-        # Assert
-        assert changed.status_code == 200, changed.text
         me = await client.get(
-            "/me", headers={"Authorization": f"Bearer {changed.json()['access_token']}"}
+            "/me", headers={"Authorization": f"Bearer {login.json()['access_token']}"}
         )
         assert me.status_code == 200, me.text
         assert me.json()["roles"] == ["vendor_system_admin"]
@@ -83,14 +75,22 @@ async def test_ローカル認証_停止後は正しいパスワードでもロ�
     fixture = await setup_organization(engine, session_factory)
     subject = fixture.accounts[0].external_subject
     assert subject is not None
+    email = "admin@example.com"
     async with PostgresUnitOfWork(session_factory) as work:
-        await PostgresCredentialWriter(work).issue("test-admin", INITIAL, subject.value)
+        await PostgresCredentialWriter(work).issue(
+            fixture.corporate.id, email, INITIAL, subject.value
+        )
         await work.commit()
     async with httpx.AsyncClient(
         transport=local_app(fixture), base_url="http://test"
     ) as client:
         login = await client.post(
-            "/auth/login", json={"login_id": "test-admin", "password": INITIAL}
+            "/auth/login",
+            json={
+                "corporate_id": str(fixture.corporate.id.value),
+                "email": email,
+                "password": INITIAL,
+            },
         )
         assert login.status_code == 200, login.text
         initial_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
@@ -123,12 +123,18 @@ async def test_ローカル認証_停止後は正しいパスワードでもロ�
         correct = await client.post(
             "/auth/login",
             json={
-                "login_id": "test-admin",
+                "corporate_id": str(fixture.corporate.id.value),
+                "email": email,
                 "password": CHANGED if changed else INITIAL,
             },
         )
         incorrect = await client.post(
-            "/auth/login", json={"login_id": "test-admin", "password": "wrong"}
+            "/auth/login",
+            json={
+                "corporate_id": str(fixture.corporate.id.value),
+                "email": email,
+                "password": "wrong",
+            },
         )
         reset = await client.post(
             "/auth/password",
@@ -150,9 +156,9 @@ async def test_ローカル認証_停止後は正しいパスワードでもロ�
 
 
 def contract_body(
-    login_id: str = "test-admin", name: str = "テスト新規契約法人"
+    email: str = "admin@example.com", name: str = "テスト新規契約法人"
 ) -> dict[str, object]:
-    """メールや招待入力を持たない契約データ。"""
+    """招待入力を持たない契約データ。"""
     return {
         "name": name,
         "representative_last_name": "テスト",
@@ -163,7 +169,7 @@ def contract_body(
             "last_name_kana": "テスト",
             "first_name_kana": "カンリシャ",
         },
-        "login_id": login_id,
+        "email": email,
         "initial_password": INITIAL,
     }
 
@@ -208,7 +214,12 @@ async def test_新規契約_招待なしで登録し初回変更後にだけ業�
         assert created.status_code == 201, created.text
         corporate_id = created.json()["id"]
         login = await client.post(
-            "/auth/login", json={"login_id": "TEST-ADMIN", "password": INITIAL}
+            "/auth/login",
+            json={
+                "corporate_id": corporate_id,
+                "email": "ADMIN@EXAMPLE.COM",
+                "password": INITIAL,
+            },
         )
         assert login.status_code == 200, login.text
         assert login.headers["cache-control"] == "no-store"
@@ -238,7 +249,7 @@ async def test_新規契約_招待なしで登録し初回変更後にだけ業�
         ).status_code == 401
         forbidden = await client.post(
             "/contracts",
-            json=contract_body("test-other", "テスト別法人"),
+            json=contract_body("test-other@example.com", "テスト別法人"),
             headers=headers,
         )
         assert forbidden.status_code == 403
@@ -254,13 +265,23 @@ async def test_新規契約_招待なしで登録し初回変更後にだけ業�
         ).status_code == 401
         assert (
             await client.post(
-                "/auth/login", json={"login_id": "test-admin", "password": INITIAL}
+                "/auth/login",
+                json={
+                    "corporate_id": corporate_id,
+                    "email": "admin@example.com",
+                    "password": INITIAL,
+                },
             )
         ).status_code == 401
         assert (await client.post("/auth/logout", headers=headers)).status_code == 204
         assert (await client.get("/me", headers=headers)).status_code == 401
         again = await client.post(
-            "/auth/login", json={"login_id": "test-admin", "password": CHANGED}
+            "/auth/login",
+            json={
+                "corporate_id": corporate_id,
+                "email": "admin@example.com",
+                "password": CHANGED,
+            },
         )
         assert again.status_code == 200
         async with session_factory() as session:
@@ -272,7 +293,7 @@ async def test_新規契約_招待なしで登録し初回変更後にだけ業�
 
 
 @pytest.mark.asyncio
-async def test_新規契約_ログインID重複と不正入力では法人も残さない(
+async def test_新規契約_法人名重複と不正入力では法人も残さない(
     engine: AsyncEngine, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
     # Arrange
@@ -285,11 +306,13 @@ async def test_新規契約_ログインID重複と不正入力では法人も�
         assert (
             await client.post("/contracts", json=contract_body())
         ).status_code == 201
-        # Act / Assert
-        for login_id, status in [("test-admin", 409), ("不正なID", 422)]:
-            denied = await client.post(
-                "/contracts", json=contract_body(login_id, "テスト失敗法人")
-            )
+        # Act / Assert: 法人名重複は409、不正メールは422で拒否され、部分保存されない
+        # （他法人での同一メール利用はTC-024/036の通り独立して許可される）
+        for name, email, status in [
+            ("テスト新規契約法人", "other-admin@example.com", 409),
+            ("テスト失敗法人", "不正なメール", 422),
+        ]:
+            denied = await client.post("/contracts", json=contract_body(email, name))
             assert denied.status_code == status, denied.text
         async with session_factory() as session:
             assert (
@@ -312,28 +335,43 @@ async def test_ローカル認証_連続失敗と期限切れを拒否する(
     async with httpx.AsyncClient(
         transport=local_app(fixture), base_url="http://test"
     ) as client:
-        assert (
-            await client.post(
-                "/contracts",
-                json=contract_body(),
-                headers={"Authorization": "Bearer vendor"},
-            )
-        ).status_code == 201
+        resp = await client.post(
+            "/contracts",
+            json=contract_body(),
+            headers={"Authorization": "Bearer vendor"},
+        )
+        assert resp.status_code == 201
+        corporate_id = resp.json()["id"]
         # Act / Assert
         for _ in range(5):
             assert (
                 await client.post(
-                    "/auth/login", json={"login_id": "test-admin", "password": "wrong"}
+                    "/auth/login",
+                    json={
+                        "corporate_id": corporate_id,
+                        "email": "admin@example.com",
+                        "password": "wrong",
+                    },
                 )
             ).status_code == 401
         assert (
             await client.post(
-                "/auth/login", json={"login_id": "test-admin", "password": INITIAL}
+                "/auth/login",
+                json={
+                    "corporate_id": corporate_id,
+                    "email": "admin@example.com",
+                    "password": INITIAL,
+                },
             )
         ).status_code == 401
         fixture.root.clock.advance(timedelta(minutes=16))
         login = await client.post(
-            "/auth/login", json={"login_id": "test-admin", "password": INITIAL}
+            "/auth/login",
+            json={
+                "corporate_id": corporate_id,
+                "email": "admin@example.com",
+                "password": INITIAL,
+            },
         )
         assert login.status_code == 200, login.text
         fixture.root.clock.advance(timedelta(minutes=11))
@@ -354,13 +392,19 @@ async def test_初回変更_同じセッションの同時使用は一度だけ�
     async with httpx.AsyncClient(
         transport=local_app(fixture), base_url="http://test"
     ) as client:
-        await client.post(
+        resp = await client.post(
             "/contracts",
             json=contract_body(),
             headers={"Authorization": "Bearer vendor"},
         )
+        corporate_id = resp.json()["id"]
         login = await client.post(
-            "/auth/login", json={"login_id": "test-admin", "password": INITIAL}
+            "/auth/login",
+            json={
+                "corporate_id": corporate_id,
+                "email": "admin@example.com",
+                "password": INITIAL,
+            },
         )
         headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
         # Act

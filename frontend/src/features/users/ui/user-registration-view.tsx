@@ -4,7 +4,6 @@ import { Panel } from "../../../shared/ui/layout/panel";
 import {
   Subheading,
   Paragraph,
-  Notice,
   SectionHeading,
   Row,
   FieldGroup,
@@ -16,16 +15,9 @@ import type { RegistrationViewProps } from "../model/registration";
 export function UserRegistrationView({
   corporateId,
   stores,
-  staffs,
-  personMode,
-  setPersonMode,
   role,
   setRole,
-  staffMode,
-  setStaffMode,
-  snapshot,
   issued,
-  frozen,
   registrationSubmission,
 }: RegistrationViewProps) {
   if (issued)
@@ -33,7 +25,7 @@ export function UserRegistrationView({
       <Panel>
         <Subheading>ユーザー登録が完了しました</Subheading>
         <Paragraph>
-          ログインID: <code>{issued.login_id}</code>
+          メールアドレス: <code>{issued.email}</code>
         </Paragraph>
         <Paragraph>
           初期パスワードを本人へお渡しください。初回ログイン時にパスワードの変更が必要です。
@@ -45,74 +37,37 @@ export function UserRegistrationView({
         </Link>
       </Panel>
     );
+  const frozen =
+    registrationSubmission.pending || registrationSubmission.blocked;
   return (
     <Panel>
       <Subheading>ユーザー登録</Subheading>
       <Paragraph>
-        本人・ログインID・初期パスワードを登録し、法人の利用権限を確定します。
+        本人・スタッフ・アカウント・法人の利用権限をまとめて新規登録します。
       </Paragraph>
-      {snapshot.personId && (
-        <Notice>
-          本人登録済み: <code>{snapshot.personId}</code>
-          {snapshot.staffId && (
-            <>
-              {" "}
-              ／スタッフ: <code>{snapshot.staffId}</code>
-            </>
-          )}
-          {snapshot.linked && " ／本人紐付け済み"}
-          。この段階からアカウント登録を再試行します。
-        </Notice>
-      )}
-      {snapshot.uncertain && (
-        <Paragraph role="alert">
-          前回の処理結果が不明です。重複登録を避けるため再送を止めています。管理者へ確認してください。
-        </Paragraph>
-      )}
       <Form
         label="ユーザーを登録する"
         {...registrationSubmission}
         onSubmit={registrationSubmission.submit}
       >
-        <SectionHeading>1. 本人情報</SectionHeading>
-        <SelectField
-          label="本人の指定"
-          value={personMode}
-          disabled={frozen}
-          onValueChange={setPersonMode}
-          options={[
-            { value: "new", label: "新しく本人を登録" },
-            { value: "existing", label: "登録済みの本人IDを指定" },
-          ]}
-        />
-        {personMode === "existing" ? (
-          <Field
-            name="person_id"
-            label="本人ID"
-            required
-            readOnly={!!snapshot.personId}
-          />
-        ) : null}
-        {(personMode === "new" ||
-          (role !== "corporate_admin" && staffMode === "new")) && (
-          <Row>
-            {[
-              ["last_name", "姓"],
-              ["first_name", "名"],
-              ["last_name_kana", "姓カナ"],
-              ["first_name_kana", "名カナ"],
-            ].map(([name, label]) => (
-              <Field
-                key={name}
-                name={name}
-                label={label}
-                required
-                readOnly={!!snapshot.personId}
-              />
-            ))}
-          </Row>
-        )}
-        <SectionHeading>2. 法人での権限</SectionHeading>
+        <SectionHeading>1. 本人・スタッフ情報</SectionHeading>
+        <Row>
+          {[
+            ["last_name", "姓"],
+            ["first_name", "名"],
+            ["last_name_kana", "姓カナ"],
+            ["first_name_kana", "名カナ"],
+          ].map(([name, label]) => (
+            <Field
+              key={name}
+              name={name}
+              label={label}
+              required
+              readOnly={frozen}
+            />
+          ))}
+        </Row>
+        <SectionHeading>2. 法人での権限と所属</SectionHeading>
         <SelectField
           label="ロール"
           value={role}
@@ -140,84 +95,43 @@ export function UserRegistrationView({
           )}
         </FieldGroup>
         <Paragraph>
-          法人管理者にも店舗の利用権限を追加できます。管理薬剤師の管理権限は有効な任命から付与され、在任中は一店舗だけに勤務・所属できます。
+          法人管理者にも店舗の利用権限を追加できます。店舗で勤務する場合は主所属店舗と所属開始日も指定してください。
         </Paragraph>
-        {role === "corporate_admin" && (
-          <SelectField
-            label="対応するスタッフ（任意）"
-            name="staff_id"
-            disabled={!!snapshot.linked}
-            options={[
-              { value: "", label: "指定しない" },
-              ...staffs
-                .filter((s) => s.is_active)
-                .map((s) => ({
-                  value: s.id,
-                  label: s.last_name + " " + s.first_name,
-                })),
-            ]}
-          />
-        )}
-        {role !== "corporate_admin" && (
-          <>
-            <SelectField
-              label="スタッフの指定"
-              disabled={frozen}
-              value={staffMode}
-              onValueChange={setStaffMode}
-              options={[
-                { value: "existing", label: "既存スタッフを選択" },
-                { value: "new", label: "スタッフを新規登録" },
-              ]}
-            />
-            {staffMode === "existing" ? (
-              <SelectField
-                label="スタッフ"
-                name="staff_id"
-                required
-                disabled={!!snapshot.linked}
-                options={staffs
-                  .filter((s) => s.is_active)
-                  .map((s) => ({
-                    value: s.id,
-                    label: s.last_name + " " + s.first_name,
-                  }))}
-              />
-            ) : (
-              <>
-                <SelectField
-                  label="主所属店舗"
-                  name="home_store"
-                  required
-                  options={stores.map((s) => ({ value: s.id, label: s.name }))}
-                />
-                <Field
-                  name="start_date"
-                  label="所属開始日"
-                  type="date"
-                  required
-                />
-              </>
-            )}
-          </>
-        )}
+        <SelectField
+          label="主所属店舗"
+          name="home_store"
+          required={role !== "corporate_admin"}
+          disabled={frozen}
+          options={[
+            ...(role === "corporate_admin"
+              ? [{ value: "", label: "指定しない" }]
+              : []),
+            ...stores.map((s) => ({ value: s.id, label: s.name })),
+          ]}
+        />
+        <Field
+          name="start_date"
+          label="所属開始日"
+          type="date"
+          required={role !== "corporate_admin"}
+          readOnly={frozen}
+        />
         <SectionHeading>3. ログイン情報</SectionHeading>
         <Field
-          name="login_id"
-          label="ログインID"
+          name="email"
+          label="メールアドレス"
+          type="email"
           required
-          description="3～64文字の半角英数字・ピリオド・ハイフン・下線"
+          readOnly={frozen}
         />
         <Field
           name="initial_password"
           label="初期パスワード"
           type="password"
           required
+          readOnly={frozen}
           description="15文字以上128文字以下。本人に安全な方法でお渡しください。"
         />
-        <Paragraph>
-          登録は段階ごとに保存されます。途中で閉じた場合、作成済みの本人をこの画面から検索・復元することはできません。
-        </Paragraph>
       </Form>
     </Panel>
   );

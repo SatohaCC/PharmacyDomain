@@ -13,7 +13,11 @@ from app.domain.patient.identifiers import PatientId
 from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.reception.exceptions import ReceptionEventAlreadyAssociatedError
 from app.domain.reception.identifiers import ReceptionId
-from app.domain.reception.primitives import ReceptionFieldPath, ReceptionFingerprint
+from app.domain.reception.primitives import (
+    ReceptionFieldPath,
+    ReceptionFingerprint,
+    ReceptionSourceStatus,
+)
 from app.domain.reception.value_objects import ReceptionCorrection, ReceptionSourceData
 from app.domain.store.identifiers import StoreId
 
@@ -35,6 +39,7 @@ class Reception(AggregateRoot[ReceptionId]):
     source_data: ReceptionSourceData | None = None
     source_data_history: tuple[ReceptionSourceData, ...] = ()
     event_id: EventId | None = None
+    source_status: ReceptionSourceStatus = ReceptionSourceStatus.CURRENT
 
     def associate_event(self, event_id: EventId) -> Reception:
         """処方受付に対応する薬局業務イベント（調剤・服薬指導など）を一意に関連付ける。"""

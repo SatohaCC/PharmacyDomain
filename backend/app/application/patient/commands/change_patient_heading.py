@@ -65,7 +65,11 @@ class ChangePatientHeadingUseCase:
             corporate_id=corporate_id, permission=Permission.MANAGE_PATIENT_HEADING
         )
         actor = self._corporate_access.actor
-        if not isinstance(actor, ResolvedActorContext):
+        if (
+            not isinstance(actor, ResolvedActorContext)
+            or actor.person_id is None
+            or actor.account_id is None
+        ):
             raise AuthorizationError("患者頭書きの変更には本人特定が必要です。")
         if type(command.expected_revision) is not int or command.expected_revision < 0:
             raise DomainValidationError("期待改訂は0以上の整数で指定してください。")

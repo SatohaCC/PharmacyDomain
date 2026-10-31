@@ -116,7 +116,7 @@ class CreateEventUseCase:
                 patient_id=patient_id,
                 event_id=related_event_id,
             )
-            if related is None:
+            if related is None or related.store_id != store_id:
                 raise TenantBoundaryNotFoundError()
         reception_id = (
             ReceptionId.parse(command.reception_id)

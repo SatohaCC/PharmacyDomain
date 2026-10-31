@@ -8,6 +8,7 @@
 """
 
 from dataclasses import replace
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -25,6 +26,19 @@ from app.application.composition.adapters.store_operation_adapter import (
 )
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainError
+from app.domain.prescription.exceptions import (
+    MedicineClassificationMissingError,
+    MedicineClassificationUnknownError,
+)
+from app.domain.prescription.primitives import (
+    MedicineCode,
+    MedicineCodeType,
+    MedicineRestrictionFlag,
+)
+from app.domain.prescription.value_objects import (
+    MedicineClassification,
+    MedicineIdentifier,
+)
 from app.domain.store.exceptions import (
     ManagerAbsenceConflictError,
     StoreStateConflictError,
@@ -32,7 +46,11 @@ from app.domain.store.exceptions import (
 from app.domain.store.identifiers import StoreId
 from app.domain.store.primitives import StoreStatus
 from tests.application.access_helpers import create_vendor_corporate_access
-from tests.factories.dispensing_factory import create_dispensing
+from tests.factories.dispensing_factory import (
+    create_dispensed_medicine,
+    create_dispensed_rp,
+    create_dispensing,
+)
 from tests.factories.medication_history_factory import (
     create_independent_follow_up_record,
     create_record,
@@ -46,6 +64,9 @@ from tests.fakes.in_memory_manager_assignment_repository import (
     InMemoryStoreManagerAssignmentRepository,
 )
 from tests.fakes.in_memory_store_repository import InMemoryStoreRepository
+from tests.fakes.prescription_reference_boundaries import (
+    FakeMedicineRestrictionSource,
+)
 
 
 class RecordingStoreOperationBoundary(StoreOperationBoundary):
@@ -55,7 +76,13 @@ class RecordingStoreOperationBoundary(StoreOperationBoundary):
         self.operations: list[StoreOperation] = []
 
     async def require_allowed(
-        self, *, corporate_id: CorporateId, store_id: StoreId, operation: StoreOperation
+        self,
+        *,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+        operation: StoreOperation,
+        has_narcotics: bool = False,
+        business_on: date | None = None,
     ) -> None:
         """判定せず、問い合わせ内容だけを残す。"""
         self.operations.append(operation)
@@ -200,3 +227,65 @@ async def test_管理薬剤師不在の店舗ではフォローアップ起票�
 
     with pytest.raises(ManagerAbsenceConflictError):
         await guard.check(follow_up, is_new=True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("is_new", [True, False])
+@pytest.mark.parametrize("classification", ["missing", "unknown"])
+async def test_調剤保存_実調剤薬の分類が欠落または不明_保存を拒否する(
+    is_new: bool, classification: str
+) -> None:
+    # Arrange
+    dispensing = create_dispensing(
+        dispensed_rps=(
+            create_dispensed_rp(
+                medicines=(
+                    create_dispensed_medicine(code="2171022F1029"),
+                    create_dispensed_medicine(line_number=2, code="2171022F1037"),
+                )
+            ),
+        )
+    )
+    source = FakeMedicineRestrictionSource()
+    first = dispensing.dispensed_rps[0].medicines[0]
+    assert first.identifier.code is not None
+    source.register(
+        MedicineClassification(
+            identifier=MedicineIdentifier(
+                code_type=MedicineCodeType.YJ,
+                code=MedicineCode(first.identifier.code.value),
+            ),
+            is_narcotic=MedicineRestrictionFlag.NO,
+        )
+    )
+    if classification == "unknown":
+        medicine = dispensing.dispensed_rps[0].medicines[1]
+        identifier = MedicineIdentifier(
+            code_type=MedicineCodeType(medicine.identifier.code_type.value),
+            code=MedicineCode(medicine.identifier.code.value)
+            if medicine.identifier.code
+            else None,
+        )
+        source.register(
+            MedicineClassification(
+                identifier=identifier, is_narcotic=MedicineRestrictionFlag.UNKNOWN
+            )
+        )
+    boundary = RecordingStoreOperationBoundary()
+    guard = ClinicalStoreWriteGuard(
+        boundary,
+        _authorization(),
+        FakeOrganizationLock(),
+        medicine_restriction=source,
+        clock=FakeClock(datetime(2026, 8, 24, tzinfo=UTC)),
+    )
+
+    # Act / Assert
+    error = (
+        MedicineClassificationMissingError
+        if classification == "missing"
+        else MedicineClassificationUnknownError
+    )
+    with pytest.raises(error):
+        await guard.check(dispensing, is_new=is_new)
+    assert boundary.operations == []

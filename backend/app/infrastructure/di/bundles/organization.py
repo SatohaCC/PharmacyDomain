@@ -7,9 +7,15 @@ from __future__ import annotations
 
 from app.application.access_control.policies import AuthorizationService
 from app.application.common.clock import Clock
+from app.application.composition.adapters.effective_policy_resolver import (
+    EffectivePolicyResolver,
+)
 from app.application.composition.adapters.organization_snapshot_mapping import (
     ManagerStaffAdapter,
     StaffStoreAdapter,
+)
+from app.application.composition.adapters.staff_account_registration import (
+    StaffAccountRegistrationAdapter,
 )
 from app.application.composition.adapters.staff_integrity import (
     StaffAccessRevocationService,
@@ -34,6 +40,9 @@ from app.application.corporate.commands.register_corporate import (
 )
 from app.application.corporate.commands.services.corporate_access import (
     CorporateAccessService,
+)
+from app.application.corporate.commands.update_corporate_policy import (
+    UpdateCorporatePolicyUseCase,
 )
 from app.application.corporate.queries.get_corporate import GetCorporateUseCase
 from app.application.corporate.queries.list_corporates import ListCorporatesUseCase
@@ -80,6 +89,15 @@ from app.application.store.commands.register_store import RegisterStoreUseCase
 from app.application.store.commands.revoke_store_closure import (
     RevokeStoreClosureUseCase,
 )
+from app.application.store.commands.update_licenses import (
+    UpdateStoreLicensesUseCase,
+)
+from app.application.store.commands.update_store_policy import (
+    UpdateStorePolicyUseCase,
+)
+from app.application.store.queries.get_effective_policy import (
+    GetEffectivePolicyUseCase,
+)
 from app.application.store.queries.get_store import GetStoreUseCase
 from app.application.store.queries.get_store_opening_status import (
     GetStoreOpeningStatusUseCase,
@@ -98,6 +116,9 @@ from app.domain.store.services import (
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
+from app.infrastructure.identity.postgres.local_authentication import (
+    PostgresCredentialWriter,
+)
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.organization_lock import PostgresOrganizationLock
 from app.infrastructure.readers.corporate_list_corporates import (
@@ -105,6 +126,9 @@ from app.infrastructure.readers.corporate_list_corporates import (
 )
 from app.infrastructure.readers.staff_get_staff import GetStaffProjection
 from app.infrastructure.readers.staff_list_staffs import ListStaffsProjection
+from app.infrastructure.readers.store_get_effective_policy import (
+    GetEffectivePolicyProjection,
+)
 from app.infrastructure.readers.store_get_store import GetStoreProjection
 from app.infrastructure.readers.store_get_store_opening_status import (
     GetStoreOpeningStatusProjection,
@@ -139,6 +163,7 @@ def build_corporate_use_cases(
         change_status=ChangeCorporateStatusUseCase(
             repository, corporate_access, PostgresOrganizationLock(unit_of_work)
         ),
+        update_policy=UpdateCorporatePolicyUseCase(repository, corporate_access),
     )
 
 
@@ -218,6 +243,16 @@ def build_store_use_cases(
             reader=GetStoreOpeningStatusProjection(repository, clock),
             corporate_access=corporate_access,
         ),
+        update_licenses=UpdateStoreLicensesUseCase(repository, corporate_access),
+        update_policy=UpdateStorePolicyUseCase(
+            repository,
+            corporate_access,
+            EffectivePolicyResolver(repositories.corporate, repository),
+        ),
+        effective_policy=GetEffectivePolicyUseCase(
+            reader=GetEffectivePolicyProjection(repositories.corporate, repository),
+            corporate_access=corporate_access,
+        ),
     )
 
 
@@ -245,6 +280,14 @@ def build_staff_use_cases(
     )
     code_uniqueness = StaffCodeUniquenessService(staff_repository)
     assignment = StaffStoreAssignmentService()
+    account_registration = StaffAccountRegistrationAdapter(
+        people=repositories.account_person,
+        accounts=repositories.user_account,
+        memberships=repositories.membership,
+        links=repositories.staff_person_link,
+        credentials=PostgresCredentialWriter(unit_of_work),
+    )
+    lock = PostgresOrganizationLock(unit_of_work)
     return StaffUseCases(
         register=RegisterStaffUseCase(
             staff_repository,
@@ -252,6 +295,11 @@ def build_staff_use_cases(
             code_uniqueness,
             assignment,
             corporate_access,
+            account_registration=account_registration,
+            unit_of_work=unit_of_work,
+            lock=lock,
+            clock=clock,
+            store_managers=repositories.manager_assignment,
         ),
         get=GetStaffUseCase(
             reader=GetStaffProjection(staff_repository),
@@ -287,7 +335,7 @@ def build_staff_use_cases(
         ),
         activate=ActivateStaffUseCase(staff_repository, corporate_access),
         deactivate=DeactivateStaffUseCase(
-            staff_repository, corporate_access, access_revocation
+            staff_repository, corporate_access, access_revocation, clock
         ),
     )
 

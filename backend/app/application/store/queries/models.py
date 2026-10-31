@@ -28,3 +28,11 @@ class ListStoresQuery:
     """店舗一覧取得の入力データ（DTO）。"""
 
     corporate_id: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class GetEffectivePolicyQuery:
+    """店舗の実効ポリシー照会条件。"""
+
+    corporate_id: str
+    store_id: str

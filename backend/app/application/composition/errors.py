@@ -8,6 +8,7 @@ from enum import StrEnum
 from functools import wraps
 from typing import Final
 
+from app.application.access_control.errors import StoreContextRequiredError
 from app.application.common.exceptions import (
     ApplicationError,
     AuthorizationError,
@@ -25,7 +26,11 @@ from app.application.dispensing.errors import (
     DispensingStoreNotFoundError,
 )
 from app.application.identity.errors import LoginFailedError, UnavailableIdentityError
-from app.application.integration.errors import NsipsPatientIdentityConflictError
+from app.application.integration.errors import (
+    NsipsPatientIdentityConflictError,
+    NsipsReceptionNotFoundError,
+    NsipsSourceConflictError,
+)
 from app.application.medication_history.errors import (
     MedicationHistoryDispensingNotFoundError,
     MedicationHistoryNotFoundError,
@@ -61,13 +66,19 @@ from app.domain.coverage.exceptions import (
     CoverageDeactivationAlreadyFixedError,
     CoveragePeriodConflictError,
 )
-from app.domain.dispensing.exceptions import DispensingAlreadyExistsError
+from app.domain.dispensing.exceptions import (
+    DispensingAlreadyExistsError,
+    DispensingPharmacistQualificationError,
+    PrescriptionAuditRequiredConflictError,
+    SelfVerificationProhibitedConflictError,
+)
 from app.domain.foundation.exceptions import ConcurrentModificationError, DomainError
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.medication_history.exceptions import (
     AdverseReactionNotFoundError,
     AllergyNotFoundError,
     ConcurrentMedicationNotFoundError,
+    CounselorQualificationError,
     FollowUpNotFoundError,
     MajorCategoryNotFoundError,
     MedicalConditionNotFoundError,
@@ -86,6 +97,7 @@ from app.domain.patient.exceptions import (
 from app.domain.prescription.exceptions import (
     InquiryAlreadyResolvedError,
     InquiryNotFoundError,
+    InquiryPharmacistQualificationError,
     PrescriptionDocumentNumberAlreadyExistsError,
 )
 from app.domain.reception.exceptions import ReceptionEventAlreadyAssociatedError
@@ -103,8 +115,11 @@ from app.domain.store.exceptions import (
     ManagerAssignmentConflictError,
     ManagerAssignmentStateConflictError,
     ManagerExclusiveDutyConflictError,
+    NarcoticsLicenseRequiredConflictError,
+    PharmacyLicenseRequiredConflictError,
     StoreCodeAlreadyExistsError,
     StoreNameAlreadyExistsError,
+    StorePolicyOverrideConflictError,
     StoreStateConflictError,
 )
 
@@ -132,17 +147,28 @@ _KIND_BY_EXCEPTION: Final[Mapping[type[BaseException], FailureKind]] = {
     ApplicationError: FailureKind.INVALID_STATE,
     UnavailableIdentityError: FailureKind.UNAUTHENTICATED,
     LoginFailedError: FailureKind.UNAUTHENTICATED,
+    StoreContextRequiredError: FailureKind.CONFLICT,
     IdentityConflictError: FailureKind.CONFLICT,
     NsipsPatientIdentityConflictError: FailureKind.CONFLICT,
+    NsipsSourceConflictError: FailureKind.CONFLICT,
+    NsipsReceptionNotFoundError: FailureKind.NOT_FOUND,
     ManagerAbsenceConflictError: FailureKind.CONFLICT,
     ManagerAssignmentConflictError: FailureKind.CONFLICT,
     ManagerExclusiveDutyConflictError: FailureKind.CONFLICT,
     ManagerAssignmentStateConflictError: FailureKind.CONFLICT,
     StoreStateConflictError: FailureKind.CONFLICT,
+    PharmacyLicenseRequiredConflictError: FailureKind.CONFLICT,
+    NarcoticsLicenseRequiredConflictError: FailureKind.CONFLICT,
+    StorePolicyOverrideConflictError: FailureKind.CONFLICT,
+    PrescriptionAuditRequiredConflictError: FailureKind.CONFLICT,
+    SelfVerificationProhibitedConflictError: FailureKind.CONFLICT,
     ClosedStoreAssignmentError: FailureKind.CONFLICT,
     PatientHeadingConflictError: FailureKind.CONFLICT,
     PatientStateConflictError: FailureKind.CONFLICT,
     AuthorizationError: FailureKind.FORBIDDEN,
+    DispensingPharmacistQualificationError: FailureKind.FORBIDDEN,
+    InquiryPharmacistQualificationError: FailureKind.FORBIDDEN,
+    CounselorQualificationError: FailureKind.FORBIDDEN,
     NotFoundError: FailureKind.NOT_FOUND,
     CoveragePatientNotFoundError: FailureKind.NOT_FOUND,
     CoverageStoreNotFoundError: FailureKind.NOT_FOUND,

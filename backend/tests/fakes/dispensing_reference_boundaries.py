@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from datetime import date
 
+from app.application.common.exceptions import AuthorizationError
 from app.application.composition.adapters.dispensing_snapshot_mapping import (
     prescription_source,
 )
@@ -34,7 +35,11 @@ from app.domain.prescription.entities import Prescription
 from app.domain.prescription.identifiers import PrescriptionId
 from app.domain.prescription.primitives import PrescriptionStatus
 from app.domain.staff.identifiers import StaffId
-from app.domain.staff.value_objects import PharmacistProfile, StaffQualifications
+from app.domain.staff.value_objects import (
+    PharmacistProfile,
+    StaffQualifications,
+    StoreAffiliation,
+)
 from app.domain.store.identifiers import StoreId
 
 
@@ -53,6 +58,18 @@ class FakeDispensingStoreReference(StoreReferenceBoundary):
         *,
         corporate_id: CorporateId,
         store_id: StoreId,
+    ) -> None:
+        """店舗が存在しない、または別法人の場合は404相当を送出する。"""
+        if (corporate_id, store_id) not in self.registered:
+            raise DispensingStoreNotFoundError()
+
+    async def require_licensed(
+        self,
+        *,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+        business_on: date,
+        has_narcotics: bool = False,
     ) -> None:
         """店舗が存在しない、または別法人の場合は404相当を送出する。"""
         if (corporate_id, store_id) not in self.registered:
@@ -110,6 +127,10 @@ class FakeDispensingStaffQualificationSource(StaffQualificationBoundary):
 
     def __init__(self) -> None:
         self.qualifications: dict[tuple[CorporateId, StaffId], StaffQualifications] = {}
+        self.active_flags: dict[tuple[CorporateId, StaffId], bool] = {}
+        self.affiliations: dict[
+            tuple[CorporateId, StaffId], tuple[StoreAffiliation, ...] | None
+        ] = {}
 
     def register(
         self,
@@ -117,23 +138,44 @@ class FakeDispensingStaffQualificationSource(StaffQualificationBoundary):
         corporate_id: CorporateId,
         staff_id: StaffId,
         qualifications: StaffQualifications,
+        is_active: bool = True,
+        affiliations: tuple[StoreAffiliation, ...] | None = None,
     ) -> None:
         """指定法人にスタッフを在籍させ、保有資格を設定する。"""
-        self.qualifications[(corporate_id, staff_id)] = qualifications
+        key = (corporate_id, staff_id)
+        self.qualifications[key] = qualifications
+        self.active_flags[key] = is_active
+        self.affiliations[key] = affiliations
 
     async def get_qualifications(
         self,
         *,
         corporate_id: CorporateId,
         staff_id: StaffId,
+        store_id: StoreId | None = None,
+        as_of: date | None = None,
     ) -> PharmacistQualification:
         """未登録・別法人のスタッフは404相当を送出する。
 
         資格を持たないだけのスタッフは在籍しているので例外にしない。
         """
-        qualifications = self.qualifications.get((corporate_id, staff_id))
+        key = (corporate_id, staff_id)
+        qualifications = self.qualifications.get(key)
         if qualifications is None:
             raise DispensingStaffNotFoundError()
+        if not self.active_flags.get(key, True):
+            raise AuthorizationError("停止中のスタッフは業務を実行できません。")
+        staff_affiliations = self.affiliations.get(key)
+        if (
+            staff_affiliations is not None
+            and store_id is not None
+            and as_of is not None
+            and not any(
+                aff.store_id == store_id and aff.period.is_active_on(as_of)
+                for aff in staff_affiliations
+            )
+        ):
+            raise AuthorizationError("指定された店舗に当日有効な所属がありません。")
         return PharmacistQualification(
             has_pharmacist=qualifications.has(PharmacistProfile)
         )

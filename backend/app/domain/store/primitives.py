@@ -174,3 +174,21 @@ class InsurancePharmacyNumber(BaseNormalizedString):
             raise DomainValidationError(
                 "保険薬局指定番号の3桁目（調剤区分）は '4' である必要があります。"
             )
+
+
+class PharmacyLicenseNumber(BaseNormalizedString):
+    """薬局開設許可番号。"""
+
+    def validate(self) -> None:
+        """空でないことを検証する。"""
+        if not self.value:
+            raise DomainValidationError("薬局開設許可番号は空にできません。")
+
+
+class NarcoticsLicenseNumber(BaseNormalizedString):
+    """麻薬小売業者免許番号。"""
+
+    def validate(self) -> None:
+        """空でないことを検証する。"""
+        if not self.value:
+            raise DomainValidationError("麻薬小売業者免許番号は空にできません。")

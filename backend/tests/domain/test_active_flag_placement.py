@@ -31,6 +31,7 @@ ALLOWED_ACTIVE_FLAG_OWNERS: dict[str, str] = {
     "PatientExternalIdentifier": (
         "集約ルート。無効化方言は active_flag（外部IDは無効化後に再利用可）"
     ),
+    "VendorOperator": "集約ルート。運営者の有効状態を表す active_flag 方言",
 }
 
 

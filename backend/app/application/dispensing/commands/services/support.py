@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from app.application.access_control.boundary_models import (
+    ActorContext,
+    ResolvedActorContext,
+)
+from app.application.common.exceptions import AuthorizationError
 from app.application.common.optional_conversion import build_optional
 from app.application.dispensing.commands.models import (
     DispensedMedicineInput,
@@ -47,6 +52,22 @@ from app.domain.dispensing.value_objects import (
 )
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.shared.public_expense import PublicExpenseBurden
+from app.domain.staff.identifiers import StaffId
+
+
+def resolve_acting_staff_id(
+    actor: ActorContext, requested_staff_id: str | None = None
+) -> StaffId:
+    """信頼済みActorから実施スタッフIDを解決し、他人指定のなりすましを拒否する。"""
+    if not isinstance(actor, ResolvedActorContext) or actor.staff_id is None:
+        raise AuthorizationError("調剤業務にはスタッフを特定できるActorが必要です。")
+    if requested_staff_id is not None:
+        parsed = StaffId.parse(requested_staff_id)
+        if parsed != actor.staff_id:
+            raise AuthorizationError(
+                "ログイン中のスタッフ以外のIDを実施者として指定することはできません。"
+            )
+    return actor.staff_id
 
 
 def _parse_decimal(raw: str, field_name: str) -> Decimal:

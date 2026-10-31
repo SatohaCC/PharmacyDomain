@@ -6,15 +6,12 @@ from dataclasses import dataclass, field
 
 from app.application.common.unit_of_work import UnitOfWork
 from app.application.composition.interfaces.contract_operations import (
+    RegisterContractAdminOperation,
     RegisterCorporateOperation,
-    RegisterLocalUserOperation,
     RegisterPersonOperation,
 )
 from app.application.corporate.commands.models import RegisterCorporateCommand
-from app.application.identity.commands.models import (
-    PersonNamesInput,
-    RegisterLocalUserCommand,
-)
+from app.application.identity.commands.models import PersonNamesInput
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -25,7 +22,7 @@ class RegisterContractCommand:
     representative_last_name: str
     representative_first_name: str
     administrator: PersonNamesInput
-    login_id: str
+    email: str
     initial_password: str = field(repr=False)
 
 
@@ -35,7 +32,7 @@ class RegisteredContract:
 
     id: str
     account_id: str
-    login_id: str
+    email: str
 
 
 class RegisterContractUseCase:
@@ -45,12 +42,12 @@ class RegisterContractUseCase:
         self,
         corporate: RegisterCorporateOperation,
         person: RegisterPersonOperation,
-        user: RegisterLocalUserOperation,
+        admin_user: RegisterContractAdminOperation,
         unit_of_work: UnitOfWork,
     ) -> None:
         self._corporate = corporate
         self._person = person
-        self._user = user
+        self._admin_user = admin_user
         self._unit_of_work = unit_of_work
 
     async def execute(self, command: RegisterContractCommand) -> RegisteredContract:
@@ -65,14 +62,10 @@ class RegisterContractUseCase:
         )
         identifier = str(corporate_id.value)
         person = await self._person.execute(identifier, command.administrator)
-        user = await self._user.execute(
-            RegisterLocalUserCommand(
-                corporate_id=identifier,
-                person_id=str(person.id.value),
-                login_id=command.login_id,
-                initial_password=command.initial_password,
-            )
+        user = await self._admin_user.execute(
+            corporate_id=identifier,
+            person_id=str(person.id.value),
+            email=command.email,
+            initial_password=command.initial_password,
         )
-        return RegisteredContract(
-            id=identifier, account_id=user.id, login_id=user.login_id
-        )
+        return RegisteredContract(id=identifier, account_id=user.id, email=user.email)

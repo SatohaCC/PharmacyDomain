@@ -23,6 +23,8 @@ from app.application.integration.boundary_models import (
 )
 from app.application.integration.commands.dtos.ingest_nsips import IngestNsipsResultDto
 from app.application.integration.commands.ingest_nsips import IngestNsipsCommand
+from app.application.integration.queries.dtos.get_nsips_source import NsipsSourceDto
+from app.application.integration.queries.models import GetNsipsSourceQuery
 from app.presentational.dependencies import (
     IntegrationUseCasesDep,
     get_actor_context,
@@ -141,10 +143,10 @@ class NsipsBundleRequest(RequestModel):
 class IngestNsipsRequest(RequestModel):
     """NSIPS取込リクエストボディ。"""
 
-    dispenser_staff_id: str
     reception_id: str
     raw_nsips_text: str | None = None
     structured_bundle: NsipsBundleRequest | None = None
+    expected_fingerprint: str | None = None
 
     @field_validator("reception_id")
     @classmethod
@@ -280,10 +282,10 @@ async def ingest_nsips(
         IngestNsipsCommand(
             corporate_id=corporate_id,
             store_id=store_id,
-            dispenser_staff_id=body.dispenser_staff_id,
             reception_id=body.reception_id,
             raw_nsips_text=body.raw_nsips_text,
             structured_bundle=bundle,
+            expected_fingerprint=body.expected_fingerprint,
         )
     )
 
@@ -291,3 +293,25 @@ async def ingest_nsips(
         response.status_code = HTTPStatus.OK
 
     return result
+
+
+@router.get(
+    "/{reception_id}",
+    status_code=HTTPStatus.OK,
+    response_model=NsipsSourceDto,
+    responses=error_responses(HTTPStatus.NOT_FOUND),
+)
+async def get_nsips_source(
+    corporate_id: str,
+    store_id: str,
+    reception_id: str,
+    use_cases: IntegrationUseCasesDep,
+) -> NsipsSourceDto:
+    """NSIPS受付原本データを取得する。"""
+    return await use_cases.get_nsips_source.execute(
+        GetNsipsSourceQuery(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            reception_id=reception_id,
+        )
+    )

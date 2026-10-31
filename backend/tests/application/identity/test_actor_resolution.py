@@ -38,9 +38,12 @@ from tests.fakes.in_memory_manager_assignment_repository import (
 )
 
 _PRINCIPAL_ID = "issuer/検証済み主体"
+_DEFAULT_EXTERNAL_SUBJECT = ExternalSubjectKey(_PRINCIPAL_ID)
 
 
-async def _setup() -> tuple[
+async def _setup(
+    external_subject: ExternalSubjectKey | None = _DEFAULT_EXTERNAL_SUBJECT,
+) -> tuple[
     ResolveActorUseCase,
     VerifiedSubject,
     InMemoryAccountPersonRepository,
@@ -52,8 +55,10 @@ async def _setup() -> tuple[
     people = InMemoryAccountPersonRepository()
     accounts = InMemoryUserAccountRepository()
     memberships = InMemoryCorporateMembershipRepository()
+    corp_id = CorporateId.generate()
     person = AccountPerson(
         id=AccountPersonId.generate(),
+        corporate_id=corp_id,
         names=PersonNames(
             kanji=PersonName(
                 last_name=PersonNamePart("山田"), first_name=PersonNamePart("太郎")
@@ -67,13 +72,14 @@ async def _setup() -> tuple[
     # 解決の出発点は外部主体なので、固定済みを既定にする。
     account = UserAccount(
         id=UserAccountId.generate(),
+        corporate_id=corp_id,
         person_id=person.id,
-        external_subject=ExternalSubjectKey(_PRINCIPAL_ID),
+        external_subject=external_subject,
     )
     membership = CorporateMembership(
         id=CorporateMembershipId.generate(),
         account_id=account.id,
-        corporate_id=CorporateId.generate(),
+        corporate_id=corp_id,
         role=MembershipRole.STORE_OPERATOR,
         store_ids=frozenset({StoreId.generate()}),
         staff_id=StaffId.generate(),
@@ -189,8 +195,7 @@ async def test_外部主体を固定していないアカウントは解決し�
     第二の防衛線がまさに主体を固定していないアカウントにだけ効かなくなっていた。
     主体で引く形にすると、この経路は分岐ではなく検索の結果として消える。
     """
-    resolver, subject, _, accounts, _, account, _ = await _setup()
-    await accounts.save(replace(account, external_subject=None))
+    resolver, subject, _, _, _, _, _ = await _setup(external_subject=None)
 
     with pytest.raises(UnavailableIdentityError):
         await resolver.execute(subject)

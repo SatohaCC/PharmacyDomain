@@ -271,7 +271,6 @@ def test_未回答の疑義照会が残ると_調剤可能にできない(
     inquired = prescription_client.post(
         f"{base}/inquiries",
         json={
-            "pharmacist_id": str(prescription_fixture.pharmacist_id.value),
             "category": "dosage",
             "content": "用量の確認をお願いします。",
         },
@@ -301,7 +300,6 @@ def test_疑義照会に回答すると_調剤可能にできる(
     prescription_client.post(
         f"{base}/inquiries",
         json={
-            "pharmacist_id": str(prescription_fixture.pharmacist_id.value),
             "category": "dosage",
             "content": "用量の確認をお願いします。",
         },
@@ -374,7 +372,6 @@ def _start_dispensing_body(
     return StartDispensingRequest(
         store_id=str(fixture.store_id.value),
         prescription_id=str(fixture.prescription.id.value),
-        dispenser_id=str(fixture.dispenser_id.value),
         iteration=1,
         dispensed_date=fixture.prescription.period.issued_date.value,
         dispensed_rps=[dispensing_helpers.create_rp_input()],
@@ -515,7 +512,6 @@ def test_HTTP調剤更新_薬品対応不整合_422を返しGET全内容状態�
     start_body = StartDispensingRequest(
         store_id=str(dispensing_fixture.store_id.value),
         prescription_id=str(original.id.value),
-        dispenser_id=str(dispensing_fixture.dispenser_id.value),
         iteration=1,
         dispensed_date=original.period.issued_date.value,
         dispensed_rps=[
@@ -637,7 +633,6 @@ def test_HTTP調剤開始_薬品対応不整合_422を返し一覧保存状態�
     body = StartDispensingRequest(
         store_id=str(dispensing_fixture.store_id.value),
         prescription_id=prescription_id,
-        dispenser_id=str(dispensing_fixture.dispenser_id.value),
         iteration=1,
         dispensed_date=dispensing_fixture.prescription.period.issued_date.value,
         dispensed_rps=[
@@ -698,7 +693,6 @@ def test_調剤を開始して_鑑査と完了まで進められる(
     verified = dispensing_client.post(
         f"{base}/verification",
         json={
-            "verifier_id": str(dispensing_fixture.verifier_id.value),
             "result": "passed",
         },
         headers=_HEADERS,
@@ -801,7 +795,6 @@ def test_疑義照会処方変更を含む調剤をHTTP経由で開始できる(
     body = StartDispensingRequest(
         store_id=str(dispensing_fixture.store_id.value),
         prescription_id=str(modified_prescription.id.value),
-        dispenser_id=str(dispensing_fixture.dispenser_id.value),
         iteration=1,
         dispensed_date=modified_prescription.period.issued_date.value,
         dispensed_rps=[
@@ -840,7 +833,6 @@ def test_実在しない疑義照会連番を指定すると422が返る(
     body = StartDispensingRequest(
         store_id=str(dispensing_fixture.store_id.value),
         prescription_id=str(dispensing_fixture.prescription.id.value),
-        dispenser_id=str(dispensing_fixture.dispenser_id.value),
         iteration=1,
         dispensed_date=dispensing_fixture.prescription.period.issued_date.value,
         dispensed_rps=[
@@ -1646,7 +1638,6 @@ def test_確定済みの薬歴は_訂正として積まれる(
     amended = history_client.post(
         f"{base}/amendments",
         json={
-            "amended_by": str(history_fixture.counselor_id.value),
             "reason": "記載誤りの訂正。",
             "amended_soap": TypeAdapter(SoapInput).dump_python(
                 amended_soap, mode="json"
@@ -1936,7 +1927,6 @@ def test_確定済みの薬歴にトレーシングレポートを追加でき�
     assert finalized.status_code == HTTPStatus.OK, finalized.text
 
     body = RecordTracingReportRequest(
-        reporter_id=str(history_fixture.counselor_id.value),
         provided_at=datetime(2026, 9, 3, 14, 0, tzinfo=ZoneInfo("Asia/Tokyo")),
         medical_institution_name="総合病院",
         physician_name="山田医師",
@@ -1991,7 +1981,6 @@ def test_トレーシングレポートに医師返答を記録できる(
     assert finalized.status_code == HTTPStatus.OK, finalized.text
 
     report_body = RecordTracingReportRequest(
-        reporter_id=str(history_fixture.counselor_id.value),
         provided_at=datetime(2026, 9, 3, 14, 0, tzinfo=ZoneInfo("Asia/Tokyo")),
         medical_institution_name="総合病院",
         physician_name="山田医師",
@@ -2051,7 +2040,6 @@ def test_未確定の下書き薬歴にトレーシングレポートを追加�
     record_id = started.json()["id"]
 
     body = RecordTracingReportRequest(
-        reporter_id=str(history_fixture.counselor_id.value),
         provided_at=datetime(2026, 9, 3, 14, 0, tzinfo=ZoneInfo("Asia/Tokyo")),
         medical_institution_name="総合病院",
         physician_name="山田医師",

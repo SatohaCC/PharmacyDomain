@@ -144,8 +144,9 @@ class PostgresMedicationHistoryRepository(
         corporate_id: CorporateId,
         record_id: MedicationHistoryRecordId,
     ) -> FinalizedMedicationHistorySource | None:
-        """確定済薬歴を店舗横断で照会し、本文を読まずに関連元だけ返す。"""
-        result = await self.session.execute(
+        """確定済薬歴を店舗スコープで照会し、本文を読まずに関連元だけ返す。"""
+        statement = self._apply_read_scope(
+            medication_history_records,
             select(
                 medication_history_records.c.event_id,
                 medication_history_records.c.patient_id,
@@ -154,8 +155,9 @@ class PostgresMedicationHistoryRepository(
                 medication_history_records.c.corporate_id == corporate_id.value,
                 medication_history_records.c.status
                 == MedicationHistoryStatus.FINALIZED.value,
-            )
+            ),
         )
+        result = await self.session.execute(statement)
         row = result.mappings().one_or_none()
         if row is None:
             return None
@@ -312,7 +314,8 @@ class PostgresMedicationHistoryRepository(
         )
         requested_statuses = tuple(status.value for status in statuses)
         jsonpath = _correction_jsonpath(statuses)
-        statement = (
+        statement = self._apply_read_scope(
+            table,
             select(*table.c, value.label("external_correction"))
             .select_from(table.join(elements, true()))
             .where(
@@ -320,7 +323,7 @@ class PostgresMedicationHistoryRepository(
                 table.c.status == MedicationHistoryStatus.FINALIZED.value,
                 table.c.payload.op("@?")(sql_cast(literal(jsonpath), JSONPATH)),
                 status_value.in_(requested_statuses),
-            )
+            ),
         )
         if store_id is not None:
             statement = statement.where(table.c.store_id == store_id.value)

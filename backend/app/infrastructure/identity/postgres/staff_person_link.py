@@ -1,5 +1,8 @@
 """スタッフ本人対応の固定保存。"""
 
+from sqlalchemy import select
+
+from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.entities import StaffPersonLink
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.repositories import StaffPersonLinkRepository
@@ -29,6 +32,18 @@ class PostgresStaffPersonLinkRepository(
 
     async def get(self, staff_id: StaffId) -> StaffPersonLink | None:
         return await self.get_by_id(STAFF_PERSON_LINK_MAPPING, staff_id)
+
+    async def find_for_corporate(
+        self, corporate_id: CorporateId, staff_id: StaffId
+    ) -> StaffPersonLink | None:
+        """法人スコープ内でスタッフと本人の対応を取得する。"""
+        return await self.find_one(
+            STAFF_PERSON_LINK_MAPPING,
+            select(staff_person_links).where(
+                staff_person_links.c.id == staff_id.value,
+                staff_person_links.c.corporate_id == corporate_id.value,
+            ),
+        )
 
     async def save(self, link: StaffPersonLink) -> None:
         await self.save_with_conflict_map(

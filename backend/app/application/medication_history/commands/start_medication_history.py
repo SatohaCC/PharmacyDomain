@@ -5,10 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from app.application.access_control.boundary_models import (
-    Permission,
-    ResolvedActorContext,
-)
+from app.application.access_control.boundary_models import Permission
 from app.application.access_control.interfaces.corporate_access import (
     CorporateAccessBoundary,
 )
@@ -16,8 +13,8 @@ from app.application.access_control.interfaces.store_operations import (
     StoreOperation,
     StoreOperationBoundary,
 )
-from app.application.common.clock import Clock
-from app.application.common.exceptions import AuthorizationError, NotFoundError
+from app.application.common.clock import BUSINESS_TIMEZONE, Clock
+from app.application.common.exceptions import NotFoundError
 from app.application.common.optional_conversion import build_optional
 from app.application.common.unit_of_work import UnitOfWork
 from app.application.medication_history.commands.dtos.get_medication_history import (
@@ -37,6 +34,7 @@ from app.application.medication_history.commands.services.support import (
     build_profile_updates,
     build_residual_drug,
     build_soap,
+    resolve_acting_pharmacist_id,
 )
 from app.application.medication_history.interfaces.references import (
     DispensingReferenceBoundary,
@@ -279,37 +277,36 @@ class StartMedicationHistoryUseCase:
             source_system = reception_source.source_system
             imported_at_value = reception_source.imported_at
             addition_inputs = reception_source.billing_additions
-        actor = self._corporate_access.actor
-        if not isinstance(actor, ResolvedActorContext) or actor.staff_id is None:
-            raise AuthorizationError(
-                "薬歴の初回保存にはスタッフを特定できるActorが必要です。"
-            )
-        recorded_by = actor.staff_id
+        recorded_by = resolve_acting_pharmacist_id(
+            self._corporate_access.actor,
+            error_message="薬歴の初回保存にはスタッフを特定できるActorが必要です。",
+        )
+        recorded_instant = self._clock.now()
+        today = recorded_instant.astimezone(BUSINESS_TIMEZONE).date()
         qualifications = await self._staff_qualification.get_qualifications(
-            corporate_id=corporate_id, staff_id=recorded_by
+            corporate_id=corporate_id,
+            staff_id=recorded_by,
+            store_id=store_id,
+            as_of=today,
         )
         self._counselor_service.ensure_pharmacist(qualifications)
-        if (command.counselor_id is None) != (command.counseled_at is None):
+        if command.counselor_id is not None and command.counseled_at is None:
             raise MedicationHistoryDomainError(
                 "実際の指導者と指導日時は両方指定するか、両方未指定にしてください。"
             )
-        counselor_id = (
-            StaffId.parse(command.counselor_id)
-            if command.counselor_id is not None
-            else None
-        )
+        if command.counselor_id is not None:
+            counselor_id: StaffId | None = resolve_acting_pharmacist_id(
+                self._corporate_access.actor, command.counselor_id
+            )
+        elif command.counseled_at is not None:
+            counselor_id = recorded_by
+        else:
+            counselor_id = None
         counseled_at = (
             CounselingTimestamp(command.counseled_at)
             if command.counseled_at is not None
             else None
         )
-        if counselor_id is not None and counselor_id != recorded_by:
-            counselor_qualifications = (
-                await self._staff_qualification.get_qualifications(
-                    corporate_id=corporate_id, staff_id=counselor_id
-                )
-            )
-            self._counselor_service.ensure_pharmacist(counselor_qualifications)
         if source_system == "NSIPS" and imported_at_value is None:
             raise MedicationHistoryDomainError(
                 "NSIPS由来の薬歴には受信した取込時刻が必要です。"
@@ -361,7 +358,7 @@ class StartMedicationHistoryUseCase:
             source_system=build_optional(source_system, MedicationHistorySourceSystem),
             imported_at=imported_at,
             recorded_by=recorded_by,
-            recorded_at=MedicationHistoryRecordedTimestamp(self._clock.now()),
+            recorded_at=MedicationHistoryRecordedTimestamp(recorded_instant),
         )
         await self._repository.save(record)
         if event.reception_id is not None:

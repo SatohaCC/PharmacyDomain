@@ -5,12 +5,18 @@ export function Checkbox({
   label,
   name,
   value,
+  isSelected,
+  defaultSelected,
+  onChange,
   disabled,
   readOnly,
 }: {
   label: string;
-  name: string;
-  value: string;
+  name?: string;
+  value?: string;
+  isSelected?: boolean;
+  defaultSelected?: boolean;
+  onChange?: (isSelected: boolean) => void;
   disabled?: boolean;
   readOnly?: boolean;
 }) {
@@ -19,16 +25,19 @@ export function Checkbox({
       {...stylex.props(styles.label)}
       name={name}
       value={value}
+      isSelected={isSelected}
+      defaultSelected={defaultSelected}
+      onChange={onChange}
       isDisabled={disabled}
       isReadOnly={readOnly}
     >
-      {({ isSelected }) => (
+      {({ isSelected: selected }) => (
         <>
           <span
             aria-hidden="true"
-            {...stylex.props(styles.box, isSelected && styles.selected)}
+            {...stylex.props(styles.box, selected && styles.selected)}
           >
-            {isSelected ? "✓" : ""}
+            {selected ? "✓" : ""}
           </span>
           {label}
         </>

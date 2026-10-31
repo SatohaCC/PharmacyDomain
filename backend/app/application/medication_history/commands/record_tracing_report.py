@@ -9,11 +9,13 @@ from app.application.access_control.boundary_models import Permission
 from app.application.access_control.interfaces.corporate_access import (
     CorporateAccessBoundary,
 )
+from app.application.common.clock import Clock, business_date
 from app.application.medication_history.commands.dtos.get_medication_history import (
     MedicationHistoryDto,
 )
 from app.application.medication_history.commands.services.support import (
     load_record_or_raise,
+    resolve_acting_pharmacist_id,
 )
 from app.application.medication_history.interfaces.references import (
     StaffQualificationBoundary,
@@ -36,7 +38,6 @@ from app.domain.medication_history.primitives import (
 )
 from app.domain.medication_history.repositories import MedicationHistoryRepository
 from app.domain.medication_history.services import CounselorQualificationService
-from app.domain.staff.identifiers import StaffId
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -45,7 +46,6 @@ class RecordTracingReportCommand:
 
     corporate_id: str
     record_id: str
-    reporter_id: str
     provided_at: datetime
     medical_institution_name: str
     physician_name: str
@@ -53,6 +53,7 @@ class RecordTracingReportCommand:
     fee_category: str
     delivery_method: str
     content: str
+    reporter_id: str | None = None
 
 
 class RecordTracingReportUseCase:
@@ -64,11 +65,13 @@ class RecordTracingReportUseCase:
         corporate_access: CorporateAccessBoundary,
         staff_qualification: StaffQualificationBoundary,
         counselor_service: CounselorQualificationService,
+        clock: Clock | None = None,
     ) -> None:
         self._repository = repository
         self._corporate_access = corporate_access
         self._staff_qualification = staff_qualification
         self._counselor_service = counselor_service
+        self._clock = clock
 
     async def execute(
         self, command: RecordTracingReportCommand
@@ -83,9 +86,14 @@ class RecordTracingReportUseCase:
             corporate_id=corporate_id,
             record_id=MedicationHistoryRecordId.parse(command.record_id),
         )
-        reporter_id = StaffId.parse(command.reporter_id)
+        reporter_id = resolve_acting_pharmacist_id(
+            self._corporate_access.actor, command.reporter_id
+        )
         qualifications = await self._staff_qualification.get_qualifications(
-            corporate_id=corporate_id, staff_id=reporter_id
+            corporate_id=corporate_id,
+            staff_id=reporter_id,
+            store_id=record.store_id,
+            as_of=business_date(self._clock) if self._clock is not None else None,
         )
         self._counselor_service.ensure_pharmacist(qualifications)
         report = TracingReport(

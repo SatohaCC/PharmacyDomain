@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Self
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.corporate.primitives import CorporateName, CorporateStatus
-from app.domain.corporate.value_objects import CorporateRepresentativeName
+from app.domain.corporate.value_objects import (
+    CorporatePolicy,
+    CorporateRepresentativeName,
+)
 from app.domain.foundation.entity import AggregateRoot
 
 
@@ -19,6 +22,7 @@ class Corporate(AggregateRoot[CorporateId]):
     name: CorporateName
     representative_name: CorporateRepresentativeName
     status: CorporateStatus = CorporateStatus.ACTIVE
+    policy: CorporatePolicy = field(default_factory=CorporatePolicy)
 
     def change_name(self, new_name: CorporateName) -> Self:
         """法人名を変更する"""
@@ -29,6 +33,10 @@ class Corporate(AggregateRoot[CorporateId]):
     ) -> Self:
         """代表者名を変更する"""
         return replace(self, representative_name=new_representative_name)
+
+    def change_policy(self, new_policy: CorporatePolicy) -> Self:
+        """法人ポリシーを変更する"""
+        return replace(self, policy=new_policy)
 
     @property
     def is_active(self) -> bool:

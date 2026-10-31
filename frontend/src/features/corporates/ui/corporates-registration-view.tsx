@@ -37,7 +37,7 @@ export function CorporateRegistrationView({
               required
             />
           </Row>
-          <Field name="login_id" label="ログインID" required />
+          <Field name="email" label="メールアドレス" type="email" required />
           <Field
             name="initial_password"
             label="初期パスワード"

@@ -12,7 +12,7 @@ test("実APIとPostgreSQLで新規契約から初回ログインまで完了す�
   const tokens = JSON.parse(
     readFileSync(process.env.REAL_E2E_TOKENS!, "utf8"),
   ) as { vendor: string };
-  const loginId = `test-admin-${Date.now()}`;
+  const email = `test-admin-${Date.now()}@example.test`;
   await page.goto("/login");
   await page.getByLabel("Bearerトークン").fill(tokens.vendor);
   await page.getByRole("button", { name: "接続する" }).click();
@@ -27,7 +27,7 @@ test("実APIとPostgreSQLで新規契約から初回ログインまで完了す�
   await page.getByLabel(/^管理者の名(?:必須| 必須)?$/).fill("花子");
   await page.getByLabel("管理者の姓（カナ）").fill("テスト");
   await page.getByLabel("管理者の名（カナ）").fill("ハナコ");
-  await page.getByLabel("ログインID").fill(loginId);
+  await page.getByLabel("メールアドレス").fill(email);
   await page.getByLabel("初期パスワード").fill("test-initial-password-12345");
   await page.getByRole("button", { name: "登録する" }).click();
   await expect(
@@ -38,7 +38,10 @@ test("実APIとPostgreSQLで新規契約から初回ログインまで完了す�
   const administrator = await context.newPage();
   try {
     await administrator.goto("/login");
-    await administrator.getByLabel("ログインID").fill(loginId);
+    await administrator
+      .getByLabel("法人ID")
+      .fill(corporateUrl.split("/").at(-1)!);
+    await administrator.getByLabel("メールアドレス").fill(email);
     await administrator
       .getByLabel(/^パスワード(?:必須| 必須)?$/)
       .fill("test-initial-password-12345");

@@ -25,7 +25,7 @@ class ListRelatedEventCandidatesProjection(ListRelatedEventCandidatesQueryReader
         self, query: ListRelatedEventCandidatesQuery
     ) -> tuple[RelatedEventCandidateDto, ...]:
         corporate_id = CorporateId.parse(query.corporate_id)
-        StoreId.parse(query.store_id)
+        store_id = StoreId.parse(query.store_id)
         patient_id = PatientId.parse(query.patient_id)
         references = await self._event_repository.list_related_candidates(
             corporate_id=corporate_id, patient_id=patient_id
@@ -42,4 +42,5 @@ class ListRelatedEventCandidatesProjection(ListRelatedEventCandidatesQueryReader
                 created_at=item.created_at.value.isoformat(),
             )
             for item in references
+            if item.store_id == store_id
         )

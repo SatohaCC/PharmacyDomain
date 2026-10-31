@@ -15,9 +15,17 @@ from app.domain.identity.entities import (
     CorporateMembership,
     StaffPersonLink,
     UserAccount,
+    VendorOperator,
 )
-from app.domain.identity.identifiers import CorporateMembershipId
-from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole
+from app.domain.identity.identifiers import (
+    CorporateMembershipId,
+    VendorOperatorId,
+)
+from app.domain.identity.primitives import (
+    CorporateUserEmail,
+    ExternalSubjectKey,
+    MembershipRole,
+)
 from app.domain.shared.actor import UserAccountId
 from app.domain.staff.entities import Staff
 from app.domain.staff.primitives import PharmacistLicenseNumber
@@ -100,13 +108,13 @@ async def setup_organization(
     """テスト対象以外の参照不備が失敗原因にならない構成を保存する。"""
     corporate = create_corporate()
     store = create_store(corporate_id=corporate.id)
-    people = [_person() for _ in range(3)]
+    people = [_person(corporate_id=corporate.id) for _ in range(2)]
     accounts = [
         UserAccount(
             id=UserAccountId.generate(),
+            corporate_id=corporate.id,
             person_id=person.id,
             external_subject=ExternalSubjectKey(external_subject_of(index)),
-            is_vendor_admin=index == 2,
         )
         for index, person in enumerate(people)
     ]
@@ -139,6 +147,12 @@ async def setup_organization(
         )
         for index, person in enumerate(staff)
     ]
+    vendor_operator = VendorOperator(
+        id=VendorOperatorId.generate(),
+        email=CorporateUserEmail("vendor-operator@example.test"),
+        external_subject=ExternalSubjectKey(external_subject_of(2)),
+        is_active=True,
+    )
     async with PostgresUnitOfWork(factory) as work:
         repos = PostgresRepositorySet.create(work)
         await repos.corporate.save(corporate)
@@ -156,18 +170,18 @@ async def setup_organization(
                 )
             )
             await repos.membership.save(memberships[index])
+        await repos.vendor_operator.save(vendor_operator)
         await work.commit()
     authorization = AuthorizationService(
         ResolvedActorContext(
-            principal_id="検証済みベンダー",
+            principal_id=external_subject_of(2),
             roles=frozenset({ActorRole.VENDOR_SYSTEM_ADMIN}),
-            person_id=people[2].id,
-            account_id=accounts[2].id,
+            operator_id=vendor_operator.id,
         )
     )
     root = PostgresCompositionRoot(
         engine, factory, FakeClock(datetime(2026, 9, 17, 3, tzinfo=UTC))
     )
     return Organization(
-        root, authorization, corporate, store, staff, accounts[:2], memberships
+        root, authorization, corporate, store, staff, accounts, memberships
     )

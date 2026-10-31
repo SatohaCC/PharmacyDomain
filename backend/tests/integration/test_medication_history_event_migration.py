@@ -104,6 +104,17 @@ def _aggregate_row[AggregateT](
     """旧スキーマにも共通する集約の列とJSON payloadを作る。"""
     values = mapping.row_values(aggregate)
     values.update(version=1, created_at=_MIGRATED_AT, updated_at=_MIGRATED_AT)
+    # 0010時点ではまだ存在しない列を除外する
+    excluded_columns = {
+        "pharmacy_license_number",
+        "pharmacy_license_valid_from",
+        "pharmacy_license_valid_to",
+        "narcotics_license_number",
+        "narcotics_license_valid_from",
+        "narcotics_license_valid_to",
+    }
+    for col in excluded_columns:
+        values.pop(col, None)
     return values
 
 

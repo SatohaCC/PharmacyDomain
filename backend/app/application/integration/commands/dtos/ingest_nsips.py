@@ -13,6 +13,9 @@ class IngestNsipsResultDto:
     coverage_selection_record_id は未設定で返す。
     """
 
+    reception_id: str
+    source_fingerprint: str
+    source_status: str = "current"
     corporate_id: str
     store_id: str
     patient_id: str

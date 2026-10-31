@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.identity.identifiers import CorporateMembershipId
+from app.domain.identity.identifiers import CorporateMembershipId, VendorOperatorId
 from app.domain.identity.primitives import (
     AccountStatus,
     ExternalSubjectKey,
@@ -30,6 +30,26 @@ class ManagerIdentitySnapshot:
 
 
 @dataclass(frozen=True, kw_only=True)
+class StaffAffiliationIdentitySnapshot:
+    """スタッフ所属期間の参照事実。"""
+
+    store_id: StoreId
+    starts_on: date
+    ends_on: date | None
+
+
+@dataclass(frozen=True, kw_only=True)
+class StoreIdentitySnapshot:
+    """店舗の識別・名称・有効状態の参照事実。"""
+
+    id: StoreId
+    corporate_id: CorporateId
+    name: str
+    code: str | None
+    is_active: bool
+
+
+@dataclass(frozen=True, kw_only=True)
 class MembershipIdentitySnapshot:
     """法人アクセス権の保存値。利用可能性の判断は含めない。"""
 
@@ -42,16 +62,20 @@ class MembershipIdentitySnapshot:
     store_ids: frozenset[StoreId]
     suspended_store_ids: frozenset[StoreId] = frozenset()
     manager_assignments: tuple[ManagerIdentitySnapshot, ...] = ()
+    staff_is_active: bool | None = None
+    staff_affiliations: tuple[StaffAffiliationIdentitySnapshot, ...] = ()
+    stores: tuple[StoreIdentitySnapshot, ...] = ()
 
 
 @dataclass(frozen=True, kw_only=True)
 class IdentityResolutionSnapshot:
     """外部主体から取得したアカウント・本人・所属の不変な事実。"""
 
-    account_id: UserAccountId
-    account_person_id: AccountPersonId
-    person_id: AccountPersonId | None
-    external_subject: ExternalSubjectKey | None
-    account_status: AccountStatus
-    is_vendor_admin: bool
-    membership: MembershipIdentitySnapshot | None
+    account_id: UserAccountId | None = None
+    account_person_id: AccountPersonId | None = None
+    person_id: AccountPersonId | None = None
+    operator_id: VendorOperatorId | None = None
+    external_subject: ExternalSubjectKey | None = None
+    account_status: AccountStatus = AccountStatus.ACTIVE
+    is_vendor_admin: bool = False
+    membership: MembershipIdentitySnapshot | None = None

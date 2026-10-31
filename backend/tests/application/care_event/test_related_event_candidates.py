@@ -86,18 +86,17 @@ async def test_tc45_14_関連候補は同一法人患者の最小限のEvent情�
     )
 
     candidates = await fixture.list_related_candidates.execute(_query(fixture))
-    cross_store_occurred_at = cross_store.occurred_at
+    first_occurred_at = first.occurred_at
 
     assert [item.event_id for item in candidates] == [
-        str(cross_store.id.value),
         str(first.id.value),
     ]
-    assert candidates[0].store_id == str(cross_store.store_id.value)
-    assert candidates[0].event_type_name == cross_store.event_type_name.value
-    assert cross_store_occurred_at is not None
-    assert candidates[0].occurred_at == cross_store_occurred_at.value.isoformat()
+    assert candidates[0].store_id == str(first.store_id.value)
+    assert candidates[0].event_type_name == first.event_type_name.value
+    assert first_occurred_at is not None
+    assert candidates[0].occurred_at == first_occurred_at.value.isoformat()
     assert candidates[0].occurred_at_is_unknown is False
-    assert candidates[0].created_at == cross_store.created_at.value.isoformat()
+    assert candidates[0].created_at == first.created_at.value.isoformat()
     assert fixture.event_repository.related_candidate_list_calls == [
         (fixture.corporate_id, fixture.patient_id)
     ]

@@ -37,6 +37,10 @@ _STAFF_BODY = {
     "first_name": "花子",
     "last_name_kana": "スズキ",
     "first_name_kana": "ハナコ",
+    "account": {
+        "email": "staff@example.test",
+        "password": "Password123456789",
+    },
 }
 _PATIENT_BODY = {
     "last_name": "佐藤",

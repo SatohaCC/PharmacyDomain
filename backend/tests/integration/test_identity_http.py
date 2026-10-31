@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.application.identity.boundary_models import VerifiedSubject
 from app.bootstrap import create_app
 from app.domain.identity.primitives import AccountStatus, MembershipRole
+from app.domain.store.identifiers import StoreId
 from app.presentational.authentication import UnconfiguredActorContextProvider
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
 from tests.fakes.verified_subject_provider import StubVerifiedSubjectProvider
@@ -18,10 +19,24 @@ from tests.integration.organization_helpers import (
 )
 
 
-def identity_app(fixture: Organization, *, actor_index: int = 0) -> FastAPI:
+def identity_app(
+    fixture: Organization,
+    *,
+    actor_index: int = 0,
+    selected_store_id: StoreId | None = None,
+) -> FastAPI:
     """本番配線を使い、本人確認基盤の結果だけを固定する。"""
     provider = StubVerifiedSubjectProvider(
-        {"person": VerifiedSubject(principal_id=external_subject_of(actor_index))}
+        {
+            "person": VerifiedSubject(
+                principal_id=external_subject_of(actor_index),
+                selected_store_id=(
+                    str(selected_store_id.value)
+                    if selected_store_id is not None
+                    else None
+                ),
+            )
+        }
     )
     app = create_app(identity_provider=provider)
     setattr(

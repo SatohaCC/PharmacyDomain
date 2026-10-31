@@ -135,7 +135,6 @@ class StartMedicationHistoryRequest(RequestModel):
     residual_drug: ResidualDrugInput | None = None
     information_sheet_provided: bool | None = None
     profile_updates: ProfileUpdateInput | None = None
-    counselor_id: str | None = None
     counseled_at: datetime | None = None
     occurred_at: datetime
 
@@ -150,7 +149,6 @@ class StartEventMedicationHistoryRequest(RequestModel):
     information_sheet_provided: bool | None = None
     profile_updates: ProfileUpdateInput | None = None
     additional_notes: tuple[CategorizedNoteInput, ...] = ()
-    counselor_id: str | None = None
     counseled_at: datetime | None = None
 
 
@@ -188,7 +186,6 @@ class FinalizeMedicationHistoryRequest(RequestModel):
 class AmendMedicationHistoryRequest(RequestModel):
     """確定済み薬歴の訂正の入力。元の記載は残り、訂正が積まれる。"""
 
-    amended_by: str
     reason: str
     amended_soap: SoapInput
 
@@ -221,9 +218,9 @@ class AddFollowUpRequest(RequestModel):
 
     store_id: str
     patient_id: str
-    counselor_id: str
     followed_up_at: datetime
     method: str
+    counselor_id: str | None = None
     soap: SoapInput = Field(default_factory=SoapInput)
     additional_notes: tuple[CategorizedNoteInput, ...] = ()
     handbook_status: HandbookStatusInput | None = None
@@ -235,7 +232,6 @@ class AddFollowUpRequest(RequestModel):
 class RecordTracingReportRequest(RequestModel):
     """トレーシングレポート記録の入力。"""
 
-    reporter_id: str
     provided_at: datetime
     medical_institution_name: str
     physician_name: str
@@ -335,7 +331,6 @@ async def start_medication_history(
                 residual_drug=body.residual_drug,
                 information_sheet_provided=body.information_sheet_provided,
                 profile_updates=body.profile_updates,
-                counselor_id=body.counselor_id,
                 counseled_at=body.counseled_at,
             )
         )
@@ -372,7 +367,6 @@ async def start_event_medication_history(
                 residual_drug=body.residual_drug,
                 information_sheet_provided=body.information_sheet_provided,
                 profile_updates=body.profile_updates,
-                counselor_id=body.counselor_id,
                 counseled_at=body.counseled_at,
                 reception_id=event.reception_id,
             )
@@ -550,7 +544,6 @@ async def amend_medication_history(
             AmendMedicationHistoryCommand(
                 corporate_id=corporate_id,
                 record_id=record_id,
-                amended_by=body.amended_by,
                 reason=body.reason,
                 amended_soap=body.amended_soap,
             )
@@ -674,7 +667,6 @@ async def record_tracing_report(
             RecordTracingReportCommand(
                 corporate_id=corporate_id,
                 record_id=record_id,
-                reporter_id=body.reporter_id,
                 provided_at=body.provided_at,
                 medical_institution_name=body.medical_institution_name,
                 physician_name=body.physician_name,

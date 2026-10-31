@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.application.common.exceptions import NotFoundError
+from app.application.common.exceptions import ApplicationError, NotFoundError
 
 
 class TenantBoundaryNotFoundError(NotFoundError):
@@ -16,3 +16,10 @@ class TenantBoundaryNotFoundError(NotFoundError):
 
     default_message = "指定されたリソースが見つかりません。"
     default_code = "RESOURCE_NOT_FOUND"
+
+
+class StoreContextRequiredError(ApplicationError):
+    """店舗業務の実行時に作業店舗が選択されていないことを表す409相当の例外。"""
+
+    default_message = "店舗業務を行うには作業対象の店舗を選択してください。"
+    default_code = "STORE_CONTEXT_REQUIRED"

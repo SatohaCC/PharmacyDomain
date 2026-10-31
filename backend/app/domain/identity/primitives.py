@@ -27,6 +27,10 @@ class InvitationAddressee(BaseEmailAddress):
     """招待の宛先。本人確認の代用には使わない。"""
 
 
+class CorporateUserEmail(BaseEmailAddress):
+    """法人内アカウントの連絡先メールアドレス。"""
+
+
 class ExternalSubjectKey(BaseNormalizedString):
     """本人確認基盤で検証済みの発行元を含む一意な主体識別子。"""
 

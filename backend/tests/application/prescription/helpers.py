@@ -10,7 +10,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from app.application.access_control.boundary_models import ActorContext
+from app.application.access_control.boundary_models import (
+    ActorContext,
+    ActorRole,
+    ResolvedActorContext,
+)
 from app.application.access_control.policies import AuthorizationService
 from app.application.corporate.commands.services.corporate_access import (
     CorporateAccessService,
@@ -59,6 +63,7 @@ from app.domain.prescription.value_objects import (
     MedicineClassification,
     MedicineIdentifier,
 )
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import PharmacistLicenseNumber
 from app.domain.staff.value_objects import PharmacistProfile, StaffQualifications
@@ -68,7 +73,6 @@ from app.infrastructure.readers.prescription_get_prescription import (
 )
 from tests.application.access_helpers import (
     AutoProvisioningCorporateRepository,
-    create_vendor_corporate_access_for,
 )
 from tests.fakes.fake_clock import FakeClock
 from tests.fakes.fake_drug_interaction import FakeDrugInteractionDataSource
@@ -227,10 +231,30 @@ class PrescriptionFixture:
     pharmacist_id: StaffId
 
 
+def create_resolved_actor(
+    *,
+    staff_id: StaffId | None,
+    role: ActorRole = ActorRole.VENDOR_SYSTEM_ADMIN,
+    corporate_id: CorporateId | None = None,
+    store_ids: frozenset[StoreId] = frozenset(),
+) -> ResolvedActorContext:
+    """信頼済みのテストActorをスタッフ解決状態つきで生成する。"""
+    return ResolvedActorContext(
+        principal_id="test-prescription-actor",
+        roles=frozenset({role}),
+        corporate_id=corporate_id,
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+        staff_id=staff_id,
+        store_ids=store_ids,
+    )
+
+
 def create_fixture(
     *,
     register_medicine: bool = True,
     as_corporate_admin: bool = False,
+    actor: ActorContext | None = None,
 ) -> PrescriptionFixture:
     """既定の依存を配線した Fixture を生成する。
 
@@ -244,7 +268,11 @@ def create_fixture(
     corporate_id = CorporateId.generate()
     store_id = StoreId.generate()
     patient_id = PatientId.generate()
-    pharmacist_id = StaffId.generate()
+    pharmacist_id = (
+        actor.staff_id
+        if isinstance(actor, ResolvedActorContext) and actor.staff_id is not None
+        else StaffId.generate()
+    )
 
     repository = InMemoryPrescriptionRepository()
     store_reference = FakePrescriptionStoreReference()
@@ -263,18 +291,19 @@ def create_fixture(
     public_expense = FakePublicExpenseAvailability()
     clock = FakeClock()
     corporate_repository = AutoProvisioningCorporateRepository()
-    corporate_access = (
-        CorporateAccessService(
-            corporate_repository,
-            AuthorizationService(
-                ActorContext.corporate_admin(
-                    principal_id="test-corporate-admin",
-                    corporate_id=corporate_id,
-                )
-            ),
+    resolved_actor = actor or (
+        create_resolved_actor(
+            staff_id=pharmacist_id,
+            role=ActorRole.CORPORATE_ADMIN,
+            corporate_id=corporate_id,
+            store_ids=frozenset({store_id}),
         )
         if as_corporate_admin
-        else create_vendor_corporate_access_for(corporate_repository)
+        else create_resolved_actor(staff_id=pharmacist_id)
+    )
+    corporate_access = CorporateAccessService(
+        corporate_repository,
+        AuthorizationService(resolved_actor),
     )
 
     return PrescriptionFixture(
@@ -297,7 +326,13 @@ def create_fixture(
             InquiryPharmacistService(),
             clock,
         ),
-        resolve_inquiry=ResolveInquiryUseCase(repository, corporate_access, clock),
+        resolve_inquiry=ResolveInquiryUseCase(
+            repository,
+            corporate_access,
+            clock,
+            staff_qualification=staff_qualification,
+            pharmacist_service=InquiryPharmacistService(),
+        ),
         ready_for_dispensing=ReadyForDispensingUseCase(repository, corporate_access),
         cancel=CancelPrescriptionUseCase(repository, corporate_access),
         get=GetPrescriptionUseCase(

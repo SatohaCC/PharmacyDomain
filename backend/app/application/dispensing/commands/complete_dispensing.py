@@ -9,17 +9,25 @@ from app.application.access_control.boundary_models import Permission
 from app.application.access_control.interfaces.corporate_access import (
     CorporateAccessBoundary,
 )
-from app.application.common.clock import Clock, business_now
+from app.application.common.clock import Clock, business_date, business_now
 from app.application.common.unit_of_work import UnitOfWork
 from app.application.dispensing.commands.dtos.get_dispensing import DispensingProcessDto
 from app.application.dispensing.commands.services.support import (
     load_dispensing_or_raise,
+    resolve_acting_staff_id,
 )
 from app.application.dispensing.interfaces.references import (
+    DispensingPolicyBoundary,
     PrescriptionCompletionBoundary,
+    StaffPersonBoundary,
+    StaffQualificationBoundary,
 )
 from app.application.dispensing.values import parse_enum
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.dispensing.exceptions import (
+    PrescriptionAuditRequiredConflictError,
+    SelfVerificationProhibitedConflictError,
+)
 from app.domain.dispensing.identifiers import DispensingId
 from app.domain.dispensing.primitives import (
     DispensingCompletionTimestamp,
@@ -27,6 +35,7 @@ from app.domain.dispensing.primitives import (
     NextDispensingDate,
 )
 from app.domain.dispensing.repositories import DispensingProcessRepository
+from app.domain.dispensing.services import DispensingPharmacistService
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -61,12 +70,20 @@ class CompleteDispensingUseCase:
         prescription_completion: PrescriptionCompletionBoundary,
         unit_of_work: UnitOfWork,
         clock: Clock,
+        policy_boundary: DispensingPolicyBoundary | None = None,
+        staff_person: StaffPersonBoundary | None = None,
+        staff_qualification: StaffQualificationBoundary | None = None,
+        pharmacist_service: DispensingPharmacistService | None = None,
     ) -> None:
         self._repository = repository
         self._corporate_access = corporate_access
         self._prescription_completion = prescription_completion
         self._unit_of_work = unit_of_work
         self._clock = clock
+        self._policy_boundary = policy_boundary
+        self._staff_person = staff_person
+        self._staff_qualification = staff_qualification
+        self._pharmacist_service = pharmacist_service
 
     async def execute(self, command: CompleteDispensingCommand) -> DispensingProcessDto:
         """調剤セッションを完了し、終了区分なら処方箋も調剤済にする。"""
@@ -80,6 +97,45 @@ class CompleteDispensingUseCase:
             corporate_id=corporate_id,
             dispensing_id=DispensingId.parse(command.dispensing_id),
         )
+        actor_staff_id = resolve_acting_staff_id(self._corporate_access.actor)
+        if self._staff_qualification is not None:
+            qualifications = await self._staff_qualification.get_qualifications(
+                corporate_id=corporate_id,
+                staff_id=actor_staff_id,
+                store_id=process.store_id,
+                as_of=business_date(self._clock),
+            )
+            (
+                self._pharmacist_service or DispensingPharmacistService()
+            ).ensure_dispenser(qualifications)
+
+        # 完了前の実効ポリシー再判定
+        if self._policy_boundary is not None:
+            policy = await self._policy_boundary.get_effective_policy(
+                corporate_id=corporate_id, store_id=process.store_id
+            )
+            if policy.require_prescription_audit and (
+                process.audit is None or process.audit.has_issues
+            ):
+                raise PrescriptionAuditRequiredConflictError()
+            if (
+                policy.prohibit_self_verification
+                and self._staff_person is not None
+                and process.verification is not None
+            ):
+                dispenser_person = await self._staff_person.person_of(
+                    corporate_id, process.dispenser_id
+                )
+                verifier_person = await self._staff_person.person_of(
+                    corporate_id, process.verification.verifier_id
+                )
+                if (
+                    dispenser_person is not None
+                    and verifier_person is not None
+                    and dispenser_person == verifier_person
+                ):
+                    raise SelfVerificationProhibitedConflictError()
+
         completion_type = parse_enum(
             DispensingCompletionType, command.completion_type, "調剤終了区分"
         )

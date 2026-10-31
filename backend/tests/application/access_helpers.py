@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from app.application.access_control.boundary_models import ActorContext
+from app.application.access_control.boundary_models import (
+    ActorContext,
+    ActorRole,
+    ResolvedActorContext,
+)
 from app.application.access_control.policies import AuthorizationService
 from app.application.corporate.commands.services.corporate_access import (
     CorporateAccessService,
@@ -12,6 +16,7 @@ from app.domain.corporate.identifiers import CorporateId
 from app.domain.corporate.primitives import CorporateName, CorporateStatus
 from app.domain.corporate.repositories import CorporateRepository
 from app.domain.corporate.value_objects import CorporateRepresentativeName
+from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNamePart
 
 
@@ -56,24 +61,29 @@ class AutoProvisioningCorporateRepository(CorporateRepository):
         return False
 
 
-def create_vendor_corporate_access() -> CorporateAccessService:
+def create_vendor_corporate_access(
+    *,
+    actor: ActorContext | None = None,
+) -> CorporateAccessService:
     """既存ユースケーステストを実行するベンダー管理者のアクセス境界。"""
     return CorporateAccessService(
         AutoProvisioningCorporateRepository(),
         AuthorizationService(
-            ActorContext.vendor_system_admin(principal_id="test-vendor-admin")
+            actor or ActorContext.vendor_system_admin(principal_id="test-vendor-admin")
         ),
     )
 
 
 def create_vendor_corporate_access_for(
     repository: CorporateRepository,
+    *,
+    actor: ActorContext | None = None,
 ) -> CorporateAccessService:
     """実在法人を扱うテスト用のベンダー管理者境界。"""
     return CorporateAccessService(
         repository,
         AuthorizationService(
-            ActorContext.vendor_system_admin(principal_id="test-vendor-admin")
+            actor or ActorContext.vendor_system_admin(principal_id="test-vendor-admin")
         ),
     )
 
@@ -83,3 +93,18 @@ def create_vendor_authorization() -> AuthorizationService:
     return AuthorizationService(
         ActorContext.vendor_system_admin(principal_id="test-vendor-admin")
     )
+
+
+def create_corporate_admin_access_for(
+    corporate_id: CorporateId,
+    repository: CorporateRepository,
+) -> CorporateAccessService:
+    """自法人管理者の操作境界。"""
+    actor = ResolvedActorContext(
+        principal_id="test-corp-admin",
+        roles=frozenset({ActorRole.CORPORATE_ADMIN}),
+        corporate_id=corporate_id,
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+    )
+    return CorporateAccessService(repository, AuthorizationService(actor))

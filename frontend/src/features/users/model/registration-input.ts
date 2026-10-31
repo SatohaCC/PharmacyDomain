@@ -6,11 +6,9 @@ export interface RegistrationInput {
     last_name_kana: string;
     first_name_kana: string;
   };
-  personId: string;
-  staffId: string;
   homeStore: string;
   startDate: string;
-  loginId: string;
+  email: string;
   initialPassword: string;
   storeIds: string[];
 }
@@ -22,6 +20,14 @@ export function registrationInput(
   const storeIds = data.getAll("store_ids").map(String);
   if (role !== "corporate_admin" && !storeIds.length)
     throw new Error("許可する店舗を選択してください。");
+  const homeStore = text("home_store");
+  const startDate = text("start_date");
+  if ((homeStore && !startDate) || (!homeStore && startDate))
+    throw new Error("主所属店舗と所属開始日は両方指定してください。");
+  if (role !== "corporate_admin" && (!homeStore || !startDate))
+    throw new Error("店舗ユーザーには主所属店舗と所属開始日が必要です。");
+  if (homeStore && storeIds.length && !storeIds.includes(homeStore))
+    throw new Error("主所属店舗を利用権限に含めてください。");
   return {
     names: {
       last_name: text("last_name"),
@@ -29,11 +35,9 @@ export function registrationInput(
       last_name_kana: text("last_name_kana"),
       first_name_kana: text("first_name_kana"),
     },
-    personId: text("person_id"),
-    staffId: text("staff_id"),
-    homeStore: text("home_store"),
-    startDate: text("start_date"),
-    loginId: text("login_id"),
+    homeStore,
+    startDate,
+    email: text("email"),
     initialPassword: String(data.get("initial_password") || ""),
     storeIds,
   };

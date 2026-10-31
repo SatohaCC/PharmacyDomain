@@ -8,7 +8,7 @@ from app.application.access_control.boundary_models import Permission
 from app.application.access_control.interfaces.corporate_access import (
     CorporateAccessBoundary,
 )
-from app.application.common.clock import Clock
+from app.application.common.clock import Clock, business_date
 from app.application.medication_history.commands.dtos.get_medication_history import (
     MedicationHistoryDto,
 )
@@ -16,6 +16,7 @@ from app.application.medication_history.commands.models import SoapInput
 from app.application.medication_history.commands.services.support import (
     build_soap,
     load_record_or_raise,
+    resolve_acting_pharmacist_id,
 )
 from app.application.medication_history.interfaces.references import (
     StaffQualificationBoundary,
@@ -26,7 +27,6 @@ from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.primitives import AmendmentReason, AmendmentTimestamp
 from app.domain.medication_history.repositories import MedicationHistoryRepository
 from app.domain.medication_history.services import CounselorQualificationService
-from app.domain.staff.identifiers import StaffId
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -35,9 +35,9 @@ class AmendMedicationHistoryCommand:
 
     corporate_id: str
     record_id: str
-    amended_by: str
     reason: str
     amended_soap: SoapInput
+    amended_by: str | None = None
 
 
 class AmendMedicationHistoryUseCase:
@@ -79,9 +79,14 @@ class AmendMedicationHistoryUseCase:
             corporate_id=corporate_id,
             record_id=MedicationHistoryRecordId.parse(command.record_id),
         )
-        amended_by = StaffId.parse(command.amended_by)
+        amended_by = resolve_acting_pharmacist_id(
+            self._corporate_access.actor, command.amended_by
+        )
         qualifications = await self._staff_qualification.get_qualifications(
-            corporate_id=corporate_id, staff_id=amended_by
+            corporate_id=corporate_id,
+            staff_id=amended_by,
+            store_id=record.store_id,
+            as_of=business_date(self._clock),
         )
         self._counselor_service.ensure_pharmacist(qualifications)
         record = record.amend(

@@ -61,7 +61,6 @@ class StartDispensingRequest(RequestModel):
 
     store_id: str
     prescription_id: str
-    dispenser_id: str
     #: リフィル・分割調剤の何回目か。1から始まる。
     iteration: int
     dispensed_date: date
@@ -79,7 +78,6 @@ class RecordDispensedContentRequest(RequestModel):
 class VerifyDispensingRequest(RequestModel):
     """鑑査の入力。"""
 
-    verifier_id: str
     result: str
     notes: str | None = None
 
@@ -87,7 +85,6 @@ class VerifyDispensingRequest(RequestModel):
 class RecordAuditRequest(RequestModel):
     """監査の入力。"""
 
-    auditor_id: str
     has_issues: bool
     notes: str | None = None
 
@@ -117,7 +114,6 @@ async def start_dispensing(
                 corporate_id=corporate_id,
                 store_id=body.store_id,
                 prescription_id=body.prescription_id,
-                dispenser_id=body.dispenser_id,
                 iteration=body.iteration,
                 dispensed_date=body.dispensed_date,
                 dispensed_rps=tuple(body.dispensed_rps),
@@ -186,7 +182,6 @@ async def verify_dispensing(
             VerifyDispensingCommand(
                 corporate_id=corporate_id,
                 dispensing_id=dispensing_id,
-                verifier_id=body.verifier_id,
                 result=body.result,
                 notes=body.notes,
             )
@@ -211,7 +206,6 @@ async def record_audit(
             RecordAuditCommand(
                 corporate_id=corporate_id,
                 dispensing_id=dispensing_id,
-                auditor_id=body.auditor_id,
                 has_issues=body.has_issues,
                 notes=body.notes,
             )

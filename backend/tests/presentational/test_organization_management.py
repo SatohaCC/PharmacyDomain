@@ -100,11 +100,11 @@ def test_新しい店舗状態ルートも認証を要求する(api: Api, operat
     assert response.status_code == 401, response.text
 
 
-def test_招待受諾は未接続の本人確認を素通りしない(api: Api) -> None:
+def test_旧招待受諾エンドポイントは存在しない(api: Api) -> None:
     response = api.client.post(
         "/user-invitations/acceptance", json={"secret": "招待秘密"}
     )
-    assert response.status_code == 401, response.text
+    assert response.status_code == 404, response.text
 
 
 @pytest.mark.parametrize(
@@ -114,7 +114,7 @@ def test_招待受諾は未接続の本人確認を素通りしない(api: Api) 
         ("GET", "users/user"),
         ("POST", "users/user/suspension"),
         ("POST", "users/user/reactivation"),
-        ("POST", "user-invitations/invite/cancellation"),
+        ("POST", "users/user/staff-registration"),
         ("POST", "people"),
         ("POST", "staffs/staff/person-link"),
         ("GET", "stores/store/manager-assignments"),

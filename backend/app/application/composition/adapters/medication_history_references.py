@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import datetime
+from datetime import date, datetime
 
-from app.application.common.exceptions import NotFoundError
+from app.application.common.exceptions import AuthorizationError, NotFoundError
 from app.application.common.optional_conversion import unwrap
 from app.application.composition.adapters.medication_history_snapshot_mapping import (
     dispensing_source,
@@ -212,7 +212,12 @@ class CounselorQualificationAdapter(StaffQualificationBoundary):
         self._repository = repository
 
     async def get_qualifications(
-        self, *, corporate_id: CorporateId, staff_id: StaffId
+        self,
+        *,
+        corporate_id: CorporateId,
+        staff_id: StaffId,
+        store_id: StoreId | None = None,
+        as_of: date | None = None,
     ) -> PharmacistQualification:
         """未存在・別法人のスタッフを404相当へ畳み、利用側の資格保有事実へ変換する。
 
@@ -222,6 +227,15 @@ class CounselorQualificationAdapter(StaffQualificationBoundary):
         staff = await self._repository.get(corporate_id=corporate_id, staff_id=staff_id)
         if staff is None:
             raise MedicationHistoryStaffNotFoundError()
+        if not staff.is_active:
+            raise AuthorizationError("停止中のスタッフは業務を実行できません。")
+        if (
+            store_id is not None
+            and as_of is not None
+            and staff.current_home_store_id(as_of) != store_id
+            and store_id not in staff.current_concurrent_store_ids(as_of)
+        ):
+            raise AuthorizationError("指定された店舗に当日有効な所属がありません。")
         return PharmacistQualification(
             has_pharmacist=staff.qualifications.has(PharmacistProfile)
         )

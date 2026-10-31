@@ -6,11 +6,14 @@ import pytest
 
 from app.application.common.exceptions import NotFoundError
 from app.application.identity.commands.models import PersonNamesInput
+from app.application.identity.commands.services.support import (
+    validate_membership_target,
+)
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.primitives import MembershipRole
 from app.domain.shared.actor import AccountPersonId
-from tests.application.identity.test_invitation_management import _setup
+from tests.application.identity.helpers import _setup
 from tests.factories.staff_factory import create_staff
 
 
@@ -53,7 +56,7 @@ async def test_スタッフに一度対応させた本人を別人へ付け替�
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("violation", ["別法人", "別人", "未対応", "退職"])
-async def test_店舗ロールの招待には同一法人で本人に対応する有効スタッフが必要(
+async def test_店舗ロールの付与には同一法人で本人に対応する有効スタッフが必要(
     violation: str,
 ) -> None:
     fixture = await _setup()
@@ -74,12 +77,16 @@ async def test_店舗ロールの招待には同一法人で本人に対応す�
         )
     if violation == "退職":
         await fixture.service.staff.save(replace(staff, is_active=False))
-    command = replace(
-        fixture.command,
-        role=MembershipRole.STORE_OPERATOR,
-        staff_id=str(staff.id.value),
-    )
     with pytest.raises(
         NotFoundError if violation == "別法人" else IdentityConflictError
     ):
-        await fixture.service.invite.execute(command)
+        await validate_membership_target(
+            person_id=fixture.person.id,
+            corporate_id=corporate_id,
+            role=MembershipRole.STORE_OPERATOR,
+            store_ids=frozenset(),
+            staff_id=staff.id,
+            staff=fixture.service.staff,
+            stores=fixture.service.stores,
+            links=fixture.repositories.links,
+        )

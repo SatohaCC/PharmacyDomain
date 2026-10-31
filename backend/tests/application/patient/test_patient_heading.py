@@ -200,6 +200,7 @@ async def test_tc43_15_指定した頭書き項目だけを更新する(
     assert dto.revision == 2
     assert dto.history[0].summary == "元の概要"
     assert dto.history[0].notes == "元の申し送り"
+    assert actor.person_id is not None
     assert dto.history[-1].person_id == str(actor.person_id.value)
 
 

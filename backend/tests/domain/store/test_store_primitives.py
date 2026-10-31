@@ -11,6 +11,8 @@ from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.store.identifiers import StoreId
 from app.domain.store.primitives import (
     InsurancePharmacyNumber,
+    NarcoticsLicenseNumber,
+    PharmacyLicenseNumber,
     StoreAddressLine,
     StoreCode,
     StoreEmailAddress,
@@ -327,3 +329,41 @@ def test_store_id_differs_from_other_id_type_with_same_uuid() -> None:
     # Assert: mypy も非重複比較として警告する（型レベルでの分離が効いている証跡）が、
     # 実行時にも取り違えが等価にならないことを保証しておく。
     assert store_id != corporate_id  # type: ignore[comparison-overlap]
+
+
+@pytest.mark.parametrize(
+    "cls,empty_val",
+    [
+        (PharmacyLicenseNumber, ""),
+        (PharmacyLicenseNumber, "   "),
+        (PharmacyLicenseNumber, "\t\n"),
+        (NarcoticsLicenseNumber, ""),
+        (NarcoticsLicenseNumber, "   "),
+        (NarcoticsLicenseNumber, "\t\n"),
+    ],
+)
+def test_store_license_numbers_reject_empty_values(
+    cls: type[PharmacyLicenseNumber | NarcoticsLicenseNumber], empty_val: str
+) -> None:
+    # Arrange / Act / Assert
+    with pytest.raises(DomainValidationError):
+        cls(empty_val)
+
+
+@pytest.mark.parametrize(
+    "cls,val,expected",
+    [
+        (PharmacyLicenseNumber, "第12345号", "第12345号"),
+        (PharmacyLicenseNumber, "  薬-2026-001  ", "薬-2026-001"),
+        (NarcoticsLicenseNumber, "麻-9999", "麻-9999"),
+        (NarcoticsLicenseNumber, " 第 001 号 ", "第 001 号"),
+    ],
+)
+def test_store_license_numbers_accept_nonempty_values_without_format_rules(
+    cls: type[PharmacyLicenseNumber | NarcoticsLicenseNumber], val: str, expected: str
+) -> None:
+    # Arrange / Act
+    instance = cls(val)
+
+    # Assert
+    assert instance.value == expected

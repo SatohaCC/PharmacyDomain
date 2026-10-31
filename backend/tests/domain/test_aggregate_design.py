@@ -40,7 +40,7 @@ EXPECTED_AGGREGATE_ROOTS: frozenset[str] = frozenset(
         "AccountPerson",
         "UserAccount",
         "CorporateMembership",
-        "UserInvitation",
+        "VendorOperator",
     }
 )
 

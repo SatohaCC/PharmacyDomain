@@ -14,7 +14,7 @@ export function useCorporateRegistration({
         last_name_kana: text(d, "admin_last_kana"),
         first_name_kana: text(d, "admin_first_kana"),
       },
-      login_id: text(d, "login_id"),
+      email: text(d, "email"),
       initial_password: String(d.get("initial_password") || ""),
       name: text(d, "name"),
       representative_last_name: text(d, "last"),
