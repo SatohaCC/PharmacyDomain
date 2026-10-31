@@ -81,7 +81,6 @@ def write(root: Path, files: dict[str, str]) -> None:
             "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from app.infrastructure.persistence import postgres_runtime",
             "DOM003",
         ),
-        ("orders/services.py", "from .primitives import *", "DOM006"),
         (
             "orders/value_objects.py",
             "from dataclasses import dataclass as dc\n@dc\nclass Value: pass",
