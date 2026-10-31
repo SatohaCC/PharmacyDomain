@@ -32,6 +32,11 @@ def manager_staff_source(value: Staff) -> ManagerStaffSource:
         corporate_id=value.corporate_id,
         staff_is_active=value.is_active,
         has_pharmacist=value.qualifications.has(PharmacistProfile),
+        weekly_contract_hours=(
+            value.weekly_contract_hours.value
+            if value.weekly_contract_hours is not None
+            else None
+        ),
         affiliations=tuple(
             ManagerStaffAffiliation(
                 store_id=item.store_id,
