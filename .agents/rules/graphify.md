@@ -1,6 +1,6 @@
 ---
-trigger: always_on
-description: コードベースの質問ではgraphifyの知識グラフを参照する。
+trigger: model_decision
+description: コード間の関係・呼出し経路・変更の影響範囲を調べるとき。
 ---
 
 ## graphify
