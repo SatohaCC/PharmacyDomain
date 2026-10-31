@@ -113,14 +113,31 @@ def test_相対import_本番で使うと_相対import禁止違反になる(tmp_p
     assert "TID252" in result.stdout
 
 
-def test_環境日時_インフラやテストで使うと_禁止APIが除外される(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from dataclasses import asdict\n\nasdict(object())\n",
+        "from datetime import UTC, datetime\n\nx = datetime.now(UTC)\n",
+        "import importlib\n\nimportlib.import_module('app.domain')\n",
+    ],
+)
+def test_禁止API_インフラで使うと_違反になる(tmp_path: Path, source: str) -> None:
+    result = _lint(tmp_path, "app/infrastructure/example.py", source)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "TID251" in result.stdout
+
+
+def test_環境日時_実時計だけ明示除外すると_取得できる(tmp_path: Path) -> None:
     infra_result = _lint(
         tmp_path,
         "app/infrastructure/system_clock.py",
-        "from datetime import UTC, datetime\n\nx = datetime.now(UTC)\n",
+        (_ROOT / "app/infrastructure/system_clock.py").read_text(encoding="utf-8"),
     )
     assert infra_result.returncode == 0, infra_result.stdout + infra_result.stderr
 
+
+def test_環境日時_テストで使うと_禁止APIが除外される(tmp_path: Path) -> None:
     test_result = _lint(
         tmp_path,
         "tests/test_example.py",
