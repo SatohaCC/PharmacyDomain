@@ -54,7 +54,13 @@ export function UserListView({
           <tbody>
             {data.items.map((u) => (
               <tr key={u.id}>
-                <IdentifierCell>{u.person_id}</IdentifierCell>
+                <IdentifierCell>
+                  <Link
+                    href={`/admin/corporates/${encodeURIComponent(corporateId)}/users/${encodeURIComponent(u.id)}`}
+                  >
+                    {u.person_id}
+                  </Link>
+                </IdentifierCell>
                 <TableCell>
                   {u.staff_id ? (
                     <Badge>スタッフ連携済</Badge>

@@ -42,7 +42,13 @@ export function StoreListView({
           <tbody>
             {data.map((s) => (
               <tr key={s.id}>
-                <TableCell>{s.name}</TableCell>
+                <TableCell>
+                  <Link
+                    href={`/admin/corporates/${encodeURIComponent(corporateId)}/stores/${encodeURIComponent(s.id)}`}
+                  >
+                    {s.name}
+                  </Link>
+                </TableCell>
                 <TableCell>{s.name_kana}</TableCell>
                 <TableCell>{s.code || "—"}</TableCell>
                 <TableCell>
