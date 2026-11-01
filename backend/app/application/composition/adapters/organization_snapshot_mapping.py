@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.application.common.optional_conversion import unwrap
 from app.application.staff.interfaces.references import StaffStoreReference
 from app.application.store.interfaces.references import ManagerStaffReference
 from app.domain.corporate.identifiers import CorporateId
@@ -32,11 +33,7 @@ def manager_staff_source(value: Staff) -> ManagerStaffSource:
         corporate_id=value.corporate_id,
         staff_is_active=value.is_active,
         has_pharmacist=value.qualifications.has(PharmacistProfile),
-        weekly_contract_hours=(
-            value.weekly_contract_hours.value
-            if value.weekly_contract_hours is not None
-            else None
-        ),
+        weekly_contract_hours=unwrap(value.weekly_contract_hours),
         affiliations=tuple(
             ManagerStaffAffiliation(
                 store_id=item.store_id,
