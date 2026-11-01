@@ -279,7 +279,6 @@ class RegisterStaffUseCase:
             phone_number=phone_number,
             email=email,
             affiliations=(),
-            is_active=True,
         )
         if command.initial_home_store_id and command.initial_start_date:
             store_id = StoreId.parse(command.initial_home_store_id)

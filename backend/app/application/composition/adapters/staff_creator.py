@@ -153,7 +153,6 @@ class StaffCreationAdapter(StaffCreationBoundary):
             phone_number=phone,
             email=mail,
             affiliations=(),
-            is_active=True,
         )
         if initial_home_store_id and initial_start_date:
             store_id = StoreId.parse(initial_home_store_id)

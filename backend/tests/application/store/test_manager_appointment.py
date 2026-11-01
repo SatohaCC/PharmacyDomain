@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 from datetime import UTC, date, datetime
+from decimal import Decimal
 
 import pytest
 
@@ -17,7 +18,7 @@ from app.application.store.commands.models import ManagerAction
 from app.domain.identity.entities import StaffPersonLink
 from app.domain.shared.actor import AccountPersonId
 from app.domain.staff.entities import Staff
-from app.domain.staff.primitives import PharmacistLicenseNumber
+from app.domain.staff.primitives import PharmacistLicenseNumber, WeeklyContractHours
 from app.domain.staff.value_objects import (
     AffiliationPeriod,
     PharmacistProfile,
@@ -25,7 +26,10 @@ from app.domain.staff.value_objects import (
     StoreAffiliation,
 )
 from app.domain.store.entities import Store
-from app.domain.store.exceptions import ManagerPersonUnresolvedError
+from app.domain.store.exceptions import (
+    ManagerAssignmentConflictError,
+    ManagerPersonUnresolvedError,
+)
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store
@@ -144,3 +148,50 @@ async def test_他法人で固定された対応は任命に使えない() -> No
     # Act & Assert
     with pytest.raises(ManagerPersonUnresolvedError):
         await use_case.execute(_command(store, staff))
+
+
+@pytest.mark.asyncio
+async def test_週32時間未満の短時間契約スタッフは管理薬剤師に任命できない() -> None:
+    # Arrange: 週20時間のパート薬剤師
+    store = create_store()
+    staff = replace(
+        _pharmacist(store),
+        weekly_contract_hours=WeeklyContractHours(Decimal("20.0")),
+    )
+    person_id = AccountPersonId.generate()
+    links = InMemoryStaffPersonLinkRepository()
+    await links.save(
+        StaffPersonLink(
+            id=staff.id, corporate_id=store.corporate_id, person_id=person_id
+        )
+    )
+    use_case = await _use_case(store, staff, links)
+
+    # Act & Assert
+    with pytest.raises(ManagerAssignmentConflictError) as exc_info:
+        await use_case.execute(_command(store, staff))
+    assert "週32時間以上の勤務要件" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_週32時間以上の常勤スタッフは管理薬剤師に任命できる() -> None:
+    # Arrange: 週32時間の常勤薬剤師
+    store = create_store()
+    staff = replace(
+        _pharmacist(store),
+        weekly_contract_hours=WeeklyContractHours(Decimal("32.0")),
+    )
+    person_id = AccountPersonId.generate()
+    links = InMemoryStaffPersonLinkRepository()
+    await links.save(
+        StaffPersonLink(
+            id=staff.id, corporate_id=store.corporate_id, person_id=person_id
+        )
+    )
+    use_case = await _use_case(store, staff, links)
+
+    # Act
+    result = await use_case.execute(_command(store, staff))
+
+    # Assert
+    assert result.staff_id == str(staff.id.value)

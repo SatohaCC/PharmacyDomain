@@ -13,6 +13,7 @@ from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.primitives import MembershipRole
 from app.domain.shared.actor import AccountPersonId
+from app.domain.staff.primitives import StaffStatus
 from tests.application.identity.helpers import _setup
 from tests.factories.staff_factory import create_staff
 
@@ -76,7 +77,7 @@ async def test_店舗ロールの付与には同一法人で本人に対応す�
             str(corporate_id.value), str(person.id.value), str(staff.id.value)
         )
     if violation == "退職":
-        await fixture.service.staff.save(replace(staff, is_active=False))
+        await fixture.service.staff.save(replace(staff, status=StaffStatus.RETIRED))
     with pytest.raises(
         NotFoundError if violation == "別法人" else IdentityConflictError
     ):

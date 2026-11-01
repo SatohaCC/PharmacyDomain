@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, datetime, time
+from decimal import Decimal
 from typing import ClassVar, Final
 
 from app.domain.corporate.identifiers import CorporateId
@@ -17,8 +18,10 @@ from app.domain.store.identifiers import StoreId
 from app.domain.store.primitives import (
     BusinessHoursNote,
     BusinessWeekday,
+    DiseaseCategory,
     NarcoticsLicenseNumber,
     PharmacyLicenseNumber,
+    PublicExpenseDesignationNumber,
     StoreAddressLine,
     StoreEmailAddress,
     StoreFaxNumber,
@@ -267,6 +270,7 @@ class ManagerStaffSource(ValueObject):
     staff_is_active: bool
     has_pharmacist: bool
     affiliations: tuple[ManagerStaffAffiliation, ...]
+    weekly_contract_hours: Decimal | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -393,3 +397,98 @@ class StorePolicy(ValueObject):
 
     require_prescription_audit: bool | None = None
     prohibit_self_verification: bool | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class PublicExpenseDesignations(ValueObject):
+    """公費・指定医療機関情報一式。"""
+
+    public_assistance_number: PublicExpenseDesignationNumber | None = None
+    support_for_independence_number: PublicExpenseDesignationNumber | None = None
+    intractable_disease_number: PublicExpenseDesignationNumber | None = None
+    workers_accident_number: PublicExpenseDesignationNumber | None = None
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "public_assistance_number": "生活保護法指定番号",
+        "support_for_independence_number": "自立支援医療指定番号",
+        "intractable_disease_number": "難病法指定番号",
+        "workers_accident_number": "労災保険指定番号",
+    }
+
+
+@dataclass(frozen=True, kw_only=True)
+class CommunityLinkageCertification(ValueObject):
+    """地域連携薬局の知事認定情報。"""
+
+    certification_number: PublicExpenseDesignationNumber
+    valid_from: date
+    valid_to: date
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "certification_number": "認定番号",
+        "valid_from": "有効期間開始日",
+        "valid_to": "有効期間満了日",
+    }
+
+    def validate(self) -> None:
+        if self.valid_from > self.valid_to:
+            raise DomainValidationError(
+                "認定有効期間開始日は満了日以前である必要があります。"
+            )
+
+    def is_effective_on(self, target_date: date) -> bool:
+        """指定業務日に認定が有効か判定する。"""
+        return self.valid_from <= target_date <= self.valid_to
+
+
+@dataclass(frozen=True, kw_only=True)
+class SpecializedLinkageCertification(ValueObject):
+    """専門医療機関連携薬局の知事認定情報。"""
+
+    certification_number: PublicExpenseDesignationNumber
+    disease_category: DiseaseCategory
+    valid_from: date
+    valid_to: date
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "certification_number": "認定番号",
+        "disease_category": "傷病区分",
+        "valid_from": "有効期間開始日",
+        "valid_to": "有効期間満了日",
+    }
+
+    def validate(self) -> None:
+        if self.valid_from > self.valid_to:
+            raise DomainValidationError(
+                "認定有効期間開始日は満了日以前である必要があります。"
+            )
+
+    def is_effective_on(self, target_date: date) -> bool:
+        """指定業務日に認定が有効か判定する。"""
+        return self.valid_from <= target_date <= self.valid_to
+
+
+@dataclass(frozen=True, kw_only=True)
+class HealthSupportPharmacyNotification(ValueObject):
+    """健康サポート薬局の届出情報。"""
+
+    notified_on: date
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "notified_on": "届出年月日",
+    }
+
+
+@dataclass(frozen=True, kw_only=True)
+class PharmacyCertifications(ValueObject):
+    """薬局機能認定・届出一式。"""
+
+    community_linkage: CommunityLinkageCertification | None = None
+    specialized_linkage: SpecializedLinkageCertification | None = None
+    health_support: HealthSupportPharmacyNotification | None = None
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "community_linkage": "地域連携薬局認定",
+        "specialized_linkage": "専門医療機関連携薬局認定",
+        "health_support": "健康サポート薬局届出",
+    }

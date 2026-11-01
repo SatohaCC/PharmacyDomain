@@ -273,7 +273,6 @@ def test_複数集約ドメインサービスが法人境界を保護する() ->
         code=None,
         phone_number=None,
         email=None,
-        is_active=True,
     )
     store_b = Store(
         id=StoreId.generate(),
@@ -334,7 +333,6 @@ def test_複数集約ドメインサービスが法人境界を保護する() ->
         code=None,
         phone_number=None,
         email=None,
-        is_active=True,
     )
     assignment = StoreManagerAssignment(
         id=StoreManagerAssignmentId.generate(),

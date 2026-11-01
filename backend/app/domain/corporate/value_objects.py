@@ -2,16 +2,53 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
+from typing import ClassVar
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.corporate.primitives import (
+    CorporateAddressLine,
+    CorporateEmailAddress,
     CorporatePageSize,
+    CorporatePhoneNumber,
+    CorporatePostalCode,
     CorporateSearchText,
     CorporateStatus,
 )
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.value_object import ValueObject
 from app.domain.shared.person_name import PersonName
+
+
+@dataclass(frozen=True, kw_only=True)
+class CorporateAddress(ValueObject):
+    """法人の登記上所在地情報。"""
+
+    postal_code: CorporatePostalCode
+    address_line: CorporateAddressLine
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "postal_code": "郵便番号",
+        "address_line": "住所",
+    }
+
+
+@dataclass(frozen=True, kw_only=True)
+class CorporateContactInfo(ValueObject):
+    """法人の連絡先情報。"""
+
+    phone_number: CorporatePhoneNumber
+    email: CorporateEmailAddress | None = None
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "phone_number": "代表電話番号",
+        "email": "代表メールアドレス",
+    }
+
+    def validate(self) -> None:
+        if not self.phone_number.value:
+            raise DomainValidationError("代表電話番号は空にできません。")
 
 
 @dataclass(frozen=True, kw_only=True)

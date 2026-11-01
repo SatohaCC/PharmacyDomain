@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import UTC, date, datetime
+from decimal import Decimal
 
 import pytest
 
@@ -21,7 +22,7 @@ from app.domain.identity.primitives import AccountStatus, MembershipRole
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.entities import Staff
 from app.domain.staff.identifiers import StaffId
-from app.domain.staff.primitives import PharmacistLicenseNumber
+from app.domain.staff.primitives import PharmacistLicenseNumber, WeeklyContractHours
 from app.domain.staff.value_objects import (
     AffiliationPeriod,
     PharmacistProfile,
@@ -207,6 +208,36 @@ async def test_明日まで続く任命が残るスタッフは_退職できな�
     # Act & Assert
     with pytest.raises(ManagerAssignmentConflictError):
         await guard.check(staff.deactivate(_TODAY), False)
+
+
+@pytest.mark.asyncio
+async def test_在任中の管理薬剤師の週契約労働時間を32時間未満に変更して保存できない() -> (
+    None
+):
+    """在任中の任命があるスタッフの契約時間を20時間に短縮する保存は拒否される。"""
+    # Arrange: 在任中の管理薬剤師
+    guard, staff = await _guard_with(assignment_end=None)
+
+    # Act & Assert: 週20時間のパートへの変更は拒否される
+    short_hours_staff = staff.change_weekly_contract_hours(
+        WeeklyContractHours(Decimal("20.0"))
+    )
+    with pytest.raises(ManagerAssignmentConflictError) as exc_info:
+        await guard.check(short_hours_staff, False)
+    assert "週32時間以上の勤務要件" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_在任中の管理薬剤師の週契約労働時間が32時間以上なら保存できる() -> None:
+    """在任中の任命があるスタッフでも、週32時間以上の常勤時間であれば保存が通る。"""
+    # Arrange: 在任中の管理薬剤師
+    guard, staff = await _guard_with(assignment_end=None)
+
+    # Act & Assert: 週40時間（または週32時間）の保存は例外なく通る
+    full_time_staff = staff.change_weekly_contract_hours(
+        WeeklyContractHours(Decimal("40.0"))
+    )
+    await guard.check(full_time_staff, False)
 
 
 class _事象記録:

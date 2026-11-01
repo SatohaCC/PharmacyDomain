@@ -28,6 +28,8 @@ from app.domain.store.value_objects import (
     BusinessHours,
     ContactInfo,
     ManagerAssignmentPeriod,
+    PharmacyCertifications,
+    PublicExpenseDesignations,
     StoreAddress,
     StoreLicenses,
     StoreNames,
@@ -103,10 +105,38 @@ class Store(AggregateRoot[StoreId]):
     licenses: StoreLicenses | None = None
     #: 店舗ポリシー（None は法人値を採用）。
     policy: StorePolicy = field(default_factory=StorePolicy)
+    #: 公費・指定医療機関情報一式。
+    public_expense_designations: PublicExpenseDesignations = field(
+        default_factory=PublicExpenseDesignations
+    )
+    #: 薬局機能認定・届出一式。
+    certifications: PharmacyCertifications = field(
+        default_factory=PharmacyCertifications
+    )
+    #: 医薬品安全管理責任者。
+    safety_manager_id: StaffId | None = None
 
     def update_licenses(self, licenses: StoreLicenses) -> Self:
         """店舗の許認可情報を更新する。"""
         return replace(self, licenses=licenses)
+
+    def update_public_expense_designations(
+        self, designations: PublicExpenseDesignations
+    ) -> Self:
+        """店舗の公費・指定医療機関情報を更新する。"""
+        return replace(self, public_expense_designations=designations)
+
+    def update_certifications(self, certifications: PharmacyCertifications) -> Self:
+        """店舗の薬局機能認定・届出情報を更新する。"""
+        return replace(self, certifications=certifications)
+
+    def appoint_safety_manager(self, staff_id: StaffId) -> Self:
+        """医薬品安全管理責任者を指名する。"""
+        return replace(self, safety_manager_id=staff_id)
+
+    def remove_safety_manager(self) -> Self:
+        """医薬品安全管理責任者を解任する。"""
+        return replace(self, safety_manager_id=None)
 
     def change_policy(self, policy: StorePolicy) -> Self:
         """店舗ポリシー設定を変更する。"""

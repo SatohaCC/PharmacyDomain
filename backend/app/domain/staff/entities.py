@@ -6,11 +6,13 @@ from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date
+from decimal import Decimal
 from itertools import pairwise
 from typing import Self
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.entity import AggregateRoot
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.shared.person_name import PersonNames
 from app.domain.staff.exceptions import (
     AffiliationDateConflictError,
@@ -19,10 +21,14 @@ from app.domain.staff.exceptions import (
 )
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import (
+    EmploymentType,
     JobTitle,
+    LeaveReason,
     StaffCode,
     StaffEmailAddress,
     StaffPhoneNumber,
+    StaffStatus,
+    WeeklyContractHours,
 )
 from app.domain.staff.value_objects import (
     BaseQualificationProfile,
@@ -60,21 +66,76 @@ class Staff(AggregateRoot[StaffId]):
     code: StaffCode | None = None
     phone_number: StaffPhoneNumber | None = None
     email: StaffEmailAddress | None = None
-    is_active: bool = True
+    status: StaffStatus = StaffStatus.ACTIVE
+    leave_reason: LeaveReason | None = None
+    employment_type: EmploymentType = EmploymentType.REGULAR
+    weekly_contract_hours: WeeklyContractHours | None = None
 
     affiliations: tuple[StoreAffiliation, ...] = ()
 
     # --- 自集約の不変条件 ---
 
     def validate(self) -> None:
-        """所属履歴の期間が重ならないことを検証する。
-
-        ``Entity.__post_init__`` から呼ばれるため、``create()`` /
-        ``dataclasses.replace()`` / Repositoryからの復元 / テストの直接構築の
-        すべてがこの検証を通る。不正な所属履歴を持つ ``Staff`` は生成できない。
-        """
+        """所属履歴の期間や就業状態の整合性を検証する。"""
         self._ensure_primary_affiliations_never_overlap()
         self._ensure_same_store_affiliations_never_overlap()
+        self._ensure_leave_status_consistency()
+
+    def _ensure_leave_status_consistency(self) -> None:
+        """休職状態と休職理由の整合性を検証する。"""
+        if self.status == StaffStatus.ON_LEAVE and self.leave_reason is None:
+            raise DomainValidationError("休職中のスタッフには休職理由が必要です。")
+        if self.status != StaffStatus.ON_LEAVE and self.leave_reason is not None:
+            raise DomainValidationError(
+                "休職中以外のスタッフに休職理由は設定できません。"
+            )
+
+    @property
+    def is_active(self) -> bool:
+        """通常業務を行える稼働状態か判定する（休職中・退職時はFalse）。"""
+        return self.status == StaffStatus.ACTIVE
+
+    @property
+    def is_on_leave(self) -> bool:
+        """休職中か判定する。"""
+        return self.status == StaffStatus.ON_LEAVE
+
+    @property
+    def is_employed(self) -> bool:
+        """在籍中（退職していない）か判定する。"""
+        return self.status != StaffStatus.RETIRED
+
+    @property
+    def effective_weekly_hours(self) -> Decimal:
+        """実効稼働時間（週時間）。
+
+        休職中や退職済みの場合は契約時間にかかわらず 0.0 時間となり、
+        稼働中（ACTIVE）の場合のみ契約上の週所定労働時間を返す（未設定なら0.0時間）。
+        """
+        if self.status != StaffStatus.ACTIVE or self.weekly_contract_hours is None:
+            return Decimal("0.0")
+        return self.weekly_contract_hours.value
+
+    def effective_full_time_equivalent(
+        self, standard_hours: Decimal = Decimal("40.0")
+    ) -> Decimal:
+        """実効常勤換算比率（FTE）を算出する。
+
+        休職中（育休・病休など）や退職済みのスタッフは施設基準上の稼働人員から
+        除外されるため、契約時間にかかわらず 0.00 を返す。
+        稼働中（ACTIVE）の場合のみ、週所定労働時間に基づく常勤換算比率を返す。
+        """
+        if self.status != StaffStatus.ACTIVE or self.weekly_contract_hours is None:
+            return Decimal("0.00")
+        return self.weekly_contract_hours.full_time_equivalent(standard_hours)
+
+    def effective_is_full_time(
+        self, threshold_hours: Decimal = Decimal("32.0")
+    ) -> bool:
+        """実効的に常勤要件（既定週32時間以上）を満たしているか判定する。"""
+        if self.status != StaffStatus.ACTIVE or self.weekly_contract_hours is None:
+            return False
+        return self.weekly_contract_hours.is_full_time(threshold_hours)
 
     def _ensure_primary_affiliations_never_overlap(self) -> None:
         """主所属は店舗を問わず期間が重ならないことを検証する。"""
@@ -192,7 +253,12 @@ class Staff(AggregateRoot[StaffId]):
             else affiliation
             for affiliation in self.affiliations
         )
-        return replace(self, is_active=False, affiliations=closed)
+        return replace(
+            self,
+            status=StaffStatus.RETIRED,
+            leave_reason=None,
+            affiliations=closed,
+        )
 
     def activate(self) -> Self:
         """有効化（復職等）する。
@@ -204,4 +270,38 @@ class Staff(AggregateRoot[StaffId]):
         導出できない）。
         """
 
-        return replace(self, is_active=True)
+        return replace(
+            self,
+            status=StaffStatus.ACTIVE,
+            leave_reason=None,
+        )
+
+    def start_leave(self, *, reason: LeaveReason, left_on: date) -> Self:
+        """休職を開始する。所属履歴は維持しつつ稼働状態を非稼働とする。"""
+        if self.status == StaffStatus.RETIRED:
+            raise DomainValidationError("退職済みのスタッフは休職できません。")
+        return replace(
+            self,
+            status=StaffStatus.ON_LEAVE,
+            leave_reason=reason,
+        )
+
+    def return_from_leave(self) -> Self:
+        """休職から復職する。"""
+        if self.status != StaffStatus.ON_LEAVE:
+            raise DomainValidationError("休職中ではないスタッフは復職できません。")
+        return replace(
+            self,
+            status=StaffStatus.ACTIVE,
+            leave_reason=None,
+        )
+
+    def change_employment_type(self, employment_type: EmploymentType) -> Self:
+        """雇用形態を変更する"""
+        return replace(self, employment_type=employment_type)
+
+    def change_weekly_contract_hours(
+        self, weekly_contract_hours: WeeklyContractHours | None
+    ) -> Self:
+        """週所定労働時間を変更する"""
+        return replace(self, weekly_contract_hours=weekly_contract_hours)
