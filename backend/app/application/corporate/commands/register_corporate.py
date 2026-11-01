@@ -27,6 +27,7 @@ from app.domain.corporate.value_objects import (
     CorporateContactInfo,
     CorporateRepresentativeName,
 )
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.shared.person_name import PersonNamePart
 
 
@@ -54,32 +55,54 @@ class RegisterCorporateUseCase:
         )
         await self._uniqueness_service.ensure_name_is_unique(name=name)
 
+        has_postal = bool(command.postal_code and command.postal_code.strip())
+        has_address = bool(command.address_line and command.address_line.strip())
+        if has_postal != has_address:
+            raise DomainValidationError(
+                "所在地を指定する場合は郵便番号と住所行の両方を入力してください。"
+            )
         address = (
             CorporateAddress(
-                postal_code=CorporatePostalCode(command.postal_code),
-                address_line=CorporateAddressLine(command.address_line),
+                postal_code=CorporatePostalCode(command.postal_code.strip()),
+                address_line=CorporateAddressLine(command.address_line.strip()),
             )
-            if command.postal_code and command.address_line
+            if has_postal and command.postal_code and command.address_line
             else None
         )
+
+        has_phone = bool(command.phone_number and command.phone_number.strip())
+        has_email = bool(command.email and command.email.strip())
+        if has_email and not has_phone:
+            raise DomainValidationError(
+                "連絡先メールアドレスを指定する場合は代表電話番号も入力してください。"
+            )
         contact_info = (
             CorporateContactInfo(
-                phone_number=CorporatePhoneNumber(command.phone_number),
-                email=(CorporateEmailAddress(command.email) if command.email else None),
+                phone_number=CorporatePhoneNumber(command.phone_number.strip()),
+                email=(
+                    CorporateEmailAddress(command.email.strip())
+                    if has_email and command.email
+                    else None
+                ),
             )
-            if command.phone_number
+            if has_phone and command.phone_number
             else None
         )
+
+        corporate_type = CorporateType.STOCK_COMPANY
+        if command.corporate_type:
+            try:
+                corporate_type = CorporateType(command.corporate_type)
+            except ValueError as error:
+                raise DomainValidationError(
+                    f"不正な法人区分です: '{command.corporate_type}'"
+                ) from error
 
         corporate = Corporate(
             id=CorporateId.generate(),
             name=name,
             representative_name=rep_name,
-            corporate_type=(
-                CorporateType(command.corporate_type)
-                if command.corporate_type
-                else CorporateType.STOCK_COMPANY
-            ),
+            corporate_type=corporate_type,
             corporate_number=(
                 CorporateNumber(command.corporate_number)
                 if command.corporate_number

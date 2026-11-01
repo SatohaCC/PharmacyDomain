@@ -274,6 +274,15 @@ class RegisterStaffUseCase:
         raw_job_title = to_optional_text(command.job_title)
         job_title = JobTitle(raw_job_title) if raw_job_title else None
         qualifications = self._build_qualifications(command)
+        employment_type = EmploymentType.REGULAR
+        if command.employment_type:
+            try:
+                employment_type = EmploymentType(command.employment_type)
+            except ValueError as error:
+                raise DomainValidationError(
+                    f"不正な雇用形態です: '{command.employment_type}'"
+                ) from error
+
         staff = Staff(
             id=StaffId.generate(),
             corporate_id=corporate_id,
@@ -283,11 +292,7 @@ class RegisterStaffUseCase:
             code=code,
             phone_number=phone_number,
             email=email,
-            employment_type=(
-                EmploymentType(command.employment_type)
-                if command.employment_type
-                else EmploymentType.REGULAR
-            ),
+            employment_type=employment_type,
             weekly_contract_hours=(
                 WeeklyContractHours(Decimal(str(command.weekly_contract_hours)))
                 if command.weekly_contract_hours is not None

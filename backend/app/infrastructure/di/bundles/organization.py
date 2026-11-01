@@ -222,7 +222,7 @@ def build_store_use_cases(
             corporate_access=corporate_access,
         ),
         list_by_corporate=ListStoresUseCase(
-            reader=ListStoresProjection(repository),
+            reader=ListStoresProjection(repository, clock),
             corporate_access=corporate_access,
         ),
         change_names=ChangeStoreNamesUseCase(
