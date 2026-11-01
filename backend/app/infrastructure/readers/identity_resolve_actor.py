@@ -50,18 +50,19 @@ class ResolveActorProjection(ResolveActorQueryReader):
         self, subject: ExternalSubjectKey
     ) -> IdentityResolutionSnapshot | None:
         """主体からアカウントを引き、欠落を含む関連情報を不変の投影で返す。"""
-        if self._vendor_operators is not None and subject.value.startswith("vendor:"):
+        if self._vendor_operators is not None:
             operator = await self._vendor_operators.get_by_subject(subject)
-            if operator is None:
+            if operator is not None:
+                return IdentityResolutionSnapshot(
+                    operator_id=operator.id,
+                    external_subject=subject,
+                    account_status=AccountStatus.ACTIVE
+                    if operator.is_active
+                    else AccountStatus.SUSPENDED,
+                    is_vendor_admin=True,
+                )
+            if subject.value.startswith("vendor:"):
                 return None
-            return IdentityResolutionSnapshot(
-                operator_id=operator.id,
-                external_subject=subject,
-                account_status=AccountStatus.ACTIVE
-                if operator.is_active
-                else AccountStatus.SUSPENDED,
-                is_vendor_admin=True,
-            )
         account = await self._accounts.get_by_subject(subject)
         if account is None:
             return None

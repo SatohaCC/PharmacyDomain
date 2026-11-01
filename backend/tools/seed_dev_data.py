@@ -35,9 +35,14 @@ from app.domain.identity.entities import (
     CorporateMembership,
     StaffPersonLink,
     UserAccount,
+    VendorOperator,
 )
-from app.domain.identity.identifiers import CorporateMembershipId
-from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole
+from app.domain.identity.identifiers import CorporateMembershipId, VendorOperatorId
+from app.domain.identity.primitives import (
+    CorporateUserEmail,
+    ExternalSubjectKey,
+    MembershipRole,
+)
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import (
     PersonName,
@@ -115,6 +120,7 @@ class SeedData:
 
     vendor_person: AccountPerson
     vendor_account: UserAccount
+    vendor_operator: VendorOperator
     admin_person: AccountPerson
     admin_account: UserAccount
     corporate: Corporate
@@ -174,6 +180,12 @@ def build_seed_data() -> SeedData:
             person_id=vendor_person_id,
             external_subject=ExternalSubjectKey(_VENDOR_SUBJECT),
             is_vendor_admin=True,
+        ),
+        vendor_operator=VendorOperator(
+            id=VendorOperatorId.parse(_VENDOR_ACCOUNT_ID),
+            email=CorporateUserEmail("vendor@example.com"),
+            external_subject=ExternalSubjectKey(_VENDOR_SUBJECT),
+            is_active=True,
         ),
         admin_person=AccountPerson(
             id=admin_person_id,
@@ -282,6 +294,7 @@ def save_order(data: SeedData) -> tuple[tuple[str, object], ...]:
         ("account_people", data.admin_person),
         ("user_accounts", data.vendor_account),
         ("user_accounts", data.admin_account),
+        ("vendor_operators", data.vendor_operator),
         ("staff_members", data.staff),
         ("staff_person_links", data.staff_person_link),
         ("corporate_memberships", data.membership),
@@ -299,6 +312,7 @@ def environment_lines(data: SeedData) -> list[str]:
         "# tools.seed_dev_data が投入した開発用の操作主体。",
         "DEV_ACTOR_ROLE=vendor_system_admin",
         f"DEV_ACTOR_PRINCIPAL_ID={_VENDOR_SUBJECT}",
+        f"DEV_ACTOR_OPERATOR_ID={data.vendor_operator.id.value}",
         f"DEV_ACTOR_PERSON_ID={data.vendor_person.id.value}",
         f"DEV_ACTOR_ACCOUNT_ID={data.vendor_account.id.value}",
         f"DEV_ACTOR_CORPORATE_ID={data.corporate.id.value}",
@@ -348,6 +362,10 @@ async def _save_if_absent(
             created = await repositories.user_account.get(aggregate.id) is None
             if created:
                 await repositories.user_account.save(aggregate)
+        case VendorOperator():
+            created = await repositories.vendor_operator.get(aggregate.id) is None
+            if created:
+                await repositories.vendor_operator.save(aggregate)
         case Corporate():
             created = await repositories.corporate.get(aggregate.id) is None
             if created:

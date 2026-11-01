@@ -64,6 +64,8 @@ async def test_固定トークンと一致したときだけ_主体を返す() -
     assert actor.person_id is not None and actor.account_id is not None
     assert str(actor.person_id.value) == _PERSON_ID
     assert str(actor.account_id.value) == _ACCOUNT_ID
+    assert actor.operator_id is not None
+    assert str(actor.operator_id.value) == _ACCOUNT_ID
 
 
 @pytest.mark.parametrize("credential", [None, "", "another-token"])
@@ -102,6 +104,29 @@ async def test_主体の識別子を_環境変数で指定できる() -> None:
 
     # Assert
     assert actor.principal_id == "検証用"
+
+
+async def test_運営者IDを_環境変数で指定できる() -> None:
+    # Arrange
+    custom_operator_id = "01890000-0000-7000-8000-0000000000bb"
+    provider = build_actor_provider(
+        {**_VENDOR_ENVIRONMENT, "DEV_ACTOR_OPERATOR_ID": custom_operator_id}
+    )
+
+    # Act
+    actor = await provider.authenticate("dev-token")
+
+    # Assert
+    assert isinstance(actor, ResolvedActorContext)
+    assert actor.operator_id is not None
+    assert str(actor.operator_id.value) == custom_operator_id
+
+
+def test_運営者IDが不正なUUIDなら_設定エラーになる() -> None:
+    with pytest.raises(DevActorConfigurationError, match="DEV_ACTOR_OPERATOR_ID"):
+        build_actor_provider(
+            {**_VENDOR_ENVIRONMENT, "DEV_ACTOR_OPERATOR_ID": "not-a-uuid"}
+        )
 
 
 async def test_法人管理者を選ぶと_指定した法人の主体になる() -> None:

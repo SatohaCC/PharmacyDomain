@@ -22,6 +22,9 @@ from app.application.corporate.commands.change_representative import (
     ChangeRepresentativeCommand,
 )
 from app.application.corporate.commands.models import RegisterCorporateCommand
+from app.application.corporate.commands.update_corporate_details import (
+    UpdateCorporateDetailsCommand,
+)
 from app.application.corporate.commands.update_corporate_policy import (
     PolicySettingInput,
     UpdateCorporatePolicyCommand,
@@ -57,6 +60,13 @@ class RegisterCorporateRequest(RequestModel):
     name: str
     representative_last_name: str
     representative_first_name: str
+    corporate_type: str = "stock_company"
+    corporate_number: str | None = None
+    invoice_number: str | None = None
+    postal_code: str | None = None
+    address_line: str | None = None
+    phone_number: str | None = None
+    email: str | None = None
 
 
 class ChangeCorporateNameRequest(RequestModel):
@@ -92,6 +102,18 @@ class UpdateCorporatePolicyRequest(RequestModel):
     prohibit_self_verification: PolicySettingRequest
 
 
+class UpdateCorporateDetailsRequest(RequestModel):
+    """法人詳細情報更新のリクエストモデル。"""
+
+    corporate_type: str | None = None
+    corporate_number: str | None = None
+    invoice_number: str | None = None
+    postal_code: str | None = None
+    address_line: str | None = None
+    phone_number: str | None = None
+    email: str | None = None
+
+
 @router.post(
     "",
     status_code=HTTPStatus.CREATED,
@@ -108,6 +130,13 @@ async def register_corporate(
             name=body.name,
             representative_last_name=body.representative_last_name,
             representative_first_name=body.representative_first_name,
+            corporate_type=body.corporate_type,
+            corporate_number=body.corporate_number,
+            invoice_number=body.invoice_number,
+            postal_code=body.postal_code,
+            address_line=body.address_line,
+            phone_number=body.phone_number,
+            email=body.email,
         )
     )
     return RegisteredIdResponse(id=str(corporate_id.value))
@@ -221,6 +250,32 @@ async def update_corporate_policy(
                 value=body.prohibit_self_verification.value,
                 overridable=body.prohibit_self_verification.overridable,
             ),
+        )
+    )
+
+
+@router.patch(
+    "/{corporate_id}/details",
+    status_code=HTTPStatus.NO_CONTENT,
+    response_class=Response,
+    responses=error_responses(HTTPStatus.NOT_FOUND, HTTPStatus.CONFLICT),
+)
+async def update_corporate_details(
+    corporate_id: str,
+    body: UpdateCorporateDetailsRequest,
+    use_cases: CorporateUseCasesDep,
+) -> None:
+    """法人詳細情報（法人格、法人番号、インボイス番号、所在地、連絡先）を更新する。"""
+    await use_cases.update_details.execute(
+        UpdateCorporateDetailsCommand(
+            corporate_id=corporate_id,
+            corporate_type=body.corporate_type,
+            corporate_number=body.corporate_number,
+            invoice_number=body.invoice_number,
+            postal_code=body.postal_code,
+            address_line=body.address_line,
+            phone_number=body.phone_number,
+            email=body.email,
         )
     )
 

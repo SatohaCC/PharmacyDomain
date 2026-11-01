@@ -10,10 +10,24 @@ from app.application.access_control.policies import AuthorizationService
 from app.application.corporate.commands.models import RegisterCorporateCommand
 from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.corporate.primitives import CorporateName
+from app.domain.corporate.primitives import (
+    CorporateAddressLine,
+    CorporateEmailAddress,
+    CorporateName,
+    CorporateNumber,
+    CorporatePhoneNumber,
+    CorporatePostalCode,
+    CorporateType,
+    InvoiceRegistrationNumber,
+)
 from app.domain.corporate.repositories import CorporateRepository
 from app.domain.corporate.services import CorporateNameUniquenessService
-from app.domain.corporate.value_objects import CorporateRepresentativeName
+from app.domain.corporate.value_objects import (
+    CorporateAddress,
+    CorporateContactInfo,
+    CorporateRepresentativeName,
+)
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.shared.person_name import PersonNamePart
 
 
@@ -40,8 +54,67 @@ class RegisterCorporateUseCase:
             first_name=PersonNamePart(command.representative_first_name),
         )
         await self._uniqueness_service.ensure_name_is_unique(name=name)
+
+        has_postal = bool(command.postal_code and command.postal_code.strip())
+        has_address = bool(command.address_line and command.address_line.strip())
+        if has_postal != has_address:
+            raise DomainValidationError(
+                "所在地を指定する場合は郵便番号と住所行の両方を入力してください。"
+            )
+        address = (
+            CorporateAddress(
+                postal_code=CorporatePostalCode(command.postal_code.strip()),
+                address_line=CorporateAddressLine(command.address_line.strip()),
+            )
+            if has_postal and command.postal_code and command.address_line
+            else None
+        )
+
+        has_phone = bool(command.phone_number and command.phone_number.strip())
+        has_email = bool(command.email and command.email.strip())
+        if has_email and not has_phone:
+            raise DomainValidationError(
+                "連絡先メールアドレスを指定する場合は代表電話番号も入力してください。"
+            )
+        contact_info = (
+            CorporateContactInfo(
+                phone_number=CorporatePhoneNumber(command.phone_number.strip()),
+                email=(
+                    CorporateEmailAddress(command.email.strip())
+                    if has_email and command.email
+                    else None
+                ),
+            )
+            if has_phone and command.phone_number
+            else None
+        )
+
+        corporate_type = CorporateType.STOCK_COMPANY
+        if command.corporate_type:
+            try:
+                corporate_type = CorporateType(command.corporate_type)
+            except ValueError as error:
+                raise DomainValidationError(
+                    f"不正な法人区分です: '{command.corporate_type}'"
+                ) from error
+
         corporate = Corporate(
-            id=CorporateId.generate(), name=name, representative_name=rep_name
+            id=CorporateId.generate(),
+            name=name,
+            representative_name=rep_name,
+            corporate_type=corporate_type,
+            corporate_number=(
+                CorporateNumber(command.corporate_number)
+                if command.corporate_number
+                else None
+            ),
+            invoice_number=(
+                InvoiceRegistrationNumber(command.invoice_number)
+                if command.invoice_number
+                else None
+            ),
+            address=address,
+            contact_info=contact_info,
         )
         await self._repository.save(corporate)
         return corporate.id

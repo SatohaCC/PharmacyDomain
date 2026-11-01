@@ -11,6 +11,12 @@ export interface RegistrationInput {
   email: string;
   initialPassword: string;
   storeIds: string[];
+  employmentType?: string;
+  weeklyContractHours?: number;
+  jobTitle?: string;
+  code?: string;
+  pharmacistLicenseNumber?: string;
+  registeredSellerNumber?: string;
 }
 export function registrationInput(
   data: FormData,
@@ -28,6 +34,17 @@ export function registrationInput(
     throw new Error("店舗ユーザーには主所属店舗と所属開始日が必要です。");
   if (homeStore && storeIds.length && !storeIds.includes(homeStore))
     throw new Error("主所属店舗を利用権限に含めてください。");
+
+  const rawHours = text("weekly_contract_hours");
+  let weeklyContractHours: number | undefined;
+  if (rawHours !== "") {
+    const parsed = Number(rawHours);
+    if (Number.isNaN(parsed) || parsed < 0 || parsed > 80) {
+      throw new Error("週所定労働時間は0以上80以下の数値で指定してください。");
+    }
+    weeklyContractHours = parsed;
+  }
+
   return {
     names: {
       last_name: text("last_name"),
@@ -40,5 +57,11 @@ export function registrationInput(
     email: text("email"),
     initialPassword: String(data.get("initial_password") || ""),
     storeIds,
+    employmentType: text("employment_type") || "regular",
+    weeklyContractHours,
+    jobTitle: text("job_title") || undefined,
+    code: text("code") || undefined,
+    pharmacistLicenseNumber: text("pharmacist_license_number") || undefined,
+    registeredSellerNumber: text("registered_seller_number") || undefined,
   };
 }

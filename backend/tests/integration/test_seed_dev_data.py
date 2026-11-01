@@ -39,6 +39,7 @@ from tools.seed_dev_data import SeedData, apply_seed, build_seed_data
 SEEDED_TABLES: tuple[tuple[str, int], ...] = (
     ("account_people", 2),
     ("user_accounts", 2),
+    ("vendor_operators", 1),
     ("corporates", 1),
     ("stores", 1),
     ("staff_members", 1),
@@ -208,12 +209,13 @@ async def test_シードした主体なら_HTTP経由の更新が監査ごと確
     async with engine.connect() as connection:
         audits = (
             await connection.execute(
-                text("SELECT person_id, account_id FROM operation_audits")
+                text("SELECT operator_id, person_id, account_id FROM operation_audits")
             )
         ).all()
     assert len(audits) == 1
-    assert audits[0][0] == data.vendor_person.id.value
-    assert audits[0][1] == data.vendor_account.id.value
+    assert audits[0][0] == data.vendor_operator.id.value
+    assert audits[0][1] is None
+    assert audits[0][2] is None
 
 
 @pytest.mark.asyncio

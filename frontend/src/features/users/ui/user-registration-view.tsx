@@ -7,11 +7,16 @@ import {
   SectionHeading,
   Row,
   FieldGroup,
+  Details,
+  Summary,
 } from "../../../shared/ui/layout/elements";
 import { Link } from "../../../shared/ui/navigation/link";
 import { Form } from "../../../shared/ui/controls/form";
 import { TextField as Field } from "../../../shared/ui/controls/text-field";
-import type { RegistrationViewProps } from "../model/registration";
+import {
+  EMPLOYMENT_TYPE_OPTIONS,
+  type RegistrationViewProps,
+} from "../model/registration";
 export function UserRegistrationView({
   corporateId,
   stores,
@@ -67,7 +72,51 @@ export function UserRegistrationView({
             />
           ))}
         </Row>
-        <SectionHeading>2. 法人での権限と所属</SectionHeading>
+        <Row>
+          <Field
+            name="code"
+            label="社員・スタッフ番号"
+            readOnly={frozen}
+            description="例: STF-001"
+          />
+          <Field
+            name="job_title"
+            label="役職・肩書"
+            readOnly={frozen}
+            description="例: 薬局長、チーフクラーク"
+          />
+        </Row>
+        <SectionHeading>2. 労働契約・雇用区分</SectionHeading>
+        <SelectField
+          label="雇用形態"
+          name="employment_type"
+          defaultValue="regular"
+          disabled={frozen}
+          options={EMPLOYMENT_TYPE_OPTIONS}
+        />
+        <Field
+          name="weekly_contract_hours"
+          label="週所定労働時間（時間）"
+          readOnly={frozen}
+          description="例: 40.0。スポット応援（ヘルプ）要員として事前届出・登録を行う場合は 0.0 を入力してください。"
+        />
+        <Details>
+          <Summary>保有資格（任意）</Summary>
+          <Row>
+            <Field
+              name="pharmacist_license_number"
+              label="薬剤師免許番号"
+              readOnly={frozen}
+              description="調剤・鑑査業務や管理薬剤師要件に必要です。"
+            />
+            <Field
+              name="registered_seller_number"
+              label="登録販売者登録番号"
+              readOnly={frozen}
+            />
+          </Row>
+        </Details>
+        <SectionHeading>3. 法人での権限と所属</SectionHeading>
         <SelectField
           label="ロール"
           value={role}
@@ -116,7 +165,7 @@ export function UserRegistrationView({
           required={role !== "corporate_admin"}
           readOnly={frozen}
         />
-        <SectionHeading>3. ログイン情報</SectionHeading>
+        <SectionHeading>4. ログイン情報</SectionHeading>
         <Field
           name="email"
           label="メールアドレス"

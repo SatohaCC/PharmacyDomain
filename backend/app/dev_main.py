@@ -12,6 +12,8 @@
 環境変数（すべて `create_dev_app()` を呼んだ時点で読む）:
 
 - ``DEV_ACTOR_TOKEN``: 通す唯一のトークン。**必須**。既定値は用意しない。
+- ``DEV_ACTOR_OPERATOR_ID``: ``vendor_system_admin`` のときの運営者ID。未指定時は
+  ``DEV_ACTOR_ACCOUNT_ID`` を運営者IDとして流用する。
 - ``DEV_ACTOR_PERSON_ID`` / ``DEV_ACTOR_ACCOUNT_ID``: 操作主体の本人IDと
   アカウントID。**必須**。更新は監査を伴い、監査行は ``user_accounts`` への
   複合外部キーを持つので、実在する行を指していないと保存が失敗する。
@@ -39,6 +41,7 @@ from app.application.access_control.boundary_models import (
 from app.bootstrap import create_app
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.identity.identifiers import VendorOperatorId
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.store.identifiers import StoreId
 from app.presentational.authentication import ActorContextProvider
@@ -124,8 +127,13 @@ def _build_actor(values: Mapping[str, str], *, principal_id: str) -> ActorContex
     person_id = _parse_person_id(values.get("DEV_ACTOR_PERSON_ID", "").strip())
     account_id = _parse_account_id(values.get("DEV_ACTOR_ACCOUNT_ID", "").strip())
     if role is ActorRole.VENDOR_SYSTEM_ADMIN:
+        raw_operator_id = values.get("DEV_ACTOR_OPERATOR_ID", "").strip() or str(
+            account_id.value
+        )
+        operator_id = _parse_operator_id(raw_operator_id)
         return ResolvedActorContext(
             principal_id=principal_id,
+            operator_id=operator_id,
             person_id=person_id,
             account_id=account_id,
             roles=frozenset({role}),
@@ -150,6 +158,20 @@ def _build_actor(values: Mapping[str, str], *, principal_id: str) -> ActorContex
         )
     # ロールが増えたときに、ここで mypy が分岐漏れを指摘する。
     assert_never(role)
+
+
+def _parse_operator_id(raw_operator_id: str) -> VendorOperatorId:
+    if not raw_operator_id:
+        raise DevActorConfigurationError(
+            "DEV_ACTOR_ROLE が vendor_system_admin の場合は DEV_ACTOR_OPERATOR_ID "
+            "（または DEV_ACTOR_ACCOUNT_ID）が必要です。"
+        )
+    try:
+        return VendorOperatorId.parse(raw_operator_id)
+    except DomainValidationError as error:
+        raise DevActorConfigurationError(
+            f"DEV_ACTOR_OPERATOR_ID を運営者IDとして読めません: {error}"
+        ) from error
 
 
 def _parse_person_id(raw_person_id: str) -> AccountPersonId:

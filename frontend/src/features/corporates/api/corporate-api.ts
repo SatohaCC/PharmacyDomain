@@ -7,7 +7,14 @@ import type {
   CorporateSearch,
 } from "../model/corporate";
 export const createCorporate = (body: CorporateInput) =>
-  result(api.POST("/corporates", { body }));
+  result(
+    api.POST("/corporates", {
+      body: {
+        ...body,
+        corporate_type: body.corporate_type || "stock_company",
+      },
+    }),
+  );
 export const getCorporate = (
   id: string,
   signal?: AbortSignal,
@@ -48,3 +55,22 @@ export const registerContract = (body: {
   email: string;
   initial_password: string;
 }) => result(api.POST("/contracts", { body }));
+
+export const updateCorporateDetails = (
+  id: string,
+  body: {
+    corporate_type?: string | null;
+    corporate_number?: string | null;
+    invoice_number?: string | null;
+    postal_code?: string | null;
+    address_line?: string | null;
+    phone_number?: string | null;
+    email?: string | null;
+  },
+) =>
+  result(
+    api.PATCH("/corporates/{corporate_id}/details", {
+      params: corporationParams(id),
+      body,
+    }),
+  );

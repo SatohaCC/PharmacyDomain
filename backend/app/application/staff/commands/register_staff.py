@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 
 from app.application.access_control.boundary_models import (
     ActorRole,
@@ -36,6 +37,7 @@ from app.domain.staff.entities import Staff
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import (
     DietitianRegistrationNumber,
+    EmploymentType,
     InsurancePharmacistRegistrationNumber,
     JobTitle,
     PharmacistLicenseNumber,
@@ -43,6 +45,7 @@ from app.domain.staff.primitives import (
     StaffCode,
     StaffEmailAddress,
     StaffPhoneNumber,
+    WeeklyContractHours,
 )
 from app.domain.staff.repositories import StaffRepository
 from app.domain.staff.services import (
@@ -93,6 +96,8 @@ class RegisterStaffCommand:
     registered_seller_number: str | None = None
     dietitian_registration_number: str | None = None
     is_registered_dietitian: bool = True
+    employment_type: str = "regular"
+    weekly_contract_hours: float | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -269,6 +274,15 @@ class RegisterStaffUseCase:
         raw_job_title = to_optional_text(command.job_title)
         job_title = JobTitle(raw_job_title) if raw_job_title else None
         qualifications = self._build_qualifications(command)
+        employment_type = EmploymentType.REGULAR
+        if command.employment_type:
+            try:
+                employment_type = EmploymentType(command.employment_type)
+            except ValueError as error:
+                raise DomainValidationError(
+                    f"不正な雇用形態です: '{command.employment_type}'"
+                ) from error
+
         staff = Staff(
             id=StaffId.generate(),
             corporate_id=corporate_id,
@@ -278,6 +292,12 @@ class RegisterStaffUseCase:
             code=code,
             phone_number=phone_number,
             email=email,
+            employment_type=employment_type,
+            weekly_contract_hours=(
+                WeeklyContractHours(Decimal(str(command.weekly_contract_hours)))
+                if command.weekly_contract_hours is not None
+                else None
+            ),
             affiliations=(),
         )
         if command.initial_home_store_id and command.initial_start_date:

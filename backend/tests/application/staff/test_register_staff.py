@@ -20,6 +20,7 @@ from app.application.staff.commands.register_staff import (
     RegisterStaffUseCase,
 )
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.staff.exceptions import StaffCodeAlreadyExistsError
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.services import (
@@ -225,3 +226,27 @@ async def test_register_staff_raises_error_on_duplicate_code() -> None:
     # Act / Assert
     with pytest.raises(StaffCodeAlreadyExistsError):
         await use_case.execute(cmd2)
+
+
+@pytest.mark.asyncio
+async def test_register_staff_rejects_invalid_employment_type() -> None:
+    staff_repo = InMemoryStaffRepository()
+    store_repo = InMemoryStoreRepository()
+    use_case = _build_use_case(staff_repo, store_repo)
+
+    corp_id = CorporateId.generate()
+    cmd = RegisterStaffCommand(
+        corporate_id=str(corp_id.value),
+        last_name="山田",
+        first_name="太郎",
+        last_name_kana="ヤマダ",
+        first_name_kana="タロウ",
+        account=BulkStaffAccountInput(
+            email="staff1@example.test",
+            password="Password123456789",
+        ),
+        employment_type="invalid_type",
+    )
+
+    with pytest.raises(DomainValidationError):
+        await use_case.execute(cmd)

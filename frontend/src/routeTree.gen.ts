@@ -23,7 +23,9 @@ import { Route as AdminCorporatesCorporateIdUsersRouteRouteImport } from './rout
 import { Route as AdminCorporatesNewIndexRouteImport } from './routes/admin/corporates/new/index'
 import { Route as AdminCorporatesCorporateIdStoresIndexRouteImport } from './routes/admin/corporates/$corporateId/stores/index'
 import { Route as AdminCorporatesCorporateIdUsersIndexRouteImport } from './routes/admin/corporates/$corporateId/users/index'
+import { Route as AdminCorporatesCorporateIdStoresStoreIdIndexRouteImport } from './routes/admin/corporates/$corporateId/stores/$storeId/index'
 import { Route as AdminCorporatesCorporateIdStoresNewIndexRouteImport } from './routes/admin/corporates/$corporateId/stores/new/index'
+import { Route as AdminCorporatesCorporateIdUsersUserIdIndexRouteImport } from './routes/admin/corporates/$corporateId/users/$userId/index'
 import { Route as AdminCorporatesCorporateIdUsersNewIndexRouteImport } from './routes/admin/corporates/$corporateId/users/new/index'
 
 const IndexRoute = IndexRouteImport.update({
@@ -102,11 +104,23 @@ const AdminCorporatesCorporateIdUsersIndexRoute =
     path: '/',
     getParentRoute: () => AdminCorporatesCorporateIdUsersRouteRoute,
   } as any)
+const AdminCorporatesCorporateIdStoresStoreIdIndexRoute =
+  AdminCorporatesCorporateIdStoresStoreIdIndexRouteImport.update({
+    id: '/$storeId/',
+    path: '/$storeId/',
+    getParentRoute: () => AdminCorporatesCorporateIdStoresRouteRoute,
+  } as any)
 const AdminCorporatesCorporateIdStoresNewIndexRoute =
   AdminCorporatesCorporateIdStoresNewIndexRouteImport.update({
     id: '/new/',
     path: '/new/',
     getParentRoute: () => AdminCorporatesCorporateIdStoresRouteRoute,
+  } as any)
+const AdminCorporatesCorporateIdUsersUserIdIndexRoute =
+  AdminCorporatesCorporateIdUsersUserIdIndexRouteImport.update({
+    id: '/$userId/',
+    path: '/$userId/',
+    getParentRoute: () => AdminCorporatesCorporateIdUsersRouteRoute,
   } as any)
 const AdminCorporatesCorporateIdUsersNewIndexRoute =
   AdminCorporatesCorporateIdUsersNewIndexRouteImport.update({
@@ -130,7 +144,9 @@ export interface FileRoutesByFullPath {
   '/admin/corporates/new/': typeof AdminCorporatesNewIndexRoute
   '/admin/corporates/$corporateId/stores/': typeof AdminCorporatesCorporateIdStoresIndexRoute
   '/admin/corporates/$corporateId/users/': typeof AdminCorporatesCorporateIdUsersIndexRoute
+  '/admin/corporates/$corporateId/stores/$storeId/': typeof AdminCorporatesCorporateIdStoresStoreIdIndexRoute
   '/admin/corporates/$corporateId/stores/new/': typeof AdminCorporatesCorporateIdStoresNewIndexRoute
+  '/admin/corporates/$corporateId/users/$userId/': typeof AdminCorporatesCorporateIdUsersUserIdIndexRoute
   '/admin/corporates/$corporateId/users/new/': typeof AdminCorporatesCorporateIdUsersNewIndexRoute
 }
 export interface FileRoutesByTo {
@@ -143,7 +159,9 @@ export interface FileRoutesByTo {
   '/admin/corporates/new': typeof AdminCorporatesNewIndexRoute
   '/admin/corporates/$corporateId/stores': typeof AdminCorporatesCorporateIdStoresIndexRoute
   '/admin/corporates/$corporateId/users': typeof AdminCorporatesCorporateIdUsersIndexRoute
+  '/admin/corporates/$corporateId/stores/$storeId': typeof AdminCorporatesCorporateIdStoresStoreIdIndexRoute
   '/admin/corporates/$corporateId/stores/new': typeof AdminCorporatesCorporateIdStoresNewIndexRoute
+  '/admin/corporates/$corporateId/users/$userId': typeof AdminCorporatesCorporateIdUsersUserIdIndexRoute
   '/admin/corporates/$corporateId/users/new': typeof AdminCorporatesCorporateIdUsersNewIndexRoute
 }
 export interface FileRoutesById {
@@ -162,7 +180,9 @@ export interface FileRoutesById {
   '/admin/corporates/new/': typeof AdminCorporatesNewIndexRoute
   '/admin/corporates/$corporateId/stores/': typeof AdminCorporatesCorporateIdStoresIndexRoute
   '/admin/corporates/$corporateId/users/': typeof AdminCorporatesCorporateIdUsersIndexRoute
+  '/admin/corporates/$corporateId/stores/$storeId/': typeof AdminCorporatesCorporateIdStoresStoreIdIndexRoute
   '/admin/corporates/$corporateId/stores/new/': typeof AdminCorporatesCorporateIdStoresNewIndexRoute
+  '/admin/corporates/$corporateId/users/$userId/': typeof AdminCorporatesCorporateIdUsersUserIdIndexRoute
   '/admin/corporates/$corporateId/users/new/': typeof AdminCorporatesCorporateIdUsersNewIndexRoute
 }
 export interface FileRouteTypes {
@@ -182,7 +202,9 @@ export interface FileRouteTypes {
     | '/admin/corporates/new/'
     | '/admin/corporates/$corporateId/stores/'
     | '/admin/corporates/$corporateId/users/'
+    | '/admin/corporates/$corporateId/stores/$storeId/'
     | '/admin/corporates/$corporateId/stores/new/'
+    | '/admin/corporates/$corporateId/users/$userId/'
     | '/admin/corporates/$corporateId/users/new/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -195,7 +217,9 @@ export interface FileRouteTypes {
     | '/admin/corporates/new'
     | '/admin/corporates/$corporateId/stores'
     | '/admin/corporates/$corporateId/users'
+    | '/admin/corporates/$corporateId/stores/$storeId'
     | '/admin/corporates/$corporateId/stores/new'
+    | '/admin/corporates/$corporateId/users/$userId'
     | '/admin/corporates/$corporateId/users/new'
   id:
     | '__root__'
@@ -213,7 +237,9 @@ export interface FileRouteTypes {
     | '/admin/corporates/new/'
     | '/admin/corporates/$corporateId/stores/'
     | '/admin/corporates/$corporateId/users/'
+    | '/admin/corporates/$corporateId/stores/$storeId/'
     | '/admin/corporates/$corporateId/stores/new/'
+    | '/admin/corporates/$corporateId/users/$userId/'
     | '/admin/corporates/$corporateId/users/new/'
   fileRoutesById: FileRoutesById
 }
@@ -324,12 +350,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCorporatesCorporateIdUsersIndexRouteImport
       parentRoute: typeof AdminCorporatesCorporateIdUsersRouteRoute
     }
+    '/admin/corporates/$corporateId/stores/$storeId/': {
+      id: '/admin/corporates/$corporateId/stores/$storeId/'
+      path: '/$storeId'
+      fullPath: '/admin/corporates/$corporateId/stores/$storeId/'
+      preLoaderRoute: typeof AdminCorporatesCorporateIdStoresStoreIdIndexRouteImport
+      parentRoute: typeof AdminCorporatesCorporateIdStoresRouteRoute
+    }
     '/admin/corporates/$corporateId/stores/new/': {
       id: '/admin/corporates/$corporateId/stores/new/'
       path: '/new'
       fullPath: '/admin/corporates/$corporateId/stores/new/'
       preLoaderRoute: typeof AdminCorporatesCorporateIdStoresNewIndexRouteImport
       parentRoute: typeof AdminCorporatesCorporateIdStoresRouteRoute
+    }
+    '/admin/corporates/$corporateId/users/$userId/': {
+      id: '/admin/corporates/$corporateId/users/$userId/'
+      path: '/$userId'
+      fullPath: '/admin/corporates/$corporateId/users/$userId/'
+      preLoaderRoute: typeof AdminCorporatesCorporateIdUsersUserIdIndexRouteImport
+      parentRoute: typeof AdminCorporatesCorporateIdUsersRouteRoute
     }
     '/admin/corporates/$corporateId/users/new/': {
       id: '/admin/corporates/$corporateId/users/new/'
@@ -343,6 +383,7 @@ declare module '@tanstack/react-router' {
 
 interface AdminCorporatesCorporateIdStoresRouteRouteChildren {
   AdminCorporatesCorporateIdStoresIndexRoute: typeof AdminCorporatesCorporateIdStoresIndexRoute
+  AdminCorporatesCorporateIdStoresStoreIdIndexRoute: typeof AdminCorporatesCorporateIdStoresStoreIdIndexRoute
   AdminCorporatesCorporateIdStoresNewIndexRoute: typeof AdminCorporatesCorporateIdStoresNewIndexRoute
 }
 
@@ -350,6 +391,8 @@ const AdminCorporatesCorporateIdStoresRouteRouteChildren: AdminCorporatesCorpora
   {
     AdminCorporatesCorporateIdStoresIndexRoute:
       AdminCorporatesCorporateIdStoresIndexRoute,
+    AdminCorporatesCorporateIdStoresStoreIdIndexRoute:
+      AdminCorporatesCorporateIdStoresStoreIdIndexRoute,
     AdminCorporatesCorporateIdStoresNewIndexRoute:
       AdminCorporatesCorporateIdStoresNewIndexRoute,
   }
@@ -361,6 +404,7 @@ const AdminCorporatesCorporateIdStoresRouteRouteWithChildren =
 
 interface AdminCorporatesCorporateIdUsersRouteRouteChildren {
   AdminCorporatesCorporateIdUsersIndexRoute: typeof AdminCorporatesCorporateIdUsersIndexRoute
+  AdminCorporatesCorporateIdUsersUserIdIndexRoute: typeof AdminCorporatesCorporateIdUsersUserIdIndexRoute
   AdminCorporatesCorporateIdUsersNewIndexRoute: typeof AdminCorporatesCorporateIdUsersNewIndexRoute
 }
 
@@ -368,6 +412,8 @@ const AdminCorporatesCorporateIdUsersRouteRouteChildren: AdminCorporatesCorporat
   {
     AdminCorporatesCorporateIdUsersIndexRoute:
       AdminCorporatesCorporateIdUsersIndexRoute,
+    AdminCorporatesCorporateIdUsersUserIdIndexRoute:
+      AdminCorporatesCorporateIdUsersUserIdIndexRoute,
     AdminCorporatesCorporateIdUsersNewIndexRoute:
       AdminCorporatesCorporateIdUsersNewIndexRoute,
   }
