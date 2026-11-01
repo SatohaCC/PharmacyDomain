@@ -123,3 +123,61 @@ export const closeStore = (
       body: { reason },
     }),
   );
+
+export const updateStoreCertifications = (
+  corporateId: string,
+  storeId: string,
+  body: {
+    community_linkage?: { certification_number: string; valid_from: string; valid_to: string } | null;
+    specialized_linkage?: { certification_number: string; disease_category: string; valid_from: string; valid_to: string } | null;
+    health_support?: { notified_on: string } | null;
+  },
+) =>
+  result(
+    api.PUT("/corporates/{corporate_id}/stores/{store_id}/certifications", {
+      params: { path: { corporate_id: corporateId, store_id: storeId } },
+      body,
+    }),
+  );
+
+export const updateStorePublicExpenseDesignations = (
+  corporateId: string,
+  storeId: string,
+  body: {
+    public_assistance_number?: string | null;
+    support_for_independence_number?: string | null;
+    intractable_disease_number?: string | null;
+    workers_accident_number?: string | null;
+  },
+) =>
+  result(
+    api.PUT(
+      "/corporates/{corporate_id}/stores/{store_id}/public-expense-designations",
+      {
+        params: { path: { corporate_id: corporateId, store_id: storeId } },
+        body,
+      },
+    ),
+  );
+
+export const appointSafetyManager = (
+  corporateId: string,
+  storeId: string,
+  staffId: string,
+) =>
+  result(
+    api.PUT("/corporates/{corporate_id}/stores/{store_id}/safety-manager", {
+      params: { path: { corporate_id: corporateId, store_id: storeId } },
+      body: { staff_id: staffId },
+    }),
+  );
+
+export const removeSafetyManager = (
+  corporateId: string,
+  storeId: string,
+) =>
+  result(
+    api.DELETE("/corporates/{corporate_id}/stores/{store_id}/safety-manager", {
+      params: { path: { corporate_id: corporateId, store_id: storeId } },
+    }),
+  );

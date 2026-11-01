@@ -6,6 +6,10 @@ import {
   updateStoreCode,
   updateStoreAddress,
   updateStoreContactInfo,
+  updateStoreCertifications,
+  updateStorePublicExpenseDesignations,
+  appointSafetyManager,
+  removeSafetyManager,
   suspendStore,
   resumeStore,
   closeStore,
@@ -99,6 +103,83 @@ export function StoreDetailPage({
     }
   };
 
+  const handleUpdatePublicExpenses = async (designations: {
+    public_assistance_number?: string | null;
+    support_for_independence_number?: string | null;
+    intractable_disease_number?: string | null;
+    workers_accident_number?: string | null;
+  }) => {
+    clearMessages();
+    try {
+      await updateStorePublicExpenseDesignations(corporateId, store.id, designations);
+      setStore((prev) => ({
+        ...prev,
+        public_expense_designations: designations,
+      }));
+      setStatusMessage("公費・指定医療機関情報を更新しました。");
+      await onRefresh();
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "公費指定の更新に失敗しました。",
+      );
+    }
+  };
+
+  const handleUpdateCertifications = async (certifications: {
+    community_linkage?: { certification_number: string; valid_from: string; valid_to: string } | null;
+    specialized_linkage?: { certification_number: string; disease_category: string; valid_from: string; valid_to: string } | null;
+    health_support?: { notified_on: string } | null;
+  }) => {
+    clearMessages();
+    try {
+      await updateStoreCertifications(corporateId, store.id, certifications);
+      setStore((prev) => ({
+        ...prev,
+        certifications,
+      }));
+      setStatusMessage("薬局機能認定・届出情報を更新しました。");
+      await onRefresh();
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "認定情報の更新に失敗しました。",
+      );
+    }
+  };
+
+  const handleAppointSafetyManager = async (staffId: string) => {
+    clearMessages();
+    try {
+      await appointSafetyManager(corporateId, store.id, staffId);
+      setStore((prev) => ({
+        ...prev,
+        safety_manager_id: staffId,
+      }));
+      setStatusMessage("医薬品安全管理責任者を任命しました。");
+      await onRefresh();
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "安全管理責任者の任命に失敗しました。",
+      );
+    }
+  };
+
+  const handleRemoveSafetyManager = async () => {
+    clearMessages();
+    try {
+      await removeSafetyManager(corporateId, store.id);
+      setStore((prev) => ({
+        ...prev,
+        safety_manager_id: null,
+      }));
+      setStatusMessage("医薬品安全管理責任者を解任しました。");
+      await onRefresh();
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "安全管理責任者の解任に失敗しました。",
+      );
+    }
+  };
+
   const handleChangeStatus = async (
     action: "suspend" | "resume" | "close",
     reason: string,
@@ -131,6 +212,10 @@ export function StoreDetailPage({
       onUpdateBasic={handleUpdateBasic}
       onUpdateAddress={handleUpdateAddress}
       onUpdateContact={handleUpdateContact}
+      onUpdatePublicExpenses={handleUpdatePublicExpenses}
+      onUpdateCertifications={handleUpdateCertifications}
+      onAppointSafetyManager={handleAppointSafetyManager}
+      onRemoveSafetyManager={handleRemoveSafetyManager}
       onChangeStatus={handleChangeStatus}
       statusMessage={statusMessage}
       errorMessage={errorMessage}

@@ -18,6 +18,18 @@ export const EMPLOYMENT_TYPE_OPTIONS = Object.entries(
   EMPLOYMENT_TYPE_LABELS,
 ).map(([value, label]) => ({ value, label }));
 
+export const LEAVE_REASON_LABELS: Record<string, string> = {
+  maternity: "産前産後休業",
+  childcare: "育児休業",
+  family_care: "介護休業",
+  injury_illness: "傷病休職",
+  other: "その他休職",
+};
+
+export const LEAVE_REASON_OPTIONS = Object.entries(LEAVE_REASON_LABELS).map(
+  ([value, label]) => ({ value, label }),
+);
+
 export interface RegistrationOptions {
   stores: { id: string; name: string }[];
 }

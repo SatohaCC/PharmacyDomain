@@ -25,6 +25,19 @@ export interface StoreDetailViewProps {
   onUpdateBasic: (names: { name: string; name_kana: string; name_romaji?: string | null; code?: string | null }) => Promise<void>;
   onUpdateAddress: (address: { postal_code: string; address: string }) => Promise<void>;
   onUpdateContact: (contact: { phone_number: string; fax_number?: string | null; email?: string | null }) => Promise<void>;
+  onUpdatePublicExpenses?: (designations: {
+    public_assistance_number?: string | null;
+    support_for_independence_number?: string | null;
+    intractable_disease_number?: string | null;
+    workers_accident_number?: string | null;
+  }) => Promise<void>;
+  onUpdateCertifications?: (certifications: {
+    community_linkage?: { certification_number: string; valid_from: string; valid_to: string } | null;
+    specialized_linkage?: { certification_number: string; disease_category: string; valid_from: string; valid_to: string } | null;
+    health_support?: { notified_on: string } | null;
+  }) => Promise<void>;
+  onAppointSafetyManager?: (staffId: string) => Promise<void>;
+  onRemoveSafetyManager?: () => Promise<void>;
   onChangeStatus: (action: "suspend" | "resume" | "close", reason: string) => Promise<void>;
   statusMessage?: string | null;
   errorMessage?: string | null;
@@ -35,6 +48,10 @@ export function StoreDetailView({
   onUpdateBasic,
   onUpdateAddress,
   onUpdateContact,
+  onUpdatePublicExpenses,
+  onUpdateCertifications,
+  onAppointSafetyManager,
+  onRemoveSafetyManager,
   onChangeStatus,
   statusMessage,
   errorMessage,
@@ -42,6 +59,9 @@ export function StoreDetailView({
   const [basicEditing, setBasicEditing] = useState(false);
   const [addressEditing, setAddressEditing] = useState(false);
   const [contactEditing, setContactEditing] = useState(false);
+  const [publicExpensesEditing, setPublicExpensesEditing] = useState(false);
+  const [certificationsEditing, setCertificationsEditing] = useState(false);
+  const [safetyManagerIdInput, setSafetyManagerIdInput] = useState("");
   const [statusReason, setStatusReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -90,6 +110,74 @@ export function StoreDetailView({
         email: fd.get("email") ? String(fd.get("email")) : null,
       });
       setContactEditing(false);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePublicExpensesSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!onUpdatePublicExpenses) return;
+    setIsSubmitting(true);
+    const fd = new FormData(e.currentTarget);
+    try {
+      await onUpdatePublicExpenses({
+        public_assistance_number: fd.get("public_assistance_number") ? String(fd.get("public_assistance_number")) : null,
+        support_for_independence_number: fd.get("support_for_independence_number") ? String(fd.get("support_for_independence_number")) : null,
+        intractable_disease_number: fd.get("intractable_disease_number") ? String(fd.get("intractable_disease_number")) : null,
+        workers_accident_number: fd.get("workers_accident_number") ? String(fd.get("workers_accident_number")) : null,
+      });
+      setPublicExpensesEditing(false);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCertificationsSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!onUpdateCertifications) return;
+    setIsSubmitting(true);
+    const fd = new FormData(e.currentTarget);
+    try {
+      const commNum = fd.get("community_linkage_number") ? String(fd.get("community_linkage_number")) : null;
+      const commFrom = fd.get("community_linkage_from") ? String(fd.get("community_linkage_from")) : null;
+      const commTo = fd.get("community_linkage_to") ? String(fd.get("community_linkage_to")) : null;
+
+      const specNum = fd.get("specialized_linkage_number") ? String(fd.get("specialized_linkage_number")) : null;
+      const specCat = fd.get("specialized_linkage_category") ? String(fd.get("specialized_linkage_category")) : null;
+      const specFrom = fd.get("specialized_linkage_from") ? String(fd.get("specialized_linkage_from")) : null;
+      const specTo = fd.get("specialized_linkage_to") ? String(fd.get("specialized_linkage_to")) : null;
+
+      const healthNotified = fd.get("health_support_notified_on") ? String(fd.get("health_support_notified_on")) : null;
+
+      await onUpdateCertifications({
+        community_linkage: commNum && commFrom && commTo ? { certification_number: commNum, valid_from: commFrom, valid_to: commTo } : null,
+        specialized_linkage: specNum && specCat && specFrom && specTo ? { certification_number: specNum, disease_category: specCat, valid_from: specFrom, valid_to: specTo } : null,
+        health_support: healthNotified ? { notified_on: healthNotified } : null,
+      });
+      setCertificationsEditing(false);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAppointSafetyManager = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!onAppointSafetyManager || !safetyManagerIdInput.trim()) return;
+    setIsSubmitting(true);
+    try {
+      await onAppointSafetyManager(safetyManagerIdInput.trim());
+      setSafetyManagerIdInput("");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRemoveSafetyManager = async () => {
+    if (!onRemoveSafetyManager) return;
+    setIsSubmitting(true);
+    try {
+      await onRemoveSafetyManager();
     } finally {
       setIsSubmitting(false);
     }
@@ -236,6 +324,208 @@ export function StoreDetailView({
               </tr>
             </tbody>
           </Table>
+        )}
+      </Panel>
+
+      <Panel>
+        <Row>
+          <SectionHeading>公費・指定医療機関情報</SectionHeading>
+          {onUpdatePublicExpenses && (
+            <Button
+              variant="secondary"
+              onAction={() => setPublicExpensesEditing(!publicExpensesEditing)}
+              disabled={isSubmitting}
+            >
+              {publicExpensesEditing ? "キャンセル" : "編集"}
+            </Button>
+          )}
+        </Row>
+        {publicExpensesEditing ? (
+          <form onSubmit={(e) => void handlePublicExpensesSubmit(e)}>
+            <Field
+              name="public_assistance_number"
+              label="生活保護法指定番号"
+              defaultValue={store.public_expense_designations?.public_assistance_number || ""}
+            />
+            <Field
+              name="support_for_independence_number"
+              label="自立支援医療指定番号"
+              defaultValue={store.public_expense_designations?.support_for_independence_number || ""}
+            />
+            <Field
+              name="intractable_disease_number"
+              label="難病法指定番号"
+              defaultValue={store.public_expense_designations?.intractable_disease_number || ""}
+            />
+            <Field
+              name="workers_accident_number"
+              label="労災保険指定番号"
+              defaultValue={store.public_expense_designations?.workers_accident_number || ""}
+            />
+            <Row>
+              <Button type="submit" disabled={isSubmitting}>保存する</Button>
+            </Row>
+          </form>
+        ) : (
+          <Table>
+            <tbody>
+              <tr>
+                <TableHeader>生活保護法指定</TableHeader>
+                <TableCell>{store.public_expense_designations?.public_assistance_number || "未登録"}</TableCell>
+                <TableHeader>自立支援医療指定</TableHeader>
+                <TableCell>{store.public_expense_designations?.support_for_independence_number || "未登録"}</TableCell>
+              </tr>
+              <tr>
+                <TableHeader>難病法指定</TableHeader>
+                <TableCell>{store.public_expense_designations?.intractable_disease_number || "未登録"}</TableCell>
+                <TableHeader>労災保険指定</TableHeader>
+                <TableCell>{store.public_expense_designations?.workers_accident_number || "未登録"}</TableCell>
+              </tr>
+            </tbody>
+          </Table>
+        )}
+      </Panel>
+
+      <Panel>
+        <Row>
+          <SectionHeading>薬局機能認定・届出情報</SectionHeading>
+          {onUpdateCertifications && (
+            <Button
+              variant="secondary"
+              onAction={() => setCertificationsEditing(!certificationsEditing)}
+              disabled={isSubmitting}
+            >
+              {certificationsEditing ? "キャンセル" : "編集"}
+            </Button>
+          )}
+        </Row>
+        {certificationsEditing ? (
+          <form onSubmit={(e) => void handleCertificationsSubmit(e)}>
+            <Paragraph>地域連携薬局認定</Paragraph>
+            <Field
+              name="community_linkage_number"
+              label="認定番号"
+              defaultValue={store.certifications?.community_linkage?.certification_number || ""}
+            />
+            <Field
+              name="community_linkage_from"
+              label="有効開始日 (YYYY-MM-DD)"
+              defaultValue={store.certifications?.community_linkage?.valid_from || ""}
+            />
+            <Field
+              name="community_linkage_to"
+              label="有効満了日 (YYYY-MM-DD)"
+              defaultValue={store.certifications?.community_linkage?.valid_to || ""}
+            />
+
+            <Paragraph>専門医療機関連携薬局認定</Paragraph>
+            <Field
+              name="specialized_linkage_number"
+              label="認定番号"
+              defaultValue={store.certifications?.specialized_linkage?.certification_number || ""}
+            />
+            <Field
+              name="specialized_linkage_category"
+              label="傷病区分 (例: cancer)"
+              defaultValue={store.certifications?.specialized_linkage?.disease_category || ""}
+            />
+            <Field
+              name="specialized_linkage_from"
+              label="有効開始日 (YYYY-MM-DD)"
+              defaultValue={store.certifications?.specialized_linkage?.valid_from || ""}
+            />
+            <Field
+              name="specialized_linkage_to"
+              label="有効満了日 (YYYY-MM-DD)"
+              defaultValue={store.certifications?.specialized_linkage?.valid_to || ""}
+            />
+
+            <Paragraph>健康サポート薬局届出</Paragraph>
+            <Field
+              name="health_support_notified_on"
+              label="届出日 (YYYY-MM-DD)"
+              defaultValue={store.certifications?.health_support?.notified_on || ""}
+            />
+            <Row>
+              <Button type="submit" disabled={isSubmitting}>保存する</Button>
+            </Row>
+          </form>
+        ) : (
+          <Table>
+            <tbody>
+              <tr>
+                <TableHeader>地域連携薬局</TableHeader>
+                <TableCell colSpan={3}>
+                  {store.certifications?.community_linkage ? (
+                    `認定番号: ${store.certifications.community_linkage.certification_number} (有効期間: ${store.certifications.community_linkage.valid_from} 〜 ${store.certifications.community_linkage.valid_to})`
+                  ) : (
+                    "未認定"
+                  )}
+                </TableCell>
+              </tr>
+              <tr>
+                <TableHeader>専門機関連携</TableHeader>
+                <TableCell colSpan={3}>
+                  {store.certifications?.specialized_linkage ? (
+                    `認定番号: ${store.certifications.specialized_linkage.certification_number} [区分: ${store.certifications.specialized_linkage.disease_category}] (有効期間: ${store.certifications.specialized_linkage.valid_from} 〜 ${store.certifications.specialized_linkage.valid_to})`
+                  ) : (
+                    "未認定"
+                  )}
+                </TableCell>
+              </tr>
+              <tr>
+                <TableHeader>健康サポート</TableHeader>
+                <TableCell colSpan={3}>
+                  {store.certifications?.health_support ? (
+                    `届出日: ${store.certifications.health_support.notified_on}`
+                  ) : (
+                    "未届出"
+                  )}
+                </TableCell>
+              </tr>
+            </tbody>
+          </Table>
+        )}
+      </Panel>
+
+      <Panel>
+        <SectionHeading>医薬品安全管理責任者</SectionHeading>
+        <Paragraph>医薬品の安全使用・管理責任者の任命状況です。</Paragraph>
+        <Table>
+          <tbody>
+            <tr>
+              <TableHeader>責任者スタッフID</TableHeader>
+              <TableCell>{store.safety_manager_id || "未選任"}</TableCell>
+              <TableCell>
+                {store.safety_manager_id && onRemoveSafetyManager && (
+                  <Button
+                    variant="secondary"
+                    onAction={() => void handleRemoveSafetyManager()}
+                    disabled={isSubmitting}
+                  >
+                    解任する
+                  </Button>
+                )}
+              </TableCell>
+            </tr>
+          </tbody>
+        </Table>
+        {onAppointSafetyManager && (
+          <form onSubmit={(e) => void handleAppointSafetyManager(e)} style={{ marginTop: "1rem" }}>
+            <Field
+              name="safety_manager_id"
+              label="任命するスタッフID"
+              value={safetyManagerIdInput}
+              onValueChange={(val: string) => setSafetyManagerIdInput(val)}
+              description="スタッフのIDを入力"
+              required
+            />
+            <Row>
+              <Button type="submit" disabled={isSubmitting || !safetyManagerIdInput.trim()}>
+                医薬品安全管理責任者に任命
+              </Button>
+            </Row>
+          </form>
         )}
       </Panel>
 

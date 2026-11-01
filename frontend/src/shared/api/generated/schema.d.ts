@@ -490,6 +490,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/corporates/{corporate_id}/details": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Update Corporate Details
+     * @description 法人詳細情報（法人格、法人番号、インボイス番号、所在地、連絡先）を更新する。
+     */
+    patch: operations["update_corporate_details_corporates__corporate_id__details_patch"];
+    trace?: never;
+  };
   "/corporates/{corporate_id}/stores": {
     parameters: {
       query?: never;
@@ -629,6 +649,70 @@ export interface paths {
     put: operations["update_store_policy_corporates__corporate_id__stores__store_id__policy_put"];
     post?: never;
     delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/corporates/{corporate_id}/stores/{store_id}/certifications": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Update Store Certifications
+     * @description 店舗の薬局機能認定・届出情報を更新する。
+     */
+    put: operations["update_store_certifications_corporates__corporate_id__stores__store_id__certifications_put"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/corporates/{corporate_id}/stores/{store_id}/public-expense-designations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Update Store Public Expense Designations
+     * @description 店舗の公費・指定医療機関情報を更新する。
+     */
+    put: operations["update_store_public_expense_designations_corporates__corporate_id__stores__store_id__public_expense_designations_put"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/corporates/{corporate_id}/stores/{store_id}/safety-manager": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Appoint Safety Manager
+     * @description 医薬品安全管理責任者を任命する。
+     */
+    put: operations["appoint_safety_manager_corporates__corporate_id__stores__store_id__safety_manager_put"];
+    post?: never;
+    /**
+     * Remove Safety Manager
+     * @description 医薬品安全管理責任者を解任する。
+     */
+    delete: operations["remove_safety_manager_corporates__corporate_id__stores__store_id__safety_manager_delete"];
     options?: never;
     head?: never;
     patch?: never;
@@ -1130,6 +1214,66 @@ export interface paths {
      * @description 在籍状態へ戻す。**所属は復元しない**ので、必要なら別途配属する。
      */
     post: operations["reactivate_staff_corporates__corporate_id__staffs__staff_id__reactivation_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/corporates/{corporate_id}/staffs/{staff_id}/employment": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Update Staff Employment
+     * @description スタッフの雇用形態・週所定労働時間を更新する。
+     */
+    patch: operations["update_staff_employment_corporates__corporate_id__staffs__staff_id__employment_patch"];
+    trace?: never;
+  };
+  "/corporates/{corporate_id}/staffs/{staff_id}/leave": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Start Staff Leave
+     * @description スタッフの休職を開始する。
+     */
+    post: operations["start_staff_leave_corporates__corporate_id__staffs__staff_id__leave_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/corporates/{corporate_id}/staffs/{staff_id}/return-from-leave": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Return Staff From Leave
+     * @description スタッフを休職から復職させる。
+     */
+    post: operations["return_staff_from_leave_corporates__corporate_id__staffs__staff_id__return_from_leave_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2511,6 +2655,14 @@ export interface components {
       amendment_id?: string | null;
     };
     /**
+     * AppointSafetyManagerRequest
+     * @description 医薬品安全管理責任者任命の入力モデル。
+     */
+    AppointSafetyManagerRequest: {
+      /** Staff Id */
+      staff_id: string;
+    };
+    /**
      * AssignConcurrentStoreRequest
      * @description 兼務の追加の入力。
      */
@@ -2938,6 +3090,42 @@ export interface components {
     ChangeStoreStatusRequest: {
       /** Reason */
       reason: string;
+    };
+    /**
+     * CommunityLinkageCertificationDto
+     * @description 地域連携薬局認定の出力データ。
+     */
+    CommunityLinkageCertificationDto: {
+      /** Certification Number */
+      certification_number: string;
+      /**
+       * Valid From
+       * Format: date
+       */
+      valid_from: string;
+      /**
+       * Valid To
+       * Format: date
+       */
+      valid_to: string;
+    };
+    /**
+     * CommunityLinkageCertificationRequest
+     * @description 地域連携薬局認定の入力モデル。
+     */
+    CommunityLinkageCertificationRequest: {
+      /** Certification Number */
+      certification_number: string;
+      /**
+       * Valid From
+       * Format: date
+       */
+      valid_from: string;
+      /**
+       * Valid To
+       * Format: date
+       */
+      valid_to: string;
     };
     /**
      * CompleteDispensingRequest
@@ -3696,6 +3884,28 @@ export interface components {
       guidance_provided?: boolean | null;
       /** Multiple Handbooks Not Consolidated Reason */
       multiple_handbooks_not_consolidated_reason?: string | null;
+    };
+    /**
+     * HealthSupportPharmacyNotificationDto
+     * @description 健康サポート薬局届出の出力データ。
+     */
+    HealthSupportPharmacyNotificationDto: {
+      /**
+       * Notified On
+       * Format: date
+       */
+      notified_on: string;
+    };
+    /**
+     * HealthSupportPharmacyNotificationRequest
+     * @description 健康サポート薬局届出の入力モデル。
+     */
+    HealthSupportPharmacyNotificationRequest: {
+      /**
+       * Notified On
+       * Format: date
+       */
+      notified_on: string;
     };
     /**
      * ImportYjCatalogRequest
@@ -5083,6 +5293,18 @@ export interface components {
       first_name_kana: string;
     };
     /**
+     * PharmacyCertificationsDto
+     * @description 薬局機能認定・届出の出力データ。
+     */
+    PharmacyCertificationsDto: {
+      community_linkage?:
+        components["schemas"]["CommunityLinkageCertificationDto"] | null;
+      specialized_linkage?:
+        components["schemas"]["SpecializedLinkageCertificationDto"] | null;
+      health_support?:
+        components["schemas"]["HealthSupportPharmacyNotificationDto"] | null;
+    };
+    /**
      * PharmacyLicenseDto
      * @description 薬局開設許可の出力データ。
      */
@@ -5445,6 +5667,20 @@ export interface components {
       payer_number: string;
       /** Recipient Number */
       recipient_number: string;
+    };
+    /**
+     * PublicExpenseDesignationsDto
+     * @description 公費・指定医療機関情報の出力データ。
+     */
+    PublicExpenseDesignationsDto: {
+      /** Public Assistance Number */
+      public_assistance_number?: string | null;
+      /** Support For Independence Number */
+      support_for_independence_number?: string | null;
+      /** Intractable Disease Number */
+      intractable_disease_number?: string | null;
+      /** Workers Accident Number */
+      workers_accident_number?: string | null;
     };
     /**
      * QualificationsRequest
@@ -6147,6 +6383,46 @@ export interface components {
       plan?: components["schemas"]["LabeledNoteInput"][];
     };
     /**
+     * SpecializedLinkageCertificationDto
+     * @description 専門医療機関連携薬局認定の出力データ。
+     */
+    SpecializedLinkageCertificationDto: {
+      /** Certification Number */
+      certification_number: string;
+      /** Disease Category */
+      disease_category: string;
+      /**
+       * Valid From
+       * Format: date
+       */
+      valid_from: string;
+      /**
+       * Valid To
+       * Format: date
+       */
+      valid_to: string;
+    };
+    /**
+     * SpecializedLinkageCertificationRequest
+     * @description 専門医療機関連携薬局認定の入力モデル。
+     */
+    SpecializedLinkageCertificationRequest: {
+      /** Certification Number */
+      certification_number: string;
+      /** Disease Category */
+      disease_category: string;
+      /**
+       * Valid From
+       * Format: date
+       */
+      valid_from: string;
+      /**
+       * Valid To
+       * Format: date
+       */
+      valid_to: string;
+    };
+    /**
      * StaffAccountRequest
      * @description スタッフと同時に生成するアカウントの入力。
      */
@@ -6350,6 +6626,19 @@ export interface components {
       occurred_at: string;
     };
     /**
+     * StartStaffLeaveRequest
+     * @description スタッフ休職開始の入力モデル。
+     */
+    StartStaffLeaveRequest: {
+      /** Leave Reason */
+      leave_reason: string;
+      /**
+       * Left On
+       * Format: date
+       */
+      left_on: string;
+    };
+    /**
      * StatutoryItemAssessmentDto
      * @description 記載事項1つの判定結果の出力DTO。
      */
@@ -6444,6 +6733,12 @@ export interface components {
       business_hours: components["schemas"]["BusinessHoursDto"] | null;
       licenses?: components["schemas"]["StoreLicensesDto"] | null;
       policy?: components["schemas"]["StorePolicyDto"] | null;
+      /** Safety Manager Id */
+      safety_manager_id?: string | null;
+      public_expense_designations?:
+        components["schemas"]["PublicExpenseDesignationsDto"] | null;
+      certifications?:
+        components["schemas"]["PharmacyCertificationsDto"] | null;
     };
     /**
      * StoreLicensesDto
@@ -6709,6 +7004,26 @@ export interface components {
       is_contraindication_target?: boolean | null;
     };
     /**
+     * UpdateCorporateDetailsRequest
+     * @description 法人詳細情報更新のリクエストモデル。
+     */
+    UpdateCorporateDetailsRequest: {
+      /** Corporate Type */
+      corporate_type?: string | null;
+      /** Corporate Number */
+      corporate_number?: string | null;
+      /** Invoice Number */
+      invoice_number?: string | null;
+      /** Postal Code */
+      postal_code?: string | null;
+      /** Address Line */
+      address_line?: string | null;
+      /** Phone Number */
+      phone_number?: string | null;
+      /** Email */
+      email?: string | null;
+    };
+    /**
      * UpdateCorporatePolicyRequest
      * @description 法人ポリシー更新のリクエストモデル。
      */
@@ -6746,6 +7061,29 @@ export interface components {
         components["schemas"]["BillingAdditionRequest"][] | null;
     };
     /**
+     * UpdateStaffEmploymentRequest
+     * @description スタッフ労働契約変更の入力モデル。
+     */
+    UpdateStaffEmploymentRequest: {
+      /** Employment Type */
+      employment_type: string;
+      /** Weekly Contract Hours */
+      weekly_contract_hours?: number | null;
+    };
+    /**
+     * UpdateStoreCertificationsRequest
+     * @description 薬局機能認定・届出更新の入力モデル。
+     */
+    UpdateStoreCertificationsRequest: {
+      community_linkage?:
+        components["schemas"]["CommunityLinkageCertificationRequest"] | null;
+      specialized_linkage?:
+        components["schemas"]["SpecializedLinkageCertificationRequest"] | null;
+      health_support?:
+        | components["schemas"]["HealthSupportPharmacyNotificationRequest"]
+        | null;
+    };
+    /**
      * UpdateStoreLicensesRequest
      * @description 店舗許認可更新の入力モデル。
      */
@@ -6763,6 +7101,20 @@ export interface components {
       require_prescription_audit?: boolean | null;
       /** Prohibit Self Verification */
       prohibit_self_verification?: boolean | null;
+    };
+    /**
+     * UpdateStorePublicExpenseDesignationsRequest
+     * @description 公費・指定医療機関情報更新の入力モデル。
+     */
+    UpdateStorePublicExpenseDesignationsRequest: {
+      /** Public Assistance Number */
+      public_assistance_number?: string | null;
+      /** Support For Independence Number */
+      support_for_independence_number?: string | null;
+      /** Intractable Disease Number */
+      intractable_disease_number?: string | null;
+      /** Workers Accident Number */
+      workers_accident_number?: string | null;
     };
     /**
      * UserPermissionDto
@@ -8532,6 +8884,75 @@ export interface operations {
       };
     };
   };
+  update_corporate_details_corporates__corporate_id__details_patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateCorporateDetailsRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
   list_stores_corporates__corporate_id__stores_get: {
     parameters: {
       query?: never;
@@ -9033,6 +9454,282 @@ export interface operations {
         "application/json": components["schemas"]["UpdateStorePolicyRequest"];
       };
     };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  update_store_certifications_corporates__corporate_id__stores__store_id__certifications_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+        store_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateStoreCertificationsRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  update_store_public_expense_designations_corporates__corporate_id__stores__store_id__public_expense_designations_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+        store_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateStorePublicExpenseDesignationsRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  appoint_safety_manager_corporates__corporate_id__stores__store_id__safety_manager_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+        store_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AppointSafetyManagerRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  remove_safety_manager_corporates__corporate_id__stores__store_id__safety_manager_delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+        store_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
     responses: {
       /** @description Successful Response */
       204: {
@@ -10837,6 +11534,212 @@ export interface operations {
     };
   };
   reactivate_staff_corporates__corporate_id__staffs__staff_id__reactivation_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+        staff_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  update_staff_employment_corporates__corporate_id__staffs__staff_id__employment_patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+        staff_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateStaffEmploymentRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  start_staff_leave_corporates__corporate_id__staffs__staff_id__leave_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+        staff_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["StartStaffLeaveRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  return_staff_from_leave_corporates__corporate_id__staffs__staff_id__return_from_leave_post: {
     parameters: {
       query?: never;
       header?: never;

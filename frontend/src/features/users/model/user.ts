@@ -27,6 +27,8 @@ export interface StaffDetail {
   effective_full_time_equivalent: number | null;
   is_active: boolean;
   is_pharmacist: boolean;
+  status?: string;
+  leave_reason?: string | null;
 }
 
 export interface UserDetail {

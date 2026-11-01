@@ -8,6 +8,9 @@ import {
   reactivateUser,
   updateStaffNames,
   updateStaffJobTitle,
+  updateStaffEmployment,
+  startStaffLeave,
+  returnStaffFromLeave,
 } from "../api/user-api";
 
 export function UserDetailPage({
@@ -127,6 +130,90 @@ export function UserDetailPage({
     }
   };
 
+  const handleUpdateStaffEmployment = async (emp: {
+    employment_type: string;
+    weekly_contract_hours?: number | null;
+  }) => {
+    if (!user.staff) return;
+    clearMessages();
+    try {
+      await updateStaffEmployment(corporateId, user.staff.id, emp);
+      setUser((prev) =>
+        prev.staff
+          ? {
+              ...prev,
+              staff: {
+                ...prev.staff,
+                employment_type: emp.employment_type,
+                weekly_contract_hours: emp.weekly_contract_hours ?? null,
+              },
+            }
+          : prev,
+      );
+      setStatusMessage("労働契約内容を更新しました。");
+      await onRefresh();
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "労働契約の更新に失敗しました。",
+      );
+    }
+  };
+
+  const handleStartStaffLeave = async (leave: {
+    leave_reason: string;
+    left_on: string;
+  }) => {
+    if (!user.staff) return;
+    clearMessages();
+    try {
+      await startStaffLeave(corporateId, user.staff.id, leave);
+      setUser((prev) =>
+        prev.staff
+          ? {
+              ...prev,
+              staff: {
+                ...prev.staff,
+                status: "on_leave",
+                leave_reason: leave.leave_reason,
+              },
+            }
+          : prev,
+      );
+      setStatusMessage("スタッフの休職手続きを完了しました。");
+      await onRefresh();
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "休職手続きに失敗しました。",
+      );
+    }
+  };
+
+  const handleReturnStaffFromLeave = async () => {
+    if (!user.staff) return;
+    clearMessages();
+    try {
+      await returnStaffFromLeave(corporateId, user.staff.id);
+      setUser((prev) =>
+        prev.staff
+          ? {
+              ...prev,
+              staff: {
+                ...prev.staff,
+                status: "active",
+                leave_reason: null,
+              },
+            }
+          : prev,
+      );
+      setStatusMessage("スタッフの復職手続きを完了しました。");
+      await onRefresh();
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "復職手続きに失敗しました。",
+      );
+    }
+  };
+
   return (
     <UserDetailView
       user={user}
@@ -137,6 +224,9 @@ export function UserDetailPage({
       onReactivate={handleReactivate}
       onUpdateStaffNames={user.staff ? handleUpdateStaffNames : undefined}
       onUpdateStaffJobTitle={user.staff ? handleUpdateStaffJobTitle : undefined}
+      onUpdateStaffEmployment={user.staff ? handleUpdateStaffEmployment : undefined}
+      onStartStaffLeave={user.staff ? handleStartStaffLeave : undefined}
+      onReturnStaffFromLeave={user.staff ? handleReturnStaffFromLeave : undefined}
       statusMessage={statusMessage}
       errorMessage={errorMessage}
     />

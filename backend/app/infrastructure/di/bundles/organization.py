@@ -41,6 +41,9 @@ from app.application.corporate.commands.register_corporate import (
 from app.application.corporate.commands.services.corporate_access import (
     CorporateAccessService,
 )
+from app.application.corporate.commands.update_corporate_details import (
+    UpdateCorporateDetailsUseCase,
+)
 from app.application.corporate.commands.update_corporate_policy import (
     UpdateCorporatePolicyUseCase,
 )
@@ -55,12 +58,19 @@ from app.application.staff.commands.change_staff_job_title import (
 )
 from app.application.staff.commands.change_staff_names import ChangeStaffNamesUseCase
 from app.application.staff.commands.deactivate_staff import DeactivateStaffUseCase
+from app.application.staff.commands.manage_staff_leave import (
+    ReturnStaffFromLeaveUseCase,
+    StartStaffLeaveUseCase,
+)
 from app.application.staff.commands.register_staff import RegisterStaffUseCase
 from app.application.staff.commands.remove_staff_concurrent_store import (
     RemoveStaffConcurrentStoreUseCase,
 )
 from app.application.staff.commands.transfer_staff_home_store import (
     TransferStaffHomeStoreUseCase,
+)
+from app.application.staff.commands.update_staff_employment import (
+    UpdateStaffEmploymentUseCase,
 )
 from app.application.staff.commands.update_staff_qualifications import (
     UpdateStaffQualificationsUseCase,
@@ -82,6 +92,10 @@ from app.application.store.commands.change_store_contact_info import (
 )
 from app.application.store.commands.change_store_names import ChangeStoreNamesUseCase
 from app.application.store.commands.change_store_status import ChangeStoreStatusUseCase
+from app.application.store.commands.manage_safety_manager import (
+    AppointSafetyManagerUseCase,
+    RemoveSafetyManagerUseCase,
+)
 from app.application.store.commands.manage_store_manager import (
     ManageStoreManagerUseCase,
 )
@@ -89,8 +103,14 @@ from app.application.store.commands.register_store import RegisterStoreUseCase
 from app.application.store.commands.revoke_store_closure import (
     RevokeStoreClosureUseCase,
 )
+from app.application.store.commands.update_certifications import (
+    UpdateCertificationsUseCase,
+)
 from app.application.store.commands.update_licenses import (
     UpdateStoreLicensesUseCase,
+)
+from app.application.store.commands.update_public_expense_designations import (
+    UpdatePublicExpenseDesignationsUseCase,
 )
 from app.application.store.commands.update_store_policy import (
     UpdateStorePolicyUseCase,
@@ -164,6 +184,7 @@ def build_corporate_use_cases(
             repository, corporate_access, PostgresOrganizationLock(unit_of_work)
         ),
         update_policy=UpdateCorporatePolicyUseCase(repository, corporate_access),
+        update_details=UpdateCorporateDetailsUseCase(repository, corporate_access),
     )
 
 
@@ -183,6 +204,7 @@ def build_store_use_cases(
     name_uniqueness = StoreNameUniquenessService(repository)
     code_uniqueness = StoreCodeUniquenessService(repository)
     number_uniqueness = InsurancePharmacyNumberUniquenessService(repository)
+    staff_reference = ManagerStaffAdapter(repositories.staff)
     return StoreUseCases(
         change_status=ChangeStoreStatusUseCase(
             repository,
@@ -202,7 +224,7 @@ def build_store_use_cases(
         ),
         manage_manager=ManageStoreManagerUseCase(
             repository,
-            ManagerStaffAdapter(repositories.staff),
+            staff_reference,
             repositories.manager_assignment,
             StaffPersonAdapter(repositories.staff_person_link),
             corporate_access,
@@ -253,6 +275,14 @@ def build_store_use_cases(
             reader=GetEffectivePolicyProjection(repositories.corporate, repository),
             corporate_access=corporate_access,
         ),
+        update_certifications=UpdateCertificationsUseCase(repository, corporate_access),
+        update_public_expense_designations=UpdatePublicExpenseDesignationsUseCase(
+            repository, corporate_access
+        ),
+        appoint_safety_manager=AppointSafetyManagerUseCase(
+            repository, staff_reference, corporate_access
+        ),
+        remove_safety_manager=RemoveSafetyManagerUseCase(repository, corporate_access),
     )
 
 
@@ -336,6 +366,13 @@ def build_staff_use_cases(
         activate=ActivateStaffUseCase(staff_repository, corporate_access),
         deactivate=DeactivateStaffUseCase(
             staff_repository, corporate_access, access_revocation, clock
+        ),
+        update_employment=UpdateStaffEmploymentUseCase(
+            staff_repository, corporate_access
+        ),
+        start_leave=StartStaffLeaveUseCase(staff_repository, corporate_access),
+        return_from_leave=ReturnStaffFromLeaveUseCase(
+            staff_repository, corporate_access
         ),
     )
 

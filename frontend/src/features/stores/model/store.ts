@@ -42,6 +42,29 @@ export interface StoreDetail {
   insurance_pharmacy_number: string | null;
   status: string;
   licenses?: unknown | null;
+  safety_manager_id?: string | null;
+  public_expense_designations?: {
+    public_assistance_number?: string | null;
+    support_for_independence_number?: string | null;
+    intractable_disease_number?: string | null;
+    workers_accident_number?: string | null;
+  } | null;
+  certifications?: {
+    community_linkage?: {
+      certification_number: string;
+      valid_from: string;
+      valid_to: string;
+    } | null;
+    specialized_linkage?: {
+      certification_number: string;
+      disease_category: string;
+      valid_from: string;
+      valid_to: string;
+    } | null;
+    health_support?: {
+      notified_on: string;
+    } | null;
+  } | null;
   is_community_linkage?: boolean;
   is_specialized_linkage?: boolean;
   is_health_support?: boolean;

@@ -8,7 +8,9 @@ import pytest
 
 from app.application.store.errors import StoreNotFoundError
 from app.application.store.queries.dtos.get_store import (
+    PharmacyCertificationsDto,
     PharmacyLicenseDto,
+    PublicExpenseDesignationsDto,
     StoreDto,
     StoreLicensesDto,
     StorePolicyDto,
@@ -74,6 +76,9 @@ async def test_get_store_returns_dto() -> None:
             narcotics_retailer_license=None,
         ),
         policy=StorePolicyDto(),
+        safety_manager_id=None,
+        public_expense_designations=PublicExpenseDesignationsDto(),
+        certifications=PharmacyCertificationsDto(),
     )
 
 

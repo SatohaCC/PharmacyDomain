@@ -108,6 +108,46 @@ export const updateStaffJobTitle = (
     }),
   );
 
+export const updateStaffEmployment = (
+  corporateId: string,
+  staffId: string,
+  body: {
+    employment_type: string;
+    weekly_contract_hours?: number | null;
+  },
+) =>
+  result(
+    api.PATCH("/corporates/{corporate_id}/staffs/{staff_id}/employment", {
+      params: { path: { corporate_id: corporateId, staff_id: staffId } },
+      body,
+    }),
+  );
+
+export const startStaffLeave = (
+  corporateId: string,
+  staffId: string,
+  body: {
+    leave_reason: string;
+    left_on: string;
+  },
+) =>
+  result(
+    api.POST("/corporates/{corporate_id}/staffs/{staff_id}/leave", {
+      params: { path: { corporate_id: corporateId, staff_id: staffId } },
+      body,
+    }),
+  );
+
+export const returnStaffFromLeave = (
+  corporateId: string,
+  staffId: string,
+) =>
+  result(
+    api.POST("/corporates/{corporate_id}/staffs/{staff_id}/return-from-leave", {
+      params: { path: { corporate_id: corporateId, staff_id: staffId } },
+    }),
+  );
+
 export const registrationOptions = async (id: string, signal?: AbortSignal) => {
   const options = { params: corporationParams(id), signal };
   const stores = await result(

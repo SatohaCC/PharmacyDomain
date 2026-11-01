@@ -23,6 +23,10 @@ from app.application.staff.commands.change_staff_job_title import (
 )
 from app.application.staff.commands.change_staff_names import ChangeStaffNamesCommand
 from app.application.staff.commands.deactivate_staff import DeactivateStaffCommand
+from app.application.staff.commands.manage_staff_leave import (
+    ReturnStaffFromLeaveCommand,
+    StartStaffLeaveCommand,
+)
 from app.application.staff.commands.register_staff import (
     BulkStaffAccountInput,
     RegisterStaffCommand,
@@ -32,6 +36,9 @@ from app.application.staff.commands.remove_staff_concurrent_store import (
 )
 from app.application.staff.commands.transfer_staff_home_store import (
     TransferStaffHomeStoreCommand,
+)
+from app.application.staff.commands.update_staff_employment import (
+    UpdateStaffEmploymentCommand,
 )
 from app.application.staff.commands.update_staff_qualifications import (
     UpdateStaffQualificationsCommand,
@@ -134,6 +141,20 @@ class AssignConcurrentStoreRequest(RequestModel):
 
     store_id: str
     start_date: date
+
+
+class UpdateStaffEmploymentRequest(RequestModel):
+    """スタッフ労働契約変更の入力モデル。"""
+
+    employment_type: str
+    weekly_contract_hours: float | None = None
+
+
+class StartStaffLeaveRequest(RequestModel):
+    """スタッフ休職開始の入力モデル。"""
+
+    leave_reason: str
+    left_on: date
 
 
 class RetireStaffRequest(RequestModel):
@@ -420,6 +441,72 @@ async def reactivate_staff(
     """在籍状態へ戻す。**所属は復元しない**ので、必要なら別途配属する。"""
     await use_cases.activate.execute(
         ActivateStaffCommand(corporate_id=corporate_id, staff_id=staff_id)
+    )
+
+
+@router.patch(
+    "/{staff_id}/employment",
+    status_code=HTTPStatus.NO_CONTENT,
+    response_class=Response,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def update_staff_employment(
+    corporate_id: str,
+    staff_id: str,
+    body: UpdateStaffEmploymentRequest,
+    use_cases: StaffUseCasesDep,
+) -> None:
+    """スタッフの雇用形態・週所定労働時間を更新する。"""
+    await use_cases.update_employment.execute(
+        UpdateStaffEmploymentCommand(
+            corporate_id=corporate_id,
+            staff_id=staff_id,
+            employment_type=body.employment_type,
+            weekly_contract_hours=body.weekly_contract_hours,
+        )
+    )
+
+
+@router.post(
+    "/{staff_id}/leave",
+    status_code=HTTPStatus.NO_CONTENT,
+    response_class=Response,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def start_staff_leave(
+    corporate_id: str,
+    staff_id: str,
+    body: StartStaffLeaveRequest,
+    use_cases: StaffUseCasesDep,
+) -> None:
+    """スタッフの休職を開始する。"""
+    await use_cases.start_leave.execute(
+        StartStaffLeaveCommand(
+            corporate_id=corporate_id,
+            staff_id=staff_id,
+            leave_reason=body.leave_reason,
+            left_on=body.left_on,
+        )
+    )
+
+
+@router.post(
+    "/{staff_id}/return-from-leave",
+    status_code=HTTPStatus.NO_CONTENT,
+    response_class=Response,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def return_staff_from_leave(
+    corporate_id: str,
+    staff_id: str,
+    use_cases: StaffUseCasesDep,
+) -> None:
+    """スタッフを休職から復職させる。"""
+    await use_cases.return_from_leave.execute(
+        ReturnStaffFromLeaveCommand(
+            corporate_id=corporate_id,
+            staff_id=staff_id,
+        )
     )
 
 

@@ -1,5 +1,5 @@
-import { createFileRoute, getRouteApi } from "@tanstack/react-router";
-import { CorporateOverviewView } from "../../../../features/corporates/ui/corporates-overview-view";
+import { createFileRoute, getRouteApi, useRouter } from "@tanstack/react-router";
+import { CorporateOverviewPage } from "../../../../features/corporates/ui/corporates-overview-page";
 
 const parentRoute = getRouteApi("/admin/corporates/$corporateId");
 
@@ -8,5 +8,13 @@ export const Route = createFileRoute("/admin/corporates/$corporateId/")({
 });
 function Page() {
   const corporate = parentRoute.useLoaderData();
-  return <CorporateOverviewView corporate={corporate} />;
+  const router = useRouter();
+  return (
+    <CorporateOverviewPage
+      corporate={corporate}
+      onRefresh={async () => {
+        await router.invalidate();
+      }}
+    />
+  );
 }
