@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { StoreDetailView } from "./store-detail-view";
-import type { StoreDetail } from "../model/store";
+import type { StoreDetail, BusinessWeekday } from "../model/store";
 import {
   updateStoreNames,
   updateStoreCode,
@@ -10,6 +10,7 @@ import {
   updateStorePublicExpenseDesignations,
   appointSafetyManager,
   removeSafetyManager,
+  updateStoreBusinessHours,
   suspendStore,
   resumeStore,
   closeStore,
@@ -180,6 +181,34 @@ export function StoreDetailPage({
     }
   };
 
+  const handleUpdateBusinessHours = async (hours: {
+    weekly: {
+      weekday: BusinessWeekday;
+      slots: { opens_at: string; closes_at: string }[];
+    }[];
+    exceptions?: {
+      on: string;
+      slots: { opens_at: string; closes_at: string }[];
+      note?: string | null;
+    }[];
+  }) => {
+    clearMessages();
+    try {
+      const updated = await updateStoreBusinessHours(corporateId, store.id, hours);
+      setStore((prev) => ({
+        ...prev,
+        business_hours: updated,
+      }));
+      setStatusMessage("開局時間を更新しました。");
+      await onRefresh();
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "開局時間の更新に失敗しました。",
+      );
+      throw err;
+    }
+  };
+
   const handleChangeStatus = async (
     action: "suspend" | "resume" | "close",
     reason: string,
@@ -216,6 +245,7 @@ export function StoreDetailPage({
       onUpdateCertifications={handleUpdateCertifications}
       onAppointSafetyManager={handleAppointSafetyManager}
       onRemoveSafetyManager={handleRemoveSafetyManager}
+      onUpdateBusinessHours={handleUpdateBusinessHours}
       onChangeStatus={handleChangeStatus}
       statusMessage={statusMessage}
       errorMessage={errorMessage}

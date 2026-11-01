@@ -4,6 +4,56 @@ export const STORE_STATUS_LABELS: Record<string, string> = {
   closed: "閉局",
 };
 
+export type BusinessWeekday =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
+
+export const ORDERED_WEEKDAYS: BusinessWeekday[] = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+];
+
+export const WEEKDAY_LABELS: Record<BusinessWeekday, string> = {
+  monday: "月曜日",
+  tuesday: "火曜日",
+  wednesday: "水曜日",
+  thursday: "木曜日",
+  friday: "金曜日",
+  saturday: "土曜日",
+  sunday: "日曜日",
+};
+
+export interface BusinessHourSlot {
+  opens_at: string;
+  closes_at: string;
+}
+
+export interface WeekdayBusinessHours {
+  weekday: BusinessWeekday | string;
+  slots: BusinessHourSlot[];
+}
+
+export interface BusinessDayException {
+  on: string;
+  slots: BusinessHourSlot[];
+  note?: string | null;
+}
+
+export interface BusinessHours {
+  weekly: WeekdayBusinessHours[];
+  exceptions: BusinessDayException[];
+}
+
 export interface Store {
   id: string;
   name: string;
@@ -68,6 +118,7 @@ export interface StoreDetail {
   is_community_linkage?: boolean;
   is_specialized_linkage?: boolean;
   is_health_support?: boolean;
+  business_hours?: BusinessHours | null;
 }
 
 export interface StoreNamesInput {

@@ -181,3 +181,28 @@ export const removeSafetyManager = (
       params: { path: { corporate_id: corporateId, store_id: storeId } },
     }),
   );
+
+export const updateStoreBusinessHours = (
+  corporateId: string,
+  storeId: string,
+  body: {
+    weekly: {
+      weekday: "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+      slots: { opens_at: string; closes_at: string }[];
+    }[];
+    exceptions?: {
+      on: string;
+      slots: { opens_at: string; closes_at: string }[];
+      note?: string | null;
+    }[];
+  },
+) =>
+  result(
+    api.PUT("/corporates/{corporate_id}/stores/{store_id}/business-hours", {
+      params: { path: { corporate_id: corporateId, store_id: storeId } },
+      body: {
+        weekly: body.weekly,
+        exceptions: body.exceptions ?? [],
+      },
+    }),
+  );

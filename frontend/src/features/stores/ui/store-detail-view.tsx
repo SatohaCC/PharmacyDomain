@@ -15,9 +15,16 @@ import {
 } from "../../../shared/ui/data-display/table";
 import { Badge } from "../../../shared/ui/data-display/badge";
 import { Button } from "../../../shared/ui/controls/button";
+import { Checkbox } from "../../../shared/ui/controls/checkbox";
 import { TextField as Field } from "../../../shared/ui/controls/text-field";
 import { Alert } from "../../../shared/ui/feedback/alert";
-import { type StoreDetail, STORE_STATUS_LABELS } from "../model/store";
+import {
+  type StoreDetail,
+  type BusinessWeekday,
+  STORE_STATUS_LABELS,
+  ORDERED_WEEKDAYS,
+  WEEKDAY_LABELS,
+} from "../model/store";
 
 export interface StoreDetailViewProps {
   store: StoreDetail;
@@ -38,6 +45,17 @@ export interface StoreDetailViewProps {
   }) => Promise<void>;
   onAppointSafetyManager?: (staffId: string) => Promise<void>;
   onRemoveSafetyManager?: () => Promise<void>;
+  onUpdateBusinessHours?: (hours: {
+    weekly: {
+      weekday: BusinessWeekday;
+      slots: { opens_at: string; closes_at: string }[];
+    }[];
+    exceptions?: {
+      on: string;
+      slots: { opens_at: string; closes_at: string }[];
+      note?: string | null;
+    }[];
+  }) => Promise<void>;
   onChangeStatus: (action: "suspend" | "resume" | "close", reason: string) => Promise<void>;
   statusMessage?: string | null;
   errorMessage?: string | null;
@@ -52,6 +70,7 @@ export function StoreDetailView({
   onUpdateCertifications,
   onAppointSafetyManager,
   onRemoveSafetyManager,
+  onUpdateBusinessHours,
   onChangeStatus,
   statusMessage,
   errorMessage,
@@ -64,6 +83,40 @@ export function StoreDetailView({
   const [safetyManagerIdInput, setSafetyManagerIdInput] = useState("");
   const [statusReason, setStatusReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const getInitialWeeklySchedule = () => {
+    const initial: Record<
+      BusinessWeekday,
+      { isClosed: boolean; opensAt: string; closesAt: string }
+    > = {
+      monday: { isClosed: false, opensAt: "09:00", closesAt: "18:00" },
+      tuesday: { isClosed: false, opensAt: "09:00", closesAt: "18:00" },
+      wednesday: { isClosed: false, opensAt: "09:00", closesAt: "18:00" },
+      thursday: { isClosed: false, opensAt: "09:00", closesAt: "18:00" },
+      friday: { isClosed: false, opensAt: "09:00", closesAt: "18:00" },
+      saturday: { isClosed: false, opensAt: "09:00", closesAt: "13:00" },
+      sunday: { isClosed: true, opensAt: "09:00", closesAt: "18:00" },
+    };
+    if (store.business_hours?.weekly) {
+      for (const day of ORDERED_WEEKDAYS) {
+        const item = store.business_hours.weekly.find((w) => w.weekday === day);
+        if (item) {
+          const isClosed = item.slots.length === 0;
+          const firstSlot = item.slots[0];
+          initial[day] = {
+            isClosed,
+            opensAt: firstSlot ? firstSlot.opens_at.slice(0, 5) : "09:00",
+            closesAt: firstSlot ? firstSlot.closes_at.slice(0, 5) : "18:00",
+          };
+        }
+      }
+    }
+    return initial;
+  };
+
+  const [weeklySchedule, setWeeklySchedule] = useState(getInitialWeeklySchedule);
+  const [businessHoursEditing, setBusinessHoursEditing] = useState(false);
+  const [businessHoursError, setBusinessHoursError] = useState<string | null>(null);
 
   const statusLabel = STORE_STATUS_LABELS[store.status || "active"] || "営業中";
 
@@ -110,6 +163,48 @@ export function StoreDetailView({
         email: fd.get("email") ? String(fd.get("email")) : null,
       });
       setContactEditing(false);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleBusinessHoursSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!onUpdateBusinessHours) return;
+    setBusinessHoursError(null);
+    const weekly: {
+      weekday: BusinessWeekday;
+      slots: { opens_at: string; closes_at: string }[];
+    }[] = ORDERED_WEEKDAYS.map((day) => {
+      const item = weeklySchedule[day];
+      if (item.isClosed) {
+        return { weekday: day, slots: [] };
+      }
+      return {
+        weekday: day,
+        slots: [
+          {
+            opens_at: item.opensAt.length === 5 ? `${item.opensAt}:00` : item.opensAt,
+            closes_at: item.closesAt.length === 5 ? `${item.closesAt}:00` : item.closesAt,
+          },
+        ],
+      };
+    });
+    if (!weekly.some((w) => w.slots.length > 0)) {
+      setBusinessHoursError("少なくとも1日の営業日（開局時間帯）を設定してください。");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await onUpdateBusinessHours({
+        weekly,
+        exceptions: store.business_hours?.exceptions ?? [],
+      });
+      setBusinessHoursEditing(false);
+    } catch (err) {
+      setBusinessHoursError(
+        err instanceof Error ? err.message : "開局時間の更新に失敗しました。",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -324,6 +419,176 @@ export function StoreDetailView({
               </tr>
             </tbody>
           </Table>
+        )}
+      </Panel>
+
+      <Panel>
+        <Row>
+          <div>
+            <SectionHeading>開局時間（営業時間）</SectionHeading>
+            <Paragraph>曜日ごとの通常開局時間および定休日の設定です。</Paragraph>
+          </div>
+          {onUpdateBusinessHours && (
+            <Button
+              variant="secondary"
+              onAction={() => {
+                if (!businessHoursEditing) {
+                  setWeeklySchedule(getInitialWeeklySchedule());
+                  setBusinessHoursError(null);
+                }
+                setBusinessHoursEditing(!businessHoursEditing);
+              }}
+              disabled={isSubmitting}
+            >
+              {businessHoursEditing ? "キャンセル" : "編集"}
+            </Button>
+          )}
+        </Row>
+        {businessHoursError && <Alert tone="error">{businessHoursError}</Alert>}
+        {businessHoursEditing ? (
+          <form onSubmit={(e) => void handleBusinessHoursSubmit(e)}>
+            <Table>
+              <thead>
+                <tr>
+                  <TableHeader>曜日</TableHeader>
+                  <TableHeader>営業状態</TableHeader>
+                  <TableHeader>開局時間帯（開始〜終了）</TableHeader>
+                </tr>
+              </thead>
+              <tbody>
+                {ORDERED_WEEKDAYS.map((day) => {
+                  const current = weeklySchedule[day];
+                  return (
+                    <tr key={day}>
+                      <TableCell>{WEEKDAY_LABELS[day]}</TableCell>
+                      <TableCell>
+                        <Checkbox
+                          label="休業日"
+                          isSelected={current.isClosed}
+                          onChange={(checked) =>
+                            setWeeklySchedule((prev) => ({
+                              ...prev,
+                              [day]: { ...prev[day], isClosed: checked },
+                            }))
+                          }
+                          disabled={isSubmitting}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {!current.isClosed ? (
+                          <Row>
+                            <Field
+                              name={`${day}_opens_at`}
+                              label="開始時刻"
+                              value={current.opensAt}
+                              onValueChange={(val: string) =>
+                                setWeeklySchedule((prev) => ({
+                                  ...prev,
+                                  [day]: { ...prev[day], opensAt: val },
+                                }))
+                              }
+                              description="例: 09:00"
+                              required
+                            />
+                            <Field
+                              name={`${day}_closes_at`}
+                              label="終了時刻"
+                              value={current.closesAt}
+                              onValueChange={(val: string) =>
+                                setWeeklySchedule((prev) => ({
+                                  ...prev,
+                                  [day]: { ...prev[day], closesAt: val },
+                                }))
+                              }
+                              description="例: 18:00"
+                              required
+                            />
+                          </Row>
+                        ) : (
+                          <Paragraph>休業日（閉局）</Paragraph>
+                        )}
+                      </TableCell>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </Table>
+            <Row style={{ marginTop: "1rem" }}>
+              <Button type="submit" disabled={isSubmitting}>
+                開局時間を保存する
+              </Button>
+            </Row>
+          </form>
+        ) : (
+          <>
+            <Table>
+              <thead>
+                <tr>
+                  <TableHeader>曜日</TableHeader>
+                  <TableHeader>開局時間帯</TableHeader>
+                </tr>
+              </thead>
+              <tbody>
+                {ORDERED_WEEKDAYS.map((day) => {
+                  const item = store.business_hours?.weekly?.find(
+                    (w) => w.weekday === day,
+                  );
+                  const hasSlots = item && item.slots.length > 0;
+                  return (
+                    <tr key={day}>
+                      <TableCell>{WEEKDAY_LABELS[day]}</TableCell>
+                      <TableCell>
+                        {hasSlots ? (
+                          item.slots
+                            .map(
+                              (s) =>
+                                `${s.opens_at.slice(0, 5)} 〜 ${s.closes_at.slice(0, 5)}`,
+                            )
+                            .join(", ")
+                        ) : store.business_hours ? (
+                          <Badge>休業日</Badge>
+                        ) : (
+                          "未登録"
+                        )}
+                      </TableCell>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </Table>
+            {store.business_hours?.exceptions && store.business_hours.exceptions.length > 0 && (
+              <div style={{ marginTop: "1rem" }}>
+                <SectionHeading>特例日（祝日・年末年始等）</SectionHeading>
+                <Table>
+                  <thead>
+                    <tr>
+                      <TableHeader>日付</TableHeader>
+                      <TableHeader>開局時間帯</TableHeader>
+                      <TableHeader>備考</TableHeader>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {store.business_hours.exceptions.map((ex) => (
+                      <tr key={ex.on}>
+                        <TableCell>{ex.on}</TableCell>
+                        <TableCell>
+                          {ex.slots.length > 0
+                            ? ex.slots
+                                .map(
+                                  (s) =>
+                                    `${s.opens_at.slice(0, 5)} 〜 ${s.closes_at.slice(0, 5)}`,
+                                )
+                                .join(", ")
+                            : <Badge>休業日</Badge>}
+                        </TableCell>
+                        <TableCell>{ex.note || "-"}</TableCell>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
+            )}
+          </>
         )}
       </Panel>
 

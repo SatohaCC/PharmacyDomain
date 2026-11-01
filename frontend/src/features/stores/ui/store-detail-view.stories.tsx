@@ -23,10 +23,23 @@ const meta = {
       is_community_linkage: true,
       is_specialized_linkage: false,
       is_health_support: true,
+      business_hours: {
+        weekly: [
+          { weekday: "monday", slots: [{ opens_at: "09:00:00", closes_at: "18:00:00" }] },
+          { weekday: "tuesday", slots: [{ opens_at: "09:00:00", closes_at: "18:00:00" }] },
+          { weekday: "wednesday", slots: [{ opens_at: "09:00:00", closes_at: "18:00:00" }] },
+          { weekday: "thursday", slots: [{ opens_at: "09:00:00", closes_at: "18:00:00" }] },
+          { weekday: "friday", slots: [{ opens_at: "09:00:00", closes_at: "18:00:00" }] },
+          { weekday: "saturday", slots: [{ opens_at: "09:00:00", closes_at: "13:00:00" }] },
+          { weekday: "sunday", slots: [] },
+        ],
+        exceptions: [],
+      },
     },
     onUpdateBasic: async () => {},
     onUpdateAddress: async () => {},
     onUpdateContact: async () => {},
+    onUpdateBusinessHours: async () => {},
     onChangeStatus: async () => {},
   },
 } satisfies Meta<typeof StoreDetailView>;
