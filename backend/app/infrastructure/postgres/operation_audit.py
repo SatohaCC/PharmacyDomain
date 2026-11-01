@@ -28,13 +28,24 @@ async def append_pending_audits(
             "更新には本人に結び付いた個人アカウントが必要です。"
         )
     now = clock.now()
+    operator_id_val = actor.operator_id.value if actor.operator_id is not None else None
+    person_id_val = (
+        None
+        if operator_id_val is not None
+        else (actor.person_id.value if actor.person_id is not None else None)
+    )
+    account_id_val = (
+        None
+        if operator_id_val is not None
+        else (actor.account_id.value if actor.account_id is not None else None)
+    )
     for operation, resource_id, corporate_id, store_id in work.pending_changes:
         await work.session.execute(
             insert(operation_audits).values(
                 id=uuid.uuid7(),
-                operator_id=actor.operator_id.value if actor.operator_id else None,
-                person_id=actor.person_id.value if actor.person_id else None,
-                account_id=actor.account_id.value if actor.account_id else None,
+                operator_id=operator_id_val,
+                person_id=person_id_val,
+                account_id=account_id_val,
                 operation=operation,
                 resource_id=resource_id,
                 corporate_id=corporate_id,
