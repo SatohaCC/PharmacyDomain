@@ -4,10 +4,11 @@ import {
   TableHeader,
   TableCell,
 } from "../../../shared/ui/data-display/table";
+import { Badge } from "../../../shared/ui/data-display/badge";
 import { Title, Subheading } from "../../../shared/ui/layout/elements";
 import { Link } from "../../../shared/ui/navigation/link";
 import { EmptyState as Empty } from "../../../shared/ui/feedback/alert";
-import type { Store } from "../model/store";
+import { type Store, STORE_STATUS_LABELS } from "../model/store";
 
 export function StoreListView({
   data,
@@ -34,6 +35,8 @@ export function StoreListView({
               <TableHeader>店舗名</TableHeader>
               <TableHeader>カナ</TableHeader>
               <TableHeader>店舗コード</TableHeader>
+              <TableHeader>状態</TableHeader>
+              <TableHeader>薬局機能認定</TableHeader>
             </tr>
           </thead>
           <tbody>
@@ -42,6 +45,20 @@ export function StoreListView({
                 <TableCell>{s.name}</TableCell>
                 <TableCell>{s.name_kana}</TableCell>
                 <TableCell>{s.code || "—"}</TableCell>
+                <TableCell>
+                  <Badge>
+                    {STORE_STATUS_LABELS[s.status || "active"] || "営業中"}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  {s.is_community_linkage && <Badge>地域連携</Badge>}
+                  {s.is_specialized_linkage && <Badge>専門連携</Badge>}
+                  {s.is_health_support && <Badge>健康サポート</Badge>}
+                  {!s.is_community_linkage &&
+                    !s.is_specialized_linkage &&
+                    !s.is_health_support &&
+                    "—"}
+                </TableCell>
               </tr>
             ))}
           </tbody>

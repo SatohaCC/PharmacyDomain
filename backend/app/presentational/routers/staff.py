@@ -92,6 +92,8 @@ class RegisterStaffRequest(QualificationsRequest):
     email: str | None = None
     initial_home_store_id: str | None = None
     initial_start_date: date | None = None
+    employment_type: str = "regular"
+    weekly_contract_hours: float | None = None
 
 
 class BulkRegisteredStaffResponse(RequestModel):
@@ -181,6 +183,8 @@ async def register_staff(
             registered_seller_number=body.registered_seller_number,
             dietitian_registration_number=body.dietitian_registration_number,
             is_registered_dietitian=body.is_registered_dietitian,
+            employment_type=body.employment_type,
+            weekly_contract_hours=body.weekly_contract_hours,
         )
     )
     return BulkRegisteredStaffResponse(

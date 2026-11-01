@@ -18,6 +18,12 @@ export async function registerUser(
         is_registered_dietitian: true,
         initial_home_store_id: input.homeStore || undefined,
         initial_start_date: input.startDate || undefined,
+        employment_type: input.employmentType || "regular",
+        weekly_contract_hours: input.weeklyContractHours,
+        job_title: input.jobTitle,
+        code: input.code,
+        pharmacist_license_number: input.pharmacistLicenseNumber,
+        registered_seller_number: input.registeredSellerNumber,
         account: {
           email: input.email,
           password: input.initialPassword,

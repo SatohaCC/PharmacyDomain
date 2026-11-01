@@ -1,4 +1,7 @@
-"""storeの単一値と列挙・検証規則。"""
+"""
+storeの単一値と列挙・検証規則。
+ 構成: 営業関連 → 店舗状態・任命 → 所在地・連絡先 → 店舗名 → 各種番号 → 認定区分
+"""
 
 from __future__ import annotations
 
@@ -51,7 +54,7 @@ class StoreStatus(StrEnum):
     """店舗の業務受付状態。"""
 
     ACTIVE = "active"
-    SUSPENDED = "suspended"
+    SUSPENDED = "suspended"  # 休止中
     CLOSED = "closed"
 
 

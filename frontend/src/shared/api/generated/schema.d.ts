@@ -2370,6 +2370,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/corporates/{corporate_id}/stores/{store_id}/integrations/nsips/{reception_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Nsips Source
+     * @description NSIPS受付原本データを取得する。
+     */
+    get: operations["get_nsips_source_corporates__corporate_id__stores__store_id__integrations_nsips__reception_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3013,6 +3033,23 @@ export interface components {
       /** Is Active */
       is_active: boolean;
       policy: components["schemas"]["CorporatePolicyDto"];
+      /**
+       * Corporate Type
+       * @default stock_company
+       */
+      corporate_type: string;
+      /** Corporate Number */
+      corporate_number?: string | null;
+      /** Invoice Number */
+      invoice_number?: string | null;
+      /** Postal Code */
+      postal_code?: string | null;
+      /** Address Line */
+      address_line?: string | null;
+      /** Phone Number */
+      phone_number?: string | null;
+      /** Email */
+      email?: string | null;
     };
     /**
      * CorrectMedicationHistoryFactRequest
@@ -3692,13 +3729,13 @@ export interface components {
      * @description NSIPS取込リクエストボディ。
      */
     IngestNsipsRequest: {
-      /** Dispenser Staff Id */
-      dispenser_staff_id: string;
       /** Reception Id */
       reception_id: string;
       /** Raw Nsips Text */
       raw_nsips_text?: string | null;
       structured_bundle?: components["schemas"]["NsipsBundleRequest"] | null;
+      /** Expected Fingerprint */
+      expected_fingerprint?: string | null;
     };
     /**
      * IngestNsipsResultDto
@@ -3708,6 +3745,15 @@ export interface components {
      *     coverage_selection_record_id は未設定で返す。
      */
     IngestNsipsResultDto: {
+      /** Reception Id */
+      reception_id: string;
+      /** Source Fingerprint */
+      source_fingerprint: string;
+      /**
+       * Source Status
+       * @default current
+       */
+      source_status: string;
       /** Corporate Id */
       corporate_id: string;
       /** Store Id */
@@ -4520,6 +4566,166 @@ export interface components {
       dispensing_quantity: number;
       /** Medicines */
       medicines: components["schemas"]["NsipsMedicineRequest"][];
+      /** Preparation Method */
+      preparation_method?: string | null;
+    };
+    /**
+     * NsipsSourceAdditionDto
+     * @description 原本の算定加算情報。
+     */
+    NsipsSourceAdditionDto: {
+      /** Code */
+      code: string;
+      /** Name */
+      name: string;
+      /** Points */
+      points?: number | null;
+      /** Quantity */
+      quantity?: number | null;
+    };
+    /**
+     * NsipsSourceCorrectionDto
+     * @description 原本の訂正履歴情報。
+     */
+    NsipsSourceCorrectionDto: {
+      /** Fingerprint */
+      fingerprint: string;
+      /** Changed Fields */
+      changed_fields: string[];
+      /** Received At */
+      received_at: string;
+    };
+    /**
+     * NsipsSourceDto
+     * @description NSIPS原本照会DTO。
+     */
+    NsipsSourceDto: {
+      /** Reception Id */
+      reception_id: string;
+      /** Corporate Id */
+      corporate_id: string;
+      /** Store Id */
+      store_id: string;
+      /** Patient Id */
+      patient_id: string;
+      /** Source Fingerprint */
+      source_fingerprint: string;
+      /** Source Status */
+      source_status: string;
+      /** Imported At */
+      imported_at: string;
+      prescription?: components["schemas"]["NsipsSourcePrescriptionDto"] | null;
+      /** Dispensed Date */
+      dispensed_date?: string | null;
+      insurance?: components["schemas"]["NsipsSourceInsuranceDto"] | null;
+      /**
+       * Additions
+       * @default []
+       */
+      additions: components["schemas"]["NsipsSourceAdditionDto"][];
+      /**
+       * Correction History
+       * @default []
+       */
+      correction_history: components["schemas"]["NsipsSourceCorrectionDto"][];
+      /** Event Id */
+      event_id?: string | null;
+      /** Medication History Id */
+      medication_history_id?: string | null;
+      /** Prescription Id */
+      prescription_id?: string | null;
+      /** Dispensing Id */
+      dispensing_id?: string | null;
+      /**
+       * Has Pending Correction Review
+       * @default false
+       */
+      has_pending_correction_review: boolean;
+    };
+    /**
+     * NsipsSourceInsuranceDto
+     * @description 原本の保険情報。
+     */
+    NsipsSourceInsuranceDto: {
+      /** Insurer Number */
+      insurer_number: string;
+      /** Insured Symbol */
+      insured_symbol: string;
+      /** Insured Number */
+      insured_number: string;
+      /** Branch Number */
+      branch_number?: string | null;
+      /** Insured Type */
+      insured_type?: string | null;
+      /** Benefit Ratio */
+      benefit_ratio?: number | null;
+      /** Public Payer Number 1 */
+      public_payer_number_1?: string | null;
+      /** Public Recipient Number 1 */
+      public_recipient_number_1?: string | null;
+      /** Public Payer Number 2 */
+      public_payer_number_2?: string | null;
+      /** Public Recipient Number 2 */
+      public_recipient_number_2?: string | null;
+    };
+    /**
+     * NsipsSourceMedicineDto
+     * @description 原本の薬品情報。
+     */
+    NsipsSourceMedicineDto: {
+      /** Medicine Code */
+      medicine_code: string;
+      /** Medicine Name */
+      medicine_name: string;
+      /** Dosage */
+      dosage: string;
+      /** Unit */
+      unit: string;
+    };
+    /**
+     * NsipsSourcePrescriptionDto
+     * @description 原本の処方箋記載事項。
+     */
+    NsipsSourcePrescriptionDto: {
+      /** Document Number */
+      document_number: string;
+      /** Issued Date */
+      issued_date: string;
+      /** Institution Code */
+      institution_code: string;
+      /** Institution Name */
+      institution_name: string;
+      /** Department Code */
+      department_code?: string | null;
+      /** Department Name */
+      department_name?: string | null;
+      /** Doctor Name */
+      doctor_name: string;
+      /** Institution Prefecture Code */
+      institution_prefecture_code?: string | null;
+      /** Doctor Kana */
+      doctor_kana?: string | null;
+      /**
+       * Rps
+       * @default []
+       */
+      rps: components["schemas"]["NsipsSourceRpDto"][];
+    };
+    /**
+     * NsipsSourceRpDto
+     * @description 原本のRp処方情報。
+     */
+    NsipsSourceRpDto: {
+      /** Rp Number */
+      rp_number: number;
+      /** Group Name */
+      group_name: string;
+      /** Instructions */
+      instructions: string;
+      /** Dispensing Quantity */
+      dispensing_quantity: number;
+      /** Medicines */
+      medicines: components["schemas"]["NsipsSourceMedicineDto"][];
       /** Preparation Method */
       preparation_method?: string | null;
     };
@@ -5409,6 +5615,23 @@ export interface components {
       representative_last_name: string;
       /** Representative First Name */
       representative_first_name: string;
+      /**
+       * Corporate Type
+       * @default stock_company
+       */
+      corporate_type: string;
+      /** Corporate Number */
+      corporate_number?: string | null;
+      /** Invoice Number */
+      invoice_number?: string | null;
+      /** Postal Code */
+      postal_code?: string | null;
+      /** Address Line */
+      address_line?: string | null;
+      /** Phone Number */
+      phone_number?: string | null;
+      /** Email */
+      email?: string | null;
     };
     /**
      * RegisterCoverageRequest
@@ -5661,6 +5884,13 @@ export interface components {
       initial_home_store_id?: string | null;
       /** Initial Start Date */
       initial_start_date?: string | null;
+      /**
+       * Employment Type
+       * @default regular
+       */
+      employment_type: string;
+      /** Weekly Contract Hours */
+      weekly_contract_hours?: number | null;
     };
     /**
      * RegisterStoreRequest
@@ -5968,6 +6198,30 @@ export interface components {
       is_registered_seller: boolean;
       /** Current Home Store Id */
       current_home_store_id: string | null;
+      /**
+       * Employment Type
+       * @default regular
+       */
+      employment_type: string;
+      /**
+       * Status
+       * @default active
+       */
+      status: string;
+      /** Leave Reason */
+      leave_reason?: string | null;
+      /** Weekly Contract Hours */
+      weekly_contract_hours?: number | null;
+      /**
+       * Effective Weekly Hours
+       * @default 0
+       */
+      effective_weekly_hours: number;
+      /**
+       * Effective Full Time Equivalent
+       * @default 0
+       */
+      effective_full_time_equivalent: number;
     };
     /**
      * StaffSummaryDto
@@ -5994,6 +6248,25 @@ export interface components {
       is_active: boolean;
       /** Is Pharmacist */
       is_pharmacist: boolean;
+      /**
+       * Employment Type
+       * @default regular
+       */
+      employment_type: string;
+      /**
+       * Status
+       * @default active
+       */
+      status: string;
+      /** Leave Reason */
+      leave_reason?: string | null;
+      /** Weekly Contract Hours */
+      weekly_contract_hours?: number | null;
+      /**
+       * Effective Full Time Equivalent
+       * @default 0
+       */
+      effective_full_time_equivalent: number;
     };
     /**
      * StartDispensingRequest
@@ -6227,15 +6500,17 @@ export interface components {
       after: string;
       /** Reason */
       reason: string;
-      /** Person Id */
-      person_id: string;
-      /** Account Id */
-      account_id: string;
       /**
        * Recorded At
        * Format: date-time
        */
       recorded_at: string;
+      /** Person Id */
+      person_id?: string | null;
+      /** Account Id */
+      account_id?: string | null;
+      /** Operator Id */
+      operator_id?: string | null;
     };
     /**
      * StoreSummaryDto
@@ -6252,6 +6527,26 @@ export interface components {
       name_kana: string;
       /** Code */
       code: string | null;
+      /**
+       * Status
+       * @default active
+       */
+      status: string;
+      /**
+       * Is Community Linkage
+       * @default false
+       */
+      is_community_linkage: boolean;
+      /**
+       * Is Specialized Linkage
+       * @default false
+       */
+      is_specialized_linkage: boolean;
+      /**
+       * Is Health Support
+       * @default false
+       */
+      is_health_support: boolean;
     };
     /**
      * SubstitutionDto
@@ -14987,6 +15282,66 @@ export interface operations {
       };
       /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  get_nsips_source_corporates__corporate_id__stores__store_id__integrations_nsips__reception_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+        store_id: string;
+        reception_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["NsipsSourceDto"];
+        };
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
         headers: {
           [name: string]: unknown;
         };

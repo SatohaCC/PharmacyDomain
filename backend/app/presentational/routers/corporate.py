@@ -57,6 +57,13 @@ class RegisterCorporateRequest(RequestModel):
     name: str
     representative_last_name: str
     representative_first_name: str
+    corporate_type: str = "stock_company"
+    corporate_number: str | None = None
+    invoice_number: str | None = None
+    postal_code: str | None = None
+    address_line: str | None = None
+    phone_number: str | None = None
+    email: str | None = None
 
 
 class ChangeCorporateNameRequest(RequestModel):
@@ -108,6 +115,13 @@ async def register_corporate(
             name=body.name,
             representative_last_name=body.representative_last_name,
             representative_first_name=body.representative_first_name,
+            corporate_type=body.corporate_type,
+            corporate_number=body.corporate_number,
+            invoice_number=body.invoice_number,
+            postal_code=body.postal_code,
+            address_line=body.address_line,
+            phone_number=body.phone_number,
+            email=body.email,
         )
     )
     return RegisteredIdResponse(id=str(corporate_id.value))

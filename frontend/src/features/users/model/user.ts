@@ -5,6 +5,7 @@ export interface UserList {
     role: string;
     status: string;
     account_status: string | null;
+    staff_id?: string | null;
   }[];
   next_cursor?: string | null;
 }

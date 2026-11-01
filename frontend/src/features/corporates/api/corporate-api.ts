@@ -7,7 +7,14 @@ import type {
   CorporateSearch,
 } from "../model/corporate";
 export const createCorporate = (body: CorporateInput) =>
-  result(api.POST("/corporates", { body }));
+  result(
+    api.POST("/corporates", {
+      body: {
+        ...body,
+        corporate_type: body.corporate_type || "stock_company",
+      },
+    }),
+  );
 export const getCorporate = (
   id: string,
   signal?: AbortSignal,

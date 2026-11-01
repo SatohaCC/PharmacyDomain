@@ -10,10 +10,23 @@ from app.application.access_control.policies import AuthorizationService
 from app.application.corporate.commands.models import RegisterCorporateCommand
 from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.corporate.primitives import CorporateName
+from app.domain.corporate.primitives import (
+    CorporateAddressLine,
+    CorporateEmailAddress,
+    CorporateName,
+    CorporateNumber,
+    CorporatePhoneNumber,
+    CorporatePostalCode,
+    CorporateType,
+    InvoiceRegistrationNumber,
+)
 from app.domain.corporate.repositories import CorporateRepository
 from app.domain.corporate.services import CorporateNameUniquenessService
-from app.domain.corporate.value_objects import CorporateRepresentativeName
+from app.domain.corporate.value_objects import (
+    CorporateAddress,
+    CorporateContactInfo,
+    CorporateRepresentativeName,
+)
 from app.domain.shared.person_name import PersonNamePart
 
 
@@ -40,8 +53,45 @@ class RegisterCorporateUseCase:
             first_name=PersonNamePart(command.representative_first_name),
         )
         await self._uniqueness_service.ensure_name_is_unique(name=name)
+
+        address = (
+            CorporateAddress(
+                postal_code=CorporatePostalCode(command.postal_code),
+                address_line=CorporateAddressLine(command.address_line),
+            )
+            if command.postal_code and command.address_line
+            else None
+        )
+        contact_info = (
+            CorporateContactInfo(
+                phone_number=CorporatePhoneNumber(command.phone_number),
+                email=(CorporateEmailAddress(command.email) if command.email else None),
+            )
+            if command.phone_number
+            else None
+        )
+
         corporate = Corporate(
-            id=CorporateId.generate(), name=name, representative_name=rep_name
+            id=CorporateId.generate(),
+            name=name,
+            representative_name=rep_name,
+            corporate_type=(
+                CorporateType(command.corporate_type)
+                if command.corporate_type
+                else CorporateType.STOCK_COMPANY
+            ),
+            corporate_number=(
+                CorporateNumber(command.corporate_number)
+                if command.corporate_number
+                else None
+            ),
+            invoice_number=(
+                InvoiceRegistrationNumber(command.invoice_number)
+                if command.invoice_number
+                else None
+            ),
+            address=address,
+            contact_info=contact_info,
         )
         await self._repository.save(corporate)
         return corporate.id

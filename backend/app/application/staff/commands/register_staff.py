@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 
 from app.application.access_control.boundary_models import (
     ActorRole,
@@ -36,6 +37,7 @@ from app.domain.staff.entities import Staff
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import (
     DietitianRegistrationNumber,
+    EmploymentType,
     InsurancePharmacistRegistrationNumber,
     JobTitle,
     PharmacistLicenseNumber,
@@ -43,6 +45,7 @@ from app.domain.staff.primitives import (
     StaffCode,
     StaffEmailAddress,
     StaffPhoneNumber,
+    WeeklyContractHours,
 )
 from app.domain.staff.repositories import StaffRepository
 from app.domain.staff.services import (
@@ -93,6 +96,8 @@ class RegisterStaffCommand:
     registered_seller_number: str | None = None
     dietitian_registration_number: str | None = None
     is_registered_dietitian: bool = True
+    employment_type: str = "regular"
+    weekly_contract_hours: float | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -278,6 +283,16 @@ class RegisterStaffUseCase:
             code=code,
             phone_number=phone_number,
             email=email,
+            employment_type=(
+                EmploymentType(command.employment_type)
+                if command.employment_type
+                else EmploymentType.REGULAR
+            ),
+            weekly_contract_hours=(
+                WeeklyContractHours(Decimal(str(command.weekly_contract_hours)))
+                if command.weekly_contract_hours is not None
+                else None
+            ),
             affiliations=(),
         )
         if command.initial_home_store_id and command.initial_start_date:

@@ -12,3 +12,10 @@ class RegisterCorporateCommand:
     name: str
     representative_last_name: str
     representative_first_name: str
+    corporate_type: str = "stock_company"
+    corporate_number: str | None = None
+    invoice_number: str | None = None
+    postal_code: str | None = None
+    address_line: str | None = None
+    phone_number: str | None = None
+    email: str | None = None

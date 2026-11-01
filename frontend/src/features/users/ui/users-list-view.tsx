@@ -5,6 +5,7 @@ import {
   IdentifierCell,
   TableCell,
 } from "../../../shared/ui/data-display/table";
+import { Badge } from "../../../shared/ui/data-display/badge";
 import {
   Title,
   Subheading,
@@ -44,6 +45,7 @@ export function UserListView({
           <thead>
             <tr>
               <TableHeader>本人ID</TableHeader>
+              <TableHeader>スタッフ連携</TableHeader>
               <TableHeader>権限</TableHeader>
               <TableHeader>法人権限</TableHeader>
               <TableHeader>アカウント</TableHeader>
@@ -53,10 +55,23 @@ export function UserListView({
             {data.items.map((u) => (
               <tr key={u.id}>
                 <IdentifierCell>{u.person_id}</IdentifierCell>
-                <TableCell>{roles[u.role] || u.role}</TableCell>
-                <TableCell>{u.status === "active" ? "有効" : "停止"}</TableCell>
                 <TableCell>
-                  {u.account_status === "active" ? "有効" : "停止"}
+                  {u.staff_id ? (
+                    <Badge>スタッフ連携済</Badge>
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
+                <TableCell>{roles[u.role] || u.role}</TableCell>
+                <TableCell>
+                  <Badge>
+                    {u.status === "active" ? "有効" : "停止"}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge>
+                    {u.account_status === "active" ? "有効" : "停止"}
+                  </Badge>
                 </TableCell>
               </tr>
             ))}

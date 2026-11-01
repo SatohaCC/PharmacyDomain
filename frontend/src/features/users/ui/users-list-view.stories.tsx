@@ -18,6 +18,7 @@ export const 一覧: Story = {
           role: "corporate_admin",
           status: "active",
           account_status: "active",
+          staff_id: "example-staff",
         },
       ],
       next_cursor: null,
