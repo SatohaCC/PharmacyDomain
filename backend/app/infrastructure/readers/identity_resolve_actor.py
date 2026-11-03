@@ -120,6 +120,7 @@ class ResolveActorProjection(ResolveActorQueryReader):
                 role=membership.role,
                 staff_id=membership.staff_id,
                 store_ids=membership.store_ids,
+                store_roles=membership.store_roles,
                 suspended_store_ids=membership.suspended_store_ids,
                 manager_assignments=tuple(
                     ManagerIdentitySnapshot(

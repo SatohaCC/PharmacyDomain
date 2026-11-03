@@ -26,10 +26,10 @@ export function useLogin(
     const session = passwordChangeRequired
       ? await changeInitialPassword(restrictedToken.current, password)
       : loginKind === "vendor"
-        ? await vendorPasswordLogin(text(d, "email"), password)
+        ? await vendorPasswordLogin(text(d, "login_id"), password)
         : await passwordLogin(
             text(d, "corporate_id"),
-            text(d, "email"),
+            text(d, "login_id"),
             password,
           );
     if (session.password_change_required) {

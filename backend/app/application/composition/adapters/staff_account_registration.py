@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from app.application.access_control.boundary_models import ResolvedActorContext
+from app.application.access_control.boundary_models import (
+    ResolvedActorContext,
+    StoreRoleInput,
+)
 from app.application.common.exceptions import AuthorizationError
 from app.application.identity.boundary_interfaces.local_authentication import (
     CredentialWriter,
@@ -21,9 +24,10 @@ from app.domain.identity.entities import (
 from app.domain.identity.identifiers import CorporateMembershipId
 from app.domain.identity.primitives import (
     AccountStatus,
-    CorporateUserEmail,
     ExternalSubjectKey,
+    LoginId,
     MembershipRole,
+    StoreRole,
 )
 from app.domain.identity.repositories import (
     AccountPersonRepository,
@@ -31,6 +35,7 @@ from app.domain.identity.repositories import (
     StaffPersonLinkRepository,
     UserAccountRepository,
 )
+from app.domain.identity.value_objects import StoreRoleAssignment
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNames
 from app.domain.staff.identifiers import StaffId
@@ -99,12 +104,13 @@ class StaffAccountRegistrationAdapter(StaffAccountRegistrationBoundary):
         corporate_id: CorporateId,
         staff_id: StaffId,
         names: PersonNames,
-        email: str,
+        login_id: str,
         password: str,
+        email: str | None = None,
         role: str,
-        store_ids: frozenset[StoreId],
+        store_roles: tuple[StoreRoleInput, ...],
     ) -> StaffAccountRegistrationResult:
-        normalized_email = CorporateUserEmail(email).value
+        normalized_login_id = LoginId(login_id).value
 
         person_id = AccountPersonId.generate()
         person = AccountPerson(
@@ -138,16 +144,23 @@ class StaffAccountRegistrationAdapter(StaffAccountRegistrationBoundary):
             account_id=account_id,
             corporate_id=corporate_id,
             role=membership_role,
-            store_ids=store_ids,
+            store_roles=tuple(
+                StoreRoleAssignment(
+                    store_id=StoreId.parse(item.store_id), role=StoreRole(item.role)
+                )
+                for item in store_roles
+            ),
             staff_id=staff_id,
         )
         await self._memberships.save(membership)
 
-        await self._credentials.issue(corporate_id, normalized_email, password, subject)
+        await self._credentials.issue(
+            corporate_id, normalized_login_id, password, subject, email=email
+        )
 
         return StaffAccountRegistrationResult(
             person_id=person_id,
             account_id=account_id,
             membership_id=membership.id,
-            email=normalized_email,
+            login_id=normalized_login_id,
         )

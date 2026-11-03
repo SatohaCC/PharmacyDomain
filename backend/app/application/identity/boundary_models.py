@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -26,3 +27,14 @@ class VerifiedSubject:
 
     principal_id: str
     selected_store_id: str | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class StoreWorkConditionChange:
+    """店舗権限と同時に保存する所属勤務条件。"""
+
+    store_id: str
+    effective_from: date
+    starts_on: date | None = None
+    weekly_hours: str | None = None
+    duty: str = "other"

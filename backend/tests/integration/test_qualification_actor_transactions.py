@@ -36,7 +36,9 @@ from app.domain.identity.primitives import (
     AccountStatus,
     ExternalSubjectKey,
     MembershipRole,
+    StoreRole,
 )
+from app.domain.identity.value_objects import StoreRoleAssignment
 from app.domain.medication_history.primitives import (
     FinalizedTimestamp,
     MedicationHistoryReviewResult,
@@ -119,8 +121,11 @@ async def test_TC090_資格変更の即時反映_ログイン中に薬剤師資�
         id=CorporateMembershipId.generate(),
         account_id=account.id,
         corporate_id=corporate.id,
-        role=MembershipRole.STORE_OPERATOR,
-        store_ids=frozenset({store.id}),
+        role=MembershipRole.MEMBER,
+        store_roles=tuple(
+            StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+            for store_id in frozenset({store.id})
+        ),
         staff_id=pharmacist.id,
     )
 
@@ -331,8 +336,11 @@ async def test_TC092_権限変更と業務保存の並行_停止先行なら403�
         id=CorporateMembershipId.generate(),
         account_id=account.id,
         corporate_id=corporate.id,
-        role=MembershipRole.STORE_OPERATOR,
-        store_ids=frozenset({store.id}),
+        role=MembershipRole.MEMBER,
+        store_roles=tuple(
+            StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+            for store_id in frozenset({store.id})
+        ),
         staff_id=pharmacist.id,
     )
 

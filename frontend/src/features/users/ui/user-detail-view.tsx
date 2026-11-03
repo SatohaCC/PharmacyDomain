@@ -1,3 +1,8 @@
+import {
+  StoreSettingsPanel,
+  type SaveStoreSettings,
+} from "./store-settings-panel";
+import type { StoreAffiliation } from "../model/store-work-conditions";
 import { useState } from "react";
 import { Panel } from "../../../shared/ui/layout/panel";
 import {
@@ -17,7 +22,6 @@ import { Badge } from "../../../shared/ui/data-display/badge";
 import { Button } from "../../../shared/ui/controls/button";
 import { TextField as Field } from "../../../shared/ui/controls/text-field";
 import { SelectField } from "../../../shared/ui/controls/select-field";
-import { Checkbox } from "../../../shared/ui/controls/checkbox";
 import { Alert } from "../../../shared/ui/feedback/alert";
 import type { UserDetail } from "../model/user";
 import {
@@ -29,6 +33,7 @@ import {
 
 const roleLabels: Record<string, string> = {
   corporate_admin: "法人管理者",
+  member: "一般ユーザー",
   store_operator: "店舗操作者",
   store_viewer: "店舗閲覧者",
 };
@@ -37,7 +42,12 @@ export interface UserDetailViewProps {
   user: UserDetail;
   corporateId: string;
   availableStores: { id: string; name: string }[];
-  onUpdateRole: (role: string, storeIds: string[]) => Promise<void>;
+  onUpdateRole: SaveStoreSettings;
+  storeWorkConditions?: StoreAffiliation[];
+  workConditionsLoading?: boolean;
+  workConditionsError?: string | null;
+  appliedOn: string;
+  onAppliedOnChange: (date: string) => void;
   onSuspend: () => Promise<void>;
   onReactivate: () => Promise<void>;
   onUpdateStaffNames?: (names: {
@@ -73,10 +83,12 @@ export function UserDetailView({
   onReturnStaffFromLeave,
   statusMessage,
   errorMessage,
+  storeWorkConditions = [],
+  workConditionsLoading = false,
+  workConditionsError,
+  appliedOn,
+  onAppliedOnChange,
 }: UserDetailViewProps) {
-  const [role, setRole] = useState(user.role);
-  const [selectedStoreIds, setSelectedStoreIds] = useState<string[]>(user.store_ids);
-  const [roleEditing, setRoleEditing] = useState(false);
   const [staffEditing, setStaffEditing] = useState(false);
   const [employmentEditing, setEmploymentEditing] = useState(false);
   const [employmentType, setEmploymentType] = useState(
@@ -85,25 +97,6 @@ export function UserDetailView({
   const [leaveReason, setLeaveReason] = useState("childcare");
   const [leftOn, setLeftOn] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleToggleStore = (storeId: string) => {
-    setSelectedStoreIds((prev) =>
-      prev.includes(storeId)
-        ? prev.filter((id) => id !== storeId)
-        : [...prev, storeId],
-    );
-  };
-
-  const handleRoleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    try {
-      await onUpdateRole(role, selectedStoreIds);
-      setRoleEditing(false);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const handleStaffSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -118,7 +111,9 @@ export function UserDetailView({
         first_name_kana: String(fd.get("first_name_kana") || ""),
       });
       if (onUpdateStaffJobTitle) {
-        await onUpdateStaffJobTitle(fd.get("job_title") ? String(fd.get("job_title")) : null);
+        await onUpdateStaffJobTitle(
+          fd.get("job_title") ? String(fd.get("job_title")) : null,
+        );
       }
       setStaffEditing(false);
     } finally {
@@ -126,7 +121,9 @@ export function UserDetailView({
     }
   };
 
-  const handleEmploymentSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleEmploymentSubmit = async (
+    e: React.FormEvent<HTMLFormElement>,
+  ) => {
     e.preventDefault();
     if (!onUpdateStaffEmployment) return;
     setIsSubmitting(true);
@@ -145,7 +142,9 @@ export function UserDetailView({
     }
   };
 
-  const handleStartLeaveSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleStartLeaveSubmit = async (
+    e: React.FormEvent<HTMLFormElement>,
+  ) => {
     e.preventDefault();
     if (!onStartStaffLeave || !leftOn) return;
     setIsSubmitting(true);
@@ -183,10 +182,6 @@ export function UserDetailView({
     }
   };
 
-  const assignedStoreNames = availableStores
-    .filter((s) => user.store_ids.includes(s.id))
-    .map((s) => s.name);
-
   return (
     <>
       {statusMessage && <Alert tone="info">{statusMessage}</Alert>}
@@ -204,62 +199,16 @@ export function UserDetailView({
         </Paragraph>
       </Panel>
 
-      <Panel>
-        <Row>
-          <SectionHeading>法人権限・所属店舗</SectionHeading>
-          <Button
-            variant="secondary"
-            onAction={() => setRoleEditing(!roleEditing)}
-            disabled={isSubmitting}
-          >
-            {roleEditing ? "キャンセル" : "権限を変更"}
-          </Button>
-        </Row>
-        {roleEditing ? (
-          <form onSubmit={(e) => void handleRoleSubmit(e)}>
-            <SelectField
-              name="role"
-              label="ロール"
-              value={role}
-              onValueChange={(val: string) => setRole(val)}
-              options={[
-                { value: "corporate_admin", label: "法人管理者" },
-                { value: "store_operator", label: "店舗操作者" },
-                { value: "store_viewer", label: "店舗閲覧者" },
-              ]}
-            />
-            <SectionHeading>利用可能店舗</SectionHeading>
-            {availableStores.map((store) => (
-              <Checkbox
-                key={store.id}
-                label={store.name}
-                isSelected={selectedStoreIds.includes(store.id)}
-                onChange={() => handleToggleStore(store.id)}
-              />
-            ))}
-            <Row>
-              <Button type="submit" disabled={isSubmitting}>保存する</Button>
-            </Row>
-          </form>
-        ) : (
-          <Table>
-            <tbody>
-              <tr>
-                <TableHeader>ロール</TableHeader>
-                <TableCell>{roleLabels[user.role] || user.role}</TableCell>
-              </tr>
-              <tr>
-                <TableHeader>所属店舗</TableHeader>
-                <TableCell>
-                  {assignedStoreNames.length > 0
-                    ? assignedStoreNames.join("、")
-                    : "全店舗または未指定"}
-                </TableCell>
-              </tr>
-            </tbody>
-          </Table>
-        )}
-      </Panel>
+      <StoreSettingsPanel
+        user={user}
+        stores={availableStores}
+        conditions={storeWorkConditions}
+        loading={workConditionsLoading}
+        error={workConditionsError}
+        appliedOn={appliedOn}
+        onAppliedOnChange={onAppliedOnChange}
+        onSave={onUpdateRole}
+      />
 
       <Panel>
         <SectionHeading>アカウント利用状態</SectionHeading>
@@ -272,7 +221,9 @@ export function UserDetailView({
             onAction={() => void handleToggleActive()}
             disabled={isSubmitting}
           >
-            {user.status === "active" ? "法人利用を停止する" : "法人利用を再開する"}
+            {user.status === "active"
+              ? "法人利用を停止する"
+              : "法人利用を再開する"}
           </Button>
         </Row>
       </Panel>
@@ -323,7 +274,9 @@ export function UserDetailView({
                 defaultValue={user.staff.job_title || ""}
               />
               <Row>
-                <Button type="submit" disabled={isSubmitting}>保存する</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  保存する
+                </Button>
               </Row>
             </form>
           ) : (
@@ -343,7 +296,11 @@ export function UserDetailView({
                   <TableCell>{user.staff.job_title || "未設定"}</TableCell>
                   <TableHeader>資格区分</TableHeader>
                   <TableCell>
-                    {user.staff.is_pharmacist ? <Badge>薬剤師</Badge> : "スタッフ"}
+                    {user.staff.is_pharmacist ? (
+                      <Badge>薬剤師</Badge>
+                    ) : (
+                      "スタッフ"
+                    )}
                   </TableCell>
                 </tr>
                 <tr>
@@ -358,7 +315,9 @@ export function UserDetailView({
                       ? `${user.staff.weekly_contract_hours} 時間`
                       : "未設定"}
                     {user.staff.effective_full_time_equivalent !== null && (
-                      <Badge>常勤換算: {user.staff.effective_full_time_equivalent}</Badge>
+                      <Badge>
+                        常勤換算: {user.staff.effective_full_time_equivalent}
+                      </Badge>
                     )}
                   </TableCell>
                 </tr>
@@ -366,7 +325,13 @@ export function UserDetailView({
                   <TableHeader>就業状態</TableHeader>
                   <TableCell colSpan={3}>
                     {user.staff.status === "on_leave" ? (
-                      <Badge>休職中（{LEAVE_REASON_LABELS[user.staff.leave_reason || ""] || user.staff.leave_reason || "理由未設定"}）</Badge>
+                      <Badge>
+                        休職中（
+                        {LEAVE_REASON_LABELS[user.staff.leave_reason || ""] ||
+                          user.staff.leave_reason ||
+                          "理由未設定"}
+                        ）
+                      </Badge>
                     ) : (
                       <Badge>稼働中</Badge>
                     )}
@@ -400,11 +365,17 @@ export function UserDetailView({
                   <Field
                     name="weekly_contract_hours"
                     label="週所定労働時間"
-                    defaultValue={user.staff.weekly_contract_hours !== null ? String(user.staff.weekly_contract_hours) : ""}
+                    defaultValue={
+                      user.staff.weekly_contract_hours !== null
+                        ? String(user.staff.weekly_contract_hours)
+                        : ""
+                    }
                     description="例: 40.0"
                   />
                   <Row>
-                    <Button type="submit" disabled={isSubmitting}>契約内容を保存する</Button>
+                    <Button type="submit" disabled={isSubmitting}>
+                      契約内容を保存する
+                    </Button>
                   </Row>
                 </form>
               )}
@@ -417,7 +388,10 @@ export function UserDetailView({
               <Row>
                 <Paragraph>現在休職中です。</Paragraph>
                 {onReturnStaffFromLeave && (
-                  <Button onAction={() => void handleReturnFromLeave()} disabled={isSubmitting}>
+                  <Button
+                    onAction={() => void handleReturnFromLeave()}
+                    disabled={isSubmitting}
+                  >
                     休職から復職する
                   </Button>
                 )}
@@ -426,7 +400,10 @@ export function UserDetailView({
               <Details>
                 <Summary>休職手続きを開く</Summary>
                 {onStartStaffLeave && (
-                  <form onSubmit={(e) => void handleStartLeaveSubmit(e)} style={{ marginTop: "0.5rem" }}>
+                  <form
+                    onSubmit={(e) => void handleStartLeaveSubmit(e)}
+                    style={{ marginTop: "0.5rem" }}
+                  >
                     <SelectField
                       name="leave_reason"
                       label="休職理由"
@@ -443,7 +420,10 @@ export function UserDetailView({
                       required
                     />
                     <Row>
-                      <Button type="submit" disabled={isSubmitting || !leftOn.trim()}>
+                      <Button
+                        type="submit"
+                        disabled={isSubmitting || !leftOn.trim()}
+                      >
                         休職を開始する
                       </Button>
                     </Row>

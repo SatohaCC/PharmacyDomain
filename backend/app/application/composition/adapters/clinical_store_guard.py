@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from app.application.access_control.boundary_models import (
     ActorRole,
     Permission,
@@ -48,6 +50,7 @@ from app.domain.prescription.value_objects import MedicineIdentifier
 from app.domain.staff.repositories import StaffRepository
 from app.domain.staff.value_objects import PharmacistProfile
 from app.domain.store.identifiers import StoreId
+from app.domain.store.repositories import StoreManagerAssignmentRepository
 
 
 def _to_prescription_identifier(
@@ -73,6 +76,7 @@ class ClinicalStoreWriteGuard:
         accounts: UserAccountRepository | None = None,
         memberships: CorporateMembershipRepository | None = None,
         staffs: StaffRepository | None = None,
+        managers: StoreManagerAssignmentRepository | None = None,
     ) -> None:
         self._stores = stores
         self._authorization = authorization
@@ -82,6 +86,7 @@ class ClinicalStoreWriteGuard:
         self._accounts = accounts
         self._memberships = memberships
         self._staffs = staffs
+        self._managers = managers
 
     async def _reverify_actor(
         self,
@@ -90,6 +95,7 @@ class ClinicalStoreWriteGuard:
         store_id: StoreId,
         aggregate: object,
         is_new: bool,
+        permission: Permission,
     ) -> None:
         """法人ロック取得後にActorのアカウント・所属・スタッフ資格を再確認する。"""
         actor = self._authorization.actor
@@ -110,11 +116,31 @@ class ClinicalStoreWriteGuard:
                 raise AuthorizationError(
                     "法人アクセス権が停止されているため業務を実行できません。"
                 )
-            if (
-                ActorRole.CORPORATE_ADMIN not in actor.roles
-                and store_id not in membership.active_store_ids
-            ):
+            if store_id not in membership.active_store_ids:
                 raise AuthorizationError("指定された店舗への利用権限がありません。")
+            roles = frozenset({ActorRole(membership.role.value)})
+            current_managed: frozenset[StoreId] = frozenset()
+            if self._managers is not None and self._clock is not None:
+                appointment = await self._managers.find_effective(
+                    corporate_id, store_id, business_date(self._clock)
+                )
+                if (
+                    appointment is not None
+                    and appointment.staff_id == actor.staff_id
+                    and appointment.person_id == actor.person_id
+                ):
+                    current_managed = frozenset({store_id})
+                    roles = roles | {ActorRole.STORE_MANAGER}
+            current_role = membership.role_for_store(store_id)
+            if current_role is not None:
+                roles = roles | {ActorRole(current_role.value)}
+            AuthorizationService(
+                replace(actor, roles=roles, managed_store_ids=current_managed)
+            ).require_store(
+                permission=permission,
+                target_corporate_id=corporate_id,
+                target_store_id=store_id,
+            )
         if self._staffs is not None and actor.staff_id is not None:
             staff = await self._staffs.get(
                 corporate_id=corporate_id, staff_id=actor.staff_id
@@ -199,6 +225,7 @@ class ClinicalStoreWriteGuard:
                     store_id=aggregate.store_id,
                     aggregate=aggregate,
                     is_new=is_new,
+                    permission=Permission.MANAGE_PRESCRIPTION,
                 )
                 return
             permission = Permission.MANAGE_PRESCRIPTION
@@ -230,6 +257,7 @@ class ClinicalStoreWriteGuard:
                     store_id=aggregate.store_id,
                     aggregate=aggregate,
                     is_new=is_new,
+                    permission=Permission.MANAGE_DISPENSING,
                 )
                 return
             permission = Permission.MANAGE_DISPENSING
@@ -286,6 +314,7 @@ class ClinicalStoreWriteGuard:
             store_id=aggregate.store_id,
             aggregate=aggregate,
             is_new=is_new,
+            permission=permission,
         )
         await self._stores.require_allowed(
             corporate_id=aggregate.corporate_id,

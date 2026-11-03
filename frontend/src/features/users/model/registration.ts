@@ -1,11 +1,8 @@
 import type { Submission } from "../../../shared/forms/submission";
-export type UserRole = "corporate_admin" | "store_operator" | "store_viewer";
+export type UserRole = "corporate_admin" | "member";
 
 export type EmploymentType =
-  | "regular"
-  | "fixed_term"
-  | "part_time"
-  | "dispatched";
+  "regular" | "fixed_term" | "part_time" | "dispatched";
 
 export const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
   regular: "正社員（常勤）",
@@ -37,6 +34,6 @@ export interface RegistrationViewProps extends RegistrationOptions {
   corporateId: string;
   role: UserRole;
   setRole: (role: UserRole) => void;
-  issued?: { id: string; email: string };
+  issued?: { id: string; loginId: string };
   registrationSubmission: Submission;
 }

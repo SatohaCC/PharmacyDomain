@@ -6,7 +6,8 @@ from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.identity.entities import CorporateMembership
 from app.domain.identity.identifiers import CorporateMembershipId
-from app.domain.identity.primitives import AccountStatus, MembershipRole
+from app.domain.identity.primitives import AccountStatus, MembershipRole, StoreRole
+from app.domain.identity.value_objects import StoreRoleAssignment
 from app.domain.shared.actor import UserAccountId
 from app.domain.store.identifiers import StoreId
 
@@ -17,13 +18,11 @@ def _membership(role: MembershipRole) -> CorporateMembership:
         account_id=UserAccountId.generate(),
         corporate_id=CorporateId.generate(),
         role=role,
-        store_ids=frozenset(),
+        store_roles=(),
     )
 
 
-@pytest.mark.parametrize(
-    "role", [MembershipRole.STORE_OPERATOR, MembershipRole.STORE_VIEWER]
-)
+@pytest.mark.parametrize("role", [MembershipRole.MEMBER, MembershipRole.MEMBER])
 def test_店舗ロールにはスタッフへの参照が必須である(role: MembershipRole) -> None:
     with pytest.raises(DomainValidationError):
         _membership(role)
@@ -51,7 +50,11 @@ def test_権限変更は法人とアカウントの対応を変更しない() ->
     stores = frozenset({StoreId.generate()})
 
     changed = original.change_access(
-        role=MembershipRole.CORPORATE_ADMIN, store_ids=stores
+        role=MembershipRole.CORPORATE_ADMIN,
+        store_roles=tuple(
+            StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+            for store_id in stores
+        ),
     )
 
     assert changed.account_id == original.account_id

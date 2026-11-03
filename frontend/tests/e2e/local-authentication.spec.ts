@@ -7,7 +7,7 @@ test("初期パスワードでは変更画面へ進みパスワードと制限�
   await page.route("**/api/auth/login", async (route) => {
     expect(route.request().postDataJSON()).toEqual({
       corporate_id: "test-corporate",
-      email: "test-admin@example.test",
+      login_id: "test-admin",
       password: "test-initial-password-12345",
     });
     await route.fulfill({
@@ -61,7 +61,7 @@ test("初期パスワードでは変更画面へ進みパスワードと制限�
   );
   await page.goto("/login");
   await page.getByLabel("法人ID").fill("test-corporate");
-  await page.getByLabel("メールアドレス").fill("test-admin@example.test");
+  await page.getByLabel("ログインID").fill("test-admin");
   await page
     .getByLabel(/^パスワード(?:必須| 必須)?$/)
     .fill("test-initial-password-12345");
@@ -104,20 +104,20 @@ test("ログイン失敗では管理画面へ進まない", async ({ page }) => 
       status: 401,
       json: {
         code: "LOGIN_FAILED",
-        message: "メールアドレスまたはパスワードを確認してください。",
+        message: "ログインIDまたはパスワードを確認してください。",
         errors: [],
       },
     }),
   );
   await page.goto("/login");
   await page.getByLabel("法人ID").fill("test-corporate");
-  await page.getByLabel("メールアドレス").fill("test-admin@example.test");
+  await page.getByLabel("ログインID").fill("test-admin");
   await page
     .getByLabel(/^パスワード(?:必須| 必須)?$/)
     .fill("test-wrong-password");
   await page.getByRole("button", { name: "ログイン", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText(
-    "メールアドレスまたはパスワードを確認",
+    "ログインIDまたはパスワードを確認",
   );
   await expect(page).toHaveURL(/\/login(?:\?|$)/);
 });

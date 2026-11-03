@@ -39,6 +39,7 @@ _CORPORATE_ID = "01890000-0000-7000-8000-000000000000"
 _STORE_ID = "01890000-0000-7000-8000-000000000001"
 _PERSON_ID = "01890000-0000-7000-8000-0000000000a0"
 _ACCOUNT_ID = "01890000-0000-7000-8000-0000000000a1"
+_OPERATOR_ID = "01890000-0000-7000-8000-0000000000b1"
 #: 更新は監査を伴い、監査行は本人とアカウントを要求するので、開発用の主体にも
 #: 実在する行を指すIDが要る。素の ActorContext を返していた頃は、この2つが
 #: 無いまま起動でき、書き込みだけが応答後に静かにロールバックされていた。
@@ -46,6 +47,7 @@ _VENDOR_ENVIRONMENT = {
     "DEV_ACTOR_TOKEN": "dev-token",
     "DEV_ACTOR_PERSON_ID": _PERSON_ID,
     "DEV_ACTOR_ACCOUNT_ID": _ACCOUNT_ID,
+    "DEV_ACTOR_OPERATOR_ID": _OPERATOR_ID,
 }
 
 
@@ -65,7 +67,17 @@ async def test_固定トークンと一致したときだけ_主体を返す() -
     assert str(actor.person_id.value) == _PERSON_ID
     assert str(actor.account_id.value) == _ACCOUNT_ID
     assert actor.operator_id is not None
-    assert str(actor.operator_id.value) == _ACCOUNT_ID
+    assert str(actor.operator_id.value) == _OPERATOR_ID
+
+
+def test_開発ベンダー_運営者ID未指定の場合_起動を拒否する() -> None:
+    # Arrange
+    environment = {
+        k: v for k, v in _VENDOR_ENVIRONMENT.items() if k != "DEV_ACTOR_OPERATOR_ID"
+    }
+    # Act / Assert
+    with pytest.raises(DevActorConfigurationError, match="DEV_ACTOR_OPERATOR_ID"):
+        build_actor_provider(environment)
 
 
 @pytest.mark.parametrize("credential", [None, "", "another-token"])
@@ -242,6 +254,7 @@ def test_開発用アプリは_固定トークンで業務ルートを通す(
     monkeypatch.setenv("DEV_ACTOR_TOKEN", "dev-token")
     monkeypatch.setenv("DEV_ACTOR_PERSON_ID", _PERSON_ID)
     monkeypatch.setenv("DEV_ACTOR_ACCOUNT_ID", _ACCOUNT_ID)
+    monkeypatch.setenv("DEV_ACTOR_OPERATOR_ID", _OPERATOR_ID)
     app = create_dev_app()
     app.dependency_overrides[get_corporate_use_cases] = lambda: (
         create_corporate_use_cases(InMemoryCorporateRepository())
@@ -269,6 +282,7 @@ def test_開発用アプリは_タイトルで見分けられる(
     monkeypatch.setenv("DEV_ACTOR_TOKEN", "dev-token")
     monkeypatch.setenv("DEV_ACTOR_PERSON_ID", _PERSON_ID)
     monkeypatch.setenv("DEV_ACTOR_ACCOUNT_ID", _ACCOUNT_ID)
+    monkeypatch.setenv("DEV_ACTOR_OPERATOR_ID", _OPERATOR_ID)
 
     # Act
     dev_title = create_dev_app().title

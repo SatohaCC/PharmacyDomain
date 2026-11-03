@@ -1,4 +1,8 @@
-import { createFileRoute, getRouteApi, useRouter } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  getRouteApi,
+  useRouter,
+} from "@tanstack/react-router";
 import { CorporateOverviewPage } from "../../../../features/corporates/ui/corporates-overview-page";
 
 const parentRoute = getRouteApi("/admin/corporates/$corporateId");

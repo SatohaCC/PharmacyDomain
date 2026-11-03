@@ -1,4 +1,12 @@
-import { useState } from "react";
+import {
+  getWorkConditions,
+  type StoreAffiliation,
+} from "../api/work-conditions-api";
+import {
+  todayInJapan,
+  type StoreConditionChange,
+} from "./store-settings-panel";
+import { useEffect, useState } from "react";
 import { UserDetailView } from "./user-detail-view";
 import type { UserDetail } from "../model/user";
 import type { components } from "../../../shared/api/generated/schema";
@@ -28,25 +36,72 @@ export function UserDetailPage({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const [appliedOn, setAppliedOn] = useState(todayInJapan);
+  const [conditions, setConditions] = useState<StoreAffiliation[]>([]);
+  const [conditionsError, setConditionsError] = useState<string | null>(null);
+  const [loadedKey, setLoadedKey] = useState("");
+  const [generation, setGeneration] = useState(0);
+  const requestKey = `${corporateId}/${user.staff_id}/${appliedOn}/${generation}`;
+  useEffect(() => {
+    if (!user.staff_id || !appliedOn) return;
+    const controller = new AbortController();
+    void getWorkConditions(
+      corporateId,
+      user.staff_id,
+      undefined,
+      appliedOn,
+      controller.signal,
+    )
+      .then((rows) => {
+        if (!controller.signal.aborted) {
+          setConditions(rows);
+          setConditionsError(null);
+          setLoadedKey(requestKey);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          setConditionsError(
+            error instanceof Error
+              ? error.message
+              : "勤務条件を取得できませんでした。",
+          );
+          setLoadedKey(requestKey);
+        }
+      });
+    return () => controller.abort();
+  }, [corporateId, user.staff_id, appliedOn, generation, requestKey]);
   const clearMessages = () => {
     setStatusMessage(null);
     setErrorMessage(null);
   };
 
-  const handleUpdateRole = async (role: string, storeIds: string[]) => {
+  const handleUpdateRole = async (
+    role: string,
+    storeRoles: { store_id: string; role: string }[],
+    storeWorkConditions: StoreConditionChange[],
+  ) => {
     clearMessages();
     try {
       await updateMembership(corporateId, user.id, {
         role: role as components["schemas"]["MembershipRole-Input"],
-        store_ids: storeIds,
+        store_roles: storeRoles,
+        store_work_conditions: storeWorkConditions,
       });
-      setUser((prev) => ({ ...prev, role, store_ids: storeIds }));
-      setStatusMessage("権限および所属店舗を更新しました。");
+      setUser((prev) => ({
+        ...prev,
+        role,
+        store_roles: storeRoles,
+        store_ids: storeRoles.map((item) => item.store_id),
+      }));
+      setStatusMessage("所属店舗・権限・勤務時間を更新しました。");
+      setGeneration((value) => value + 1);
       await onRefresh();
     } catch (err) {
       setErrorMessage(
         err instanceof Error ? err.message : "権限の更新に失敗しました。",
       );
+      throw err;
     }
   };
 
@@ -215,20 +270,33 @@ export function UserDetailPage({
   };
 
   return (
-    <UserDetailView
-      user={user}
-      corporateId={corporateId}
-      availableStores={availableStores}
-      onUpdateRole={handleUpdateRole}
-      onSuspend={handleSuspend}
-      onReactivate={handleReactivate}
-      onUpdateStaffNames={user.staff ? handleUpdateStaffNames : undefined}
-      onUpdateStaffJobTitle={user.staff ? handleUpdateStaffJobTitle : undefined}
-      onUpdateStaffEmployment={user.staff ? handleUpdateStaffEmployment : undefined}
-      onStartStaffLeave={user.staff ? handleStartStaffLeave : undefined}
-      onReturnStaffFromLeave={user.staff ? handleReturnStaffFromLeave : undefined}
-      statusMessage={statusMessage}
-      errorMessage={errorMessage}
-    />
+    <>
+      <UserDetailView
+        user={user}
+        corporateId={corporateId}
+        availableStores={availableStores}
+        onUpdateRole={handleUpdateRole}
+        storeWorkConditions={loadedKey === requestKey ? conditions : []}
+        workConditionsLoading={!!user.staff_id && loadedKey !== requestKey}
+        workConditionsError={loadedKey === requestKey ? conditionsError : null}
+        appliedOn={appliedOn}
+        onAppliedOnChange={setAppliedOn}
+        onSuspend={handleSuspend}
+        onReactivate={handleReactivate}
+        onUpdateStaffNames={user.staff ? handleUpdateStaffNames : undefined}
+        onUpdateStaffJobTitle={
+          user.staff ? handleUpdateStaffJobTitle : undefined
+        }
+        onUpdateStaffEmployment={
+          user.staff ? handleUpdateStaffEmployment : undefined
+        }
+        onStartStaffLeave={user.staff ? handleStartStaffLeave : undefined}
+        onReturnStaffFromLeave={
+          user.staff ? handleReturnStaffFromLeave : undefined
+        }
+        statusMessage={statusMessage}
+        errorMessage={errorMessage}
+      />
+    </>
   );
 }

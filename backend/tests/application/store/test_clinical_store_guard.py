@@ -12,12 +12,17 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from app.application.access_control.boundary_models import ActorContext
+from app.application.access_control.boundary_models import (
+    ActorContext,
+    ActorRole,
+    ResolvedActorContext,
+)
 from app.application.access_control.interfaces.store_operations import (
     StoreOperation,
     StoreOperationBoundary,
 )
 from app.application.access_control.policies import AuthorizationService
+from app.application.common.exceptions import AuthorizationError
 from app.application.composition.adapters.clinical_store_guard import (
     ClinicalStoreWriteGuard,
 )
@@ -26,6 +31,8 @@ from app.application.composition.adapters.store_operation_adapter import (
 )
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainError
+from app.domain.identity.primitives import MembershipRole, StoreRole
+from app.domain.identity.value_objects import StoreRoleAssignment
 from app.domain.prescription.exceptions import (
     MedicineClassificationMissingError,
     MedicineClassificationUnknownError,
@@ -39,6 +46,7 @@ from app.domain.prescription.value_objects import (
     MedicineClassification,
     MedicineIdentifier,
 )
+from app.domain.staff.identifiers import StaffId
 from app.domain.store.exceptions import (
     ManagerAbsenceConflictError,
     StoreStateConflictError,
@@ -51,6 +59,10 @@ from tests.factories.dispensing_factory import (
     create_dispensed_rp,
     create_dispensing,
 )
+from tests.factories.identity_factory import (
+    create_corporate_membership,
+    create_user_account,
+)
 from tests.factories.medication_history_factory import (
     create_independent_follow_up_record,
     create_record,
@@ -60,6 +72,9 @@ from tests.factories.prescription_factory import create_prescription
 from tests.factories.store_factory import create_manager_assignment, create_store
 from tests.fakes.fake_clock import FakeClock
 from tests.fakes.fake_organization_management import FakeOrganizationLock
+from tests.fakes.in_memory_identity_repositories import (
+    InMemoryCorporateMembershipRepository,
+)
 from tests.fakes.in_memory_manager_assignment_repository import (
     InMemoryStoreManagerAssignmentRepository,
 )
@@ -90,6 +105,61 @@ class RecordingStoreOperationBoundary(StoreOperationBoundary):
 
 def _authorization() -> AuthorizationService:
     return AuthorizationService(ActorContext.vendor_system_admin(principal_id="テスト"))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["prescription", "dispensing", "history"])
+@pytest.mark.parametrize("role", [ActorRole.STORE_OPERATOR, ActorRole.CORPORATE_ADMIN])
+async def test_保存前認可_開始後に閲覧者へ降格した場合_更新を拒否する(
+    kind: str, role: ActorRole
+) -> None:
+    # Arrange
+    store = create_store()
+    account = create_user_account(corporate_id=store.corporate_id)
+    membership = create_corporate_membership(
+        corporate_id=store.corporate_id,
+        account_id=account.id,
+        role=MembershipRole.CORPORATE_ADMIN
+        if role is ActorRole.CORPORATE_ADMIN
+        else MembershipRole.MEMBER,
+        store_ids=frozenset({store.id}),
+        staff_id=StaffId.generate(),
+    )
+    actor = ResolvedActorContext(
+        principal_id="降格前の操作者",
+        person_id=account.person_id,
+        account_id=account.id,
+        membership_id=membership.id,
+        corporate_id=store.corporate_id,
+        staff_id=membership.staff_id,
+        roles=frozenset({role}),
+        store_ids=membership.store_ids,
+        selected_store_id=store.id,
+        require_store_selection=True,
+    )
+    memberships = InMemoryCorporateMembershipRepository()
+    await memberships.save(
+        membership.change_access(
+            role=MembershipRole.MEMBER,
+            store_roles=tuple(
+                StoreRoleAssignment(store_id=store_id, role=StoreRole.VIEWER)
+                for store_id in membership.store_ids
+            ),
+        )
+    )
+    boundary = RecordingStoreOperationBoundary()
+    guard = ClinicalStoreWriteGuard(
+        boundary,
+        AuthorizationService(actor),
+        FakeOrganizationLock(),
+        memberships=memberships,
+    )
+    aggregate = _aggregate(kind, corporate_id=store.corporate_id, store_id=store.id)
+
+    # Act / Assert
+    with pytest.raises(AuthorizationError):
+        await guard.check(aggregate, is_new=True)
+    assert boundary.operations == []
 
 
 def _aggregate(kind: str, *, corporate_id: CorporateId, store_id: StoreId) -> object:

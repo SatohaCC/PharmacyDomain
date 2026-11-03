@@ -184,7 +184,7 @@ def _row_value_cases() -> list[tuple[AggregateMapping[Any], Mapping[str, object]
                 account_id=account.id,
                 corporate_id=store.corporate_id,
                 role=MembershipRole.CORPORATE_ADMIN,
-                store_ids=frozenset(),
+                store_roles=(),
             ),
         ),
         _case(
@@ -475,6 +475,17 @@ _LOCAL_SESSIONS_SELECTED_STORE_TRANSFORM_PREFIXES = (
     "ALTER TABLE local_sessions ADD CONSTRAINT fk_local_sessions_selected_store_id_stores FOREIGN KEY",
 )
 
+_LOGIN_ID_TRANSFORM_PREFIXES = (
+    "ALTER TABLE vendor_operators ADD COLUMN login_id VARCHAR(64)",
+    "ALTER TABLE local_credentials ADD COLUMN login_id VARCHAR(64)",
+    "ALTER TABLE vendor_operators DROP CONSTRAINT uq_vendor_operators_email",
+    "ALTER TABLE vendor_operators ADD CONSTRAINT uq_vendor_operators_login_id UNIQUE (login_id)",
+    "ALTER TABLE vendor_operators ALTER COLUMN login_id SET NOT NULL",
+    "ALTER TABLE vendor_operators ALTER COLUMN email DROP NOT NULL",
+    "ALTER TABLE local_credentials ALTER COLUMN login_id SET NOT NULL",
+    "ALTER TABLE local_credentials ALTER COLUMN email DROP NOT NULL",
+)
+
 _SUPERSEDED_ROUTINES: Final[tuple[str, ...]] = (
     _normalized_statement("""CREATE OR REPLACE FUNCTION prevent_account_person_change() RETURNS trigger LANGUAGE plpgsql AS $$
     BEGIN
@@ -761,6 +772,22 @@ def _migration_ddl() -> set[str]:
             and ("record_kind" in statement or statement != final_dispensing_index)
         ):
             continue
+        if statement.startswith(
+            ("CREATE TABLE vendor_operators ", "CREATE TABLE local_credentials ")
+        ):
+            statement = statement.replace(
+                "email VARCHAR(255) NOT NULL",
+                "login_id VARCHAR(64) NOT NULL, email VARCHAR(255)",
+            )
+            statement = statement.replace(
+                "uq_vendor_operators_email UNIQUE (email)",
+                "uq_vendor_operators_login_id UNIQUE (login_id)",
+            )
+            statement = statement.replace(
+                "pk_local_credentials PRIMARY KEY (corporate_id, email)",
+                "pk_local_credentials PRIMARY KEY (corporate_id, login_id)",
+            )
+            statement = _normalized_statement(statement)
         statements.add(statement)
     return statements
 
@@ -811,12 +838,19 @@ def test_マイグレーションの全DDLが_検査の対象になっている(
             _IDENTITY_AUTH_AND_DROP_INVITATIONS_TRANSFORM_PREFIXES
         )
         and not statement.startswith(_LOCAL_SESSIONS_SELECTED_STORE_TRANSFORM_PREFIXES)
+        and not statement.startswith(_LOGIN_ID_TRANSFORM_PREFIXES)
         and statement not in routines
         and statement not in _SUPERSEDED_ROUTINES
     ]
 
     # Assert
     assert not unclassified, f"検査の対象になっていないDDL: {unclassified}"
+
+
+def test_ログインIDと任意メールへの変更_前進DDLが全て存在する() -> None:
+    statements = _upgrade_statements()
+    for prefix in _LOGIN_ID_TRANSFORM_PREFIXES:
+        assert any(statement.startswith(prefix) for statement in statements), prefix
 
 
 def test_ローカルセッションへの選択店舗ID列追加が_前進マイグレーションにある() -> None:
@@ -1112,22 +1146,9 @@ def test_集約テーブルが_payload列を持つ() -> None:
     assert not missing, f"payload列が無いテーブル: {missing}"
 
 
-def test_マイグレーションのdowngradeが_全テーブルを削除する() -> None:
-    """upgradeで作った表が残ると、やり直しのたびに手作業が要る。"""
-    # Arrange
-    buffer = io.StringIO()
-    context = MigrationContext.configure(
-        dialect=postgres_dialect(),
-        opts={"as_sql": True, "output_buffer": buffer},
-    )
-    del buffer, context
-
-    # Act
-    dropped = _run_offline("downgrade")
-
-    # Assert
-    for table in schema.metadata.tables.values():
-        assert f"DROP TABLE {table.name}" in dropped.replace('"', "")
+def test_マイグレーションのdowngrade_勤務履歴を失う場合_巻戻しを拒否する() -> None:
+    with pytest.raises(RuntimeError, match="履歴を失う"):
+        _run_offline("downgrade")
 
 
 def test_全ての集約対応が_列の検査対象になっている() -> None:

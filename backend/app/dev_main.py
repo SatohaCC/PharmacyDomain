@@ -12,8 +12,8 @@
 環境変数（すべて `create_dev_app()` を呼んだ時点で読む）:
 
 - ``DEV_ACTOR_TOKEN``: 通す唯一のトークン。**必須**。既定値は用意しない。
-- ``DEV_ACTOR_OPERATOR_ID``: ``vendor_system_admin`` のときの運営者ID。未指定時は
-  ``DEV_ACTOR_ACCOUNT_ID`` を運営者IDとして流用する。
+- ``DEV_ACTOR_OPERATOR_ID``: ``vendor_system_admin`` のとき必須の運営者ID。
+  実在する運営者を指定し、法人をまたぐ操作も運営者として監査する。
 - ``DEV_ACTOR_PERSON_ID`` / ``DEV_ACTOR_ACCOUNT_ID``: 操作主体の本人IDと
   アカウントID。**必須**。更新は監査を伴い、監査行は ``user_accounts`` への
   複合外部キーを持つので、実在する行を指していないと保存が失敗する。
@@ -120,16 +120,14 @@ def _build_actor(values: Mapping[str, str], *, principal_id: str) -> ActorContex
     実行されないまま残る。
     """
     role = _parse_role(values.get("DEV_ACTOR_ROLE", "").strip())
-    if role is ActorRole.STORE_MANAGER:
+    if role in {ActorRole.STORE_MANAGER, ActorRole.MEMBER}:
         raise DevActorConfigurationError(
             "管理薬剤師の権限は通常ログインで有効な任命から解決してください。"
         )
     person_id = _parse_person_id(values.get("DEV_ACTOR_PERSON_ID", "").strip())
     account_id = _parse_account_id(values.get("DEV_ACTOR_ACCOUNT_ID", "").strip())
     if role is ActorRole.VENDOR_SYSTEM_ADMIN:
-        raw_operator_id = values.get("DEV_ACTOR_OPERATOR_ID", "").strip() or str(
-            account_id.value
-        )
+        raw_operator_id = values.get("DEV_ACTOR_OPERATOR_ID", "").strip()
         operator_id = _parse_operator_id(raw_operator_id)
         return ResolvedActorContext(
             principal_id=principal_id,
@@ -164,7 +162,7 @@ def _parse_operator_id(raw_operator_id: str) -> VendorOperatorId:
     if not raw_operator_id:
         raise DevActorConfigurationError(
             "DEV_ACTOR_ROLE が vendor_system_admin の場合は DEV_ACTOR_OPERATOR_ID "
-            "（または DEV_ACTOR_ACCOUNT_ID）が必要です。"
+            "が必要です。アカウントIDを運営者IDとして流用できません。"
         )
     try:
         return VendorOperatorId.parse(raw_operator_id)

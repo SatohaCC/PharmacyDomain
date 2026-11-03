@@ -23,7 +23,7 @@ from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.identifiers import VendorOperatorId
-from app.domain.identity.primitives import CorporateUserEmail
+from app.domain.identity.primitives import CorporateUserEmail, LoginId
 from app.domain.store.identifiers import StoreId
 from app.infrastructure.identity.passwords import (
     hash_password,
@@ -63,16 +63,25 @@ class PostgresCredentialWriter(CredentialWriter):
         self._work = work
 
     async def issue(
-        self, corporate_id: CorporateId, email: str, password: str, subject: str
+        self,
+        corporate_id: CorporateId,
+        login_id: str,
+        password: str,
+        subject: str,
+        *,
+        email: str | None = None,
     ) -> None:
         """初期パスワードの再取得経路を作らず、ハッシュだけを保存する。"""
-        identifier = CorporateUserEmail(email).value
+        identifier = LoginId(login_id).value
         encoded = await asyncio.to_thread(hash_password, password)
         try:
             await self._work.session.execute(
                 insert(local_credentials).values(
                     corporate_id=corporate_id.value,
-                    email=identifier,
+                    login_id=identifier,
+                    email=CorporateUserEmail(email.strip()).value
+                    if email and email.strip()
+                    else None,
                     subject=subject,
                     password_hash=encoded,
                     must_change=True,
@@ -81,21 +90,24 @@ class PostgresCredentialWriter(CredentialWriter):
             )
         except IntegrityError as error:
             raise IdentityConflictError(
-                "このメールアドレスまたは認証アカウントが既に登録されています。"
+                "このログインIDまたは認証アカウントが既に登録されています。"
             ) from error
 
     async def issue_vendor_operator(
-        self, email: str, password: str, subject: str
+        self, login_id: str, password: str, subject: str, *, email: str | None = None
     ) -> VendorOperatorId:
         """運営者の資格情報を保存する。"""
-        identifier = CorporateUserEmail(email).value
+        identifier = LoginId(login_id).value
         encoded = await asyncio.to_thread(hash_password, password)
         operator_id = VendorOperatorId.generate()
         try:
             await self._work.session.execute(
                 insert(vendor_operators).values(
                     id=operator_id.value,
-                    email=identifier,
+                    login_id=identifier,
+                    email=CorporateUserEmail(email.strip()).value
+                    if email and email.strip()
+                    else None,
                     password_hash=encoded,
                     external_subject=subject,
                     is_active=True,
@@ -104,9 +116,9 @@ class PostgresCredentialWriter(CredentialWriter):
             )
         except IntegrityError as error:
             message = str(error)
-            if "uq_vendor_operators_email" in message:
+            if "uq_vendor_operators_login_id" in message:
                 raise IdentityConflictError(
-                    "このメールアドレスの運営者は既に登録されています。"
+                    "このログインIDの運営者は既に登録されています。"
                 ) from error
             raise IdentityConflictError("運営者情報の競合が発生しました。") from error
         return operator_id
@@ -168,7 +180,7 @@ class PostgresLocalAuthentication(LocalAuthentication):
             return frozenset(item.id for item in stores)
 
     async def login(
-        self, corporate_id: str | CorporateId, email: str, password: str
+        self, corporate_id: str | CorporateId, login_id: str, password: str
     ) -> LoginSession:
         """失敗回数をDBで共有し、5回失敗したIDを15分間ロックする。"""
         try:
@@ -177,7 +189,7 @@ class PostgresLocalAuthentication(LocalAuthentication):
                 if isinstance(corporate_id, CorporateId)
                 else CorporateId.parse(corporate_id)
             )
-            identifier = CorporateUserEmail(email).value
+            identifier = LoginId(login_id).value
         except DomainValidationError, ValueError:
             raise LoginFailedError() from None
         async with self._hash_limit, self._sessions.begin() as session:
@@ -188,7 +200,7 @@ class PostgresLocalAuthentication(LocalAuthentication):
                         select(local_credentials)
                         .where(
                             local_credentials.c.corporate_id == cid.value,
-                            local_credentials.c.email == identifier,
+                            local_credentials.c.login_id == identifier,
                         )
                         .with_for_update()
                     )
@@ -218,7 +230,7 @@ class PostgresLocalAuthentication(LocalAuthentication):
                     update(local_credentials)
                     .where(
                         local_credentials.c.corporate_id == cid.value,
-                        local_credentials.c.email == identifier,
+                        local_credentials.c.login_id == identifier,
                     )
                     .values(
                         failed_attempts=attempts,
@@ -233,7 +245,7 @@ class PostgresLocalAuthentication(LocalAuthentication):
                     update(local_credentials)
                     .where(
                         local_credentials.c.corporate_id == cid.value,
-                        local_credentials.c.email == identifier,
+                        local_credentials.c.login_id == identifier,
                     )
                     .values(failed_attempts=0, locked_until=None)
                 )
@@ -244,10 +256,10 @@ class PostgresLocalAuthentication(LocalAuthentication):
             raise LoginFailedError()
         return result
 
-    async def vendor_login(self, email: str, password: str) -> LoginSession:
+    async def vendor_login(self, login_id: str, password: str) -> LoginSession:
         """運営者専用の認証。法人アカウントとは完全に分離して照合する。"""
         try:
-            identifier = CorporateUserEmail(email).value
+            identifier = LoginId(login_id).value
         except DomainValidationError:
             raise LoginFailedError() from None
         async with self._hash_limit, self._sessions.begin() as session:
@@ -256,7 +268,7 @@ class PostgresLocalAuthentication(LocalAuthentication):
                 (
                     await session.execute(
                         select(vendor_operators)
-                        .where(vendor_operators.c.email == identifier)
+                        .where(vendor_operators.c.login_id == identifier)
                         .with_for_update()
                     )
                 )
@@ -283,7 +295,7 @@ class PostgresLocalAuthentication(LocalAuthentication):
                 )
                 await session.execute(
                     update(vendor_operators)
-                    .where(vendor_operators.c.email == identifier)
+                    .where(vendor_operators.c.login_id == identifier)
                     .values(
                         failed_attempts=attempts,
                         locked_until=now + timedelta(minutes=15)
@@ -295,7 +307,7 @@ class PostgresLocalAuthentication(LocalAuthentication):
             else:
                 await session.execute(
                     update(vendor_operators)
-                    .where(vendor_operators.c.email == identifier)
+                    .where(vendor_operators.c.login_id == identifier)
                     .values(failed_attempts=0, locked_until=None)
                 )
                 result = await self._issue_session(

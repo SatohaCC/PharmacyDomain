@@ -17,8 +17,8 @@ from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.identifiers import CorporateMembershipId, VendorOperatorId
 from app.domain.identity.primitives import (
     AccountStatus,
-    CorporateUserEmail,
     ExternalSubjectKey,
+    LoginId,
 )
 from app.domain.identity.repositories import (
     AccountPersonRepository,
@@ -218,16 +218,16 @@ class InMemoryVendorOperatorRepository(VendorOperatorRepository):
             None,
         )
 
-    async def get_by_email(self, email: CorporateUserEmail) -> VendorOperator | None:
+    async def get_by_login_id(self, login_id: LoginId) -> VendorOperator | None:
         return next(
-            (item for item in self.items.values() if item.email == email),
+            (item for item in self.items.values() if item.login_id == login_id),
             None,
         )
 
     async def save(self, operator: VendorOperator) -> None:
         for existing in self.items.values():
             if existing.id != operator.id:
-                if existing.email == operator.email:
+                if existing.login_id == operator.login_id:
                     raise IdentityConflictError(
                         "このメールアドレスの運営者は既に登録されています。"
                     )
@@ -245,6 +245,12 @@ class FakeCredentialWriter(CredentialWriter):
         self.issued: list[tuple[CorporateId, str, str, str]] = []
 
     async def issue(
-        self, corporate_id: CorporateId, email: str, password: str, subject: str
+        self,
+        corporate_id: CorporateId,
+        login_id: str,
+        password: str,
+        subject: str,
+        *,
+        email: str | None = None,
     ) -> None:
-        self.issued.append((corporate_id, email, password, subject))
+        self.issued.append((corporate_id, login_id, password, subject))

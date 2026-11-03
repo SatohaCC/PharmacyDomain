@@ -36,7 +36,8 @@ from app.domain.identity.entities import (
     UserAccount,
 )
 from app.domain.identity.identifiers import CorporateMembershipId
-from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole
+from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole, StoreRole
+from app.domain.identity.value_objects import StoreRoleAssignment
 from app.domain.medication_history.entities import PatientMedicalProfile
 from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.primitives import (
@@ -173,7 +174,10 @@ async def setup_concurrency_fixture(
         account_id=account.id,
         corporate_id=corporate.id,
         role=MembershipRole.CORPORATE_ADMIN,
-        store_ids=frozenset({store_a.id, store_b.id}),
+        store_roles=tuple(
+            StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+            for store_id in frozenset({store_a.id, store_b.id})
+        ),
         staff_id=pharmacist.id,
     )
     actor = ResolvedActorContext(

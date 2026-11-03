@@ -241,7 +241,9 @@ def create_resolved_actor(
     """信頼済みのテストActorをスタッフ解決状態つきで生成する。"""
     return ResolvedActorContext(
         principal_id="test-prescription-actor",
-        roles=frozenset({role}),
+        roles=frozenset({role, ActorRole.STORE_OPERATOR})
+        if role is ActorRole.CORPORATE_ADMIN
+        else frozenset({role}),
         corporate_id=corporate_id,
         person_id=AccountPersonId.generate(),
         account_id=UserAccountId.generate(),

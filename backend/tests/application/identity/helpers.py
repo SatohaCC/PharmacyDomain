@@ -9,6 +9,15 @@ from app.application.composition.adapters.organization_snapshot_mapping import (
     StaffStoreAdapter,
 )
 from app.application.composition.adapters.staff_creator import StaffCreationAdapter
+from app.application.composition.adapters.staff_store_settings import (
+    StaffStoreSettingsAdapter,
+)
+from app.application.composition.adapters.work_condition_management import (
+    WorkConditionManagementGuard,
+)
+from app.application.corporate.commands.services.corporate_access import (
+    CorporateAccessService,
+)
 from app.application.identity.commands.change_membership import ChangeMembershipUseCase
 from app.application.identity.commands.link_staff_person import LinkStaffPersonUseCase
 from app.application.identity.commands.reactivate_account import (
@@ -115,6 +124,7 @@ def create_identity_use_cases(*, now: datetime | None = None) -> IdentityUseCase
             lock,
             InMemoryStoreManagerAssignmentRepository(),
             clock,
+            create_staff_store_settings(repositories, staff, stores, clock, access),
         ),
         list_users=ListUsersUseCase(
             reader=ListUsersProjection(repositories), access=access
@@ -181,3 +191,28 @@ __all__ = [
     "create_identity_use_cases",
     "_setup",
 ]
+
+
+def create_staff_store_settings(
+    repositories: IdentityRepositories,
+    staff: InMemoryStaffRepository,
+    stores: InMemoryStoreRepository,
+    clock: FakeClock,
+    access: CorporateAccessService,
+    managers: InMemoryStoreManagerAssignmentRepository | None = None,
+) -> StaffStoreSettingsAdapter:
+    """勤務条件も実集約と同じ保存境界で検証する。"""
+    return StaffStoreSettingsAdapter(
+        staff,
+        StaffStoreAdapter(stores),
+        clock,
+        WorkConditionManagementGuard(
+            access.actor,
+            repositories.accounts,
+            repositories.memberships,
+            staff,
+            managers or InMemoryStoreManagerAssignmentRepository(),
+            clock,
+        ),
+        access.actor.principal_id,
+    )

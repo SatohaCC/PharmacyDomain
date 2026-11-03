@@ -898,6 +898,8 @@ def test_TC091_資格編集_一般職と店舗管理者の自己昇格を403で�
         access = CorporateAccessService(corp_repo, AuthorizationService(actor))
         update_uc = UpdateStaffQualificationsUseCase(staff_repo, access)
         bundle = StaffUseCases(
+            record_work_condition=None,  # type: ignore[arg-type]
+            get_work_conditions=None,  # type: ignore[arg-type]
             register=None,  # type: ignore[arg-type]
             get=None,  # type: ignore[arg-type]
             list_by_corporate=None,  # type: ignore[arg-type]

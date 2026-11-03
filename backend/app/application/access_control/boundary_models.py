@@ -17,6 +17,7 @@ class ActorRole(StrEnum):
 
     VENDOR_SYSTEM_ADMIN = "vendor_system_admin"
     CORPORATE_ADMIN = "corporate_admin"
+    MEMBER = "member"
     STORE_MANAGER = "store_manager"
     STORE_OPERATOR = "store_operator"
     STORE_VIEWER = "store_viewer"
@@ -28,6 +29,20 @@ class UserPermissionType(StrEnum):
     GENERAL_USER = "general_user"
     MANAGING_PHARMACIST = "managing_pharmacist"
     CORPORATE_ADMIN = "corporate_admin"
+
+
+@dataclass(frozen=True, kw_only=True)
+class StoreRoleInput:
+    """店舗と操作ロールの公開入力。"""
+
+    store_id: str
+    role: str
+
+    def __post_init__(self) -> None:
+        if self.role not in {"store_operator", "store_viewer"}:
+            raise ValueError(
+                "店舗の操作権限は編集可能または閲覧のみから指定してください。"
+            )
 
 
 class Permission(StrEnum):

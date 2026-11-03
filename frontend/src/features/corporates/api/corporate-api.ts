@@ -52,7 +52,8 @@ export const registerContract = (body: {
     last_name_kana: string;
     first_name_kana: string;
   };
-  email: string;
+  login_id: string;
+  email?: string | null;
   initial_password: string;
 }) => result(api.POST("/contracts", { body }));
 

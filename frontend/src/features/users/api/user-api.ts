@@ -47,10 +47,7 @@ export const getStaff = (
 export const updateMembership = (
   corporateId: string,
   membershipId: string,
-  body: {
-    role?: components["schemas"]["MembershipRole-Input"] | null;
-    store_ids?: string[] | null;
-  },
+  body: components["schemas"]["ChangeMembershipRequest"],
 ) =>
   result(
     api.PATCH("/corporates/{corporate_id}/users/{membership_id}", {
@@ -138,10 +135,7 @@ export const startStaffLeave = (
     }),
   );
 
-export const returnStaffFromLeave = (
-  corporateId: string,
-  staffId: string,
-) =>
+export const returnStaffFromLeave = (corporateId: string, staffId: string) =>
   result(
     api.POST("/corporates/{corporate_id}/staffs/{staff_id}/return-from-leave", {
       params: { path: { corporate_id: corporateId, staff_id: staffId } },

@@ -7,12 +7,12 @@ export type LoginSessionDto =
 
 export const passwordLogin = (
   corporateId: string,
-  email: string,
+  login_id: string,
   password: string,
 ): Promise<LoginSessionDto> =>
   result(
     api.POST("/auth/login", {
-      body: { corporate_id: corporateId, email, password },
+      body: { corporate_id: corporateId, login_id, password },
     }),
   );
 
@@ -37,7 +37,7 @@ export const selectStoreContext = (storeId: string): Promise<LoginSessionDto> =>
 export const endLocalSession = () => result(api.POST("/auth/logout"));
 
 export const vendorPasswordLogin = (
-  email: string,
+  login_id: string,
   password: string,
 ): Promise<LoginSessionDto> =>
-  result(api.POST("/auth/vendor/login", { body: { email, password } }));
+  result(api.POST("/auth/vendor/login", { body: { login_id, password } }));

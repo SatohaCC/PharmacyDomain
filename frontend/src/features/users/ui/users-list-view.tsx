@@ -62,17 +62,11 @@ export function UserListView({
                   </Link>
                 </IdentifierCell>
                 <TableCell>
-                  {u.staff_id ? (
-                    <Badge>スタッフ連携済</Badge>
-                  ) : (
-                    "—"
-                  )}
+                  {u.staff_id ? <Badge>スタッフ連携済</Badge> : "—"}
                 </TableCell>
                 <TableCell>{roles[u.role] || u.role}</TableCell>
                 <TableCell>
-                  <Badge>
-                    {u.status === "active" ? "有効" : "停止"}
-                  </Badge>
+                  <Badge>{u.status === "active" ? "有効" : "停止"}</Badge>
                 </TableCell>
                 <TableCell>
                   <Badge>

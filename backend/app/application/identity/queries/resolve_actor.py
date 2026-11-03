@@ -146,8 +146,16 @@ class ResolveActorUseCase:
                     "選択中の店舗に対する現在の利用権限がありません。"
                 )
         roles = {ActorRole(membership.role.value)}
-        if membership.role.value == ActorRole.CORPORATE_ADMIN.value and stores:
-            roles.add(ActorRole.STORE_OPERATOR)
+        selected_role = next(
+            (
+                item.role
+                for item in membership.store_roles
+                if item.store_id == selected_store_id
+            ),
+            None,
+        )
+        if selected_role is not None:
+            roles.add(ActorRole(selected_role.value))
         if managed:
             roles.add(ActorRole.STORE_MANAGER)
         return ResolvedActorContext(

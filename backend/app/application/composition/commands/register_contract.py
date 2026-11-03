@@ -22,8 +22,9 @@ class RegisterContractCommand:
     representative_last_name: str
     representative_first_name: str
     administrator: PersonNamesInput
-    email: str
+    login_id: str
     initial_password: str = field(repr=False)
+    email: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -32,7 +33,7 @@ class RegisteredContract:
 
     id: str
     account_id: str
-    email: str
+    login_id: str
 
 
 class RegisterContractUseCase:
@@ -65,7 +66,10 @@ class RegisterContractUseCase:
         user = await self._admin_user.execute(
             corporate_id=identifier,
             person_id=str(person.id.value),
+            login_id=command.login_id,
             email=command.email,
             initial_password=command.initial_password,
         )
-        return RegisteredContract(id=identifier, account_id=user.id, email=user.email)
+        return RegisteredContract(
+            id=identifier, account_id=user.id, login_id=user.login_id
+        )

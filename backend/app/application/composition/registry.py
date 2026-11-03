@@ -218,6 +218,9 @@ from app.application.staff.commands.manage_staff_leave import (
     ReturnStaffFromLeaveUseCase,
     StartStaffLeaveUseCase,
 )
+from app.application.staff.commands.record_store_work_condition import (
+    RecordStoreWorkConditionUseCase,
+)
 from app.application.staff.commands.register_staff import RegisterStaffUseCase
 from app.application.staff.commands.remove_staff_concurrent_store import (
     RemoveStaffConcurrentStoreUseCase,
@@ -232,6 +235,9 @@ from app.application.staff.commands.update_staff_qualifications import (
     UpdateStaffQualificationsUseCase,
 )
 from app.application.staff.queries.get_staff import GetStaffUseCase
+from app.application.staff.queries.get_store_work_conditions import (
+    GetStoreWorkConditionsUseCase,
+)
 from app.application.staff.queries.list_staffs import ListStaffsUseCase
 from app.application.store.commands.change_insurance_pharmacy_number import (
     ChangeInsurancePharmacyNumberUseCase,
@@ -420,6 +426,8 @@ class StoreUseCases:
 class StaffUseCases:
     """スタッフコンテキストのユースケース。"""
 
+    record_work_condition: RecordStoreWorkConditionUseCase
+    get_work_conditions: GetStoreWorkConditionsUseCase
     register: RegisterStaffUseCase
     get: GetStaffUseCase
     list_by_corporate: ListStaffsUseCase

@@ -59,7 +59,7 @@ export function LoginView({
             {loginKind === "corporate" && (
               <Field name="corporate_id" label="法人ID" required />
             )}
-            <Field name="email" label="メールアドレス" type="email" required />
+            <Field name="login_id" label="ログインID" required />
           </>
         )}
         <Field

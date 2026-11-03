@@ -7,7 +7,11 @@ from sqlalchemy.exc import IntegrityError
 from app.domain.identity.entities import VendorOperator
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.identifiers import VendorOperatorId
-from app.domain.identity.primitives import CorporateUserEmail, ExternalSubjectKey
+from app.domain.identity.primitives import (
+    CorporateUserEmail,
+    ExternalSubjectKey,
+    LoginId,
+)
 from app.domain.identity.repositories import VendorOperatorRepository
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.schema import vendor_operators
@@ -22,7 +26,10 @@ class PostgresVendorOperatorRepository(VendorOperatorRepository):
     def _to_entity(self, row: dict[str, object]) -> VendorOperator:
         return VendorOperator(
             id=VendorOperatorId.parse(str(row["id"])),
-            email=CorporateUserEmail(str(row["email"])),
+            login_id=LoginId(str(row["login_id"])),
+            email=CorporateUserEmail(str(row["email"]))
+            if row["email"] is not None
+            else None,
             external_subject=ExternalSubjectKey(str(row["external_subject"])),
             is_active=bool(row["is_active"]),
         )
@@ -45,9 +52,11 @@ class PostgresVendorOperatorRepository(VendorOperatorRepository):
         row = result.mappings().one_or_none()
         return self._to_entity(dict(row)) if row is not None else None
 
-    async def get_by_email(self, email: CorporateUserEmail) -> VendorOperator | None:
+    async def get_by_login_id(self, login_id: LoginId) -> VendorOperator | None:
         result = await self._unit_of_work.session.execute(
-            select(vendor_operators).where(vendor_operators.c.email == email.value)
+            select(vendor_operators).where(
+                vendor_operators.c.login_id == login_id.value
+            )
         )
         row = result.mappings().one_or_none()
         return self._to_entity(dict(row)) if row is not None else None
@@ -58,7 +67,8 @@ class PostgresVendorOperatorRepository(VendorOperatorRepository):
                 insert(vendor_operators)
                 .values(
                     id=operator.id.value,
-                    email=operator.email.value,
+                    login_id=operator.login_id.value,
+                    email=operator.email.value if operator.email else None,
                     password_hash="",  # 管理者パスワードは認証側またはプロビジョニングで更新
                     external_subject=operator.external_subject.value,
                     is_active=operator.is_active,
@@ -66,7 +76,8 @@ class PostgresVendorOperatorRepository(VendorOperatorRepository):
                 .on_conflict_do_update(
                     index_elements=[vendor_operators.c.id],
                     set_={
-                        "email": operator.email.value,
+                        "login_id": operator.login_id.value,
+                        "email": operator.email.value if operator.email else None,
                         "external_subject": operator.external_subject.value,
                         "is_active": operator.is_active,
                     },
@@ -75,9 +86,9 @@ class PostgresVendorOperatorRepository(VendorOperatorRepository):
             await self._unit_of_work.session.execute(stmt)
         except IntegrityError as error:
             message = str(error)
-            if "uq_vendor_operators_email" in message:
+            if "uq_vendor_operators_login_id" in message:
                 raise IdentityConflictError(
-                    "このメールアドレスの運営者は既に登録されています。"
+                    "このログインIDの運営者は既に登録されています。"
                 ) from error
             if "uq_vendor_operators_external_subject" in message:
                 raise IdentityConflictError(

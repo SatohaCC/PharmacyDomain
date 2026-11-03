@@ -6,7 +6,8 @@ from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.identity.entities import CorporateMembership
 from app.domain.identity.identifiers import CorporateMembershipId
-from app.domain.identity.primitives import MembershipRole
+from app.domain.identity.primitives import MembershipRole, StoreRole
+from app.domain.identity.value_objects import StoreRoleAssignment
 from app.domain.shared.actor import UserAccountId
 from app.domain.store.identifiers import StoreId
 
@@ -17,7 +18,10 @@ def _membership() -> CorporateMembership:
         account_id=UserAccountId.generate(),
         corporate_id=CorporateId.generate(),
         role=MembershipRole.CORPORATE_ADMIN,
-        store_ids=frozenset({StoreId.generate(), StoreId.generate()}),
+        store_roles=tuple(
+            StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+            for store_id in frozenset({StoreId.generate(), StoreId.generate()})
+        ),
     )
 
 

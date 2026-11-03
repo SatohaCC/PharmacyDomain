@@ -27,7 +27,7 @@ def _administrator(
         account_id=account.id,
         corporate_id=corporate_id,
         role=MembershipRole.CORPORATE_ADMIN,
-        store_ids=frozenset(),
+        store_roles=(),
         staff_id=StaffId.generate(),
     )
     return account, membership
@@ -63,7 +63,7 @@ def test_最後の実効的な管理者を失う変更だけ拒否する(
         else account
     )
     if operation == "降格":
-        changed_membership = replace(membership, role=MembershipRole.STORE_VIEWER)
+        changed_membership = replace(membership, role=MembershipRole.MEMBER)
     elif operation in {"membership停止", "退職連携"}:
         changed_membership = replace(membership, status=AccountStatus.SUSPENDED)
     else:

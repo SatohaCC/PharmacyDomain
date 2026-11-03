@@ -38,7 +38,7 @@ _STAFF_BODY = {
     "last_name_kana": "スズキ",
     "first_name_kana": "ハナコ",
     "account": {
-        "email": "staff@example.test",
+        "login_id": "staff-user",
         "password": "Password123456789",
     },
 }

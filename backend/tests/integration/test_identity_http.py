@@ -5,6 +5,7 @@ import pytest
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.application.access_control.boundary_models import StoreRoleInput
 from app.application.identity.boundary_models import VerifiedSubject
 from app.bootstrap import create_app
 from app.domain.identity.primitives import AccountStatus, MembershipRole
@@ -83,54 +84,70 @@ async def test_同じ資格情報でも権限変更は次のHTTP要求へ反映�
                 await service.change_membership.execute(
                     str(fixture.corporate.id.value),
                     str(fixture.memberships[0].id.value),
-                    role=MembershipRole.STORE_VIEWER,
-                    store_ids=()
-                    if change == "scope"
-                    else (str(fixture.store.id.value),),
+                    role=MembershipRole.MEMBER,
+                    store_roles=tuple(
+                        StoreRoleInput(store_id=raw, role="store_viewer")
+                        for raw in (
+                            () if change == "scope" else (str(fixture.store.id.value),)
+                        )
+                    ),
                 )
         after = await client.get("/me")
         if change in {"account", "membership"}:
             assert after.status_code == 401, after.text
         else:
             assert after.status_code == 200, after.text
-            assert after.json()["roles"] == ["store_viewer"]
+            assert after.json()["roles"] == ["member"]
             stores = await client.get(
                 f"/corporates/{fixture.corporate.id.value}/stores"
             )
-            assert stores.status_code == 200, stores.text
-            assert len(stores.json()) == (0 if change == "scope" else 1)
-            detail = await client.get(
-                f"/corporates/{fixture.corporate.id.value}/stores/{fixture.store.id.value}"
-            )
-            assert detail.status_code == (404 if change == "scope" else 200), (
-                detail.text
-            )
-            denied = await client.post(
-                f"/corporates/{fixture.corporate.id.value}/stores/{fixture.store.id.value}/suspension",
-                json={"reason": "権限のない変更"},
-            )
-            assert denied.status_code == 403, denied.text
+            assert stores.status_code == 403, stores.text
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(
+                    app=identity_app(fixture, selected_store_id=fixture.store.id)
+                ),
+                base_url="http://test",
+                headers={"Authorization": "Bearer person"},
+            ) as selected_client:
+                selected = await selected_client.get("/me")
+                if change == "scope":
+                    assert selected.status_code == 403, selected.text
+                else:
+                    assert selected.status_code == 200, selected.text
+                    assert selected.json()["roles"] == ["member", "store_viewer"]
+                    detail = await selected_client.get(
+                        f"/corporates/{fixture.corporate.id.value}/stores/{fixture.store.id.value}"
+                    )
+                    assert detail.status_code == 200, detail.text
+                    denied = await selected_client.post(
+                        f"/corporates/{fixture.corporate.id.value}/stores/{fixture.store.id.value}/suspension",
+                        json={"reason": "権限のない変更"},
+                    )
+                    assert denied.status_code == 403, denied.text
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "role", [MembershipRole.STORE_OPERATOR, MembershipRole.STORE_VIEWER]
-)
+@pytest.mark.parametrize("role", ["store_operator", "store_viewer"])
 async def test_店舗ロールはスタッフ最小情報だけ取得でき法人台帳と昇格は拒否される(
     engine: AsyncEngine,
     session_factory: async_sessionmaker[AsyncSession],
-    role: MembershipRole,
+    role: str,
 ) -> None:
     fixture = await setup_organization(engine, session_factory)
     async with fixture.root.request_scope(authorization=fixture.authorization) as scope:
         await scope.use_cases.identity.change_membership.execute(
             str(fixture.corporate.id.value),
             str(fixture.memberships[0].id.value),
-            role=role,
-            store_ids=(str(fixture.store.id.value),),
+            role=MembershipRole.MEMBER,
+            store_roles=tuple(
+                StoreRoleInput(store_id=raw, role=role)
+                for raw in ((str(fixture.store.id.value),))
+            ),
         )
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=identity_app(fixture)),
+        transport=httpx.ASGITransport(
+            app=identity_app(fixture, selected_store_id=fixture.store.id)
+        ),
         base_url="http://test",
         headers={"Authorization": "Bearer person"},
     ) as client:

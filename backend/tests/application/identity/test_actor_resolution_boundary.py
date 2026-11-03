@@ -55,11 +55,12 @@ def _snapshot() -> IdentityResolutionSnapshot:
         account_status=AccountStatus.ACTIVE,
         is_vendor_admin=False,
         membership=MembershipIdentitySnapshot(
+            store_roles=(),
             id=CorporateMembershipId.generate(),
             account_id=account_id,
             corporate_id=CorporateId.generate(),
             status=AccountStatus.ACTIVE,
-            role=MembershipRole.STORE_VIEWER,
+            role=MembershipRole.MEMBER,
             staff_id=StaffId.generate(),
             store_ids=frozenset({StoreId.generate()}),
         ),
@@ -142,7 +143,7 @@ async def test_操作者解決_有効な所属の事実から_Applicationがロ�
     # Act
     actor = await use_case.execute(_SUBJECT)
     # Assert
-    assert actor.roles == frozenset({ActorRole.STORE_VIEWER})
+    assert actor.roles == frozenset({ActorRole.MEMBER})
     assert actor.account_id == facts.account_id
     assert actor.person_id == facts.person_id
     assert actor.membership_id == facts.membership.id

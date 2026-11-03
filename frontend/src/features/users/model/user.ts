@@ -40,6 +40,7 @@ export interface UserDetail {
   status: string;
   account_status: string;
   store_ids: string[];
+  store_roles: { store_id: string; role: string }[];
   staff_id: string | null;
   staff?: StaffDetail | null;
 }

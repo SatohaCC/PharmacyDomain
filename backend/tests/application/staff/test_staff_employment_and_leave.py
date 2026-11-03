@@ -18,6 +18,8 @@ from app.domain.corporate.identifiers import CorporateId
 from app.domain.staff.primitives import EmploymentType, LeaveReason, StaffStatus
 from tests.application.access_helpers import create_vendor_corporate_access
 from tests.factories.staff_factory import create_staff
+from tests.fakes.fake_clock import FakeClock
+from tests.fakes.fake_organization_management import FakeOrganizationLock
 from tests.fakes.in_memory_staff_repository import InMemoryStaffRepository
 
 
@@ -31,6 +33,8 @@ async def test_update_staff_employment_success() -> None:
     use_case = UpdateStaffEmploymentUseCase(
         repository=staff_repo,
         corporate_access=create_vendor_corporate_access(),
+        clock=FakeClock(),
+        lock=FakeOrganizationLock(),
     )
 
     # Act

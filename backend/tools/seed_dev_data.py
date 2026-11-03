@@ -41,8 +41,11 @@ from app.domain.identity.identifiers import CorporateMembershipId, VendorOperato
 from app.domain.identity.primitives import (
     CorporateUserEmail,
     ExternalSubjectKey,
+    LoginId,
     MembershipRole,
+    StoreRole,
 )
+from app.domain.identity.value_objects import StoreRoleAssignment
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import (
     PersonName,
@@ -184,6 +187,7 @@ def build_seed_data() -> SeedData:
         vendor_operator=VendorOperator(
             id=VendorOperatorId.parse(_VENDOR_ACCOUNT_ID),
             email=CorporateUserEmail("vendor@example.com"),
+            login_id=LoginId("vendor-admin"),
             external_subject=ExternalSubjectKey(_VENDOR_SUBJECT),
             is_active=True,
         ),
@@ -266,7 +270,10 @@ def build_seed_data() -> SeedData:
             account_id=admin_account_id,
             corporate_id=corporate_id,
             role=MembershipRole.CORPORATE_ADMIN,
-            store_ids=frozenset({store_id}),
+            store_roles=tuple(
+                StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+                for store_id in frozenset({store_id})
+            ),
             staff_id=staff_id,
         ),
         manager_assignment=StoreManagerAssignment(

@@ -83,7 +83,7 @@ def _build_use_case(
 
 def _default_account() -> BulkStaffAccountInput:
     return BulkStaffAccountInput(
-        email="staff@example.test",
+        login_id="staff-example.test",
         password="Password123456789",
     )
 
@@ -203,7 +203,7 @@ async def test_register_staff_raises_error_on_duplicate_code() -> None:
         last_name_kana="ヤマダ",
         first_name_kana="タロウ",
         account=BulkStaffAccountInput(
-            email="staff1@example.test",
+            login_id="staff1-example.test",
             password="Password123456789",
         ),
         code="STF-001",
@@ -217,7 +217,7 @@ async def test_register_staff_raises_error_on_duplicate_code() -> None:
         last_name_kana="サトウ",
         first_name_kana="ジロウ",
         account=BulkStaffAccountInput(
-            email="staff2@example.test",
+            login_id="staff2-example.test",
             password="Password123456789",
         ),
         code="STF-001",
@@ -242,7 +242,7 @@ async def test_register_staff_rejects_invalid_employment_type() -> None:
         last_name_kana="ヤマダ",
         first_name_kana="タロウ",
         account=BulkStaffAccountInput(
-            email="staff1@example.test",
+            login_id="staff1-example.test",
             password="Password123456789",
         ),
         employment_type="invalid_type",

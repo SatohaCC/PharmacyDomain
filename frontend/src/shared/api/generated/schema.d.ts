@@ -1010,6 +1010,46 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/corporates/{corporate_id}/staffs/{staff_id}/stores/{store_id}/work-conditions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record Store Work Condition
+     * @description 所属店舗の勤務条件を履歴へ追記する。
+     */
+    post: operations["record_store_work_condition_corporates__corporate_id__staffs__staff_id__stores__store_id__work_conditions_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/corporates/{corporate_id}/staffs/{staff_id}/work-conditions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Store Work Conditions
+     * @description 対象日・店舗で絞った所属と勤務条件の履歴を返す。
+     */
+    get: operations["get_store_work_conditions_corporates__corporate_id__staffs__staff_id__work_conditions_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/corporates/{corporate_id}/staffs": {
     parameters: {
       query?: never;
@@ -2748,8 +2788,8 @@ export interface components {
       account_id: string;
       /** Membership Id */
       membership_id: string;
-      /** Email */
-      email: string;
+      /** Login Id */
+      login_id: string;
     };
     /**
      * BusinessDayExceptionDto
@@ -2946,12 +2986,17 @@ export interface components {
     ChangeMembershipRequest: {
       status?: components["schemas"]["AccountStatus-Input"] | null;
       role?: components["schemas"]["MembershipRole-Input"] | null;
-      /** Store Ids */
-      store_ids?: string[] | null;
+      /** Store Roles */
+      store_roles?: components["schemas"]["StoreRoleInput"][] | null;
       /** Store Id */
       store_id?: string | null;
       /** Store Is Active */
       store_is_active?: boolean | null;
+      /**
+       * Store Work Conditions
+       * @default []
+       */
+      store_work_conditions: components["schemas"]["StoreWorkConditionChange"][];
     };
     /**
      * ChangePasswordRequest
@@ -4027,6 +4072,26 @@ export interface components {
       addition_names: string[];
     };
     /**
+     * InitialStoreWorkConditionInput
+     * @description 所属開始日から適用する店舗別勤務条件。
+     */
+    InitialStoreWorkConditionInput: {
+      /** Store Id */
+      store_id: string;
+      /**
+       * Starts On
+       * Format: date
+       */
+      starts_on: string;
+      /** Weekly Hours */
+      weekly_hours?: string | null;
+      /**
+       * Duty
+       * @default other
+       */
+      duty: string;
+    };
+    /**
      * InsuranceCoverageSelectionDto
      * @description 医療保険枠の出力DTO。選択元IDと請求固定値を束ねたまま返す。
      */
@@ -4104,8 +4169,8 @@ export interface components {
     LoginRequest: {
       /** Corporate Id */
       corporate_id: string;
-      /** Email */
-      email: string;
+      /** Login Id */
+      login_id: string;
       /** Password */
       password: string;
     };
@@ -4526,15 +4591,13 @@ export interface components {
      * @description 招待や権限変更で指定できる法人内ロール。
      * @enum {string}
      */
-    "MembershipRole-Input":
-      "corporate_admin" | "store_operator" | "store_viewer";
+    "MembershipRole-Input": "corporate_admin" | "member";
     /**
      * MembershipRole
      * @description 法人内の固定ロール。
      * @enum {string}
      */
-    "MembershipRole-Output":
-      "corporate_admin" | "store_operator" | "store_viewer";
+    "MembershipRole-Output": "corporate_admin" | "member";
     /**
      * MembershipViewDto
      * @description 法人の利用者一覧・詳細で返す値。
@@ -4564,6 +4627,11 @@ export interface components {
        * @default []
        */
       suspended_store_ids: string[];
+      /**
+       * Store Roles
+       * @default []
+       */
+      store_roles: components["schemas"]["StoreRoleInput"][];
     };
     /**
      * MergePatientsRequest
@@ -5782,6 +5850,21 @@ export interface components {
       dispensed_rps: components["schemas"]["DispensedRpInput"][];
     };
     /**
+     * RecordStoreWorkConditionRequest
+     * @description 週当たり勤務時間の適用・訂正入力。
+     */
+    RecordStoreWorkConditionRequest: {
+      /**
+       * Effective From
+       * Format: date
+       */
+      effective_from: string;
+      /** Weekly Hours */
+      weekly_hours?: string | null;
+      /** Duty */
+      duty: string;
+    };
+    /**
      * RecordTracingReportRequest
      * @description トレーシングレポート記録の入力。
      */
@@ -5835,8 +5918,10 @@ export interface components {
       /** Representative First Name */
       representative_first_name: string;
       administrator: components["schemas"]["PersonNamesInput"];
+      /** Login Id */
+      login_id: string;
       /** Email */
-      email: string;
+      email?: string | null;
       /** Initial Password */
       initial_password: string;
     };
@@ -6121,6 +6206,11 @@ export interface components {
       /** Initial Start Date */
       initial_start_date?: string | null;
       /**
+       * Initial Store Work Conditions
+       * @default []
+       */
+      initial_store_work_conditions: components["schemas"]["InitialStoreWorkConditionInput"][];
+      /**
        * Employment Type
        * @default regular
        */
@@ -6163,8 +6253,8 @@ export interface components {
       id: string;
       /** Account Id */
       account_id: string;
-      /** Email */
-      email: string;
+      /** Login Id */
+      login_id: string;
     };
     /**
      * RegisteredIdResponse
@@ -6427,17 +6517,23 @@ export interface components {
      * @description スタッフと同時に生成するアカウントの入力。
      */
     StaffAccountRequest: {
+      /** Login Id */
+      login_id: string;
       /** Email */
-      email: string;
+      email?: string | null;
       /** Password */
       password: string;
       /**
        * Role
-       * @default store_operator
+       * @default member
+       * @enum {string}
        */
-      role: string;
-      /** Store Ids */
-      store_ids?: string[] | null;
+      role: "corporate_admin" | "member";
+      /**
+       * Store Roles
+       * @default []
+       */
+      store_roles: components["schemas"]["StoreRoleInput"][];
     };
     /**
      * StaffDto
@@ -6785,6 +6881,38 @@ export interface components {
       prohibit_self_verification?: boolean | null;
     };
     /**
+     * StoreRoleInput
+     * @description 店舗と操作ロールの公開入力。
+     */
+    StoreRoleInput: {
+      /** Store Id */
+      store_id: string;
+      /** Role */
+      role: string;
+    };
+    /**
+     * StoreStaffAffiliationDto
+     * @description 所属期間と対象日時点の条件、訂正を含む履歴。
+     */
+    StoreStaffAffiliationDto: {
+      /** Store Id */
+      store_id: string;
+      /**
+       * Starts On
+       * Format: date
+       */
+      starts_on: string;
+      /** Ends On */
+      ends_on: string | null;
+      /** Is Primary */
+      is_primary: boolean;
+      /** Is Managing Pharmacist */
+      is_managing_pharmacist: boolean;
+      current: components["schemas"]["StoreWorkConditionDto"] | null;
+      /** History */
+      history: components["schemas"]["StoreWorkConditionDto"][];
+    };
+    /**
      * StoreStatusChangeDto
      * @description 状態履歴の公開値。
      */
@@ -6842,6 +6970,50 @@ export interface components {
        * @default false
        */
       is_health_support: boolean;
+    };
+    /**
+     * StoreWorkConditionChange
+     * @description 店舗権限と同時に保存する所属勤務条件。
+     */
+    StoreWorkConditionChange: {
+      /** Store Id */
+      store_id: string;
+      /**
+       * Effective From
+       * Format: date
+       */
+      effective_from: string;
+      /** Starts On */
+      starts_on?: string | null;
+      /** Weekly Hours */
+      weekly_hours?: string | null;
+      /**
+       * Duty
+       * @default other
+       */
+      duty: string;
+    };
+    /**
+     * StoreWorkConditionDto
+     * @description 適用・訂正順を保った勤務条件の記録。
+     */
+    StoreWorkConditionDto: {
+      /**
+       * Effective From
+       * Format: date
+       */
+      effective_from: string;
+      /** Weekly Hours */
+      weekly_hours: string | null;
+      /** Duty */
+      duty: string;
+      /**
+       * Recorded At
+       * Format: date-time
+       */
+      recorded_at: string;
+      /** Recorded By */
+      recorded_by: string;
     };
     /**
      * SubstitutionDto
@@ -7139,8 +7311,8 @@ export interface components {
      * @description 運営者のログイン入力。
      */
     VendorLoginRequest: {
-      /** Email */
-      email: string;
+      /** Login Id */
+      login_id: string;
       /** Password */
       password: string;
     };
@@ -10832,6 +11004,139 @@ export interface operations {
       };
       /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  record_store_work_condition_corporates__corporate_id__staffs__staff_id__stores__store_id__work_conditions_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+        staff_id: string;
+        store_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RecordStoreWorkConditionRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  get_store_work_conditions_corporates__corporate_id__staffs__staff_id__work_conditions_get: {
+    parameters: {
+      query?: {
+        store_id?: string | null;
+        applied_on?: string | null;
+      };
+      header?: never;
+      path: {
+        corporate_id: string;
+        staff_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["StoreStaffAffiliationDto"][];
+        };
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
         headers: {
           [name: string]: unknown;
         };

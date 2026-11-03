@@ -43,7 +43,7 @@ async def test_ローカル認証_法人所属のない有効な運営者は利�
     subject = f"vendor:{operator_id.value}"
     async with PostgresUnitOfWork(session_factory) as work:
         await PostgresCredentialWriter(work).issue_vendor_operator(
-            "vendor@example.com", INITIAL, subject
+            "vendor-example", INITIAL, subject
         )
         await work.commit()
     async with httpx.AsyncClient(
@@ -52,7 +52,7 @@ async def test_ローカル認証_法人所属のない有効な運営者は利�
         # Act
         login = await client.post(
             "/auth/vendor/login",
-            json={"email": "vendor@example.com", "password": INITIAL},
+            json={"login_id": "vendor-example", "password": INITIAL},
         )
         assert login.status_code == 200, login.text
         me = await client.get(
@@ -75,10 +75,10 @@ async def test_ローカル認証_停止後は正しいパスワードでもロ�
     fixture = await setup_organization(engine, session_factory)
     subject = fixture.accounts[0].external_subject
     assert subject is not None
-    email = "admin@example.com"
+    login_id = "admin-example"
     async with PostgresUnitOfWork(session_factory) as work:
         await PostgresCredentialWriter(work).issue(
-            fixture.corporate.id, email, INITIAL, subject.value
+            fixture.corporate.id, login_id, INITIAL, subject.value
         )
         await work.commit()
     async with httpx.AsyncClient(
@@ -88,7 +88,7 @@ async def test_ローカル認証_停止後は正しいパスワードでもロ�
             "/auth/login",
             json={
                 "corporate_id": str(fixture.corporate.id.value),
-                "email": email,
+                "login_id": login_id,
                 "password": INITIAL,
             },
         )
@@ -124,7 +124,7 @@ async def test_ローカル認証_停止後は正しいパスワードでもロ�
             "/auth/login",
             json={
                 "corporate_id": str(fixture.corporate.id.value),
-                "email": email,
+                "login_id": login_id,
                 "password": CHANGED if changed else INITIAL,
             },
         )
@@ -132,7 +132,7 @@ async def test_ローカル認証_停止後は正しいパスワードでもロ�
             "/auth/login",
             json={
                 "corporate_id": str(fixture.corporate.id.value),
-                "email": email,
+                "login_id": login_id,
                 "password": "wrong",
             },
         )
@@ -156,7 +156,7 @@ async def test_ローカル認証_停止後は正しいパスワードでもロ�
 
 
 def contract_body(
-    email: str = "admin@example.com", name: str = "テスト新規契約法人"
+    login_id: str = "admin-example", name: str = "テスト新規契約法人"
 ) -> dict[str, object]:
     """招待入力を持たない契約データ。"""
     return {
@@ -169,7 +169,7 @@ def contract_body(
             "last_name_kana": "テスト",
             "first_name_kana": "カンリシャ",
         },
-        "email": email,
+        "login_id": login_id,
         "initial_password": INITIAL,
     }
 
@@ -217,7 +217,7 @@ async def test_新規契約_招待なしで登録し初回変更後にだけ業�
             "/auth/login",
             json={
                 "corporate_id": corporate_id,
-                "email": "ADMIN@EXAMPLE.COM",
+                "login_id": "ADMIN-EXAMPLE",
                 "password": INITIAL,
             },
         )
@@ -249,7 +249,7 @@ async def test_新規契約_招待なしで登録し初回変更後にだけ業�
         ).status_code == 401
         forbidden = await client.post(
             "/contracts",
-            json=contract_body("test-other@example.com", "テスト別法人"),
+            json=contract_body("test-other-example", "テスト別法人"),
             headers=headers,
         )
         assert forbidden.status_code == 403
@@ -268,7 +268,7 @@ async def test_新規契約_招待なしで登録し初回変更後にだけ業�
                 "/auth/login",
                 json={
                     "corporate_id": corporate_id,
-                    "email": "admin@example.com",
+                    "login_id": "admin-example",
                     "password": INITIAL,
                 },
             )
@@ -279,7 +279,7 @@ async def test_新規契約_招待なしで登録し初回変更後にだけ業�
             "/auth/login",
             json={
                 "corporate_id": corporate_id,
-                "email": "admin@example.com",
+                "login_id": "admin-example",
                 "password": CHANGED,
             },
         )
@@ -308,11 +308,11 @@ async def test_新規契約_法人名重複と不正入力では法人も残さ�
         ).status_code == 201
         # Act / Assert: 法人名重複は409、不正メールは422で拒否され、部分保存されない
         # （他法人での同一メール利用はTC-024/036の通り独立して許可される）
-        for name, email, status in [
-            ("テスト新規契約法人", "other-admin@example.com", 409),
+        for name, login_id, status in [
+            ("テスト新規契約法人", "other-admin-example", 409),
             ("テスト失敗法人", "不正なメール", 422),
         ]:
-            denied = await client.post("/contracts", json=contract_body(email, name))
+            denied = await client.post("/contracts", json=contract_body(login_id, name))
             assert denied.status_code == status, denied.text
         async with session_factory() as session:
             assert (
@@ -349,7 +349,7 @@ async def test_ローカル認証_連続失敗と期限切れを拒否する(
                     "/auth/login",
                     json={
                         "corporate_id": corporate_id,
-                        "email": "admin@example.com",
+                        "login_id": "admin-example",
                         "password": "wrong",
                     },
                 )
@@ -359,7 +359,7 @@ async def test_ローカル認証_連続失敗と期限切れを拒否する(
                 "/auth/login",
                 json={
                     "corporate_id": corporate_id,
-                    "email": "admin@example.com",
+                    "login_id": "admin-example",
                     "password": INITIAL,
                 },
             )
@@ -369,7 +369,7 @@ async def test_ローカル認証_連続失敗と期限切れを拒否する(
             "/auth/login",
             json={
                 "corporate_id": corporate_id,
-                "email": "admin@example.com",
+                "login_id": "admin-example",
                 "password": INITIAL,
             },
         )
@@ -402,7 +402,7 @@ async def test_初回変更_同じセッションの同時使用は一度だけ�
             "/auth/login",
             json={
                 "corporate_id": corporate_id,
-                "email": "admin@example.com",
+                "login_id": "admin-example",
                 "password": INITIAL,
             },
         )

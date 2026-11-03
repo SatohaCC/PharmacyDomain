@@ -14,7 +14,9 @@ from app.domain.identity.primitives import (
     AccountStatus,
     ExternalSubjectKey,
     MembershipRole,
+    StoreRole,
 )
+from app.domain.identity.value_objects import StoreRoleAssignment
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import (
     PersonName,
@@ -91,10 +93,11 @@ def create_corporate_membership(
     corporate_id: CorporateId,
     account_id: UserAccountId,
     membership_id: CorporateMembershipId | None = None,
-    role: MembershipRole = MembershipRole.STORE_OPERATOR,
+    role: MembershipRole = MembershipRole.MEMBER,
     store_ids: frozenset[StoreId] = frozenset(),
     staff_id: StaffId | None = None,
     status: AccountStatus = AccountStatus.ACTIVE,
+    store_role: StoreRole = StoreRole.EDITOR,
 ) -> CorporateMembership:
     return CorporateMembership(
         id=membership_id
@@ -103,7 +106,10 @@ def create_corporate_membership(
         account_id=account_id,
         corporate_id=corporate_id,
         role=role,
-        store_ids=store_ids,
+        store_roles=tuple(
+            StoreRoleAssignment(store_id=store_id, role=store_role)
+            for store_id in store_ids
+        ),
         staff_id=staff_id,
         status=status,
     )

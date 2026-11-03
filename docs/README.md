@@ -23,6 +23,8 @@
 
 ## 読む資料を選ぶ
 
+検討中の変更: [ログイン情報と店舗別所属・週勤務時間の実装計画](plans/store-staff-access-and-weekly-hours-plan.md)・[テスト仕様](plans/store-staff-access-and-weekly-hours-tests.md)。実装済みの仕様とは区別する。
+
 | 調べたいこと | 参照先 |
 | --- | --- |
 | モデル・集約・コンテキストの設計 | [Domain](design/domain.md) |

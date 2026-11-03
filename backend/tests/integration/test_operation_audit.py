@@ -1,6 +1,7 @@
 """実業務更新と本人監査の同時確定を検証する。"""
 
-from datetime import UTC, datetime
+from dataclasses import replace
+from datetime import UTC, datetime, time
 
 import pytest
 from sqlalchemy import text
@@ -14,15 +15,100 @@ from app.application.access_control.boundary_models import (
 from app.application.access_control.policies import AuthorizationService
 from app.application.corporate.commands.models import RegisterCorporateCommand
 from app.application.identity.errors import UnavailableIdentityError
+from app.application.store.commands.models import (
+    BusinessHourSlotInput,
+    ChangeStoreBusinessHoursCommand,
+    WeekdayBusinessHoursInput,
+)
+from app.dev_main import build_actor_provider
+from app.domain.corporate.identifiers import CorporateId
+from app.domain.corporate.primitives import CorporateName
 from app.domain.identity.entities import VendorOperator
 from app.domain.identity.identifiers import VendorOperatorId
-from app.domain.identity.primitives import CorporateUserEmail, ExternalSubjectKey
+from app.domain.identity.primitives import (
+    CorporateUserEmail,
+    ExternalSubjectKey,
+    LoginId,
+)
+from app.domain.store.primitives import BusinessWeekday
 from app.infrastructure.di.repositories import (
     PostgresRepositorySet,
 )
 from app.infrastructure.di.root import PostgresCompositionRoot
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
+from tests.factories.store_factory import create_store
 from tests.fakes.fake_clock import FakeClock
+from tools.seed_dev_data import apply_seed, build_seed_data
+
+
+@pytest.mark.asyncio
+async def test_営業時間登録_別法人を操作する開発ベンダー_監査と同時に確定する(
+    engine: AsyncEngine,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    # Arrange
+    data = build_seed_data()
+    target_corporate = replace(
+        data.corporate,
+        id=CorporateId.generate(),
+        name=CorporateName("操作対象の別法人"),
+        corporate_number=None,
+        invoice_number=None,
+    )
+    target_store = create_store(corporate_id=target_corporate.id)
+    async with PostgresUnitOfWork(session_factory) as work:
+        await apply_seed(work, data)
+        repositories = PostgresRepositorySet.create(work)
+        await repositories.corporate.save(target_corporate)
+        await repositories.store.save(target_store)
+        await work.commit()
+    provider = build_actor_provider(
+        {
+            "DEV_ACTOR_TOKEN": "開発テスト".encode().hex(),
+            "DEV_ACTOR_PERSON_ID": str(data.vendor_person.id.value),
+            "DEV_ACTOR_ACCOUNT_ID": str(data.vendor_account.id.value),
+            "DEV_ACTOR_OPERATOR_ID": str(data.vendor_operator.id.value),
+        }
+    )
+    actor = await provider.authenticate("開発テスト".encode().hex())
+    clock = FakeClock(datetime(2026, 11, 2, tzinfo=UTC))
+    root = PostgresCompositionRoot(engine, session_factory, clock)
+    weekly = tuple(
+        WeekdayBusinessHoursInput(
+            weekday=day,
+            slots=()
+            if day is BusinessWeekday.SUNDAY
+            else (BusinessHourSlotInput(opens_at=time(9), closes_at=time(18)),),
+        )
+        for day in BusinessWeekday
+    )
+
+    # Act
+    async with root.request_scope(authorization=AuthorizationService(actor)) as scope:
+        await scope.use_cases.store.change_business_hours.execute(
+            ChangeStoreBusinessHoursCommand(
+                corporate_id=str(target_corporate.id.value),
+                store_id=str(target_store.id.value),
+                weekly=weekly,
+            )
+        )
+
+    # Assert
+    async with PostgresUnitOfWork(session_factory) as work:
+        store = await PostgresRepositorySet.create(work).store.get(target_store.id)
+        assert store is not None and store.business_hours is not None
+        assert len(store.business_hours.weekly) == 7
+        audit = (
+            await work.session.execute(
+                text(
+                    "SELECT operator_id, person_id, account_id FROM operation_audits "
+                    "WHERE operation = 'stores.update'"
+                )
+            )
+        ).one()
+        assert audit.operator_id == data.vendor_operator.id.value
+        assert audit.person_id is None
+        assert audit.account_id is None
 
 
 @pytest.mark.asyncio
@@ -35,6 +121,7 @@ async def test_法人登録と実在する本人監査は同時に確定する(
     vendor_operator = VendorOperator(
         id=VendorOperatorId.generate(),
         email=CorporateUserEmail("vendor@example.test"),
+        login_id=LoginId("vendor-admin"),
         external_subject=ExternalSubjectKey("verified"),
         is_active=True,
     )

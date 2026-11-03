@@ -37,7 +37,17 @@ export function CorporateRegistrationView({
               required
             />
           </Row>
-          <Field name="email" label="メールアドレス" type="email" required />
+          <Field
+            name="login_id"
+            label="ログインID"
+            required
+            description="3～64文字の半角英数字・ピリオド・ハイフン・下線"
+          />
+          <Field
+            name="email"
+            label="連絡先メールアドレス（任意）"
+            type="email"
+          />
           <Field
             name="initial_password"
             label="初期パスワード"

@@ -1,8 +1,14 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { UserDetailPage } from "../../../../../../features/users/ui/user-detail-page";
-import { getUser, getStaff } from "../../../../../../features/users/api/user-api";
+import {
+  getUser,
+  getStaff,
+} from "../../../../../../features/users/api/user-api";
 import { listStores } from "../../../../../../features/stores/api/store-api";
-import type { UserDetail, StaffDetail } from "../../../../../../features/users/model/user";
+import type {
+  UserDetail,
+  StaffDetail,
+} from "../../../../../../features/users/model/user";
 
 export const Route = createFileRoute(
   "/admin/corporates/$corporateId/users/$userId/",
@@ -25,10 +31,7 @@ export const Route = createFileRoute(
         staff = null;
       }
     }
-    const stores = await listStores(
-      params.corporateId,
-      abortController.signal,
-    );
+    const stores = await listStores(params.corporateId, abortController.signal);
     const userDetail: UserDetail = {
       id: membership.id,
       account_id: membership.account_id,
@@ -38,6 +41,7 @@ export const Route = createFileRoute(
       status: membership.status,
       account_status: membership.account_status,
       store_ids: membership.store_ids,
+      store_roles: membership.store_roles,
       staff_id: membership.staff_id,
       staff,
     };

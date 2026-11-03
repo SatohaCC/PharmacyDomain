@@ -48,7 +48,8 @@ from app.domain.identity.entities import (
     UserAccount,
 )
 from app.domain.identity.identifiers import CorporateMembershipId
-from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole
+from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole, StoreRole
+from app.domain.identity.value_objects import StoreRoleAssignment
 from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.primitives import MedicationHistoryStatus
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
@@ -187,8 +188,11 @@ async def setup_clinical(
         id=CorporateMembershipId.generate(),
         account_id=account.id,
         corporate_id=corporate.id,
-        role=MembershipRole.STORE_OPERATOR,
-        store_ids=frozenset({store.id}),
+        role=MembershipRole.MEMBER,
+        store_roles=tuple(
+            StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+            for store_id in frozenset({store.id})
+        ),
         staff_id=pharmacist.id,
     )
     record = create_record(

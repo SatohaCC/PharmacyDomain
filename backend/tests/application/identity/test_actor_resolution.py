@@ -4,7 +4,9 @@ from dataclasses import replace
 
 import pytest
 
-from app.application.access_control.boundary_models import ActorRole
+from app.application.access_control.boundary_models import ActorRole, Permission
+from app.application.access_control.policies import AuthorizationService
+from app.application.common.exceptions import AuthorizationError
 from app.application.identity.boundary_models import VerifiedSubject
 from app.application.identity.errors import UnavailableIdentityError
 from app.application.identity.queries.resolve_actor import ResolveActorUseCase
@@ -15,7 +17,9 @@ from app.domain.identity.primitives import (
     AccountStatus,
     ExternalSubjectKey,
     MembershipRole,
+    StoreRole,
 )
+from app.domain.identity.value_objects import StoreRoleAssignment
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import (
     PersonName,
@@ -80,8 +84,11 @@ async def _setup(
         id=CorporateMembershipId.generate(),
         account_id=account.id,
         corporate_id=corp_id,
-        role=MembershipRole.STORE_OPERATOR,
-        store_ids=frozenset({StoreId.generate()}),
+        role=MembershipRole.MEMBER,
+        store_roles=tuple(
+            StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+            for store_id in frozenset({StoreId.generate()})
+        ),
         staff_id=StaffId.generate(),
     )
     await people.save(person)
@@ -118,7 +125,7 @@ async def test_本人とアカウントと法人権限を含む主体を返す()
     assert actor.membership_id == membership.id
     assert actor.corporate_id == membership.corporate_id
     assert actor.store_ids == membership.store_ids
-    assert actor.roles == frozenset({ActorRole.STORE_OPERATOR})
+    assert actor.roles == frozenset({ActorRole.MEMBER})
 
 
 @pytest.mark.asyncio
@@ -147,14 +154,21 @@ async def test_権限変更後は古い店舗集合を使わない() -> None:
     before = await resolver.execute(subject)
     new_stores = frozenset({StoreId.generate()})
     await memberships.save(
-        replace(membership, role=MembershipRole.STORE_VIEWER, store_ids=new_stores)
+        replace(
+            membership,
+            role=MembershipRole.MEMBER,
+            store_roles=tuple(
+                StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+                for store_id in new_stores
+            ),
+        )
     )
 
     after = await resolver.execute(subject)
 
     assert after.person_id == before.person_id
     assert after.account_id == before.account_id
-    assert after.roles == frozenset({ActorRole.STORE_VIEWER})
+    assert after.roles == frozenset({ActorRole.MEMBER})
     assert after.store_ids == new_stores
     assert not after.store_ids.intersection(before.store_ids)
 
@@ -234,3 +248,44 @@ async def test_操作者Reader_停止状態も権限を判断せず_参照事実
     assert facts.person_id == account.person_id
     assert facts.account_status == AccountStatus.SUSPENDED
     assert facts.is_vendor_admin is True
+
+
+@pytest.mark.asyncio
+async def test_店舗選択_編集店舗から閲覧店舗へ切り替える場合_編集権限を持ち越さない() -> (
+    None
+):
+    # Arrange
+    resolver, subject, _, _, memberships, _, membership = await _setup()
+    first = next(iter(membership.store_ids))
+    second = StoreId.generate()
+    await memberships.save(
+        membership.change_access(
+            role=MembershipRole.MEMBER,
+            store_roles=(
+                StoreRoleAssignment(store_id=first, role=StoreRole.EDITOR),
+                StoreRoleAssignment(store_id=second, role=StoreRole.VIEWER),
+            ),
+        )
+    )
+    # Act
+    editor = await resolver.execute(
+        replace(subject, selected_store_id=str(first.value))
+    )
+    viewer = await resolver.execute(
+        replace(subject, selected_store_id=str(second.value))
+    )
+    # Assert
+    assert ActorRole.STORE_OPERATOR in editor.roles
+    assert ActorRole.STORE_OPERATOR not in viewer.roles
+    assert ActorRole.STORE_VIEWER in viewer.roles
+    AuthorizationService(editor).require_store(
+        permission=Permission.MANAGE_PRESCRIPTION,
+        target_corporate_id=membership.corporate_id,
+        target_store_id=first,
+    )
+    with pytest.raises(AuthorizationError):
+        AuthorizationService(viewer).require_store(
+            permission=Permission.MANAGE_PRESCRIPTION,
+            target_corporate_id=membership.corporate_id,
+            target_store_id=second,
+        )

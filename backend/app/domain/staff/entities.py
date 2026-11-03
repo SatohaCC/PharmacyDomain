@@ -28,6 +28,7 @@ from app.domain.staff.primitives import (
     StaffEmailAddress,
     StaffPhoneNumber,
     StaffStatus,
+    StoreDuty,
     WeeklyContractHours,
 )
 from app.domain.staff.value_objects import (
@@ -37,6 +38,7 @@ from app.domain.staff.value_objects import (
     RegisteredSellerProfile,
     StaffQualifications,
     StoreAffiliation,
+    StoreWorkCondition,
 )
 from app.domain.store.identifiers import StoreId
 
@@ -72,6 +74,7 @@ class Staff(AggregateRoot[StaffId]):
     weekly_contract_hours: WeeklyContractHours | None = None
 
     affiliations: tuple[StoreAffiliation, ...] = ()
+    work_conditions: tuple[StoreWorkCondition, ...] = ()
 
     # --- 自集約の不変条件 ---
 
@@ -80,6 +83,93 @@ class Staff(AggregateRoot[StaffId]):
         self._ensure_primary_affiliations_never_overlap()
         self._ensure_same_store_affiliations_never_overlap()
         self._ensure_leave_status_consistency()
+        for condition in self.work_conditions:
+            if not any(
+                affiliation.store_id == condition.store_id
+                and affiliation.period.is_active_on(condition.effective_from)
+                for affiliation in self.affiliations
+            ):
+                raise DomainValidationError(
+                    "勤務条件の適用開始日は店舗の所属期間内にしてください。"
+                )
+
+    def record_work_conditions(
+        self, conditions: tuple[StoreWorkCondition, ...], *, applied_on: date
+    ) -> Self:
+        """一括変更後の資格・所属と現在以降の契約時間上限を検証する。"""
+        for condition in conditions:
+            if condition.duty is StoreDuty.PHARMACIST and not self.is_pharmacist:
+                raise DomainValidationError(
+                    "薬剤師の従事区分には薬剤師資格が必要です。"
+                )
+            if (
+                condition.duty is StoreDuty.REGISTERED_SELLER
+                and not self.is_registered_seller
+            ):
+                raise DomainValidationError(
+                    "登録販売者の従事区分には登録販売者資格が必要です。"
+                )
+        updated = replace(self, work_conditions=(*self.work_conditions, *conditions))
+        updated.ensure_weekly_hours_within_contract(applied_on)
+        return updated
+
+    def ensure_weekly_hours_within_contract(self, applied_on: date) -> None:
+        """変更日以降の各適用境界で、登録済み時間数の合計が契約時間以内か検証する。"""
+        if self.weekly_contract_hours is None:
+            return
+        dates = {
+            applied_on,
+            *(
+                item.effective_from
+                for item in self.work_conditions
+                if item.effective_from >= applied_on
+            ),
+            *(
+                item.period.start_date
+                for item in self.affiliations
+                if item.period.start_date >= applied_on
+            ),
+        }
+        for target in sorted(dates):
+            total = sum(
+                (
+                    condition.weekly_hours.value
+                    for store in {item.store_id for item in self.affiliations}
+                    if (condition := self.work_condition_on(store, target)) is not None
+                    and condition.weekly_hours is not None
+                ),
+                Decimal("0"),
+            )
+            if total > self.weekly_contract_hours.value:
+                raise DomainValidationError(
+                    f"店舗別の週勤務時間の合計（{total}時間）が週所定労働時間（{self.weekly_contract_hours.value}時間）を超えています。適用日: {target}"
+                )
+
+    def work_condition_on(
+        self, store_id: StoreId, applied_on: date
+    ) -> StoreWorkCondition | None:
+        """対象日に所属する店舗の最新の適用条件を返す。同日訂正は後の記録を採用する。"""
+        affiliation = next(
+            (
+                a
+                for a in self.affiliations
+                if a.store_id == store_id and a.period.is_active_on(applied_on)
+            ),
+            None,
+        )
+        if affiliation is None:
+            return None
+        candidates = [
+            (item.effective_from, index, item)
+            for index, item in enumerate(self.work_conditions)
+            if item.store_id == store_id
+            and affiliation.period.start_date <= item.effective_from <= applied_on
+        ]
+        return (
+            max(candidates, key=lambda entry: (entry[0], entry[1]))[2]
+            if candidates
+            else None
+        )
 
     def _ensure_leave_status_consistency(self) -> None:
         """休職状態と休職理由の整合性を検証する。"""
@@ -301,7 +391,9 @@ class Staff(AggregateRoot[StaffId]):
         return replace(self, employment_type=employment_type)
 
     def change_weekly_contract_hours(
-        self, weekly_contract_hours: WeeklyContractHours | None
+        self, weekly_contract_hours: WeeklyContractHours | None, *, applied_on: date
     ) -> Self:
         """週所定労働時間を変更する"""
-        return replace(self, weekly_contract_hours=weekly_contract_hours)
+        updated = replace(self, weekly_contract_hours=weekly_contract_hours)
+        updated.ensure_weekly_hours_within_contract(applied_on)
+        return updated

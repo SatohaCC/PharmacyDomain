@@ -6,7 +6,7 @@ import { registerUser } from "../api/registration-api";
 
 export function useUserRegistration(corporateId: string) {
   const [role, setRole] = useState<UserRole>("corporate_admin");
-  const [issued, setIssued] = useState<{ id: string; email: string }>();
+  const [issued, setIssued] = useState<{ id: string; loginId: string }>();
   const registrationSubmission = useSubmission(async (data: FormData) => {
     setIssued(
       await registerUser(corporateId, registrationInput(data, role), role),

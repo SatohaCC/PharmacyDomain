@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Checkbox } from "../../../shared/ui/controls/checkbox";
 import { SelectField } from "../../../shared/ui/controls/select-field";
 import { Panel } from "../../../shared/ui/layout/panel";
@@ -25,12 +26,19 @@ export function UserRegistrationView({
   issued,
   registrationSubmission,
 }: RegistrationViewProps) {
+  const [selectedStoreIds, setSelectedStoreIds] = useState<string[]>([]);
+  const [homeStore, setHomeStore] = useState("");
+  const [contractHours, setContractHours] = useState("");
+  const [storeHours, setStoreHours] = useState<Record<string, string>>({});
+  const selectedStores = stores.filter((store) =>
+    selectedStoreIds.includes(store.id),
+  );
   if (issued)
     return (
       <Panel>
         <Subheading>ユーザー登録が完了しました</Subheading>
         <Paragraph>
-          メールアドレス: <code>{issued.email}</code>
+          ログインID: <code>{issued.loginId}</code>
         </Paragraph>
         <Paragraph>
           初期パスワードを本人へお渡しください。初回ログイン時にパスワードの変更が必要です。
@@ -97,6 +105,8 @@ export function UserRegistrationView({
         <Field
           name="weekly_contract_hours"
           label="週所定労働時間（時間）"
+          value={contractHours}
+          onValueChange={setContractHours}
           readOnly={frozen}
           description="例: 40.0。スポット応援（ヘルプ）要員として事前届出・登録を行う場合は 0.0 を入力してください。"
         />
@@ -124,18 +134,25 @@ export function UserRegistrationView({
           onValueChange={(value) => setRole(value as typeof role)}
           options={[
             { value: "corporate_admin", label: "法人管理者" },
-            { value: "store_operator", label: "店舗操作者" },
-            { value: "store_viewer", label: "店舗閲覧者" },
+            { value: "member", label: "一般ユーザー" },
           ]}
         />
         <FieldGroup>
-          店舗の利用権限
-          {stores.map((s) => (
+          <Subheading>① 所属店舗を選ぶ</Subheading>
+          {stores.map((store) => (
             <Checkbox
-              key={s.id}
+              key={store.id}
               name="store_ids"
-              value={s.id}
-              label={s.name}
+              value={store.id}
+              label={store.name}
+              isSelected={selectedStoreIds.includes(store.id)}
+              onChange={(selected) =>
+                setSelectedStoreIds((ids) =>
+                  selected
+                    ? [...ids, store.id]
+                    : ids.filter((id) => id !== store.id),
+                )
+              }
               readOnly={frozen}
             />
           ))}
@@ -143,34 +160,95 @@ export function UserRegistrationView({
             <Paragraph>先に店舗を登録してください。</Paragraph>
           )}
         </FieldGroup>
+        {!!selectedStores.length && (
+          <>
+            <SelectField
+              label="主所属店舗"
+              name="home_store"
+              value={
+                selectedStoreIds.includes(homeStore)
+                  ? homeStore
+                  : selectedStores[0]?.id || ""
+              }
+              onValueChange={setHomeStore}
+              required
+              disabled={frozen}
+              options={selectedStores.map((store) => ({
+                value: store.id,
+                label: store.name,
+              }))}
+            />
+            <Paragraph>
+              店舗ごとに所属開始日・操作権限・週勤務時間・従事区分を設定してください。
+            </Paragraph>
+            {selectedStores.map((store) => (
+              <FieldGroup key={store.id}>
+                <Subheading>{store.name}</Subheading>
+                <Field
+                  name={`store_start_${store.id}`}
+                  label={`${store.name}の所属開始日`}
+                  type="date"
+                  required
+                  readOnly={frozen}
+                />
+                <SelectField
+                  name={`store_role_${store.id}`}
+                  label={`${store.name}の操作権限`}
+                  defaultValue="store_operator"
+                  disabled={frozen}
+                  options={[
+                    { value: "store_operator", label: "編集可能" },
+                    { value: "store_viewer", label: "閲覧のみ" },
+                  ]}
+                />
+                <Field
+                  name={`store_hours_${store.id}`}
+                  value={storeHours[store.id] || ""}
+                  onValueChange={(value) =>
+                    setStoreHours((hours) => ({ ...hours, [store.id]: value }))
+                  }
+                  label={`${store.name}の週勤務時間（時間）`}
+                  readOnly={frozen}
+                  description="0～168、小数第2位まで。空欄は未登録。"
+                />
+                <SelectField
+                  name={`store_duty_${store.id}`}
+                  label={`${store.name}の従事区分`}
+                  defaultValue="other"
+                  disabled={frozen}
+                  options={[
+                    { value: "pharmacist", label: "薬剤師" },
+                    { value: "registered_seller", label: "登録販売者" },
+                    { value: "other", label: "その他" },
+                  ]}
+                />
+              </FieldGroup>
+            ))}
+          </>
+        )}
         <Paragraph>
-          法人管理者にも店舗の利用権限を追加できます。店舗で勤務する場合は主所属店舗と所属開始日も指定してください。
+          法人管理者にも店舗の利用権限を追加できます。選択した店舗に主所属・兼務所属と勤務条件をまとめて登録します。
         </Paragraph>
-        <SelectField
-          label="主所属店舗"
-          name="home_store"
-          required={role !== "corporate_admin"}
-          disabled={frozen}
-          options={[
-            ...(role === "corporate_admin"
-              ? [{ value: "", label: "指定しない" }]
-              : []),
-            ...stores.map((s) => ({ value: s.id, label: s.name })),
-          ]}
-        />
-        <Field
-          name="start_date"
-          label="所属開始日"
-          type="date"
-          required={role !== "corporate_admin"}
-          readOnly={frozen}
-        />
+        {!!selectedStores.length && (
+          <Paragraph>
+            登録済みの週勤務時間の合計：
+            {selectedStores.reduce(
+              (sum, store) =>
+                sum + Math.round((Number(storeHours[store.id]) || 0) * 100),
+              0,
+            ) / 100}
+            時間 ／ 週所定労働時間：{contractHours || "未登録（上限未確認）"}
+            {contractHours ? "時間" : ""}
+            {selectedStores.some((store) => !storeHours[store.id]?.trim()) &&
+              "（勤務時間が未登録の店舗があります）"}
+          </Paragraph>
+        )}
         <SectionHeading>4. ログイン情報</SectionHeading>
+        <Field name="login_id" label="ログインID" required readOnly={frozen} />
         <Field
           name="email"
-          label="メールアドレス"
+          label="連絡先メールアドレス（任意）"
           type="email"
-          required
           readOnly={frozen}
         />
         <Field

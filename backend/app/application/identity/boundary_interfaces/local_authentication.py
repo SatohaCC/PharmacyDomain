@@ -12,20 +12,28 @@ class CredentialWriter(Protocol):
     """業務登録と同じトランザクションで認証資格情報を保存する。"""
 
     async def issue(
-        self, corporate_id: CorporateId, email: str, password: str, subject: str
+        self,
+        corporate_id: CorporateId,
+        login_id: str,
+        password: str,
+        subject: str,
+        *,
+        email: str | None = None,
     ) -> None:
-        """法人内の一意なメールアドレスと初期パスワードを保存し、重複は競合として拒否する。"""
+        """法人内の一意なログインIDと初期パスワードを保存し、重複は競合として拒否する。"""
         ...
 
 
 class LocalAuthentication(Protocol):
     """未認証のログインと、制限付きセッションのパスワード変更。"""
 
-    async def login(self, corporate_id: str, email: str, password: str) -> LoginSession:
+    async def login(
+        self, corporate_id: str, login_id: str, password: str
+    ) -> LoginSession:
         """法人利用者の資格情報を照合し、期限付きセッションを作る。"""
         ...
 
-    async def vendor_login(self, email: str, password: str) -> LoginSession:
+    async def vendor_login(self, login_id: str, password: str) -> LoginSession:
         """運営者の資格情報を照合し、期限付きセッションを作る。"""
         ...
 
