@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "task": "quality-harness-contract",
+  "requirements": [
+    {
+      "id": "HARNESS-SELECTION",
+      "acceptance": "受入条件に紐付くテストを選び、不正な指定を拒否する",
+      "checks": [
+        {
+          "kind": "node",
+          "path": "scripts/checks/quality-spec.test.mjs"
+        }
+      ]
+    },
+    {
+      "id": "HARNESS-STAGNATION",
+      "acceptance": "実装内容が変わっても同じ失敗が続いたら未解決として修正ループを止める",
+      "checks": [
+        {
+          "kind": "python",
+          "path": "backend/tests/tools/hooks/test_quality_gate.py",
+          "test": "test_修復状態_同一診断結果の場合はソース変更があっても修復を停止する"
+        }
+      ]
+    }
+  ]
+}

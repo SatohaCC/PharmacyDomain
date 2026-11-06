@@ -22,6 +22,7 @@
 | 永続化・DB制約・トランザクション・DI・migration | [Infrastructure](.agents/rules/infrastructure.md) |
 | HTTPルート・入出力・認証窓口・例外翻訳・OpenAPI | [Presentation](.agents/rules/presentation.md) |
 | テスト・静的検査・CI・フロントエンド・開発環境 | [開発ガイド](docs/development.md)の対象節 |
+| 品質検査・受入ハーネス・エージェントHook | [ハーネスガイド](scripts/README.md) |
 | コード間の関係・呼出し経路・影響範囲の調査 | [graphify](.agents/rules/graphify.md) |
 
 `.agents/rules/`は読み込み条件と参照先だけを持ち、設計・手順の本文はdocsへ集約する。
