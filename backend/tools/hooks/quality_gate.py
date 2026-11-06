@@ -1,4 +1,4 @@
-"""Adapt Codex and Antigravity events to the shared quality runner; keep checks outside the hook."""
+"""CodexおよびAntigravityイベントを品質ランナーに接続し、Hook外で検査を実行する。"""
 
 from __future__ import annotations
 
@@ -8,18 +8,21 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
+ROOT = Path(__file__).resolve().parents[3]
+BACKEND = ROOT / "backend"
+if str(BACKEND) not in sys.path:
+    sys.path.insert(0, str(BACKEND))
 
-from scripts.hooks.format_edited_python import edited_paths
-from scripts.hooks.format_edited_python import main as format_python
-from scripts.hooks.quality_feedback import repair_state, report_feedback
+from tools.hooks.format_edited_python import edited_paths  # noqa: E402
+from tools.hooks.format_edited_python import main as format_python  # noqa: E402
+from tools.hooks.quality_feedback import repair_state, report_feedback  # noqa: E402
 
 EDIT_WARNING_THRESHOLD = 5
 
 
 def changed_paths(root: Path) -> list[str]:
-    paths = set()
+    """Git作業ツリー内の変更・未追跡ファイルパス一覧を返す。"""
+    paths: set[str] = set()
     for args in (
         ["diff", "HEAD", "--name-only", "-z", "--no-renames"],
         ["ls-files", "--others", "--exclude-standard", "-z"],
@@ -32,7 +35,7 @@ def changed_paths(root: Path) -> list[str]:
 
 
 def validation_context(root: Path) -> str:
-    """Bind receipts to HEAD and the tracked validation configuration."""
+    """レシートをHEADと追跡対象の検証設定に紐付ける。"""
     head = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, check=True
     ).stdout
@@ -45,7 +48,7 @@ def validation_context(root: Path) -> str:
         if name
         and (
             name.endswith((".json", ".toml", ".yaml", ".yml", ".ini", ".lock"))
-            or name.startswith(("scripts/checks/", "scripts/hooks/"))
+            or name.startswith(("scripts/checks/", "backend/tools/hooks/"))
             or Path(name).name.startswith(
                 (".python-version", ".nvmrc", ".importlinter")
             )
@@ -55,6 +58,7 @@ def validation_context(root: Path) -> str:
 
 
 def fingerprint(root: Path, paths: list[str]) -> str:
+    """指定パス群の内容ハッシュ（フィンガープリント）を計算する。"""
     digest = hashlib.sha256()
     for name in paths:
         digest.update(name.encode("utf-8") + b"\0")
@@ -68,20 +72,26 @@ def fingerprint(root: Path, paths: list[str]) -> str:
 
 
 def edit_state_path(directory: Path, turn: str) -> Path:
+    """編集状態の一時保存パスを生成する。"""
     key = hashlib.sha256(turn.encode("utf-8")).hexdigest()[:24]
     return directory / f"{key}.edits.json"
 
 
-def edit_loop_warnings(root: Path, event: dict, files: list[Path]) -> list[str]:
+def edit_loop_warnings(
+    root: Path, event: dict[str, object], files: list[Path]
+) -> list[str]:
+    """同一ファイルの編集回数を追跡し、閾値を超えたファイル一覧を返す。"""
     if not files:
         return []
 
     turn = str(event.get("turn_id") or event.get("session_id") or "current")
     directory = root / ".agents/work/.hooks"
     state_path = edit_state_path(directory, turn)
+    stored: dict[str, object]
     try:
-        stored = json.loads(state_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        raw_json = json.loads(state_path.read_text(encoding="utf-8"))
+        stored = raw_json if isinstance(raw_json, dict) else {}
+    except OSError, ValueError:
         stored = {}
     if (
         not isinstance(stored, dict)
@@ -90,16 +100,20 @@ def edit_loop_warnings(root: Path, event: dict, files: list[Path]) -> list[str]:
     ):
         stored = {}
 
-    counts = {
-        name: count
-        for name, count in stored.get("counts", {}).items()
-        if isinstance(name, str) and type(count) is int and count > 0
-    }
-    stored_warned = stored.get("warned", [])
-    if not isinstance(stored_warned, list):
-        stored_warned = []
-    warned = {name for name in stored_warned if isinstance(name, str)}
-    crossed_threshold = []
+    raw_counts = stored.get("counts")
+    counts: dict[str, int] = (
+        {
+            str(name): int(count)
+            for name, count in raw_counts.items()
+            if isinstance(name, str) and isinstance(count, int) and count > 0
+        }
+        if isinstance(raw_counts, dict)
+        else {}
+    )
+    raw_warned = stored.get("warned", [])
+    stored_warned = raw_warned if isinstance(raw_warned, list) else []
+    warned: set[str] = {str(name) for name in stored_warned if isinstance(name, str)}
+    crossed_threshold: list[str] = []
     for path in sorted(set(files)):
         try:
             name = path.resolve().relative_to(root.resolve()).as_posix()
@@ -120,61 +134,68 @@ def edit_loop_warnings(root: Path, event: dict, files: list[Path]) -> list[str]:
             encoding="utf-8",
         )
     except OSError as error:
-        print(f"Could not record edit-loop state: {error}", file=sys.stderr)
+        print(f"編集ループ状態を記録できませんでした: {error}", file=sys.stderr)
         return []
     return crossed_threshold
 
 
 def clear_edit_state(directory: Path, turn: str) -> None:
+    """ターンの編集状態ファイルを削除する。"""
     try:
         edit_state_path(directory, turn).unlink(missing_ok=True)
     except OSError as error:
-        print(f"Could not clear edit-loop state: {error}", file=sys.stderr)
+        print(f"編集ループ状態を削除できませんでした: {error}", file=sys.stderr)
 
 
 def edit_warning_context(paths: list[str]) -> str:
+    """編集警告文を生成する。"""
     return "\n".join(
-        f"Repeated editing reminder: `{path}` has reached {EDIT_WARNING_THRESHOLD} edits this turn. "
-        "Pause to compare the approach with the acceptance criteria and reconsider the plan before editing again. "
-        "This is advisory and does not block the work."
+        f"同一ファイルの反復編集警告: `{path}` の編集回数が今ターンの警告閾値（{EDIT_WARNING_THRESHOLD}回）に達しました。"
+        "受入条件と現在の方針を照合し、計画を見直してから編集を再開してください。"
+        "これは助言通知であり作業をブロックしません。"
         for path in paths
     )
 
 
 def stop_decision(
-    event: dict, signature: str, previous: dict | None, result: int | None
-) -> dict:
+    event: dict[str, object],
+    signature: str,
+    previous: dict[str, object] | None,
+    result: int | None,
+) -> dict[str, object]:
+    """Stopイベントの最終判定結果を生成する。"""
     if (
         previous
         and previous.get("signature") == signature
         and previous.get("status") in {"stagnated", "attempt_limit"}
     ):
         return {
-            "systemMessage": f"Quality repair stopped: {previous['status']}. Unresolved failures remain. Report the log and request a revised diagnosis; do not claim success or weaken checks."
+            "systemMessage": f"品質修復を停止しました: {previous['status']}。未解決の失敗が残っています。ログを報告し、診断の見直しを求めてください。成功を主張したり検査を弱めないでください。"
         }
     if previous and previous.get("signature") == signature:
         if previous.get("result") == 0:
             return {}
         if event.get("stop_hook_active"):
             return {
-                "systemMessage": "Quality checks still fail. Report failures and the log; do not claim success."
+                "systemMessage": "品質検査が依然として失敗しています。失敗内容とログを報告してください。成功を主張しないでください。"
             }
     if result is None or result == 0:
         return {}
     return {
         "decision": "block",
-        "reason": "Quality checks failed. Inspect .agents/work/.hooks logs, fix scoped failures, and rerun. Report environment blockers explicitly.",
+        "reason": "品質検査に失敗しました。.agents/work/.hooks のログを確認し、スコープ内の失敗を修正して再実行してください。環境上のブロッカーは明示的に報告してください。",
     }
 
 
-def main(event: dict) -> dict:
+def main(event: dict[str, object]) -> dict[str, object]:
+    """ライフサイクルイベントに応じた品質検査を実行する。"""
     if event.get("hook_event_name") == "PostToolUse":
         files = edited_paths(event)
         if not files:
             return {}
         edit_warnings = edit_loop_warnings(ROOT, event, files)
         formatting = format_python(event)
-        scopes = set()
+        scopes: set[str] = set()
         for path in files:
             try:
                 name = path.relative_to(ROOT).as_posix()
@@ -186,7 +207,11 @@ def main(event: dict) -> dict:
                 scopes.add("frontend")
             if name.startswith("scripts/"):
                 scopes.add("scripts")
-        failures = ["Formatting edited Python files failed."] if formatting else []
+        failures: list[str] = (
+            ["変更されたPythonファイルのフォーマットに失敗しました。"]
+            if formatting
+            else []
+        )
         for scope in sorted(scopes):
             quick_process = subprocess.run(
                 [
@@ -209,11 +234,13 @@ def main(event: dict) -> dict:
                         "utf-8", errors="replace"
                     )
                 )
-        contexts = []
+        contexts: list[str] = []
         if edit_warnings:
             contexts.append(edit_warning_context(edit_warnings))
         if failures:
-            contexts.append("Quick checks failed:\n" + "\n".join(failures)[-12000:])
+            contexts.append(
+                "クイック品質検査に失敗しました:\n" + "\n".join(failures)[-12000:]
+            )
         if contexts:
             return {
                 "hookSpecificOutput": {
@@ -241,23 +268,25 @@ def main(event: dict) -> dict:
     directory = ROOT / ".agents/work/.hooks"
     directory.mkdir(parents=True, exist_ok=True)
 
-    def finish_stop(decision: dict) -> dict:
+    def finish_stop(decision: dict[str, object]) -> dict[str, object]:
         if decision.get("decision") != "block":
             clear_edit_state(directory, turn)
         return decision
 
     receipt = directory / f"{key}.json"
+    previous: dict[str, object] | None = None
     try:
-        previous = (
+        raw_receipt = (
             json.loads(receipt.read_text(encoding="utf-8"))
             if receipt.exists()
             else None
         )
-        if not isinstance(previous, dict):
-            previous = None
-    except (ValueError, OSError):
-        print("Invalid quality receipt; running checks again.", file=sys.stderr)
+        if isinstance(raw_receipt, dict):
+            previous = raw_receipt
+    except ValueError, OSError:
+        print("無効な品質レシートのため検査を再実行します。", file=sys.stderr)
         previous = None
+
     if (
         previous
         and previous.get("signature") == signature
@@ -271,6 +300,8 @@ def main(event: dict) -> dict:
     log = directory / f"{key}.log"
     report = directory / f"{key}.report.json"
     report.unlink(missing_ok=True)
+    exit_code = 1
+    status = "failed"
     with log.open("w", encoding="utf-8") as output:
         try:
             exit_code = subprocess.run(
@@ -290,28 +321,29 @@ def main(event: dict) -> dict:
             ).returncode
             status = "passed" if exit_code == 0 else "failed"
         except (OSError, subprocess.TimeoutExpired) as error:
-            output.write(f"Quality runner failed: {error}\n")
+            output.write(f"品質ランナーの実行に失敗しました: {error}\n")
             exit_code = 1
             status = (
                 "timeout"
                 if isinstance(error, subprocess.TimeoutExpired)
                 else "start_error"
             )
-    # A check must not certify files changed during execution (including generated output).
+    # 検査実行中にファイルが変更された場合は成功とみなさない
     if signature_for_current_inputs() != signature:
         exit_code = 1
         status = "inputs_changed"
         with log.open("a", encoding="utf-8") as output:
             output.write(
-                "Files changed during validation; rerun against the current contents.\n"
+                "実行中にファイルが変更されました。現在の内容で再実行してください。\n"
             )
+    structured: dict[str, object] | None = None
     try:
-        structured = (
+        raw_struct = (
             json.loads(report.read_text(encoding="utf-8")) if report.exists() else None
         )
-        if not isinstance(structured, dict):
-            structured = None
-    except (ValueError, OSError):
+        if isinstance(raw_struct, dict):
+            structured = raw_struct
+    except ValueError, OSError:
         structured = None
     failure_key, feedback = report_feedback(structured)
     state = repair_state(
@@ -322,8 +354,8 @@ def main(event: dict) -> dict:
         failure_key if status == "failed" else None,
     )
     if state.get("terminal"):
-        status = state["terminal"]
-    current = {
+        status = str(state["terminal"])
+    current: dict[str, object] = {
         "signature": signature,
         "spec_signature": spec_signature,
         "result": exit_code,
@@ -333,20 +365,25 @@ def main(event: dict) -> dict:
         **state,
     }
     receipt.write_text(
-        json.dumps(current),
+        json.dumps(current, ensure_ascii=False),
         encoding="utf-8",
     )
     if state.get("terminal"):
         return finish_stop(stop_decision(event, signature, current, exit_code))
     decision = stop_decision(event, signature, previous, exit_code)
     if decision.get("decision") == "block":
-        decision["reason"] += f"\nLog: {log.relative_to(ROOT).as_posix()}\n{feedback}"
+        reason_str = str(decision.get("reason", ""))
+        decision["reason"] = (
+            reason_str + f"\nLog: {log.relative_to(ROOT).as_posix()}\n{feedback}"
+        )
     return finish_stop(decision)
 
 
 if __name__ == "__main__":
     try:
-        print(json.dumps(main(json.load(sys.stdin)), ensure_ascii=False))
+        raw_event = json.load(sys.stdin)
+        parsed: dict[str, object] = raw_event if isinstance(raw_event, dict) else {}
+        print(json.dumps(main(parsed), ensure_ascii=False))
     except Exception as error:
-        print(f"Quality hook failed: {error}", file=sys.stderr)
+        print(f"品質Hook実行エラー: {error}", file=sys.stderr)
         raise SystemExit(1) from error

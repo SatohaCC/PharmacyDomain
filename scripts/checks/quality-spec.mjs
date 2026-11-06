@@ -79,13 +79,13 @@ export function specificationPlan(spec, root, phase = "full") {
         if (!existsSync(target) || !statSync(target).isFile() || !realpathSync(target).startsWith(realpathSync(root) + sep)) {
           throw new Error("Test must be an existing file inside the repository");
         }
-        const isPython = check.kind === "python" && /^(backend\/tests|scripts\/hooks)\/.*test[^/]*\.py$/.test(check.path);
+        const isPython = check.kind === "python" && /^backend\/tests\/.*test[^/]*\.py$/.test(check.path);
         const isNode = check.kind === "node" && /^scripts\/.*\.test\.mjs$/.test(check.path);
         const isVitest = (check.kind === "vitest" || check.kind === "node") && /^frontend\/(tests|src)\/.*\.(?:test|spec)\.[jt]sx?$/.test(check.path);
         if (!isPython && !isNode && !isVitest) {
           throw new Error("Unsupported test kind or location");
         }
-        if (check.test !== undefined && (!isPython || typeof check.test !== "string" || !/^(test_\w+|Test\w+)(::test_\w+)?$/.test(check.test))) {
+        if (check.test !== undefined && (!isPython || typeof check.test !== "string" || !/^(?:test_|Test)[^\s:;"'`$\\|&<>(){}\[\]]+(?:::test_[^\s:;"'`$\\|&<>(){}\[\]]+)?$/u.test(check.test))) {
           throw new Error("Invalid pytest test selector");
         }
         scopes.add(check.path.startsWith("backend/") ? "backend" : check.path.startsWith("frontend/") ? "frontend" : "scripts");

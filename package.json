@@ -9,7 +9,7 @@
     "quality:backend": "node scripts/checks/quality.mjs --scope backend",
     "quality:frontend": "node scripts/checks/quality.mjs --scope frontend",
     "quality:scripts": "node scripts/checks/quality.mjs --scope scripts",
-    "typecheck:scripts": "uv run --project backend --locked mypy --config-file backend/pyproject.toml scripts/hooks",
+    "typecheck:scripts": "uv run --project backend --locked mypy --config-file backend/pyproject.toml backend/tools",
     "dev": "pnpm --parallel --filter pharmacydomain-api --filter pharmacydomain-admin run dev",
     "dev:frontend": "pnpm --filter pharmacydomain-admin dev",
     "dev:backend": "pnpm --filter pharmacydomain-api dev",

@@ -34,7 +34,7 @@ node scripts/checks/verify-clean-checkout.mjs --ref <commit> # 指定commitを�
 
 作業の受入条件を[仕様JSONの例](../docs/development/quality-task.example.json)の形式でテストへ対応付ける。`version: 1`、作業を示す`task`、要件ごとの一意な`id`・`acceptance`・空でない`checks`が必須。
 
-- `kind: python`は`backend/tests/`または`scripts/hooks/`の既存テストを選ぶ。任意の`test`にpytestの関数・クラス・`TestClass::test_method`を指定できる。
+- `kind: python`は`backend/tests/`の既存テストを選ぶ。任意の`test`にpytestの関数・クラス・`TestClass::test_method`を指定できる。
 - `kind: node`は`scripts/`の既存`.test.mjs`を選ぶ。
 - `kind: vitest`は`frontend/tests/`の既存テストを選ぶ。
 - `kind: suite, name: postgres`（または`integration`）は`pnpm test:integration`、`name: browser`は`pnpm test:e2e`を選ぶ。
@@ -55,7 +55,7 @@ pnpm quality:changed --spec docs/development/quality-task.example.json --report 
 
 ## Antigravity hooks
 
-[.agents/hooks.json](../.agents/hooks.json)に登録する。イベントアダプター [`scripts/hooks/antigravity_adapter.py`](hooks/antigravity_adapter.py) 経由で呼び出す。
+[.agents/hooks.json](../.agents/hooks.json)に登録する。イベントアダプター [`backend/tools/hooks/antigravity_adapter.py`](../backend/tools/hooks/antigravity_adapter.py) 経由で呼び出す。
 
 - `quality-gate`:
   - `PostToolUse` (`matcher: "edit_file|write_file|replace_file_content|write_to_file|multi_replace_file_content"`, timeout 600): ファイル編集後にPythonコードのRuff自動整形および編集ループ検出（同一ファイル5回編集で警告）を行う。

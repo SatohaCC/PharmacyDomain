@@ -2,7 +2,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { createConnection } from "node:net";
-import { resolve, relative } from "node:path";
+import { dirname, resolve, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadSpecification } from "./quality-spec.mjs";
 import { acceptanceEvidence, failureFeedback } from "./quality-feedback.mjs";
@@ -16,13 +16,9 @@ export function scopesFor(paths) {
       for (const scope of ["backend", "frontend", "scripts"]) scopes.add(scope);
     }
     if (path.startsWith("backend/")) scopes.add("backend");
-    if (path === "pytest.ini") {
-      scopes.add("backend");
-      scopes.add("scripts");
-    }
     if (path.startsWith("frontend/")) scopes.add("frontend");
     if (path.startsWith("scripts/") || path.startsWith(".codex/") || path.startsWith(".agents/")) scopes.add("scripts");
-    if (path.startsWith("scripts/checks/") || path.startsWith("scripts/hooks/")) scopes.add("backend");
+    if (path.startsWith("scripts/checks/")) scopes.add("backend");
   }
   return [...scopes].sort();
 }
@@ -46,14 +42,14 @@ export function planFor(scopes, phase = "full") {
 
   if (scopes.includes("backend")) {
     if (phase === "quick") {
-      uv("Python lint", "ruff", "check", "backend", "scripts/checks", "scripts/hooks");
+      uv("Python lint", "ruff", "check", "backend");
       pnpm("Backend types", "typecheck:backend");
     } else {
       pnpm("Backend lint and architecture", "lint:backend");
       pnpm("Backend format", "format:check");
       pnpm("Backend types", "typecheck:backend");
       pnpm("Backend imports", "imports");
-      pnpm("Backend tests", "test:backend");
+      pnpm("Backend tests", "test:backend", "--", "-m", "not integration");
     }
   }
 
@@ -72,11 +68,11 @@ export function planFor(scopes, phase = "full") {
     } else {
       node("Quality runner syntax", ["--check", "scripts/checks/quality.mjs"]);
     }
-    uv("Tooling lint", "ruff", "check", "scripts/checks", "scripts/hooks");
+    uv("Tooling lint", "ruff", "check", "backend/tools");
     if (phase === "full") {
-      uv("Tooling format", "ruff", "format", "--check", "scripts/checks", "scripts/hooks");
+      uv("Tooling format", "ruff", "format", "--check", "backend/tools");
       pnpm("Tooling types (mypy)", "typecheck:scripts");
-      uv("Hook regression tests", "python", "-m", "pytest", "scripts/hooks/test_quality_gate.py", "scripts/hooks/test_privacy_gate.py", "scripts/hooks/test_antigravity_adapter.py", "-q");
+      uv("Hook regression tests", "python", "-m", "pytest", "backend/tests/tools/hooks", "-q");
     }
   }
 
@@ -187,7 +183,37 @@ function recordTaskResult(report, index, task, result, started, save) {
   return report.tasks[index].status !== "passed";
 }
 
-export function checkPostgresReachable(host = process.env.POSTGRES_HOST || "127.0.0.1", port = Number(process.env.POSTGRES_PORT || 5432), timeoutMs = 500) {
+export function postgresConnectionTarget(env = process.env) {
+  const urlString = env.TEST_DATABASE_URL;
+  if (urlString) {
+    try {
+      const normalized = urlString.replace(/^[a-zA-Z0-9+_.-]+:\/\//, "http://");
+      const parsed = new URL(normalized);
+      const host = parsed.hostname || "127.0.0.1";
+      const port = parsed.port ? Number(parsed.port) : 5432;
+      return { host, port };
+    } catch {
+      // fallback to environment variables
+    }
+  }
+  const host = env.POSTGRES_HOST || "127.0.0.1";
+  const port = Number(env.POSTGRES_PORT || 5432);
+  return { host, port };
+}
+
+export function checkPostgresReachable(hostOrTarget = postgresConnectionTarget(), portOrTimeout = 5432, maybeTimeout = 500) {
+  let host = "127.0.0.1";
+  let port = 5432;
+  let timeoutMs = 500;
+  if (typeof hostOrTarget === "object" && hostOrTarget !== null) {
+    host = hostOrTarget.host || "127.0.0.1";
+    port = Number(hostOrTarget.port || 5432);
+    timeoutMs = typeof portOrTimeout === "number" ? portOrTimeout : 500;
+  } else {
+    host = hostOrTarget || "127.0.0.1";
+    port = Number(portOrTimeout || 5432);
+    timeoutMs = typeof maybeTimeout === "number" ? maybeTimeout : 500;
+  }
   return new Promise((resolve) => {
     const socket = createConnection({ host, port });
     let settled = false;
@@ -205,6 +231,12 @@ export function checkPostgresReachable(host = process.env.POSTGRES_HOST || "127.
   });
 }
 
+export function taskResource(task) {
+  if (task.resource) return task.resource;
+  if (task.layer === "postgres" || task.layer === "integration") return "postgres-db";
+  return null;
+}
+
 export function runPlan(plan, execute = spawnSync, reportPath = null, { concurrency = 1 } = {}) {
   let failed = false;
   const report = {
@@ -215,7 +247,10 @@ export function runPlan(plan, execute = spawnSync, reportPath = null, { concurre
     tasks: plan.map((task) => ({ ...task, status: "not_run", exitCode: null, durationMs: 0 })),
   };
   const save = () => {
-    if (reportPath) writeFileSync(reportPath, JSON.stringify(report, null, 2));
+    if (reportPath) {
+      mkdirSync(dirname(reportPath), { recursive: true });
+      writeFileSync(reportPath, JSON.stringify(report, null, 2));
+    }
   };
   save();
   const temporary = resolve(ROOT, "tmp/quality");
@@ -233,12 +268,16 @@ export function runPlan(plan, execute = spawnSync, reportPath = null, { concurre
     return (async () => {
       const completed = new Set();
       const inProgress = new Set();
+      const activeResources = new Set();
       const waiters = new Set();
 
       function getNextTaskIndex() {
         for (let i = 0; i < plan.length; i++) {
           if (completed.has(i) || inProgress.has(i)) continue;
+          const resource = taskResource(plan[i]);
+          if (resource && activeResources.has(resource)) continue;
           inProgress.add(i);
+          if (resource) activeResources.add(resource);
           return i;
         }
         return -1;
@@ -260,30 +299,34 @@ export function runPlan(plan, execute = spawnSync, reportPath = null, { concurre
           const task = plan[index];
           let result;
           const started = Date.now();
-          if ((task.layer === "postgres" || task.layer === "integration") && (execute === executeAsync || execute === spawnSync)) {
-            const host = process.env.POSTGRES_HOST || "127.0.0.1";
-            const port = Number(process.env.POSTGRES_PORT || 5432);
-            const reachable = await checkPostgresReachable(host, port, 500);
-            if (!reachable) {
-              result = {
-                status: 1,
-                error: null,
-                stdout: "",
-                stderr: `PostgreSQL connection check failed: ${host}:${port} is not reachable.\nPlease start the database container with 'pnpm db:up'.`,
-              };
+          try {
+            if ((task.layer === "postgres" || task.layer === "integration") && (execute === executeAsync || execute === spawnSync)) {
+              const { host, port } = postgresConnectionTarget();
+              const reachable = await checkPostgresReachable({ host, port }, 500);
+              if (!reachable) {
+                result = {
+                  status: 1,
+                  error: null,
+                  stdout: "",
+                  stderr: `PostgreSQL connection check failed: ${host}:${port} is not reachable.\nPlease start the database container with 'pnpm db:up'.`,
+                };
+              }
             }
+            if (!result) {
+              const invocation = invocationFor(task);
+              result = await execute(invocation.command, invocation.args, {
+                ...execOptions,
+                shell: invocation.shell,
+              });
+            }
+            if (recordTaskResult(report, index, task, result, started, save)) failed = true;
+          } finally {
+            inProgress.delete(index);
+            const resource = taskResource(task);
+            if (resource) activeResources.delete(resource);
+            completed.add(index);
+            notifyWaiters();
           }
-          if (!result) {
-            const invocation = invocationFor(task);
-            result = await execute(invocation.command, invocation.args, {
-              ...execOptions,
-              shell: invocation.shell,
-            });
-          }
-          if (recordTaskResult(report, index, task, result, started, save)) failed = true;
-          inProgress.delete(index);
-          completed.add(index);
-          notifyWaiters();
         }
       }
       const workers = Array.from(

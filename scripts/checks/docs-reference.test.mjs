@@ -31,7 +31,7 @@ function localMarkdownTargets(file) {
     }));
 }
 
-test("active work guides use current documentation without broken local links", () => {
+test("作業ガイド検証_作業用ガイド文書内のローカルリンク切れが存在しない", () => {
   const missing = GUIDES.flatMap(localMarkdownTargets)
     .filter(({ target, absolute }) => {
       if (!target) return false;

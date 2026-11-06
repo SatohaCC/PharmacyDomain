@@ -1,3 +1,8 @@
+"""品質ゲートおよび修復状態管理の単体テスト。"""
+
+from __future__ import annotations
+
+import hashlib
 import json
 import subprocess
 import sys
@@ -6,12 +11,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from scripts.hooks.format_edited_python import edited_files
-from scripts.hooks.quality_feedback import repair_state, report_feedback
-from scripts.hooks.quality_gate import changed_paths, fingerprint, stop_decision
+from tools.hooks.format_edited_python import edited_files
+from tools.hooks.quality_feedback import repair_state, report_feedback
+from tools.hooks.quality_gate import changed_paths, fingerprint, stop_decision
 
 
-def test_repair_state_distinguishes_progress_unknown_failures_and_success():
+def test_修復状態_進捗と未知の失敗および成功を区別する() -> None:
     state = repair_state(None, 1, "A+B")
     state = repair_state(state, 1, "A")
     assert state["repeated_failures"] == 1
@@ -27,17 +32,26 @@ def test_repair_state_distinguishes_progress_unknown_failures_and_success():
     assert report_feedback({"tasks": [{"status": "failed"}]})[0] is None
 
 
-def test_same_diagnostic_stops_repair_even_when_source_changes(
-    tmp_path, monkeypatch, stop_context
-):
-    from scripts.hooks import quality_gate as gate
+@pytest.fixture
+def stop_context(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    from tools.hooks import quality_gate as gate
+
+    context = ["head-and-settings-v1"]
+    monkeypatch.setattr(gate, "validation_context", lambda root: context[0])
+    return context
+
+
+def test_修復状態_同一診断結果の場合はソース変更があっても修復を停止する(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stop_context: list[str]
+) -> None:
+    from tools.hooks import quality_gate as gate
 
     source = tmp_path / "changed.py"
     monkeypatch.setattr(gate, "ROOT", tmp_path)
     monkeypatch.setattr(gate, "changed_paths", lambda root: ["changed.py"])
-    calls = []
+    calls: list[object] = []
 
-    def execute(command, **kwargs):
+    def execute(command: list[str], **kwargs: object) -> SimpleNamespace:
         calls.append(command)
         report_path = command[command.index("--report") + 1]
         Path(report_path).write_text(
@@ -50,7 +64,7 @@ def test_same_diagnostic_stops_repair_even_when_source_changes(
                             "feedback": {
                                 "identity": "same-failing-test-and-error",
                                 "diagnostics": ["test_access"],
-                                "suggestion": "Fix the authorization branch",
+                                "suggestion": "認可分岐を修正してください",
                                 "docs": "docs/development.md",
                             },
                         }
@@ -61,8 +75,8 @@ def test_same_diagnostic_stops_repair_even_when_source_changes(
         )
         return SimpleNamespace(returncode=1)
 
-    monkeypatch.setattr(gate.subprocess, "run", execute)
-    event = {
+    monkeypatch.setattr(subprocess, "run", execute)
+    event: dict[str, object] = {
         "hook_event_name": "Stop",
         "turn_id": "repair-task",
         "stop_hook_active": True,
@@ -72,11 +86,11 @@ def test_same_diagnostic_stops_repair_even_when_source_changes(
         decision = gate.main(event)
         if attempt < 2:
             assert decision["decision"] == "block"
-            assert "Fix the authorization branch" in decision["reason"]
+            assert "認可分岐を修正してください" in str(decision["reason"])
         else:
             assert "decision" not in decision
-            assert "stagnated" in decision["systemMessage"]
-            assert "do not claim success" in decision["systemMessage"]
+            assert "stagnated" in str(decision["systemMessage"])
+            assert "成功を主張" in str(decision["systemMessage"])
     assert gate.main(event)["systemMessage"]
     assert len(calls) == 3
     receipt = next(
@@ -89,21 +103,21 @@ def test_same_diagnostic_stops_repair_even_when_source_changes(
     assert state["repeated_failures"] == 3
 
 
-def test_default_task_spec_changes_invalidate_stop_success(
-    tmp_path, monkeypatch, stop_context
-):
-    from scripts.hooks import quality_gate as gate
+def test_タスク仕様変更時_Stopの成功レシートを無効化する(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stop_context: list[str]
+) -> None:
+    from tools.hooks import quality_gate as gate
 
     monkeypatch.setattr(gate, "ROOT", tmp_path)
     monkeypatch.setattr(gate, "changed_paths", lambda root: [])
-    calls = []
+    calls: list[object] = []
 
-    def execute(*args, **kwargs):
+    def execute(*args: object, **kwargs: object) -> SimpleNamespace:
         calls.append(args)
         return SimpleNamespace(returncode=0)
 
-    monkeypatch.setattr(gate.subprocess, "run", execute)
-    event = {"hook_event_name": "Stop"}
+    monkeypatch.setattr(subprocess, "run", execute)
+    event: dict[str, object] = {"hook_event_name": "Stop"}
     assert gate.main(event) == {}
     spec = tmp_path / "tmp/quality/task.json"
     spec.parent.mkdir(parents=True)
@@ -112,35 +126,29 @@ def test_default_task_spec_changes_invalidate_stop_success(
     assert len(calls) == 2
 
 
-@pytest.fixture
-def stop_context(monkeypatch):
-    from scripts.hooks import quality_gate as gate
-
-    context = ["head-and-settings-v1"]
-    monkeypatch.setattr(gate, "validation_context", lambda root: context[0])
-    return context
-
-
 @pytest.mark.parametrize("status", ["timeout", "start_error"])
-def test_runner_infrastructure_failure_is_recorded(
-    tmp_path, monkeypatch, stop_context, status
-):
-    from scripts.hooks import quality_gate as gate
+def test_ランナーインフラ障害時_レシートに失敗状態が記録される(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    stop_context: list[str],
+    status: str,
+) -> None:
+    from tools.hooks import quality_gate as gate
 
     monkeypatch.setattr(gate, "ROOT", tmp_path)
     monkeypatch.setattr(gate, "changed_paths", lambda root: [])
 
     directory = tmp_path / ".agents/work/.hooks"
     directory.mkdir(parents=True)
-    key = gate.hashlib.sha256(b"current").hexdigest()[:24]
+    key = hashlib.sha256(b"current").hexdigest()[:24]
     (directory / f"{key}.report.json").write_text('{"status": "passed"}')
 
-    def execute(*args, **kwargs):
+    def execute(*args: object, **kwargs: object) -> SimpleNamespace:
         if status == "timeout":
             raise subprocess.TimeoutExpired("node", 540)
         raise FileNotFoundError("node unavailable")
 
-    monkeypatch.setattr(gate.subprocess, "run", execute)
+    monkeypatch.setattr(subprocess, "run", execute)
     assert gate.main({"hook_event_name": "Stop"})["decision"] == "block"
     receipt = json.loads(
         next((tmp_path / ".agents/work/.hooks").glob("*.json")).read_text()
@@ -151,17 +159,19 @@ def test_runner_infrastructure_failure_is_recorded(
     assert (tmp_path / ".agents/work/.hooks" / receipt["log"]).is_file()
 
 
-def test_failed_check_continues_once_but_never_claims_success():
+def test_検査失敗時_一度だけ継続を許可するが成功は主張しない() -> None:
     assert stop_decision({}, "a", None, 1)["decision"] == "block"
-    previous = {"signature": "a", "result": 1}
+    previous: dict[str, object] = {"signature": "a", "result": 1}
     decision = stop_decision({"stop_hook_active": True}, "a", previous, None)
     assert "decision" not in decision
-    assert "still fail" in decision["systemMessage"]
+    assert "依然として失敗" in str(decision["systemMessage"])
     assert stop_decision({}, "b", previous, 1)["decision"] == "block"
     assert stop_decision({}, "a", {"signature": "a", "result": 0}, None) == {}
 
 
-def test_fingerprint_invalidates_changed_and_deleted_contents(tmp_path):
+def test_フィンガープリント_変更および削除されたファイル内容を正しく検知する(
+    tmp_path: Path,
+) -> None:
     file = tmp_path / "a.py"
     file.write_text("one", encoding="utf-8")
     first = fingerprint(tmp_path, ["a.py"])
@@ -171,13 +181,15 @@ def test_fingerprint_invalidates_changed_and_deleted_contents(tmp_path):
     assert len({first, second, fingerprint(tmp_path, ["a.py"])}) == 3
 
 
-def test_validation_context_tracks_head_and_clean_configuration(tmp_path):
-    from scripts.hooks.quality_gate import validation_context
+def test_検証コンテキスト_HEADとクリーンな設定ファイルを追跡する(
+    tmp_path: Path,
+) -> None:
+    from tools.hooks.quality_gate import validation_context
 
-    def git(*args):
+    def git(*args: str) -> None:
         subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
 
-    def commit():
+    def commit() -> None:
         git("add", ".")
         git(
             "-c",
@@ -205,24 +217,26 @@ def test_validation_context_tracks_head_and_clean_configuration(tmp_path):
     assert validation_context(tmp_path) != original
 
 
-def test_configuration_changes_during_validation_block_success(
-    tmp_path, monkeypatch, stop_context
-):
-    from scripts.hooks import quality_gate as gate
+def test_検証中の設定変更時_成功をブロックする(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stop_context: list[str]
+) -> None:
+    from tools.hooks import quality_gate as gate
 
     monkeypatch.setattr(gate, "ROOT", tmp_path)
     monkeypatch.setattr(gate, "changed_paths", lambda root: [])
 
-    def execute(*args, **kwargs):
+    def execute(*args: object, **kwargs: object) -> SimpleNamespace:
         stop_context[0] = "changed-configuration"
         return SimpleNamespace(returncode=0)
 
-    monkeypatch.setattr(gate.subprocess, "run", execute)
+    monkeypatch.setattr(subprocess, "run", execute)
     assert gate.main({"hook_event_name": "Stop"})["decision"] == "block"
 
 
-def test_changed_paths_include_staged_unstaged_deleted_and_untracked(tmp_path):
-    def git(*args):
+def test_変更パス取得_ステージ_未ステージ_削除_未追跡ファイルをすべて含む(
+    tmp_path: Path,
+) -> None:
+    def git(*args: str) -> None:
         subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
 
     git("init")
@@ -252,10 +266,10 @@ def test_changed_paths_include_staged_unstaged_deleted_and_untracked(tmp_path):
     ]
 
 
-def test_patch_string_and_structured_payloads_are_understood():
-    from scripts.hooks.format_edited_python import ROOT
+def test_パッチ文字列および構造化入力_編集ファイルパスを正しく解釈する() -> None:
+    from tools.hooks.format_edited_python import ROOT
 
-    file = ROOT / "scripts/hooks/quality_gate.py"
+    file = ROOT / "backend/tools/hooks/quality_gate.py"
     patch = f"*** Update File: {file.as_posix()}\n"
     for payload in (patch, {"command": patch}, {"patch": patch}):
         assert edited_files({"tool_name": "apply_patch", "tool_input": payload}) == [
@@ -269,27 +283,28 @@ def test_patch_string_and_structured_payloads_are_understood():
     )
 
 
-def test_stop_runs_checks_and_reuses_only_current_success(
-    tmp_path, monkeypatch, stop_context
-):
-    from scripts.hooks import quality_gate as gate
+def test_Stop判定_検査を実行し現在の成功結果のみを再利用する(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stop_context: list[str]
+) -> None:
+    from tools.hooks import quality_gate as gate
 
     source = tmp_path / "changed.py"
     source.write_text("before", encoding="utf-8")
     monkeypatch.setattr(gate, "ROOT", tmp_path)
     monkeypatch.setattr(gate, "changed_paths", lambda root: ["changed.py"])
-    calls = []
+    calls: list[object] = []
 
-    def execute(*args, **kwargs):
+    def execute(*args: object, **kwargs: object) -> SimpleNamespace:
         calls.append(args)
         return SimpleNamespace(returncode=0)
 
-    monkeypatch.setattr(gate.subprocess, "run", execute)
-    event = {"hook_event_name": "Stop", "turn_id": "test-turn"}
+    monkeypatch.setattr(subprocess, "run", execute)
+    event: dict[str, object] = {"hook_event_name": "Stop", "turn_id": "test-turn"}
     assert gate.main(event) == {}
     assert gate.main(event) == {}
     assert len(calls) == 1
-    assert "--require-spec" in calls[0][0]
+    call_args = calls[0]
+    assert isinstance(call_args, tuple) and "--require-spec" in call_args[0]
     source.write_text("after", encoding="utf-8")
     assert gate.main(event) == {}
     assert len(calls) == 2
@@ -302,59 +317,61 @@ def test_stop_runs_checks_and_reuses_only_current_success(
     assert len(calls) == 4
 
 
-def test_checks_cannot_certify_files_changed_during_validation(
-    tmp_path, monkeypatch, stop_context
-):
-    from scripts.hooks import quality_gate as gate
+def test_検査実行中のファイル変更_成功レシートの発行を拒否する(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stop_context: list[str]
+) -> None:
+    from tools.hooks import quality_gate as gate
 
     source = tmp_path / "changed.py"
     source.write_text("before", encoding="utf-8")
     monkeypatch.setattr(gate, "ROOT", tmp_path)
     monkeypatch.setattr(gate, "changed_paths", lambda root: ["changed.py"])
 
-    def execute(*args, **kwargs):
+    def execute(*args: object, **kwargs: object) -> SimpleNamespace:
         source.write_text("changed during checks", encoding="utf-8")
         return SimpleNamespace(returncode=0)
 
-    monkeypatch.setattr(gate.subprocess, "run", execute)
+    monkeypatch.setattr(subprocess, "run", execute)
     assert (
         gate.main({"hook_event_name": "Stop", "turn_id": "test-turn"})["decision"]
         == "block"
     )
 
 
-def test_post_edit_formats_before_quick_checks(tmp_path, monkeypatch):
-    from scripts.hooks import quality_gate as gate
+def test_ファイル編集後_クイック検査の前に自動フォーマットを実行する(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tools.hooks import quality_gate as gate
 
-    order = []
+    order: list[str] = []
     monkeypatch.setattr(gate, "ROOT", tmp_path)
     monkeypatch.setattr(
         gate, "edited_paths", lambda event: [gate.ROOT / "backend/app/main.py"]
     )
 
-    def format_event(event):
+    def format_event(event: dict[str, object]) -> int:
         order.append("format")
         return 0
 
     monkeypatch.setattr(gate, "format_python", format_event)
+    calls: list[object] = []
 
-    calls = []
-
-    def execute(*args, **kwargs):
+    def execute(*args: object, **kwargs: object) -> SimpleNamespace:
         order.append("check")
         calls.append(args)
         return SimpleNamespace(returncode=0)
 
-    monkeypatch.setattr(gate.subprocess, "run", execute)
+    monkeypatch.setattr(subprocess, "run", execute)
     assert gate.main({"hook_event_name": "PostToolUse"}) == {}
     assert order == ["format", "check"]
-    assert "--require-spec" in calls[0][0]
+    call_args = calls[0]
+    assert isinstance(call_args, tuple) and "--require-spec" in call_args[0]
 
 
-def test_post_edit_returns_type_failure_and_stop_blocks(
-    tmp_path, monkeypatch, stop_context
-):
-    from scripts.hooks import quality_gate as gate
+def test_ファイル編集後_型エラー発生時はStopをブロックする(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stop_context: list[str]
+) -> None:
+    from tools.hooks import quality_gate as gate
 
     source = tmp_path / "backend/app/main.py"
     source.parent.mkdir(parents=True)
@@ -364,21 +381,25 @@ def test_post_edit_returns_type_failure_and_stop_blocks(
     monkeypatch.setattr(gate, "format_python", lambda event: 0)
     monkeypatch.setattr(gate, "changed_paths", lambda root: ["backend/app/main.py"])
 
-    def execute(*args, **kwargs):
+    def execute(*args: object, **kwargs: object) -> SimpleNamespace:
         return SimpleNamespace(
             returncode=1,
             stdout=b'main.py:1: error: Argument "database_schema" has incompatible type "str | None"; expected "str" [arg-type]',
             stderr=b"",
         )
 
-    monkeypatch.setattr(gate.subprocess, "run", execute)
+    monkeypatch.setattr(subprocess, "run", execute)
     result = gate.main({"hook_event_name": "PostToolUse"})
-    assert "[arg-type]" in result["hookSpecificOutput"]["additionalContext"]
+    raw_output = result.get("hookSpecificOutput")
+    assert isinstance(raw_output, dict)
+    assert "[arg-type]" in str(raw_output.get("additionalContext"))
     assert gate.main({"hook_event_name": "Stop"})["decision"] == "block"
 
 
-def test_post_edit_warns_once_after_five_edits(tmp_path, monkeypatch):
-    from scripts.hooks import quality_gate as gate
+def test_ファイル編集後_同一ファイル5回編集時に一度だけ警告する(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tools.hooks import quality_gate as gate
 
     source = tmp_path / "backend/app/main.py"
     source.parent.mkdir(parents=True)
@@ -387,26 +408,31 @@ def test_post_edit_warns_once_after_five_edits(tmp_path, monkeypatch):
     monkeypatch.setattr(gate, "edited_paths", lambda event: [source])
     monkeypatch.setattr(gate, "format_python", lambda event: 0)
     monkeypatch.setattr(
-        gate.subprocess,
+        subprocess,
         "run",
         lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout=b"", stderr=b""),
     )
-    event = {"hook_event_name": "PostToolUse", "turn_id": "edit-loop-turn"}
+    event: dict[str, object] = {
+        "hook_event_name": "PostToolUse",
+        "turn_id": "edit-loop-turn",
+    }
 
     results = [gate.main(event) for _ in range(6)]
 
     assert all("decision" not in result for result in results)
-    warning = results[4]["hookSpecificOutput"]["additionalContext"]
+    raw_output = results[4].get("hookSpecificOutput")
+    assert isinstance(raw_output, dict)
+    warning = str(raw_output.get("additionalContext"))
     assert "backend/app/main.py" in warning
-    assert "5 edits" in warning
-    assert "reconsider" in warning.lower()
+    assert "5回" in warning
+    assert "見直" in warning
     assert results[5] == {}
 
 
-def test_post_edit_counts_unique_paths_per_turn_and_keeps_state_private(
-    tmp_path, monkeypatch
-):
-    from scripts.hooks import quality_gate as gate
+def test_ファイル編集後_ターンごとにファイル別カウントを追跡し秘密情報を漏洩しない(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tools.hooks import quality_gate as gate
 
     first = tmp_path / "backend/app/main.py"
     second = tmp_path / "scripts/checks/quality.mjs"
@@ -418,19 +444,27 @@ def test_post_edit_counts_unique_paths_per_turn_and_keeps_state_private(
     monkeypatch.setattr(gate, "edited_paths", lambda event: [first, first, second])
     monkeypatch.setattr(gate, "format_python", lambda event: 0)
     monkeypatch.setattr(
-        gate.subprocess,
+        subprocess,
         "run",
         lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout=b"", stderr=b""),
     )
 
-    first_turn = {"hook_event_name": "PostToolUse", "turn_id": "first-turn"}
-    second_turn = {"hook_event_name": "PostToolUse", "turn_id": "second-turn"}
+    first_turn: dict[str, object] = {
+        "hook_event_name": "PostToolUse",
+        "turn_id": "first-turn",
+    }
+    second_turn: dict[str, object] = {
+        "hook_event_name": "PostToolUse",
+        "turn_id": "second-turn",
+    }
     first_turn_results = [gate.main(first_turn) for _ in range(4)]
     second_turn_results = [gate.main(second_turn) for _ in range(5)]
 
     assert first_turn_results == [{}] * 4
     assert second_turn_results[:4] == [{}] * 4
-    warning = second_turn_results[4]["hookSpecificOutput"]["additionalContext"]
+    raw_output = second_turn_results[4].get("hookSpecificOutput")
+    assert isinstance(raw_output, dict)
+    warning = str(raw_output.get("additionalContext"))
     assert "backend/app/main.py" in warning
     assert "scripts/checks/quality.mjs" in warning
 
@@ -455,10 +489,10 @@ def test_post_edit_counts_unique_paths_per_turn_and_keeps_state_private(
     assert "private source contents" not in serialized
 
 
-def test_edit_counts_survive_blocked_stop_and_clear_after_allowed_stop(
-    tmp_path, monkeypatch, stop_context
-):
-    from scripts.hooks import quality_gate as gate
+def test_編集カウント_ブロックされたStopを生き残り許可されたStop後にクリアされる(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stop_context: list[str]
+) -> None:
+    from tools.hooks import quality_gate as gate
 
     source = tmp_path / "backend/app/main.py"
     source.parent.mkdir(parents=True)
@@ -469,14 +503,20 @@ def test_edit_counts_survive_blocked_stop_and_clear_after_allowed_stop(
     monkeypatch.setattr(gate, "changed_paths", lambda root: [])
     stop_state = {"running": False, "exit_code": 1}
 
-    def execute(*args, **kwargs):
+    def execute(*args: object, **kwargs: object) -> SimpleNamespace:
         if stop_state["running"]:
             return SimpleNamespace(returncode=stop_state["exit_code"])
         return SimpleNamespace(returncode=0, stdout=b"", stderr=b"")
 
-    monkeypatch.setattr(gate.subprocess, "run", execute)
-    edit_event = {"hook_event_name": "PostToolUse", "turn_id": "stop-lifetime"}
-    stop_event = {"hook_event_name": "Stop", "turn_id": "stop-lifetime"}
+    monkeypatch.setattr(subprocess, "run", execute)
+    edit_event: dict[str, object] = {
+        "hook_event_name": "PostToolUse",
+        "turn_id": "stop-lifetime",
+    }
+    stop_event: dict[str, object] = {
+        "hook_event_name": "Stop",
+        "turn_id": "stop-lifetime",
+    }
 
     for _ in range(4):
         assert gate.main(edit_event) == {}
@@ -486,8 +526,10 @@ def test_edit_counts_survive_blocked_stop_and_clear_after_allowed_stop(
     assert gate.main(stop_event)["decision"] == "block"
     assert state_path.is_file()
     stop_state["running"] = False
-    warning = gate.main(edit_event)["hookSpecificOutput"]["additionalContext"]
-    assert "5 edits" in warning
+    raw_output = gate.main(edit_event).get("hookSpecificOutput")
+    assert isinstance(raw_output, dict)
+    warning = str(raw_output.get("additionalContext"))
+    assert "5回" in warning
 
     stop_state["running"] = True
     stop_state["exit_code"] = 0
@@ -495,8 +537,8 @@ def test_edit_counts_survive_blocked_stop_and_clear_after_allowed_stop(
     assert not state_path.exists()
 
 
-def test_project_mypy_detects_optional_schema_argument(tmp_path):
-    root = Path(__file__).resolve().parents[2]
+def test_mypy設定_Optional引数の型不整合を検出できる(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[4]
     source = tmp_path / "schema_probe.py"
     source.write_text(
         "def create_app_lifespan(*, database_schema: str) -> None:\n"

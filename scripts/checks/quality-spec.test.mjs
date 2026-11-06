@@ -16,7 +16,7 @@ function fixture(run) {
   try { run(root, spec, check); } finally { rmSync(root, { recursive: true, force: true }); }
 }
 
-test("acceptance criteria select tests even without matching changed paths and preserve reasons", () => fixture((root, spec) => {
+test("受入基準_変更パスに一致しない場合でもテストを選択し理由を保持する", () => fixture((root, spec) => {
   spec.requirements.push({ ...spec.requirements[0], id: "R2", acceptance: "fail closed" });
   const plan = specificationPlan(spec, root);
   assert.deepEqual(plan.scopes, ["backend"]);
@@ -26,7 +26,7 @@ test("acceptance criteria select tests even without matching changed paths and p
   assert.ok(plan.tasks[0].args.includes("backend/tests/test_contract.py::test_contract"));
 }));
 
-test("missing requirements, unknown commands, unsafe paths and nonexistent tests fail closed", () => fixture((root, spec, check) => {
+test("仕様検証_要件不足・未知コマンド・安全でないパス・存在しないテスト指定時に安全に失敗する", () => fixture((root, spec, check) => {
   for (const mutation of [
     () => ({ ...spec, requirements: [] }),
     () => ({ ...spec, command: "anything" }),
@@ -38,7 +38,7 @@ test("missing requirements, unknown commands, unsafe paths and nonexistent tests
   assert.throws(() => loadSpecification(root, undefined, "full", true), /quality specification is required/);
 }));
 
-test("integration layers require an explicit specification and use only registered commands", () => fixture((root, spec) => {
+test("結合テスト層_明示的な仕様を要求し登録済みコマンドのみを使用する", () => fixture((root, spec) => {
   spec.requirements[0].checks = [
     { kind: "suite", name: "postgres" },
     { kind: "suite", name: "browser" },
@@ -55,7 +55,20 @@ test("integration layers require an explicit specification and use only register
   assert.throws(() => specificationPlan(spec, root));
 }));
 
-test("feedback retains stable failure identity across line shifts and distinguishes different failing tests", () => {
+test("テストセレクタ_日本語のテスト関数名を正しく許可する", () => fixture((root, spec) => {
+  spec.requirements[0].checks = [
+    {
+      kind: "python",
+      path: "backend/tests/test_contract.py",
+      test: "test_プライバシーゲート_プレースホルダやバイナリファイルの場合_指摘対象としない",
+    },
+  ];
+  const plan = specificationPlan(spec, root);
+  assert.equal(plan.tasks.length, 1);
+  assert.ok(plan.tasks[0].args.includes("backend/tests/test_contract.py::test_プライバシーゲート_プレースホルダやバイナリファイルの場合_指摘対象としない"));
+}));
+
+test("失敗フィードバック_行番号変化時も安定した障害識別子を維持し異なるテスト失敗を区別する", () => {
   const task = { label: "Acceptance contract", requirements: ["R1"] };
   const a = failureFeedback(task, "failed", "FAILED backend/tests/test_contract.py::test_access - AssertionError\n1 failed in 1.2s");
   const b = failureFeedback(task, "failed", "FAILED backend/tests/test_contract.py::test_access - AssertionError\n\n1 failed in 2.5s");
@@ -66,7 +79,7 @@ test("feedback retains stable failure identity across line shifts and distinguis
   assert.deepEqual(a.requirements, ["R1"]);
 });
 
-test("feedback provides domain, application and postgres specific guidance", () => {
+test("失敗フィードバック_Domain・Application・PostgreSQLに応じた専用ガイダンスを提供する", () => {
   const domainTask = { label: "Tooling architecture", requirements: ["D1"] };
   const domFeedback = failureFeedback(domainTask, "failed", "backend/app/domain/service.py:10: DOM001 Domain internal package is forbidden");
   assert.equal(domFeedback.docs, ".agents/rules/domain.md");

@@ -1,3 +1,5 @@
+"""Antigravityライフサイクルアダプタの単体テスト。"""
+
 from __future__ import annotations
 
 import json
@@ -6,23 +8,27 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.hooks import antigravity_adapter as adapter
+import pytest
 
-ROOT = Path(__file__).resolve().parents[2]
+from tools.hooks import antigravity_adapter as adapter
+
+ROOT = Path(__file__).resolve().parents[4]
 
 
-def test_quality_post_tool_translates_edit_file(monkeypatch):
-    captured_events = []
+def test_アダプタ_edit_file呼び出し時_Editツール形式のPostToolUseイベントへ変換する(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_events: list[dict[str, object]] = []
 
-    def mock_quality_main(event):
+    def mock_quality_main(event: dict[str, object]) -> dict[str, object]:
         captured_events.append(event)
         return {}
 
-    from scripts.hooks import quality_gate
+    from tools.hooks import quality_gate
 
     monkeypatch.setattr(quality_gate, "main", mock_quality_main)
 
-    payload = {
+    payload: dict[str, object] = {
         "toolCall": {
             "name": "edit_file",
             "args": {"Path": "backend/test.py", "Target": "a", "Replacement": "b"},
@@ -37,24 +43,26 @@ def test_quality_post_tool_translates_edit_file(monkeypatch):
     event = captured_events[0]
     assert event["hook_event_name"] == "PostToolUse"
     assert event["tool_name"] == "Edit"
-    assert event["tool_input"]["file_path"] == "backend/test.py"
+    raw_input = event.get("tool_input")
+    assert isinstance(raw_input, dict)
+    assert raw_input.get("file_path") == "backend/test.py"
     assert event["turn_id"] == "conv-123"
 
 
-def test_quality_post_tool_translates_replace_file_content_and_target_file(
-    monkeypatch,
-):
-    captured_events = []
+def test_アダプタ_replace_file_content呼び出し時_Editツール形式のPostToolUseイベントへ変換する(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_events: list[dict[str, object]] = []
 
-    def mock_quality_main(event):
+    def mock_quality_main(event: dict[str, object]) -> dict[str, object]:
         captured_events.append(event)
         return {}
 
-    from scripts.hooks import quality_gate
+    from tools.hooks import quality_gate
 
     monkeypatch.setattr(quality_gate, "main", mock_quality_main)
 
-    payload = {
+    payload: dict[str, object] = {
         "toolCall": {
             "name": "replace_file_content",
             "args": {
@@ -72,24 +80,28 @@ def test_quality_post_tool_translates_replace_file_content_and_target_file(
     assert len(captured_events) == 1
     event = captured_events[0]
     assert event["tool_name"] == "Edit"
-    assert event["tool_input"]["file_path"] == "backend/app.py"
+    raw_input = event.get("tool_input")
+    assert isinstance(raw_input, dict)
+    assert raw_input.get("file_path") == "backend/app.py"
 
 
-def test_quality_post_tool_translates_write_to_file(monkeypatch):
-    captured_events = []
+def test_アダプタ_write_to_file呼び出し時_Writeツール形式のPostToolUseイベントへ変換する(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_events: list[dict[str, object]] = []
 
-    def mock_quality_main(event):
+    def mock_quality_main(event: dict[str, object]) -> dict[str, object]:
         captured_events.append(event)
         return {}
 
-    from scripts.hooks import quality_gate
+    from tools.hooks import quality_gate
 
     monkeypatch.setattr(quality_gate, "main", mock_quality_main)
 
-    payload = {
+    payload: dict[str, object] = {
         "toolCall": {
             "name": "write_to_file",
-            "args": {"TargetFile": "scripts/sample.py", "Content": "# test"},
+            "args": {"TargetFile": "backend/sample.py", "Content": "# test"},
         },
         "stepIdx": 1,
     }
@@ -98,23 +110,24 @@ def test_quality_post_tool_translates_write_to_file(monkeypatch):
     assert result == {}
     assert len(captured_events) == 1
     assert captured_events[0]["tool_name"] == "Write"
-    assert captured_events[0]["tool_input"]["file_path"] == "scripts/sample.py"
+    raw_input = captured_events[0].get("tool_input")
+    assert isinstance(raw_input, dict)
+    assert raw_input.get("file_path") == "backend/sample.py"
     assert captured_events[0]["turn_id"] == "current"
 
 
-def test_quality_post_tool_feedback_is_delivered_once_on_pre_invocation(
-    tmp_path, monkeypatch
-):
-    from scripts.hooks import quality_gate
+def test_アダプタ_PreInvocation受信時_未配信の品質フィードバックを一度だけ注入する(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tools.hooks import quality_gate
 
     monkeypatch.setattr(adapter, "ROOT", tmp_path)
     feedback = iter(("Fix the type error.", "Preserve the edit-loop warning."))
 
-    monkeypatch.setattr(
-        quality_gate,
-        "main",
-        lambda event: {"hookSpecificOutput": {"additionalContext": next(feedback)}},
-    )
+    def mock_gate(event: dict[str, object]) -> dict[str, object]:
+        return {"hookSpecificOutput": {"additionalContext": next(feedback)}}
+
+    monkeypatch.setattr(quality_gate, "main", mock_gate)
 
     for step_idx in (11, 12):
         result = adapter.handle_quality_post_tool(
@@ -133,7 +146,7 @@ def test_quality_post_tool_feedback_is_delivered_once_on_pre_invocation(
         "injectSteps": [
             {
                 "ephemeralMessage": (
-                    "Quality gate feedback from the previous edit:\n"
+                    "前回の編集に対する品質ゲートフィードバック:\n"
                     "Fix the type error.\n\nPreserve the edit-loop warning."
                 )
             }
@@ -153,10 +166,12 @@ def test_quality_post_tool_feedback_is_delivered_once_on_pre_invocation(
     )
 
 
-def test_registered_hook_commands_resolve_from_workspace_root():
+def test_アダプタ_登録済みフックコマンド_ワークスペースルートから解決可能である() -> (
+    None
+):
     hooks_path = ROOT / ".agents/hooks.json"
     data = json.loads(hooks_path.read_text(encoding="utf-8"))
-    commands = [
+    commands: list[str] = [
         hook["command"]
         for group in data.values()
         for handlers in group.values()
@@ -172,22 +187,24 @@ def test_registered_hook_commands_resolve_from_workspace_root():
         adapter_path = Path(tokens[tokens.index("python") + 1])
         assert (ROOT / project_path).resolve() == (ROOT / "backend").resolve()
         assert (ROOT / adapter_path).resolve() == (
-            ROOT / "scripts/hooks/antigravity_adapter.py"
+            ROOT / "backend/tools/hooks/antigravity_adapter.py"
         ).resolve()
 
 
-def test_privacy_post_tool_handles_run_command(monkeypatch):
-    captured_events = []
+def test_アダプタ_run_command呼び出し時_プライバシー検査を呼び出す(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_events: list[dict[str, object]] = []
 
-    def mock_privacy_main(event):
+    def mock_privacy_main(event: dict[str, object]) -> dict[str, object]:
         captured_events.append(event)
         return {}
 
-    from scripts.hooks import privacy_gate
+    from tools.hooks import privacy_gate
 
     monkeypatch.setattr(privacy_gate, "main", mock_privacy_main)
 
-    payload = {
+    payload: dict[str, object] = {
         "toolCall": {
             "name": "run_command",
             "args": {"CommandLine": "git status"},
@@ -204,26 +221,24 @@ def test_privacy_post_tool_handles_run_command(monkeypatch):
     assert captured_events[0]["turn_id"] == "turn-bash"
 
 
-def test_privacy_stop_blocks_first_time_and_allows_stop_on_second_time(
-    tmp_path, monkeypatch, capsys
-):
-    from scripts.hooks import privacy_gate
+def test_アダプタ_プライバシー検査失敗時_初回は継続要求し2回目は停止を許可する(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from tools.hooks import privacy_gate
 
     monkeypatch.setattr(adapter, "ROOT", tmp_path)
 
-    def mock_privacy(event):
+    def mock_privacy(event: dict[str, object]) -> dict[str, object]:
         if event.get("stop_hook_active"):
-            return {
-                "systemMessage": "Privacy finding unresolved. Report findings; do not claim success."
-            }
+            return {"systemMessage": "プライバシー指摘が未解決です。報告してください。"}
         return {
             "decision": "block",
-            "reason": "Personal user path detected in sample.py:1",
+            "reason": "個人パスが検出されました: sample.py:1",
         }
 
     monkeypatch.setattr(privacy_gate, "main", mock_privacy)
 
-    payload = {
+    payload: dict[str, object] = {
         "executionNum": 1,
         "terminationReason": "NO_TOOL_CALL",
         "conversationId": "bounded-privacy-turn",
@@ -231,21 +246,23 @@ def test_privacy_stop_blocks_first_time_and_allows_stop_on_second_time(
 
     first_result = adapter.handle_privacy_stop(payload)
     assert first_result["decision"] == "continue"
-    assert "Personal user path detected" in first_result["reason"]
+    assert "個人パスが検出されました" in str(first_result["reason"])
 
     second_result = adapter.handle_privacy_stop(payload)
     assert second_result == {}
     captured = capsys.readouterr()
-    assert "[PRIVACY GATE WARNING] Privacy finding unresolved" in captured.err
+    assert "[プライバシーゲート警告] プライバシー指摘が未解決です" in captured.err
 
 
-def test_privacy_stop_allows_when_passing(tmp_path, monkeypatch):
-    from scripts.hooks import privacy_gate
+def test_アダプタ_プライバシー検査成功時_正常に停止を許可する(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tools.hooks import privacy_gate
 
     monkeypatch.setattr(adapter, "ROOT", tmp_path)
     monkeypatch.setattr(privacy_gate, "main", lambda event: {})
 
-    payload = {
+    payload: dict[str, object] = {
         "executionNum": 1,
         "terminationReason": "NO_TOOL_CALL",
         "conversationId": "turn-clean",
@@ -254,34 +271,38 @@ def test_privacy_stop_allows_when_passing(tmp_path, monkeypatch):
     assert result == {}
 
 
-def test_quality_stop_translates_quality_block_to_continue(monkeypatch):
-    from scripts.hooks import quality_gate
+def test_アダプタ_品質検査ブロック時_継続要求へ変換する(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.hooks import quality_gate
 
     monkeypatch.setattr(
         quality_gate,
         "main",
         lambda event: {
             "decision": "block",
-            "reason": "Quality checks failed: mypy error",
+            "reason": "品質検査に失敗しました: mypy error",
         },
     )
 
-    payload = {
+    payload: dict[str, object] = {
         "executionNum": 2,
         "terminationReason": "NO_TOOL_CALL",
         "conversationId": "turn-99",
     }
     result = adapter.handle_quality_stop(payload)
     assert result["decision"] == "continue"
-    assert "Quality checks failed: mypy error" in result["reason"]
+    assert "品質検査に失敗しました: mypy error" in str(result["reason"])
 
 
-def test_quality_stop_allows_stopping_when_passing(monkeypatch):
-    from scripts.hooks import quality_gate
+def test_アダプタ_品質検査成功時_正常に停止を許可する(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.hooks import quality_gate
 
     monkeypatch.setattr(quality_gate, "main", lambda event: {})
 
-    payload = {
+    payload: dict[str, object] = {
         "executionNum": 3,
         "terminationReason": "NO_TOOL_CALL",
         "conversationId": "turn-99",
@@ -290,27 +311,32 @@ def test_quality_stop_allows_stopping_when_passing(monkeypatch):
     assert result == {}
 
 
-def test_quality_stop_delivers_terminal_failure_warning(monkeypatch, capsys):
-    from scripts.hooks import quality_gate
+def test_アダプタ_停滞時_システム警告を出力する(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from tools.hooks import quality_gate
 
     monkeypatch.setattr(
         quality_gate,
         "main",
         lambda event: {
-            "systemMessage": "Quality repair stopped: stagnated. Unresolved failures remain."
+            "systemMessage": "品質修復を停止しました: stagnated。未解決の失敗が残っています。"
         },
     )
 
-    payload = {"executionNum": 4, "terminationReason": "NO_TOOL_CALL"}
+    payload: dict[str, object] = {
+        "executionNum": 4,
+        "terminationReason": "NO_TOOL_CALL",
+    }
     result = adapter.handle_quality_stop(payload)
     assert result == {}
     captured = capsys.readouterr()
-    assert "[QUALITY GATE WARNING] Quality repair stopped: stagnated" in captured.err
+    assert "[品質ゲート警告] 品質修復を停止しました: stagnated" in captured.err
 
 
-def test_registered_antigravity_hooks_json_matches_codex_coverage():
+def test_アダプタ_登録済みAntigravityフック_Codexと一致するカバレッジを持つ() -> None:
     hooks_path = ROOT / ".agents/hooks.json"
-    assert hooks_path.exists(), ".agents/hooks.json must exist"
+    assert hooks_path.exists(), ".agents/hooks.json が存在する必要があります"
     data = json.loads(hooks_path.read_text(encoding="utf-8"))
 
     assert "quality-gate" in data
@@ -341,7 +367,7 @@ def test_registered_antigravity_hooks_json_matches_codex_coverage():
     assert p_gate["Stop"][0]["timeout"] == 60
 
 
-def test_cli_launcher_granular_actions():
+def test_アダプタ_CLI起動時_サブコマンドを正しくディスパッチする() -> None:
     for action in (
         "quality-post-tool",
         "quality-pre-invocation",
@@ -350,7 +376,7 @@ def test_cli_launcher_granular_actions():
         result = subprocess.run(
             [
                 sys.executable,
-                str(ROOT / "scripts/hooks/antigravity_adapter.py"),
+                str(ROOT / "backend/tools/hooks/antigravity_adapter.py"),
                 action,
             ],
             cwd=ROOT,

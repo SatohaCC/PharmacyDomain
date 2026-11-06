@@ -4,9 +4,9 @@ import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, renameSync, rmSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { buildQualityPlan, changedPaths, checkPostgresReachable, invocationFor, planFor, requireSpecificationForScope, runPlan, scopesFor } from "./quality.mjs";
+import { buildQualityPlan, changedPaths, checkPostgresReachable, invocationFor, planFor, postgresConnectionTarget, requireSpecificationForScope, runPlan, scopesFor, taskResource } from "./quality.mjs";
 
-test("reports distinguish failure, timeout, launch error and unexecuted work", () => {
+test("レポート記録_失敗やタイムアウトや起動エラーおよび未実行タスクを区別して記録できる", () => {
   const folder = mkdtempSync(join(tmpdir(), "quality-report-"));
   try {
     const reportPath = join(folder, "report.json");
@@ -35,7 +35,7 @@ test("reports distinguish failure, timeout, launch error and unexecuted work", (
   }
 });
 
-test("quality runner preserves an explicitly selected uv cache", () => {
+test("品質ランナー_環境変数で明示指定されたuvキャッシュパスを維持する", () => {
   const previousCacheDirectory = process.env.UV_CACHE_DIR;
   const configuredCacheDirectory = join(tmpdir(), "shared-uv-cache");
   let receivedCacheDirectory;
@@ -52,7 +52,7 @@ test("quality runner preserves an explicitly selected uv cache", () => {
   assert.equal(receivedCacheDirectory, configuredCacheDirectory);
 });
 
-test("real Git changes retain both sides of renames and shared settings select all scopes", () => {
+test("変更ファイル検知_リネーム両端を保持し共有設定変更時は全スコープを選択する", () => {
   const folder = mkdtempSync(join(tmpdir(), "quality-git-"));
   const git = (...args) => execFileSync("git", args, { cwd: folder, stdio: "pipe" });
   try {
@@ -74,43 +74,43 @@ test("real Git changes retain both sides of renames and shared settings select a
   }
 });
 
-test("documentation changes do not start runtime checks", () => {
+test("スコープ判定_ドキュメントのみの変更時はランタイム検査を対象外とする", () => {
   assert.deepEqual(scopesFor(["docs/development.md", "AGENTS.md", "docs/README.md"]), []);
 });
 
-test("required acceptance specifications apply to code scopes but not documentation-only changes", () => {
+test("品質仕様要求_コード変更スコープには適用しドキュメント変更のみの場合は要求しない", () => {
   assert.equal(requireSpecificationForScope(true, ["frontend"]), true);
   assert.equal(requireSpecificationForScope(true, ["backend", "scripts"]), true);
   assert.equal(requireSpecificationForScope(true, []), false);
   assert.equal(requireSpecificationForScope(false, ["frontend"]), false);
 });
 
-test("staged/deleted/backend and shared configuration select affected scopes", () => {
+test("スコープ判定_バックエンドおよび開発ツール変更から影響スコープを選択する", () => {
   assert.deepEqual(scopesFor(["backend/deleted.py"]), ["backend"]);
-  assert.deepEqual(scopesFor(["pytest.ini"]), ["backend", "scripts"]);
+  assert.deepEqual(scopesFor(["backend/app/domain/model.py"]), ["backend"]);
   assert.deepEqual(scopesFor(["scripts/checks/quality.mjs"]), ["backend", "scripts"]);
   assert.deepEqual(scopesFor(["pnpm-lock.yaml"]), ["backend", "frontend", "scripts"]);
 });
 
-test("full checks include tests, types and architecture without DB/browser commands", () => {
+test("フル検査計画_DBやブラウザコマンドを含めずテスト・型・アーキテクチャ検査を計画する", () => {
   const plan = planFor(["backend", "frontend", "scripts"]);
   const commands = plan.map((task) => task.args.join(" ")).join("\n");
   assert.match(commands, /lint:backend/);
   assert.match(commands, /typecheck:backend/);
   assert.match(commands, /typecheck:frontend/);
-  assert.match(commands, /test:backend/);
-  assert.match(commands, /test_quality_gate.py/);
+  assert.match(commands, /test:backend -- -m not integration/);
+  assert.match(commands, /backend\/tests\/tools\/hooks/);
   assert.doesNotMatch(commands, /test:integration|test:e2e/);
 });
 
-test("quick checks include cached Backend Mypy and Ruff lint but omit full test suites", () => {
+test("クイック検査計画_フルテストスイートを省略しバックエンドのMypyとRuffのみを計画する", () => {
   const labels = planFor(["backend", "frontend"], "quick").map((task) => task.label);
   assert.deepEqual(labels, ["Python lint", "Backend types", "Frontend lint"]);
   const mypy = planFor(["backend"], "quick").find((task) => task.label === "Backend types");
   assert.deepEqual(mypy.args, ["typecheck:backend"]);
 });
 
-test("package manager forwarding preserves arguments across platforms", () => {
+test("コマンド実行生成_プラットフォーム差異を吸収しパッケージマネージャの引数を維持する", () => {
   const task = { command: "pnpm", args: ["test:backend", "-m", "not integration"] };
   const direct = invocationFor(task, "win32", "C:/Program Files/pnpm/pnpm.cjs");
   assert.equal(direct.shell, false);
@@ -119,7 +119,7 @@ test("package manager forwarding preserves arguments across platforms", () => {
   assert.equal(fallback.args.at(-1), '"not integration"');
 });
 
-test("failed or unstarted commands fail the gate and remaining checks still run", () => {
+test("計画実行_一部コマンドが失敗または未起動でもゲートを失敗とし残りの検査も実行する", () => {
   const plan = [{ label: "one", command: "node", args: [] }, { label: "two", command: "node", args: [] }];
   let calls = 0;
   assert.equal(runPlan(plan, () => ({ status: ++calls === 1 ? 1 : 0 })), 1);
@@ -127,7 +127,7 @@ test("failed or unstarted commands fail the gate and remaining checks still run"
   assert.equal(runPlan(plan, () => ({ status: null, error: new Error("missing executable") })), 1);
 });
 
-test("runPlan executes tasks concurrently with concurrency > 1", async () => {
+test("並列実行_concurrencyが1より大きい場合_タスクを並行実行する", async () => {
   const folder = mkdtempSync(join(tmpdir(), "quality-parallel-"));
   try {
     const reportPath = join(folder, "report.json");
@@ -153,8 +153,65 @@ test("runPlan executes tasks concurrently with concurrency > 1", async () => {
   }
 });
 
-test("checkPostgresReachable detects closed ports gracefully without hanging", async () => {
+test("レポート保存_存在しない親ディレクトリを初回のsave前に作成する", () => {
+  const baseFolder = mkdtempSync(join(tmpdir(), "quality-nested-"));
+  try {
+    const reportPath = join(baseFolder, "deeply/nested/dir/report.json");
+    const plan = [{ label: "save-test", command: "node", args: [] }];
+    const exitCode = runPlan(plan, () => ({ status: 0 }), reportPath);
+    assert.equal(exitCode, 0);
+    const content = JSON.parse(readFileSync(reportPath, "utf8"));
+    assert.equal(content.status, "passed");
+  } finally {
+    rmSync(baseFolder, { recursive: true, force: true });
+  }
+});
+
+test("PostgreSQL疎通確認_ポートが閉じている場合でもハングせずに安全に失敗を検出する", async () => {
   const reachable = await checkPostgresReachable("127.0.0.1", 59999, 100);
   assert.equal(reachable, false);
 });
 
+test("PostgreSQL接続先_TEST_DATABASE_URLからホストとポートを正しく抽出する", () => {
+  const targetWithPort = postgresConnectionTarget({
+    TEST_DATABASE_URL: "postgresql+asyncpg://user:pass@127.0.0.1:5433/pharmacydomain",
+  });
+  assert.deepEqual(targetWithPort, { host: "127.0.0.1", port: 5433 });
+
+  const targetDefaultPort = postgresConnectionTarget({
+    TEST_DATABASE_URL: "postgresql+asyncpg://user:pass@dbhost/pharmacydomain",
+  });
+  assert.deepEqual(targetDefaultPort, { host: "dbhost", port: 5432 });
+
+  const fallbackTarget = postgresConnectionTarget({
+    POSTGRES_HOST: "my-postgres",
+    POSTGRES_PORT: "5434",
+  });
+  assert.deepEqual(fallbackTarget, { host: "my-postgres", port: 5434 });
+});
+
+test("並列実行排他制御_同一DBリソースを使用するタスクの同時実行を防止する", async () => {
+  const plan = [
+    { label: "db-1", command: "test", args: ["db-1"], layer: "postgres" },
+    { label: "db-2", command: "test", args: ["db-2"], layer: "integration" },
+    { label: "non-db", command: "test", args: ["non-db"] },
+  ];
+  let activeDbTasks = 0;
+  let maxActiveDbTasks = 0;
+  const mockExecute = async (_cmd, args) => {
+    const isDb = args[0]?.startsWith("db-");
+    if (isDb) {
+      activeDbTasks++;
+      maxActiveDbTasks = Math.max(maxActiveDbTasks, activeDbTasks);
+    }
+    await new Promise((r) => setTimeout(r, 30));
+    if (isDb) {
+      activeDbTasks--;
+    }
+    return { status: 0, stdout: "ok\n" };
+  };
+
+  const exitCode = await runPlan(plan, mockExecute, null, { concurrency: 3 });
+  assert.equal(exitCode, 0);
+  assert.equal(maxActiveDbTasks, 1, `DB tasks must not run concurrently, got max ${maxActiveDbTasks}`);
+});

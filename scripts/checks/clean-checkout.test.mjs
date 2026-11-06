@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { createCleanWorktree, isContained, resolveCommit, verificationUvCacheDirectory } from "./verify-clean-checkout.mjs";
 
-test("offline clean checkout reuses the configured or default uv cache across its steps", () => {
+test("クリーンチェックアウト_オフライン時に設定済みまたは既定のuvキャッシュを再利用する", () => {
   assert.equal(
     verificationUvCacheDirectory("/tmp/worktree", {
       offline: true,
@@ -48,7 +48,7 @@ function createRepository() {
   return { root, git };
 }
 
-test("clean worktree includes the requested commit and excludes local-only files", () => {
+test("クリーンワークツリー_指定コミットの内容を含みローカル専用ファイルを除外する", () => {
   const { root, git } = createRepository();
   const externalData = join(root, "local-only.data");
   writeFileSync(externalData, "not in the commit");
@@ -68,19 +68,19 @@ test("clean worktree includes the requested commit and excludes local-only files
   }
 });
 
-test("clean checkout rejects an untracked test input and accepts a tracked fixture", () => {
+test("クリーンチェックアウト_未追跡のテスト入力を拒絶し追跡済みフィクスチャを受け入れる", () => {
   const { root, git } = createRepository();
   const localTest = [
     'import assert from "node:assert/strict";',
     'import test from "node:test";',
     'import { readFileSync } from "node:fs";',
-    'test("reads a local-only input", () => assert.equal(readFileSync(new URL("./local-only.data", import.meta.url), "utf8"), "local"));',
+    'test("ローカル専用の入力を読み取る", () => assert.equal(readFileSync(new URL("./local-only.data", import.meta.url), "utf8"), "local"));',
   ].join("\n");
   const fixtureTest = [
     'import assert from "node:assert/strict";',
     'import test from "node:test";',
     'import { readFileSync } from "node:fs";',
-    'test("reads a tracked fixture", () => assert.equal(readFileSync(new URL("./fixture.data", import.meta.url), "utf8"), "fixture"));',
+    'test("追跡済みフィクスチャを読み取る", () => assert.equal(readFileSync(new URL("./fixture.data", import.meta.url), "utf8"), "fixture"));',
   ].join("\n");
   writeFileSync(join(root, "local-only.test.mjs"), localTest, "utf8");
   writeFileSync(join(root, "fixture.test.mjs"), fixtureTest, "utf8");

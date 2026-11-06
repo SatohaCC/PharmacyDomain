@@ -18,8 +18,8 @@
       "checks": [
         {
           "kind": "python",
-          "path": "scripts/hooks/test_quality_gate.py",
-          "test": "test_same_diagnostic_stops_repair_even_when_source_changes"
+          "path": "backend/tests/tools/hooks/test_quality_gate.py",
+          "test": "test_修復状態_同一診断結果の場合はソース変更があっても修復を停止する"
         }
       ]
     }
