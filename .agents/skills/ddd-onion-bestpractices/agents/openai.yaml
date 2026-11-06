@@ -1,0 +1,6 @@
+interface:
+  display_name: "DDD & Onion Architecture"
+  short_description: "DDDの不変条件・層境界・DI寿命・確定契約を設計、実装、レビューする"
+  default_prompt: "$ddd-onion-bestpractices を使い、対象の契約と依頼範囲に沿ってDDD・層境界・DIP/DI・整合性を確認し、必要な設計、実装またはレビューを行ってください。"
+policy:
+  allow_implicit_invocation: true
