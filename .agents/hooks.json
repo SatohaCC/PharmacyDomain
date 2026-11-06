@@ -1,0 +1,51 @@
+{
+  "quality-gate": {
+    "PostToolUse": [
+      {
+        "matcher": "edit_file|write_file|replace_file_content|write_to_file|multi_replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --project backend python scripts/hooks/antigravity_adapter.py quality-post-tool",
+            "timeout": 600
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "uv run --project backend python scripts/hooks/antigravity_adapter.py quality-stop",
+        "timeout": 600
+      }
+    ],
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "uv run --project backend python scripts/hooks/antigravity_adapter.py quality-pre-invocation",
+        "timeout": 30
+      }
+    ]
+  },
+  "privacy-gate": {
+    "PostToolUse": [
+      {
+        "matcher": "edit_file|write_file|replace_file_content|write_to_file|multi_replace_file_content|run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --project backend python scripts/hooks/antigravity_adapter.py privacy-post-tool",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "uv run --project backend python scripts/hooks/antigravity_adapter.py privacy-stop",
+        "timeout": 60
+      }
+    ]
+  }
+}

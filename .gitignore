@@ -9,13 +9,17 @@ __pycache__/
 .uv-cache
 
 graphify-out
-.codex
-.claude
+tmp/
+.codex/*
+!.codex/hooks.json
 .agents/*
 !.agents/rules/
+!.agents/hooks.json
+.agents/work/
+
 for-llm
 .vscode
-docs/references/*.pdf
+docs/references/
 
 node_modules/
 dist/

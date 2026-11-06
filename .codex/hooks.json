@@ -1,0 +1,55 @@
+{
+  "description": "Format edited Python, then run the shared quality checks after edits and before stopping.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "(^|\\.)(apply_patch|Edit|Write)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel) && uv run --project \"$r/backend\" --locked python \"$r/scripts/hooks/quality_gate.py\"",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -Command \"$r = git rev-parse --show-toplevel; if ($LASTEXITCODE -ne 0) { exit 1 }; & (Join-Path $r 'backend/.venv/Scripts/python.exe') (Join-Path $r 'scripts/hooks/quality_gate.py'); exit $LASTEXITCODE\"",
+            "timeout": 600,
+            "statusMessage": "Formatting and checking edited code"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel) && uv run --project \"$r/backend\" --locked python \"$r/scripts/hooks/privacy_gate.py\"",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -Command \"$r = git rev-parse --show-toplevel; if ($LASTEXITCODE -ne 0) { exit 1 }; & (Join-Path $r 'backend/.venv/Scripts/python.exe') (Join-Path $r 'scripts/hooks/privacy_gate.py'); exit $LASTEXITCODE\"",
+            "timeout": 60,
+            "statusMessage": "Checking changed files for private paths and blocked literals"
+          }
+        ],
+        "matcher": "(^|\\.)(apply_patch|Edit|Write|Bash|exec_command)$"
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel) && uv run --project \"$r/backend\" --locked python \"$r/scripts/hooks/quality_gate.py\"",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -Command \"$r = git rev-parse --show-toplevel; if ($LASTEXITCODE -ne 0) { exit 1 }; & (Join-Path $r 'backend/.venv/Scripts/python.exe') (Join-Path $r 'scripts/hooks/quality_gate.py'); exit $LASTEXITCODE\"",
+            "timeout": 600,
+            "statusMessage": "Running tests, lint and type checks for changed code"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel) && uv run --project \"$r/backend\" --locked python \"$r/scripts/hooks/privacy_gate.py\"",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -Command \"$r = git rev-parse --show-toplevel; if ($LASTEXITCODE -ne 0) { exit 1 }; & (Join-Path $r 'backend/.venv/Scripts/python.exe') (Join-Path $r 'scripts/hooks/privacy_gate.py'); exit $LASTEXITCODE\"",
+            "timeout": 60,
+            "statusMessage": "Checking changed files for private paths and blocked literals"
+          }
+        ]
+      }
+    ]
+  }
+}

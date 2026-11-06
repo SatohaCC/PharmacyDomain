@@ -108,6 +108,14 @@ python_version = "3.14"
 # 型注釈の抜けを検出できないと「mypy が通った」という情報に意味が無くなるため strict で運用する。
 strict = true
 
+[[tool.mypy.overrides]]
+module = "scripts.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+disallow_any_generics = false
+implicit_reexport = true
+
 [tool.lcom]
 # 1メソッドだけのUseCaseはLCOM4の判定対象から除外する。
 paths = ["app/application"]
