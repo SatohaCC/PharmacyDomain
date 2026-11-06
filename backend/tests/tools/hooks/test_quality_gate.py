@@ -65,7 +65,7 @@ def test_修復状態_同一診断結果の場合はソース変更があって�
                                 "identity": "same-failing-test-and-error",
                                 "diagnostics": ["test_access"],
                                 "suggestion": "認可分岐を修正してください",
-                                "docs": "docs/development.md",
+                                "docs": "開発ガイド",
                             },
                         }
                     ]

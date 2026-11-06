@@ -11,7 +11,7 @@ def report_feedback(report: dict[str, object] | None) -> tuple[str | None, str]:
     if not report or not isinstance(report.get("tasks"), list):
         return (
             None,
-            "品質ログおよび docs/development.md を確認してください。構造化診断情報は利用できません。",
+            "品質ログおよび開発ガイドを確認してください。構造化診断情報は利用できません。",
         )
     raw_tasks = report.get("tasks")
     task_list = raw_tasks if isinstance(raw_tasks, list) else []
@@ -37,7 +37,7 @@ def report_feedback(report: dict[str, object] | None) -> tuple[str | None, str]:
         suggestion = str(
             feedback.get("suggestion", "ログと受入条件を確認してください。")
         )
-        docs = str(feedback.get("docs", "docs/development.md"))
+        docs = str(feedback.get("docs", "開発ガイド"))
         messages.append(
             f"{label}: {status}\n"
             f"診断情報: {diagnostics}\n"
