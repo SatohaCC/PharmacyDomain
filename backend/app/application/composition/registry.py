@@ -33,6 +33,9 @@ from app.application.corporate.commands.change_representative import (
 from app.application.corporate.commands.register_corporate import (
     RegisterCorporateUseCase,
 )
+from app.application.corporate.commands.update_corporate_details import (
+    UpdateCorporateDetailsUseCase,
+)
 from app.application.corporate.commands.update_corporate_policy import (
     UpdateCorporatePolicyUseCase,
 )
@@ -211,6 +214,13 @@ from app.application.staff.commands.change_staff_job_title import (
 )
 from app.application.staff.commands.change_staff_names import ChangeStaffNamesUseCase
 from app.application.staff.commands.deactivate_staff import DeactivateStaffUseCase
+from app.application.staff.commands.manage_staff_leave import (
+    ReturnStaffFromLeaveUseCase,
+    StartStaffLeaveUseCase,
+)
+from app.application.staff.commands.record_store_work_condition import (
+    RecordStoreWorkConditionUseCase,
+)
 from app.application.staff.commands.register_staff import RegisterStaffUseCase
 from app.application.staff.commands.remove_staff_concurrent_store import (
     RemoveStaffConcurrentStoreUseCase,
@@ -218,10 +228,16 @@ from app.application.staff.commands.remove_staff_concurrent_store import (
 from app.application.staff.commands.transfer_staff_home_store import (
     TransferStaffHomeStoreUseCase,
 )
+from app.application.staff.commands.update_staff_employment import (
+    UpdateStaffEmploymentUseCase,
+)
 from app.application.staff.commands.update_staff_qualifications import (
     UpdateStaffQualificationsUseCase,
 )
 from app.application.staff.queries.get_staff import GetStaffUseCase
+from app.application.staff.queries.get_store_work_conditions import (
+    GetStoreWorkConditionsUseCase,
+)
 from app.application.staff.queries.list_staffs import ListStaffsUseCase
 from app.application.store.commands.change_insurance_pharmacy_number import (
     ChangeInsurancePharmacyNumberUseCase,
@@ -238,6 +254,10 @@ from app.application.store.commands.change_store_contact_info import (
 )
 from app.application.store.commands.change_store_names import ChangeStoreNamesUseCase
 from app.application.store.commands.change_store_status import ChangeStoreStatusUseCase
+from app.application.store.commands.manage_safety_manager import (
+    AppointSafetyManagerUseCase,
+    RemoveSafetyManagerUseCase,
+)
 from app.application.store.commands.manage_store_manager import (
     ManageStoreManagerUseCase,
 )
@@ -245,8 +265,14 @@ from app.application.store.commands.register_store import RegisterStoreUseCase
 from app.application.store.commands.revoke_store_closure import (
     RevokeStoreClosureUseCase,
 )
+from app.application.store.commands.update_certifications import (
+    UpdateCertificationsUseCase,
+)
 from app.application.store.commands.update_licenses import (
     UpdateStoreLicensesUseCase,
+)
+from app.application.store.commands.update_public_expense_designations import (
+    UpdatePublicExpenseDesignationsUseCase,
 )
 from app.application.store.commands.update_store_policy import (
     UpdateStorePolicyUseCase,
@@ -367,6 +393,7 @@ class CorporateUseCases:
     change_representative: ChangeRepresentativeUseCase
     change_status: ChangeCorporateStatusUseCase
     update_policy: UpdateCorporatePolicyUseCase
+    update_details: UpdateCorporateDetailsUseCase
 
 
 @dataclass(frozen=True, slots=True)
@@ -389,12 +416,18 @@ class StoreUseCases:
     update_licenses: UpdateStoreLicensesUseCase
     update_policy: UpdateStorePolicyUseCase
     effective_policy: GetEffectivePolicyUseCase
+    update_certifications: UpdateCertificationsUseCase
+    update_public_expense_designations: UpdatePublicExpenseDesignationsUseCase
+    appoint_safety_manager: AppointSafetyManagerUseCase
+    remove_safety_manager: RemoveSafetyManagerUseCase
 
 
 @dataclass(frozen=True, slots=True)
 class StaffUseCases:
     """スタッフコンテキストのユースケース。"""
 
+    record_work_condition: RecordStoreWorkConditionUseCase
+    get_work_conditions: GetStoreWorkConditionsUseCase
     register: RegisterStaffUseCase
     get: GetStaffUseCase
     list_by_corporate: ListStaffsUseCase
@@ -406,6 +439,9 @@ class StaffUseCases:
     remove_concurrent_store: RemoveStaffConcurrentStoreUseCase
     activate: ActivateStaffUseCase
     deactivate: DeactivateStaffUseCase
+    update_employment: UpdateStaffEmploymentUseCase
+    start_leave: StartStaffLeaveUseCase
+    return_from_leave: ReturnStaffFromLeaveUseCase
 
 
 @dataclass(frozen=True, slots=True)

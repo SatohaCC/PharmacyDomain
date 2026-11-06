@@ -233,6 +233,10 @@ def test_店舗を登録して一覧できる(api: Api) -> None:
             "name": "サンプル薬局",
             "name_kana": "サンプルヤッキョク",
             "code": None,
+            "status": "active",
+            "is_community_linkage": False,
+            "is_specialized_linkage": False,
+            "is_health_support": False,
         }
     ]
 

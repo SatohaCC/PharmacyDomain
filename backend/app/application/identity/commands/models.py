@@ -27,5 +27,4 @@ class MembershipRole(StrEnum):
     """招待や権限変更で指定できる法人内ロール。"""
 
     CORPORATE_ADMIN = "corporate_admin"
-    STORE_OPERATOR = "store_operator"
-    STORE_VIEWER = "store_viewer"
+    MEMBER = "member"

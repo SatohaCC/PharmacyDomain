@@ -48,14 +48,14 @@ class LoginRequest(RequestModel):
     """ログイン入力。秘密をモデルの文字列表現へ含めない。"""
 
     corporate_id: str
-    email: str = Field(max_length=256)
+    login_id: str = Field(max_length=64)
     password: str = Field(repr=False, max_length=128)
 
 
 class VendorLoginRequest(RequestModel):
     """運営者のログイン入力。"""
 
-    email: str = Field(max_length=256)
+    login_id: str = Field(max_length=64)
     password: str = Field(repr=False, max_length=128)
 
 
@@ -76,7 +76,7 @@ async def login(body: LoginRequest, auth: Auth, response: Response) -> LoginSess
     """初期パスワードでは変更専用セッションを返す。"""
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
-    return await auth.login(body.corporate_id, body.email, body.password)
+    return await auth.login(body.corporate_id, body.login_id, body.password)
 
 
 @router.post("/vendor/login", response_model=LoginSession)
@@ -86,7 +86,7 @@ async def vendor_login(
     """運営者の資格情報を照合しセッションを発行する。"""
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
-    return await auth.vendor_login(body.email, body.password)
+    return await auth.vendor_login(body.login_id, body.password)
 
 
 @router.post("/password", response_model=LoginSession)

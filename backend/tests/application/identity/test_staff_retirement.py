@@ -71,8 +71,8 @@ async def test_退職は法人アクセス権を停止し再雇用では権限�
         id=CorporateMembershipId.generate(),
         account_id=account.id,
         corporate_id=staff.corporate_id,
-        role=MembershipRole.STORE_OPERATOR,
-        store_ids=frozenset(),
+        role=MembershipRole.MEMBER,
+        store_roles=(),
         staff_id=staff.id,
     )
     await memberships.save(membership)
@@ -119,8 +119,8 @@ async def test_有効なスタッフの保存では_アクセス権を止めな�
         id=CorporateMembershipId.generate(),
         account_id=account.id,
         corporate_id=staff.corporate_id,
-        role=MembershipRole.STORE_OPERATOR,
-        store_ids=frozenset(),
+        role=MembershipRole.MEMBER,
+        store_roles=(),
         staff_id=staff.id,
     )
     await memberships.save(membership)
@@ -220,7 +220,7 @@ async def test_在任中の管理薬剤師の週契約労働時間を32時間未
 
     # Act & Assert: 週20時間のパートへの変更は拒否される
     short_hours_staff = staff.change_weekly_contract_hours(
-        WeeklyContractHours(Decimal("20.0"))
+        WeeklyContractHours(Decimal("20.0")), applied_on=date(2026, 11, 3)
     )
     with pytest.raises(ManagerAssignmentConflictError) as exc_info:
         await guard.check(short_hours_staff, False)
@@ -235,7 +235,7 @@ async def test_在任中の管理薬剤師の週契約労働時間が32時間以
 
     # Act & Assert: 週40時間（または週32時間）の保存は例外なく通る
     full_time_staff = staff.change_weekly_contract_hours(
-        WeeklyContractHours(Decimal("40.0"))
+        WeeklyContractHours(Decimal("40.0")), applied_on=date(2026, 11, 3)
     )
     await guard.check(full_time_staff, False)
 

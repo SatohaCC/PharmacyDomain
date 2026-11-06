@@ -31,7 +31,7 @@ async def provision(login_id: str, password: str, names: PersonNames) -> None:
             operator_id = VendorOperatorId.generate()
             subject = f"vendor:{operator_id.value}"
             await PostgresCredentialWriter(work).issue_vendor_operator(
-                email=login_id, password=password, subject=subject
+                login_id=login_id, password=password, subject=subject
             )
             await work.commit()
     finally:

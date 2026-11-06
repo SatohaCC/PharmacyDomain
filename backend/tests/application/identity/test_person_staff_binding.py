@@ -84,7 +84,7 @@ async def test_店舗ロールの付与には同一法人で本人に対応す�
         await validate_membership_target(
             person_id=fixture.person.id,
             corporate_id=corporate_id,
-            role=MembershipRole.STORE_OPERATOR,
+            role=MembershipRole.MEMBER,
             store_ids=frozenset(),
             staff_id=staff.id,
             staff=fixture.service.staff,

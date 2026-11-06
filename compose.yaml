@@ -28,6 +28,7 @@ services:
       DEV_ACTOR_TOKEN: ${DEV_ACTOR_TOKEN:-dev-actor-token}
       DEV_ACTOR_ROLE: ${DEV_ACTOR_ROLE:-vendor_system_admin}
       DEV_ACTOR_CORPORATE_ID: ${DEV_ACTOR_CORPORATE_ID:-}
+      DEV_ACTOR_OPERATOR_ID: ${DEV_ACTOR_OPERATOR_ID:-}
       # 更新は監査の追記を伴い、追記は実在する本人とアカウントの行を要求する
       # （外部キー）。既定値を置くと、存在しない行を指したまま起動して最初の
       # 更新で落ちるので、未設定なら起動時に落とす。
@@ -43,6 +44,7 @@ services:
     volumes:
       - ./backend/app:/app/app
       - ./backend/migrations:/app/migrations
+      - ./backend/tools:/app/tools
     # 開発用の起動点。`--factory` なのは、環境変数を読むのを import 時ではなく
     # 呼び出し時にするため。本番イメージの CMD は app.main:app のまま変えない。
     command: >

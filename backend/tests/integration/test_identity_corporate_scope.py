@@ -93,8 +93,8 @@ async def test_TC023_同一法人内で本人_アカウント_メンバーシッ
         account_id=account.id,
         corporate_id=corporate_id,
         staff_id=staff.id,
-        role=MembershipRole.STORE_OPERATOR,
-        store_ids=frozenset(),
+        role=MembershipRole.MEMBER,
+        store_roles=(),
     )
 
     # Act: 同一法人内で全集約を保存

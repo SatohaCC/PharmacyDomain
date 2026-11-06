@@ -199,9 +199,9 @@ async def test_tc030_一括登録_正常系() -> None:
         last_name_kana="ヤマダ",
         first_name_kana="タロウ",
         account=BulkStaffAccountInput(
-            email="staff@example.test",
+            login_id="staff-example.test",
             password="Password123456789",
-            role="store_operator",
+            role="member",
         ),
         code="STF-001",
         initial_home_store_id=str(store.id.value),
@@ -248,13 +248,13 @@ async def test_tc030_一括登録_正常系() -> None:
     assert membership is not None
     assert membership.corporate_id == corp_id
     assert membership.account_id == account_id
-    assert membership.role == MembershipRole.STORE_OPERATOR
+    assert membership.role == MembershipRole.MEMBER
 
     # 6. Credentials
     assert len(fixture.credentials.issued) == 1
     issued_corp, issued_email, _, issued_subject = fixture.credentials.issued[0]
     assert issued_corp == corp_id
-    assert issued_email == "staff@example.test"
+    assert issued_email == "staff-example.test"
     assert issued_subject == f"local:{account_id.value}"
 
 
@@ -273,9 +273,9 @@ async def test_tc031_一括登録_異常系_パスワードまたはアカウン
         last_name_kana="ヤマダ",
         first_name_kana="タロウ",
         account=BulkStaffAccountInput(
-            email="invalid-email-format",
+            login_id="@invalid",
             password="Short",
-            role="store_operator",
+            role="member",
         ),
         code="STF-001",
     )
@@ -331,9 +331,9 @@ async def test_tc033_登録_管理権限_一般利用者と店舗管理者() -> 
         last_name_kana="スズキ",
         first_name_kana="ジロウ",
         account=BulkStaffAccountInput(
-            email="staff2@example.test",
+            login_id="staff2-example.test",
             password="Password123456789",
-            role="store_operator",
+            role="member",
         ),
         initial_home_store_id=str(store1.id.value),
     )
@@ -365,14 +365,14 @@ async def test_tc033_登録_管理権限_一般利用者と店舗管理者() -> 
         last_name_kana="スズキ",
         first_name_kana="ジロウ",
         account=BulkStaffAccountInput(
-            email="staff2@example.test",
+            login_id="staff2-example.test",
             password="Password123456789",
-            role="store_operator",
+            role="member",
         ),
         initial_home_store_id=str(store1.id.value),
     )
     res = await fixture_manager.use_case.execute(cmd_ok)
-    assert res.email == "staff2@example.test"
+    assert res.login_id == "staff2-example.test"
 
     # 2b. 管理者権限（corporate_admin）を付与しようとすると 403
     cmd_admin_role = RegisterStaffCommand(
@@ -382,7 +382,7 @@ async def test_tc033_登録_管理権限_一般利用者と店舗管理者() -> 
         last_name_kana="タナカ",
         first_name_kana="サブロウ",
         account=BulkStaffAccountInput(
-            email="staff3@example.test",
+            login_id="staff3-example.test",
             password="Password123456789",
             role="corporate_admin",
         ),
@@ -401,9 +401,9 @@ async def test_tc033_登録_管理権限_一般利用者と店舗管理者() -> 
         last_name_kana="サトウ",
         first_name_kana="シロウ",
         account=BulkStaffAccountInput(
-            email="staff4@example.test",
+            login_id="staff4-example.test",
             password="Password123456789",
-            role="store_operator",
+            role="member",
         ),
         initial_home_store_id=str(store2.id.value),
     )
@@ -470,9 +470,7 @@ async def test_スタッフ一括登録_法人ロック待機中に管理者状�
             assert actor.membership_id is not None
             membership = await fixture.membership_repo.get(actor.membership_id)
             assert membership is not None
-            await fixture.membership_repo.save(
-                replace(membership, store_ids=frozenset())
-            )
+            await fixture.membership_repo.save(replace(membership, store_roles=()))
         elif change == "link":
             assert actor.staff_id is not None
             fixture.link_repo.items.pop(actor.staff_id)
@@ -501,7 +499,7 @@ async def test_スタッフ一括登録_法人ロック待機中に管理者状�
         initial_home_store_id=str(store.id.value),
         initial_start_date=date(2026, 4, 1),
         account=BulkStaffAccountInput(
-            email="test-user@example.test", password="test-password-12345"
+            login_id="test-user-example.test", password="test-password-12345"
         ),
     )
     # Act / Assert
@@ -510,3 +508,69 @@ async def test_スタッフ一括登録_法人ロック待機中に管理者状�
     assert fixture.lock.keys == ["identity", f"corporate:{corporate.value}"]
     assert len(await fixture.staff_repo.list_all()) == 1
     assert fixture.credentials.issued == []
+
+
+@pytest.mark.asyncio
+async def test_一括登録_二店舗の権限と勤務条件を指定_主所属と兼務所属も同時に登録する() -> (
+    None
+):
+    from app.application.access_control.boundary_models import StoreRoleInput
+    from app.application.staff.commands.register_staff import (
+        InitialStoreWorkConditionInput,
+    )
+
+    fixture = _Fixture()
+    corporate = CorporateId.generate()
+    a, b = (
+        create_store(corporate_id=corporate, name="A薬局"),
+        create_store(corporate_id=corporate, name="B薬局"),
+    )
+    await fixture.store_repo.save(a)
+    await fixture.store_repo.save(b)
+    command = RegisterStaffCommand(
+        corporate_id=str(corporate.value),
+        last_name="薬局",
+        first_name="花子",
+        last_name_kana="ヤッキョク",
+        first_name_kana="ハナコ",
+        pharmacist_license_number="123456",
+        initial_home_store_id=str(a.id.value),
+        initial_start_date=date(2026, 1, 1),
+        account=BulkStaffAccountInput(
+            login_id="staff-32-8",
+            password="InitialPassword12345",
+            store_roles=(
+                StoreRoleInput(store_id=str(a.id.value), role="store_operator"),
+                StoreRoleInput(store_id=str(b.id.value), role="store_viewer"),
+            ),
+        ),
+        initial_store_work_conditions=(
+            InitialStoreWorkConditionInput(
+                store_id=str(a.id.value),
+                starts_on=date(2026, 1, 1),
+                weekly_hours="32",
+                duty="pharmacist",
+            ),
+            InitialStoreWorkConditionInput(
+                store_id=str(b.id.value),
+                starts_on=date(2026, 2, 1),
+                weekly_hours="8",
+                duty="pharmacist",
+            ),
+        ),
+    )
+    result = await fixture.use_case.execute(command)
+    staff = await fixture.staff_repo.get(
+        corporate_id=corporate, staff_id=StaffId.parse(result.staff_id)
+    )
+    assert staff is not None
+    assert {item.store_id for item in staff.affiliations} == {a.id, b.id}
+    for store, expected in [(a, "32"), (b, "8")]:
+        condition = staff.work_condition_on(store.id, date(2026, 2, 1))
+        assert condition is not None and condition.weekly_hours is not None
+        assert str(condition.weekly_hours.value) == expected
+
+    assert staff.work_condition_on(b.id, date(2026, 1, 31)) is None
+    assert next(
+        item for item in staff.affiliations if item.store_id == b.id
+    ).period.start_date == date(2026, 2, 1)

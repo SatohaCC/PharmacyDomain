@@ -28,6 +28,10 @@ from app.application.store.commands.change_store_status import ChangeStoreStatus
 from app.application.store.commands.dtos.business_hours import BusinessHoursDto
 from app.application.store.commands.dtos.get_store import StoreDto, StoreStatusChangeDto
 from app.application.store.commands.dtos.management import ManagerAssignmentDto
+from app.application.store.commands.manage_safety_manager import (
+    AppointSafetyManagerCommand,
+    RemoveSafetyManagerCommand,
+)
 from app.application.store.commands.manage_store_manager import (
     ManageStoreManagerCommand,
 )
@@ -41,10 +45,19 @@ from app.application.store.commands.register_store import RegisterStoreCommand
 from app.application.store.commands.revoke_store_closure import (
     RevokeStoreClosureCommand,
 )
+from app.application.store.commands.update_certifications import (
+    CommunityLinkageInput,
+    HealthSupportNotificationInput,
+    SpecializedLinkageInput,
+    UpdateCertificationsCommand,
+)
 from app.application.store.commands.update_licenses import (
     NarcoticsRetailerLicenseInput,
     PharmacyLicenseInput,
     UpdateStoreLicensesCommand,
+)
+from app.application.store.commands.update_public_expense_designations import (
+    UpdatePublicExpenseDesignationsCommand,
 )
 from app.application.store.commands.update_store_policy import (
     UpdateStorePolicyCommand,
@@ -172,6 +185,52 @@ class UpdateStorePolicyRequest(RequestModel):
 
     require_prescription_audit: bool | None = None
     prohibit_self_verification: bool | None = None
+
+
+class CommunityLinkageCertificationRequest(RequestModel):
+    """地域連携薬局認定の入力モデル。"""
+
+    certification_number: str
+    valid_from: date
+    valid_to: date
+
+
+class SpecializedLinkageCertificationRequest(RequestModel):
+    """専門医療機関連携薬局認定の入力モデル。"""
+
+    certification_number: str
+    disease_category: str
+    valid_from: date
+    valid_to: date
+
+
+class HealthSupportPharmacyNotificationRequest(RequestModel):
+    """健康サポート薬局届出の入力モデル。"""
+
+    notified_on: date
+
+
+class UpdateStoreCertificationsRequest(RequestModel):
+    """薬局機能認定・届出更新の入力モデル。"""
+
+    community_linkage: CommunityLinkageCertificationRequest | None = None
+    specialized_linkage: SpecializedLinkageCertificationRequest | None = None
+    health_support: HealthSupportPharmacyNotificationRequest | None = None
+
+
+class UpdateStorePublicExpenseDesignationsRequest(RequestModel):
+    """公費・指定医療機関情報更新の入力モデル。"""
+
+    public_assistance_number: str | None = None
+    support_for_independence_number: str | None = None
+    intractable_disease_number: str | None = None
+    workers_accident_number: str | None = None
+
+
+class AppointSafetyManagerRequest(RequestModel):
+    """医薬品安全管理責任者任命の入力モデル。"""
+
+    staff_id: str
 
 
 @router.post(
@@ -352,6 +411,120 @@ async def update_store_policy(
             store_id=store_id,
             require_prescription_audit=body.require_prescription_audit,
             prohibit_self_verification=body.prohibit_self_verification,
+        )
+    )
+
+
+@router.put(
+    "/{store_id}/certifications",
+    status_code=HTTPStatus.NO_CONTENT,
+    response_class=Response,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def update_store_certifications(
+    corporate_id: str,
+    store_id: str,
+    body: UpdateStoreCertificationsRequest,
+    use_cases: StoreUseCasesDep,
+) -> None:
+    """店舗の薬局機能認定・届出情報を更新する。"""
+    await use_cases.update_certifications.execute(
+        UpdateCertificationsCommand(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            community_linkage=(
+                CommunityLinkageInput(
+                    certification_number=body.community_linkage.certification_number,
+                    valid_from=body.community_linkage.valid_from,
+                    valid_to=body.community_linkage.valid_to,
+                )
+                if body.community_linkage is not None
+                else None
+            ),
+            specialized_linkage=(
+                SpecializedLinkageInput(
+                    certification_number=body.specialized_linkage.certification_number,
+                    disease_category=body.specialized_linkage.disease_category,
+                    valid_from=body.specialized_linkage.valid_from,
+                    valid_to=body.specialized_linkage.valid_to,
+                )
+                if body.specialized_linkage is not None
+                else None
+            ),
+            health_support=(
+                HealthSupportNotificationInput(
+                    notified_on=body.health_support.notified_on,
+                )
+                if body.health_support is not None
+                else None
+            ),
+        )
+    )
+
+
+@router.put(
+    "/{store_id}/public-expense-designations",
+    status_code=HTTPStatus.NO_CONTENT,
+    response_class=Response,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def update_store_public_expense_designations(
+    corporate_id: str,
+    store_id: str,
+    body: UpdateStorePublicExpenseDesignationsRequest,
+    use_cases: StoreUseCasesDep,
+) -> None:
+    """店舗の公費・指定医療機関情報を更新する。"""
+    await use_cases.update_public_expense_designations.execute(
+        UpdatePublicExpenseDesignationsCommand(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            public_assistance_number=body.public_assistance_number,
+            support_for_independence_number=body.support_for_independence_number,
+            intractable_disease_number=body.intractable_disease_number,
+            workers_accident_number=body.workers_accident_number,
+        )
+    )
+
+
+@router.put(
+    "/{store_id}/safety-manager",
+    status_code=HTTPStatus.NO_CONTENT,
+    response_class=Response,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def appoint_safety_manager(
+    corporate_id: str,
+    store_id: str,
+    body: AppointSafetyManagerRequest,
+    use_cases: StoreUseCasesDep,
+) -> None:
+    """医薬品安全管理責任者を任命する。"""
+    await use_cases.appoint_safety_manager.execute(
+        AppointSafetyManagerCommand(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            staff_id=body.staff_id,
+        )
+    )
+
+
+@router.delete(
+    "/{store_id}/safety-manager",
+    status_code=HTTPStatus.NO_CONTENT,
+    response_class=Response,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def remove_safety_manager(
+    corporate_id: str,
+    store_id: str,
+    use_cases: StoreUseCasesDep,
+) -> None:
+    """医薬品安全管理責任者を解任する。"""
+    await use_cases.remove_safety_manager.execute(
+        RemoveSafetyManagerCommand(
+            corporate_id=corporate_id,
+            store_id=store_id,
         )
     )
 

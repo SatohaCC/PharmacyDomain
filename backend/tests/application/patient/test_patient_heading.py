@@ -67,7 +67,9 @@ def _actor(
     """指定した権限を持つ本人特定済みActorを組み立てる。"""
     return ResolvedActorContext(
         principal_id="test-principal",
-        roles=frozenset({role}),
+        roles=frozenset({role, ActorRole.STORE_OPERATOR})
+        if role is ActorRole.CORPORATE_ADMIN
+        else frozenset({role}),
         corporate_id=corporate_id,
         person_id=AccountPersonId.generate(),
         account_id=UserAccountId.generate(),

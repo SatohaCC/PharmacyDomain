@@ -9,11 +9,12 @@ from __future__ import annotations
 
 from datetime import date
 from http import HTTPStatus
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, Response
 from pydantic import Field
 
+from app.application.access_control.boundary_models import StoreRoleInput
 from app.application.staff.commands.activate_staff import ActivateStaffCommand
 from app.application.staff.commands.assign_staff_concurrent_store import (
     AssignStaffConcurrentStoreCommand,
@@ -23,8 +24,16 @@ from app.application.staff.commands.change_staff_job_title import (
 )
 from app.application.staff.commands.change_staff_names import ChangeStaffNamesCommand
 from app.application.staff.commands.deactivate_staff import DeactivateStaffCommand
+from app.application.staff.commands.manage_staff_leave import (
+    ReturnStaffFromLeaveCommand,
+    StartStaffLeaveCommand,
+)
+from app.application.staff.commands.record_store_work_condition import (
+    RecordStoreWorkConditionCommand,
+)
 from app.application.staff.commands.register_staff import (
     BulkStaffAccountInput,
+    InitialStoreWorkConditionInput,
     RegisterStaffCommand,
 )
 from app.application.staff.commands.remove_staff_concurrent_store import (
@@ -33,11 +42,20 @@ from app.application.staff.commands.remove_staff_concurrent_store import (
 from app.application.staff.commands.transfer_staff_home_store import (
     TransferStaffHomeStoreCommand,
 )
+from app.application.staff.commands.update_staff_employment import (
+    UpdateStaffEmploymentCommand,
+)
 from app.application.staff.commands.update_staff_qualifications import (
     UpdateStaffQualificationsCommand,
 )
 from app.application.staff.queries.dtos.get_staff import StaffDto
 from app.application.staff.queries.dtos.list_staffs import StaffSummaryDto
+from app.application.staff.queries.dtos.store_work_conditions import (
+    StoreStaffAffiliationDto,
+)
+from app.application.staff.queries.get_store_work_conditions import (
+    GetStoreWorkConditionsQuery,
+)
 from app.application.staff.queries.models import GetStaffQuery, ListStaffsQuery
 from app.presentational.dependencies import StaffUseCasesDep, get_actor_context
 from app.presentational.errors import error_responses
@@ -58,6 +76,60 @@ router = APIRouter(
 )
 
 
+class RecordStoreWorkConditionRequest(RequestModel):
+    """週当たり勤務時間の適用・訂正入力。"""
+
+    effective_from: date
+    weekly_hours: str | None = None
+    duty: str
+
+
+@router.post(
+    "/{staff_id}/stores/{store_id}/work-conditions",
+    status_code=HTTPStatus.NO_CONTENT,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def record_store_work_condition(
+    corporate_id: str,
+    staff_id: str,
+    store_id: str,
+    body: RecordStoreWorkConditionRequest,
+    use_cases: StaffUseCasesDep,
+) -> None:
+    """所属店舗の勤務条件を履歴へ追記する。"""
+    await use_cases.record_work_condition.execute(
+        RecordStoreWorkConditionCommand(
+            corporate_id=corporate_id,
+            staff_id=staff_id,
+            store_id=store_id,
+            effective_from=body.effective_from,
+            weekly_hours=body.weekly_hours,
+            duty=body.duty,
+        )
+    )
+
+
+@router.get(
+    "/{staff_id}/work-conditions", response_model=tuple[StoreStaffAffiliationDto, ...]
+)
+async def get_store_work_conditions(
+    corporate_id: str,
+    staff_id: str,
+    use_cases: StaffUseCasesDep,
+    store_id: str | None = None,
+    applied_on: date | None = None,
+) -> tuple[StoreStaffAffiliationDto, ...]:
+    """対象日・店舗で絞った所属と勤務条件の履歴を返す。"""
+    return await use_cases.get_work_conditions.execute(
+        GetStoreWorkConditionsQuery(
+            corporate_id=corporate_id,
+            staff_id=staff_id,
+            store_id=store_id,
+            applied_on=applied_on,
+        )
+    )
+
+
 class QualificationsRequest(RequestModel):
     """資格の入力。項目を省くと、その資格を持たないものとして上書きする。"""
 
@@ -72,10 +144,11 @@ class QualificationsRequest(RequestModel):
 class StaffAccountRequest(RequestModel):
     """スタッフと同時に生成するアカウントの入力。"""
 
-    email: str = Field(max_length=256)
+    login_id: str = Field(min_length=3, max_length=64)
+    email: str | None = None
     password: str = Field(repr=False, min_length=15, max_length=128)
-    role: str = "store_operator"
-    store_ids: tuple[str, ...] | None = None
+    role: Literal["corporate_admin", "member"] = "member"
+    store_roles: tuple[StoreRoleInput, ...] = ()
 
 
 class RegisterStaffRequest(QualificationsRequest):
@@ -92,6 +165,9 @@ class RegisterStaffRequest(QualificationsRequest):
     email: str | None = None
     initial_home_store_id: str | None = None
     initial_start_date: date | None = None
+    initial_store_work_conditions: tuple[InitialStoreWorkConditionInput, ...] = ()
+    employment_type: str = "regular"
+    weekly_contract_hours: float | None = None
 
 
 class BulkRegisteredStaffResponse(RequestModel):
@@ -102,7 +178,7 @@ class BulkRegisteredStaffResponse(RequestModel):
     person_id: str
     account_id: str
     membership_id: str
-    email: str
+    login_id: str
 
 
 class ChangeStaffNamesRequest(RequestModel):
@@ -134,6 +210,20 @@ class AssignConcurrentStoreRequest(RequestModel):
     start_date: date
 
 
+class UpdateStaffEmploymentRequest(RequestModel):
+    """スタッフ労働契約変更の入力モデル。"""
+
+    employment_type: str
+    weekly_contract_hours: float | None = None
+
+
+class StartStaffLeaveRequest(RequestModel):
+    """スタッフ休職開始の入力モデル。"""
+
+    leave_reason: str
+    left_on: date
+
+
 class RetireStaffRequest(RequestModel):
     """退職の入力。退職日以降に及ぶ所属はこの日で打ち切られる。"""
 
@@ -160,10 +250,11 @@ async def register_staff(
             last_name_kana=body.last_name_kana,
             first_name_kana=body.first_name_kana,
             account=BulkStaffAccountInput(
+                login_id=body.account.login_id,
                 email=body.account.email,
                 password=body.account.password,
                 role=body.account.role,
-                store_ids=body.account.store_ids,
+                store_roles=body.account.store_roles,
             ),
             job_title=body.job_title,
             code=body.code,
@@ -171,6 +262,7 @@ async def register_staff(
             email=body.email,
             initial_home_store_id=body.initial_home_store_id,
             initial_start_date=body.initial_start_date,
+            initial_store_work_conditions=body.initial_store_work_conditions,
             pharmacist_license_number=body.pharmacist_license_number,
             insurance_pharmacist_registration_number=(
                 body.insurance_pharmacist_registration_number
@@ -181,6 +273,8 @@ async def register_staff(
             registered_seller_number=body.registered_seller_number,
             dietitian_registration_number=body.dietitian_registration_number,
             is_registered_dietitian=body.is_registered_dietitian,
+            employment_type=body.employment_type,
+            weekly_contract_hours=body.weekly_contract_hours,
         )
     )
     return BulkRegisteredStaffResponse(
@@ -189,7 +283,7 @@ async def register_staff(
         person_id=result.person_id,
         account_id=result.account_id,
         membership_id=result.membership_id,
-        email=result.email,
+        login_id=result.login_id,
     )
 
 
@@ -416,6 +510,72 @@ async def reactivate_staff(
     """在籍状態へ戻す。**所属は復元しない**ので、必要なら別途配属する。"""
     await use_cases.activate.execute(
         ActivateStaffCommand(corporate_id=corporate_id, staff_id=staff_id)
+    )
+
+
+@router.patch(
+    "/{staff_id}/employment",
+    status_code=HTTPStatus.NO_CONTENT,
+    response_class=Response,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def update_staff_employment(
+    corporate_id: str,
+    staff_id: str,
+    body: UpdateStaffEmploymentRequest,
+    use_cases: StaffUseCasesDep,
+) -> None:
+    """スタッフの雇用形態・週所定労働時間を更新する。"""
+    await use_cases.update_employment.execute(
+        UpdateStaffEmploymentCommand(
+            corporate_id=corporate_id,
+            staff_id=staff_id,
+            employment_type=body.employment_type,
+            weekly_contract_hours=body.weekly_contract_hours,
+        )
+    )
+
+
+@router.post(
+    "/{staff_id}/leave",
+    status_code=HTTPStatus.NO_CONTENT,
+    response_class=Response,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def start_staff_leave(
+    corporate_id: str,
+    staff_id: str,
+    body: StartStaffLeaveRequest,
+    use_cases: StaffUseCasesDep,
+) -> None:
+    """スタッフの休職を開始する。"""
+    await use_cases.start_leave.execute(
+        StartStaffLeaveCommand(
+            corporate_id=corporate_id,
+            staff_id=staff_id,
+            leave_reason=body.leave_reason,
+            left_on=body.left_on,
+        )
+    )
+
+
+@router.post(
+    "/{staff_id}/return-from-leave",
+    status_code=HTTPStatus.NO_CONTENT,
+    response_class=Response,
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def return_staff_from_leave(
+    corporate_id: str,
+    staff_id: str,
+    use_cases: StaffUseCasesDep,
+) -> None:
+    """スタッフを休職から復職させる。"""
+    await use_cases.return_from_leave.execute(
+        ReturnStaffFromLeaveCommand(
+            corporate_id=corporate_id,
+            staff_id=staff_id,
+        )
     )
 
 

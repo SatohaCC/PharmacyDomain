@@ -27,6 +27,12 @@ class StaffDto:
     is_dietitian: bool
     is_registered_seller: bool
     current_home_store_id: str | None
+    employment_type: str = "regular"
+    status: str = "active"
+    leave_reason: str | None = None
+    weekly_contract_hours: float | None = None
+    effective_weekly_hours: float = 0.0
+    effective_full_time_equivalent: float = 0.0
 
     @classmethod
     def from_entity(cls, staff: Staff, *, target_date: date) -> StaffDto:
@@ -52,4 +58,16 @@ class StaffDto:
             is_dietitian=staff.is_dietitian,
             is_registered_seller=staff.is_registered_seller,
             current_home_store_id=str(home_store_id.value) if home_store_id else None,
+            employment_type=staff.employment_type.value,
+            status=staff.status.value,
+            leave_reason=staff.leave_reason.value if staff.leave_reason else None,
+            weekly_contract_hours=(
+                float(staff.weekly_contract_hours.value)
+                if staff.weekly_contract_hours
+                else None
+            ),
+            effective_weekly_hours=float(staff.effective_weekly_hours),
+            effective_full_time_equivalent=float(
+                staff.effective_full_time_equivalent()
+            ),
         )

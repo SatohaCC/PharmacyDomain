@@ -143,6 +143,7 @@ class PostgresRequestScope(RequestScope):
                     accounts=repositories.user_account,
                     memberships=repositories.membership,
                     staffs=repositories.staff,
+                    managers=repositories.manager_assignment,
                 ).check,
                 StaffAssignmentWriteGuard(
                     repositories.store, repositories.manager_assignment, clock, lock

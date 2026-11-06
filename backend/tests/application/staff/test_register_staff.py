@@ -20,6 +20,7 @@ from app.application.staff.commands.register_staff import (
     RegisterStaffUseCase,
 )
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.staff.exceptions import StaffCodeAlreadyExistsError
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.services import (
@@ -82,7 +83,7 @@ def _build_use_case(
 
 def _default_account() -> BulkStaffAccountInput:
     return BulkStaffAccountInput(
-        email="staff@example.test",
+        login_id="staff-example.test",
         password="Password123456789",
     )
 
@@ -202,7 +203,7 @@ async def test_register_staff_raises_error_on_duplicate_code() -> None:
         last_name_kana="ヤマダ",
         first_name_kana="タロウ",
         account=BulkStaffAccountInput(
-            email="staff1@example.test",
+            login_id="staff1-example.test",
             password="Password123456789",
         ),
         code="STF-001",
@@ -216,7 +217,7 @@ async def test_register_staff_raises_error_on_duplicate_code() -> None:
         last_name_kana="サトウ",
         first_name_kana="ジロウ",
         account=BulkStaffAccountInput(
-            email="staff2@example.test",
+            login_id="staff2-example.test",
             password="Password123456789",
         ),
         code="STF-001",
@@ -225,3 +226,27 @@ async def test_register_staff_raises_error_on_duplicate_code() -> None:
     # Act / Assert
     with pytest.raises(StaffCodeAlreadyExistsError):
         await use_case.execute(cmd2)
+
+
+@pytest.mark.asyncio
+async def test_register_staff_rejects_invalid_employment_type() -> None:
+    staff_repo = InMemoryStaffRepository()
+    store_repo = InMemoryStoreRepository()
+    use_case = _build_use_case(staff_repo, store_repo)
+
+    corp_id = CorporateId.generate()
+    cmd = RegisterStaffCommand(
+        corporate_id=str(corp_id.value),
+        last_name="山田",
+        first_name="太郎",
+        last_name_kana="ヤマダ",
+        first_name_kana="タロウ",
+        account=BulkStaffAccountInput(
+            login_id="staff1-example.test",
+            password="Password123456789",
+        ),
+        employment_type="invalid_type",
+    )
+
+    with pytest.raises(DomainValidationError):
+        await use_case.execute(cmd)

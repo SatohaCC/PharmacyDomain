@@ -192,7 +192,7 @@ class RepositoryReadScope:
         """担当店舗を含む所属だけをSQLで選ぶ。他店舗の付与情報は更新しない。"""
         return or_(
             *(
-                table.c.payload["store_ids"].contains([str(item)])
+                table.c.payload["store_roles"].contains([{"store_id": str(item)}])
                 for item in self.managed_store_ids
             )
         )

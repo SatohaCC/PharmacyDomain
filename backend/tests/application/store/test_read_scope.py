@@ -22,7 +22,9 @@ from tests.factories.store_factory import create_store
 from tests.fakes.in_memory_store_repository import InMemoryStoreRepository
 
 
-@pytest.mark.parametrize("role", list(ActorRole))
+@pytest.mark.parametrize(
+    "role", [role for role in ActorRole if role is not ActorRole.MEMBER]
+)
 @pytest.mark.parametrize("empty_scope", [False, True])
 async def test_店舗参照_操作主体の範囲に応じて詳細と一覧を制限する(
     role: ActorRole, empty_scope: bool

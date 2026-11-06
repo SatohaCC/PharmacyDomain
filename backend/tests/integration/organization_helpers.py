@@ -24,8 +24,11 @@ from app.domain.identity.identifiers import (
 from app.domain.identity.primitives import (
     CorporateUserEmail,
     ExternalSubjectKey,
+    LoginId,
     MembershipRole,
+    StoreRole,
 )
+from app.domain.identity.value_objects import StoreRoleAssignment
 from app.domain.shared.actor import UserAccountId
 from app.domain.staff.entities import Staff
 from app.domain.staff.primitives import PharmacistLicenseNumber
@@ -143,13 +146,17 @@ async def setup_organization(
             corporate_id=corporate.id,
             role=MembershipRole.CORPORATE_ADMIN,
             staff_id=person.id,
-            store_ids=frozenset({store.id}),
+            store_roles=tuple(
+                StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+                for store_id in frozenset({store.id})
+            ),
         )
         for index, person in enumerate(staff)
     ]
     vendor_operator = VendorOperator(
         id=VendorOperatorId.generate(),
         email=CorporateUserEmail("vendor-operator@example.test"),
+        login_id=LoginId("vendor-operator"),
         external_subject=ExternalSubjectKey(external_subject_of(2)),
         is_active=True,
     )

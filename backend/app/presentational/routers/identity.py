@@ -6,13 +6,19 @@ from http import HTTPStatus
 from fastapi import APIRouter, Depends, Query
 from pydantic import Field
 
-from app.application.access_control.boundary_models import ResolvedActorContext
+from app.application.access_control.boundary_models import (
+    ResolvedActorContext,
+    StoreRoleInput,
+)
 from app.application.common.pagination import Page
 from app.application.composition.commands.register_contract import (
     RegisterContractCommand,
     RegisteredContract,
 )
-from app.application.identity.boundary_models import VerifiedSubject
+from app.application.identity.boundary_models import (
+    StoreWorkConditionChange,
+    VerifiedSubject,
+)
 from app.application.identity.commands.dtos.identity_views import CurrentActorDto
 from app.application.identity.commands.models import (
     AccountStatus,
@@ -62,7 +68,8 @@ class RegisterContractRequest(RequestModel):
     representative_last_name: str
     representative_first_name: str
     administrator: PersonNamesInput
-    email: str = Field(max_length=256)
+    login_id: str = Field(min_length=3, max_length=64)
+    email: str | None = None
     initial_password: str = Field(repr=False, min_length=15, max_length=128)
 
 
@@ -77,6 +84,7 @@ async def register_contract(
             representative_last_name=body.representative_last_name,
             representative_first_name=body.representative_first_name,
             administrator=body.administrator,
+            login_id=body.login_id,
             email=body.email,
             initial_password=body.initial_password,
         )
@@ -88,9 +96,10 @@ class ChangeMembershipRequest(RequestModel):
 
     status: AccountStatus | None = None
     role: MembershipRole | None = None
-    store_ids: tuple[str, ...] | None = None
+    store_roles: tuple[StoreRoleInput, ...] | None = None
     store_id: str | None = None
     store_is_active: bool | None = None
+    store_work_conditions: tuple[StoreWorkConditionChange, ...] = ()
 
 
 @router.patch(
@@ -109,9 +118,10 @@ async def change_membership(
         membership_id,
         status=body.status,
         role=body.role,
-        store_ids=body.store_ids,
+        store_roles=body.store_roles,
         store_id=body.store_id,
         store_is_active=body.store_is_active,
+        store_work_conditions=body.store_work_conditions,
     )
     return RegisteredIdResponse(id=str(membership.id.value))
 

@@ -36,9 +36,7 @@ async def test_法人管理者_店舗にも所属すると_法人権限と一般
         SnapshotIdentityReader(facts), FakeClock()
     ).execute(_SUBJECT)
     # Assert
-    assert actor.roles == frozenset(
-        {ActorRole.CORPORATE_ADMIN, ActorRole.STORE_OPERATOR}
-    )
+    assert actor.roles == frozenset({ActorRole.CORPORATE_ADMIN})
     public = CurrentActorDto.from_actor(actor)
     assert {(item.permission_type, item.store_id) for item in public.permissions} == {
         (UserPermissionType.CORPORATE_ADMIN, None),

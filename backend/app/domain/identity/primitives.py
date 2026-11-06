@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 
 from app.domain.foundation.exceptions import DomainValidationError
@@ -31,6 +32,19 @@ class CorporateUserEmail(BaseEmailAddress):
     """法人内アカウントの連絡先メールアドレス。"""
 
 
+class LoginId(BaseNormalizedString):
+    """メールアドレスとは独立したログイン識別子。"""
+
+    def _normalize(self, value: str) -> str:
+        return super()._normalize(value).lower()
+
+    def validate(self) -> None:
+        if re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,63}", self.value) is None:
+            raise DomainValidationError(
+                "ログインIDは先頭を半角英数字とし、半角英数字・ピリオド・ハイフン・下線の3～64文字で指定してください。"
+            )
+
+
 class ExternalSubjectKey(BaseNormalizedString):
     """本人確認基盤で検証済みの発行元を含む一意な主体識別子。"""
 
@@ -52,5 +66,11 @@ class MembershipRole(StrEnum):
     """法人内の固定ロール。"""
 
     CORPORATE_ADMIN = "corporate_admin"
-    STORE_OPERATOR = "store_operator"
-    STORE_VIEWER = "store_viewer"
+    MEMBER = "member"
+
+
+class StoreRole(StrEnum):
+    """選択店舗に限って適用する操作権限。"""
+
+    EDITOR = "store_operator"
+    VIEWER = "store_viewer"

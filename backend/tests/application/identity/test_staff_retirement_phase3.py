@@ -10,6 +10,7 @@ import pytest
 from app.application.access_control.boundary_models import (
     ActorContext,
     ActorRole,
+    StoreRoleInput,
 )
 from app.application.access_control.policies import AuthorizationService
 from app.application.common.exceptions import AuthorizationError, NotFoundError
@@ -55,7 +56,9 @@ from app.domain.identity.identifiers import CorporateMembershipId
 from app.domain.identity.primitives import (
     AccountStatus,
     MembershipRole,
+    StoreRole,
 )
+from app.domain.identity.value_objects import StoreRoleAssignment
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import (
     PersonName,
@@ -81,6 +84,7 @@ from tests.application.access_helpers import (
     AutoProvisioningCorporateRepository,
     create_vendor_corporate_access,
 )
+from tests.application.identity.helpers import create_staff_store_settings
 from tests.application.staff.access_revocation_helpers import create_access_revocation
 from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_store
@@ -165,8 +169,11 @@ async def test_TC053_退職_原子的成功_スタッフ停止と所属終了と
         id=CorporateMembershipId.generate(),
         account_id=account.id,
         corporate_id=corp_id,
-        role=MembershipRole.STORE_OPERATOR,
-        store_ids=frozenset({store.id}),
+        role=MembershipRole.MEMBER,
+        store_roles=tuple(
+            StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+            for store_id in frozenset({store.id})
+        ),
         staff_id=staff.id,
     )
     await memberships.save(membership)
@@ -297,8 +304,8 @@ async def test_TC057_法人非干渉_A法人での退職がB法人の同名同�
         id=CorporateMembershipId.generate(),
         account_id=account_a.id,
         corporate_id=corp_a,
-        role=MembershipRole.STORE_OPERATOR,
-        store_ids=frozenset(),
+        role=MembershipRole.MEMBER,
+        store_roles=(),
         staff_id=staff_a.id,
     )
     await memberships.save(mem_a)
@@ -316,8 +323,8 @@ async def test_TC057_法人非干渉_A法人での退職がB法人の同名同�
         id=CorporateMembershipId.generate(),
         account_id=account_b.id,
         corporate_id=corp_b,
-        role=MembershipRole.STORE_OPERATOR,
-        store_ids=frozenset(),
+        role=MembershipRole.MEMBER,
+        store_roles=(),
         staff_id=staff_b.id,
     )
     await memberships.save(mem_b)
@@ -562,8 +569,11 @@ async def test_TC066_再雇用_段階的権限_各段階で権限を検証し自
         id=CorporateMembershipId.generate(),
         account_id=account.id,
         corporate_id=corp_id,
-        role=MembershipRole.STORE_OPERATOR,
-        store_ids=frozenset({store.id}),
+        role=MembershipRole.MEMBER,
+        store_roles=tuple(
+            StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+            for store_id in frozenset({store.id})
+        ),
         staff_id=staff.id,
     )
     await memberships.save(membership)
@@ -669,12 +679,18 @@ async def test_TC066_再雇用_段階的権限_各段階で権限を検証し自
         lock=FakeOrganizationLock(),
         managers=managers,
         clock=clock,
+        staff_store_settings=create_staff_store_settings(
+            repos, staffs, stores, clock, corp_access, managers
+        ),
     )
     await change_mem_use_case.execute(
         corporate_id=str(corp_id.value),
         membership_id=str(membership.id.value),
         status="active",
-        store_ids=(str(store.id.value),),
+        store_roles=tuple(
+            StoreRoleInput(store_id=raw, role="store_operator")
+            for raw in ((str(store.id.value),))
+        ),
     )
     final_mem = await memberships.get(membership.id)
     assert final_mem is not None and final_mem.status == AccountStatus.ACTIVE
@@ -806,10 +822,11 @@ async def test_TC056_既存セッション_退職後は古いトークンでの�
         account_status=AccountStatus.ACTIVE,
         is_vendor_admin=False,
         membership=MembershipIdentitySnapshot(
+            store_roles=(),
             id=membership_id,
             account_id=account_id,
             corporate_id=corp_id,
-            role=MembershipRole.STORE_OPERATOR,
+            role=MembershipRole.MEMBER,
             status=AccountStatus.ACTIVE,
             store_ids=frozenset(),
             suspended_store_ids=frozenset(),

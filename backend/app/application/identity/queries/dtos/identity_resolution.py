@@ -10,6 +10,7 @@ from app.domain.identity.primitives import (
     ExternalSubjectKey,
     MembershipRole,
 )
+from app.domain.identity.value_objects import StoreRoleAssignment
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.identifiers import StaffId
 from app.domain.store.identifiers import StoreId
@@ -60,6 +61,7 @@ class MembershipIdentitySnapshot:
     role: MembershipRole
     staff_id: StaffId | None
     store_ids: frozenset[StoreId]
+    store_roles: tuple[StoreRoleAssignment, ...]
     suspended_store_ids: frozenset[StoreId] = frozenset()
     manager_assignments: tuple[ManagerIdentitySnapshot, ...] = ()
     staff_is_active: bool | None = None

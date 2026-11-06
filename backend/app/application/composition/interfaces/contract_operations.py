@@ -16,7 +16,7 @@ class RegisteredAdminUser:
     """登録完了した管理者アカウント。"""
 
     id: str
-    email: str
+    login_id: str
 
 
 class RegisterCorporateOperation(Protocol):
@@ -39,8 +39,9 @@ class RegisterContractAdminOperation(Protocol):
         *,
         corporate_id: str,
         person_id: str,
-        email: str,
+        login_id: str,
         initial_password: str,
+        email: str | None = None,
     ) -> RegisteredAdminUser:
         """初期管理者のアカウントと認証資格情報を保存する。"""
         ...

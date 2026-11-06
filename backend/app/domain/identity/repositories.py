@@ -14,7 +14,7 @@ from app.domain.identity.entities import (
     VendorOperator,
 )
 from app.domain.identity.identifiers import CorporateMembershipId, VendorOperatorId
-from app.domain.identity.primitives import CorporateUserEmail, ExternalSubjectKey
+from app.domain.identity.primitives import ExternalSubjectKey, LoginId
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.identifiers import StaffId
 
@@ -136,8 +136,8 @@ class VendorOperatorRepository(Protocol):
         """外部主体で運営者を取得する。"""
         ...
 
-    async def get_by_email(self, email: CorporateUserEmail) -> VendorOperator | None:
-        """メールアドレスで運営者を取得する。"""
+    async def get_by_login_id(self, login_id: LoginId) -> VendorOperator | None:
+        """ログインIDで運営者を取得する。"""
         ...
 
     async def save(self, operator: VendorOperator) -> None:

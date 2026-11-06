@@ -39,6 +39,7 @@ from tools.seed_dev_data import SeedData, apply_seed, build_seed_data
 SEEDED_TABLES: tuple[tuple[str, int], ...] = (
     ("account_people", 2),
     ("user_accounts", 2),
+    ("vendor_operators", 1),
     ("corporates", 1),
     ("stores", 1),
     ("staff_members", 1),
@@ -62,14 +63,14 @@ async def _apply_seed_once(
     return data
 
 
-async def _snapshot(engine: AsyncEngine) -> dict[str, list[tuple[uuid.UUID, int]]]:
-    """シード対象テーブルの (id, version) を読み出す。"""
-    snapshot: dict[str, list[tuple[uuid.UUID, int]]] = {}
+async def _snapshot(engine: AsyncEngine) -> dict[str, list[tuple[uuid.UUID, str]]]:
+    """世代列の有無によらずシード対象の全保存値を比較する。"""
+    snapshot: dict[str, list[tuple[uuid.UUID, str]]] = {}
     async with engine.connect() as connection:
         for table, _ in SEEDED_TABLES:
             rows = (
                 await connection.execute(
-                    text(f"SELECT id, version FROM {table} ORDER BY id")
+                    text(f"SELECT id, row_to_json(t)::text FROM {table} t ORDER BY id")
                 )
             ).all()
             snapshot[table] = [(row[0], row[1]) for row in rows]
@@ -137,15 +138,15 @@ async def test_シードしたベンダー本人が_操作主体として解決�
     # Arrange
     data = await _apply_seed_once(session_factory)
     root = PostgresCompositionRoot(engine, session_factory, _CLOCK)
-    subject = data.vendor_account.external_subject
-    assert subject is not None
+    subject = data.vendor_operator.external_subject
 
     # Act
     actor = await root.resolve_identity(VerifiedSubject(principal_id=subject.value))
 
     # Assert
     assert actor.roles == frozenset({ActorRole.VENDOR_SYSTEM_ADMIN})
-    assert actor.account_id == data.vendor_account.id
+    assert actor.operator_id == data.vendor_operator.id
+    assert actor.account_id is None
 
 
 @pytest.mark.asyncio
@@ -164,7 +165,7 @@ async def test_シードした法人管理者が_自法人の主体として解�
 
     # Assert
     assert actor.roles == frozenset(
-        {ActorRole.CORPORATE_ADMIN, ActorRole.STORE_OPERATOR, ActorRole.STORE_MANAGER}
+        {ActorRole.CORPORATE_ADMIN, ActorRole.STORE_MANAGER}
     )
     assert actor.managed_store_ids == actor.store_ids
     assert actor.corporate_id == data.corporate.id
@@ -208,12 +209,13 @@ async def test_シードした主体なら_HTTP経由の更新が監査ごと確
     async with engine.connect() as connection:
         audits = (
             await connection.execute(
-                text("SELECT person_id, account_id FROM operation_audits")
+                text("SELECT operator_id, person_id, account_id FROM operation_audits")
             )
         ).all()
     assert len(audits) == 1
-    assert audits[0][0] == data.vendor_person.id.value
-    assert audits[0][1] == data.vendor_account.id.value
+    assert audits[0][0] == data.vendor_operator.id.value
+    assert audits[0][1] is None
+    assert audits[0][2] is None
 
 
 @pytest.mark.asyncio

@@ -5,7 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from app.application.access_control.boundary_models import ResolvedActorContext
+from app.application.access_control.boundary_models import (
+    ResolvedActorContext,
+    StoreRoleInput,
+)
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.identifiers import CorporateMembershipId
 from app.domain.shared.actor import AccountPersonId, UserAccountId
@@ -21,7 +24,7 @@ class StaffAccountRegistrationResult:
     person_id: AccountPersonId
     account_id: UserAccountId
     membership_id: CorporateMembershipId
-    email: str
+    login_id: str
 
 
 class StaffAccountRegistrationBoundary(Protocol):
@@ -43,10 +46,11 @@ class StaffAccountRegistrationBoundary(Protocol):
         corporate_id: CorporateId,
         staff_id: StaffId,
         names: PersonNames,
-        email: str,
+        login_id: str,
         password: str,
+        email: str | None = None,
         role: str,
-        store_ids: frozenset[StoreId],
+        store_roles: tuple[StoreRoleInput, ...],
     ) -> StaffAccountRegistrationResult:
         """アカウントと資格情報を保存し、生成された識別子を返す。"""
         ...

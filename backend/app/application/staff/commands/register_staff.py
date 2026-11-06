@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 
 from app.application.access_control.boundary_models import (
     ActorRole,
     Permission,
     ResolvedActorContext,
+    StoreRoleInput,
 )
 from app.application.access_control.interfaces.corporate_access import (
     CorporateAccessBoundary,
@@ -36,6 +38,7 @@ from app.domain.staff.entities import Staff
 from app.domain.staff.identifiers import StaffId
 from app.domain.staff.primitives import (
     DietitianRegistrationNumber,
+    EmploymentType,
     InsurancePharmacistRegistrationNumber,
     JobTitle,
     PharmacistLicenseNumber,
@@ -43,6 +46,10 @@ from app.domain.staff.primitives import (
     StaffCode,
     StaffEmailAddress,
     StaffPhoneNumber,
+    StoreDuty,
+    WeeklyContractHours,
+    WeeklyStoreHours,
+    WorkConditionRecorder,
 )
 from app.domain.staff.repositories import StaffRepository
 from app.domain.staff.services import (
@@ -56,6 +63,7 @@ from app.domain.staff.value_objects import (
     PharmacistProfile,
     RegisteredSellerProfile,
     StaffQualifications,
+    StoreWorkCondition,
 )
 from app.domain.store.identifiers import StoreId
 from app.domain.store.repositories import StoreManagerAssignmentRepository
@@ -65,10 +73,21 @@ from app.domain.store.repositories import StoreManagerAssignmentRepository
 class BulkStaffAccountInput:
     """スタッフと同時に生成するアカウントの入力情報。"""
 
-    email: str
+    login_id: str
     password: str
-    role: str = "store_operator"
-    store_ids: tuple[str, ...] | None = None
+    email: str | None = None
+    role: str = "member"
+    store_roles: tuple[StoreRoleInput, ...] = ()
+
+
+@dataclass(frozen=True, kw_only=True)
+class InitialStoreWorkConditionInput:
+    """所属開始日から適用する店舗別勤務条件。"""
+
+    store_id: str
+    starts_on: date
+    weekly_hours: str | None = None
+    duty: str = "other"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -87,12 +106,15 @@ class RegisterStaffCommand:
     email: str | None = None
     initial_home_store_id: str | None = None
     initial_start_date: date | None = None
+    initial_store_work_conditions: tuple[InitialStoreWorkConditionInput, ...] = ()
     pharmacist_license_number: str | None = None
     insurance_pharmacist_registration_number: str | None = None
     insurance_pharmacist_registration_date: date | None = None
     registered_seller_number: str | None = None
     dietitian_registration_number: str | None = None
     is_registered_dietitian: bool = True
+    employment_type: str = "regular"
+    weekly_contract_hours: float | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -103,7 +125,7 @@ class BulkRegisteredStaffResult:
     person_id: str
     account_id: str
     membership_id: str
-    email: str
+    login_id: str
 
 
 class RegisterStaffUseCase:
@@ -197,7 +219,7 @@ class RegisterStaffUseCase:
             await self._corporate_access.require_active(
                 corporate_id=corporate_id, permission=Permission.MANAGE_STORE_USERS
             )
-            if command.account.role not in {"store_operator", "store_viewer"}:
+            if command.account.role != "member":
                 raise AuthorizationError("管理薬剤師は管理者権限を付与できません。")
             if not isinstance(actor, ResolvedActorContext):
                 raise AuthorizationError("有効な管理薬剤師の任命が必要です。")
@@ -209,8 +231,9 @@ class RegisterStaffUseCase:
             home_store = StoreId.parse(command.initial_home_store_id)
             if home_store not in managed_store_ids:
                 raise NotFoundError("指定された店舗が見つかりません。")
-            if command.account.store_ids:
-                for sid in command.account.store_ids:
+            if command.account.store_roles:
+                for permission in command.account.store_roles:
+                    sid = permission.store_id
                     if StoreId.parse(sid) not in managed_store_ids:
                         raise NotFoundError("指定された店舗が見つかりません。")
 
@@ -269,6 +292,15 @@ class RegisterStaffUseCase:
         raw_job_title = to_optional_text(command.job_title)
         job_title = JobTitle(raw_job_title) if raw_job_title else None
         qualifications = self._build_qualifications(command)
+        employment_type = EmploymentType.REGULAR
+        if command.employment_type:
+            try:
+                employment_type = EmploymentType(command.employment_type)
+            except ValueError as error:
+                raise DomainValidationError(
+                    f"不正な雇用形態です: '{command.employment_type}'"
+                ) from error
+
         staff = Staff(
             id=StaffId.generate(),
             corporate_id=corporate_id,
@@ -278,6 +310,12 @@ class RegisterStaffUseCase:
             code=code,
             phone_number=phone_number,
             email=email,
+            employment_type=employment_type,
+            weekly_contract_hours=(
+                WeeklyContractHours(Decimal(str(command.weekly_contract_hours)))
+                if command.weekly_contract_hours is not None
+                else None
+            ),
             affiliations=(),
         )
         if command.initial_home_store_id and command.initial_start_date:
@@ -288,25 +326,90 @@ class RegisterStaffUseCase:
             staff = self._assignment_service.assign_home_store(
                 staff, store, command.initial_start_date
             )
-        await self._staff_repository.save(staff)
-
-        if command.account.store_ids is not None:
-            account_stores = frozenset(
-                StoreId.parse(raw) for raw in command.account.store_ids
+        conditions = command.initial_store_work_conditions
+        if conditions and (
+            not command.initial_home_store_id or not command.initial_start_date
+        ):
+            raise DomainValidationError(
+                "店舗別勤務条件には主所属店舗と所属開始日が必要です。"
             )
-        elif command.initial_home_store_id:
-            account_stores = frozenset([StoreId.parse(command.initial_home_store_id)])
-        else:
-            account_stores = frozenset()
+        primary = (
+            next(
+                (
+                    item
+                    for item in conditions
+                    if StoreId.parse(item.store_id)
+                    == StoreId.parse(command.initial_home_store_id or "")
+                ),
+                None,
+            )
+            if conditions
+            else None
+        )
+        if primary is not None and primary.starts_on != command.initial_start_date:
+            raise DomainValidationError(
+                "主所属店舗の所属開始日と勤務条件の開始日を揃えてください。"
+            )
+        condition_ids = [StoreId.parse(item.store_id) for item in conditions]
+        permitted_ids = {
+            StoreId.parse(item.store_id) for item in command.account.store_roles
+        }
+        if len(condition_ids) != len(set(condition_ids)):
+            raise DomainValidationError("同じ店舗の勤務条件を重複して指定できません。")
+        if not set(condition_ids) <= permitted_ids:
+            raise DomainValidationError(
+                "勤務条件の店舗を店舗の利用権限に含めてください。"
+            )
+        records: list[StoreWorkCondition] = []
+        for condition in conditions:
+            store_id = StoreId.parse(condition.store_id)
+            store = await load_store_or_raise(
+                self._store_repository, corporate_id=corporate_id, store_id=store_id
+            )
+            assert command.initial_start_date is not None
+            if store_id != StoreId.parse(command.initial_home_store_id or ""):
+                staff = self._assignment_service.assign_concurrent_store(
+                    staff, store, condition.starts_on
+                )
+            try:
+                duty = StoreDuty(condition.duty)
+            except ValueError as error:
+                raise DomainValidationError(
+                    "従事区分は薬剤師・登録販売者・その他から指定してください。"
+                ) from error
+            raw_hours = to_optional_text(condition.weekly_hours)
+            records.append(
+                StoreWorkCondition(
+                    store_id=store_id,
+                    effective_from=condition.starts_on,
+                    weekly_hours=WeeklyStoreHours.parse(raw_hours)
+                    if raw_hours is not None
+                    else None,
+                    duty=duty,
+                    recorded_at=self._clock.now(),
+                    recorded_by=WorkConditionRecorder(actor.principal_id),
+                )
+            )
+        staff = staff.record_work_conditions(
+            tuple(records), applied_on=business_date(self._clock)
+        )
+        for permission in command.account.store_roles:
+            await load_store_or_raise(
+                self._store_repository,
+                corporate_id=corporate_id,
+                store_id=StoreId.parse(permission.store_id),
+            )
+        await self._staff_repository.save(staff)
 
         reg_result = await self._account_registration.register_account(
             corporate_id=corporate_id,
             staff_id=staff.id,
             names=names,
+            login_id=command.account.login_id,
             email=command.account.email,
             password=command.account.password,
             role=command.account.role,
-            store_ids=account_stores,
+            store_roles=command.account.store_roles,
         )
 
         return BulkRegisteredStaffResult(
@@ -314,5 +417,5 @@ class RegisterStaffUseCase:
             person_id=str(reg_result.person_id.value),
             account_id=str(reg_result.account_id.value),
             membership_id=str(reg_result.membership_id.value),
-            email=reg_result.email,
+            login_id=reg_result.login_id,
         )

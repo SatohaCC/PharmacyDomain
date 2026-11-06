@@ -22,5 +22,6 @@ dist/
 test-results/
 playwright-report/
 storybook-static/
+backend/.local/
 .env*
 !.env.example

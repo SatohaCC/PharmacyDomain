@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, datetime
 from typing import ClassVar, Self
 
 from app.domain.corporate.identifiers import CorporateId
@@ -18,6 +18,9 @@ from app.domain.staff.primitives import (
     PharmacistLicenseNumber,
     SellerRegistrationNumber,
     StaffQualification,
+    StoreDuty,
+    WeeklyStoreHours,
+    WorkConditionRecorder,
 )
 from app.domain.store.identifiers import StoreId
 
@@ -193,6 +196,24 @@ class StoreAffiliation(ValueObject):
         """所属期間を終了する（異動や兼務解除の際に呼ばれる）"""
         new_period = replace(self.period, end_date=end_date)
         return replace(self, period=new_period)
+
+
+@dataclass(frozen=True, kw_only=True)
+class StoreWorkCondition(ValueObject):
+    """店舗ごとの勤務条件。訂正時も元の記録は消さず新しい記録を追加する。"""
+
+    store_id: StoreId
+    effective_from: date
+    weekly_hours: WeeklyStoreHours | None
+    duty: StoreDuty
+    recorded_at: datetime
+    recorded_by: WorkConditionRecorder
+
+    def validate(self) -> None:
+        if self.recorded_at.utcoffset() is None:
+            raise DomainValidationError(
+                "勤務条件の記録日時にはタイムゾーンが必要です。"
+            )
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -108,3 +108,62 @@ async def test_register_corporate_rejects_corporate_admin() -> None:
 
     with pytest.raises(AuthorizationError):
         await use_case.execute(create_command())
+
+
+@pytest.mark.asyncio
+async def test_register_corporate_rejects_invalid_corporate_type() -> None:
+    repository = InMemoryCorporateRepository()
+    use_case = create_use_case(repository)
+    command = RegisterCorporateCommand(
+        name="株式会社テスト",
+        representative_last_name="山田",
+        representative_first_name="太郎",
+        corporate_type="invalid_type",
+    )
+
+    with pytest.raises(DomainValidationError):
+        await use_case.execute(command)
+
+
+@pytest.mark.asyncio
+async def test_register_corporate_rejects_incomplete_address() -> None:
+    repository = InMemoryCorporateRepository()
+    use_case = create_use_case(repository)
+
+    # 郵便番号のみ
+    with pytest.raises(DomainValidationError):
+        await use_case.execute(
+            RegisterCorporateCommand(
+                name="株式会社テスト1",
+                representative_last_name="山田",
+                representative_first_name="太郎",
+                postal_code="1000001",
+            )
+        )
+
+    # 住所のみ
+    with pytest.raises(DomainValidationError):
+        await use_case.execute(
+            RegisterCorporateCommand(
+                name="株式会社テスト2",
+                representative_last_name="山田",
+                representative_first_name="太郎",
+                address_line="東京都千代田区1-1",
+            )
+        )
+
+
+@pytest.mark.asyncio
+async def test_register_corporate_rejects_email_without_phone() -> None:
+    repository = InMemoryCorporateRepository()
+    use_case = create_use_case(repository)
+
+    with pytest.raises(DomainValidationError):
+        await use_case.execute(
+            RegisterCorporateCommand(
+                name="株式会社テスト",
+                representative_last_name="山田",
+                representative_first_name="太郎",
+                email="test@example.com",
+            )
+        )

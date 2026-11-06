@@ -31,7 +31,7 @@ async def test_実効的な最後の管理者を停止すると保存されな�
         corporate_id=corporate_id,
         account_id=account.id,
         role=MembershipRole.CORPORATE_ADMIN,
-        store_ids=frozenset(),
+        store_roles=(),
     )
     await fixture.repositories.accounts.save(account)
     await fixture.repositories.memberships.save(membership)

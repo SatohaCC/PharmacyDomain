@@ -44,6 +44,51 @@ class StorePolicyDto:
 
 
 @dataclass(frozen=True, kw_only=True)
+class PublicExpenseDesignationsDto:
+    """公費・指定医療機関情報の出力データ。"""
+
+    public_assistance_number: str | None = None
+    support_for_independence_number: str | None = None
+    intractable_disease_number: str | None = None
+    workers_accident_number: str | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class CommunityLinkageCertificationDto:
+    """地域連携薬局認定の出力データ。"""
+
+    certification_number: str
+    valid_from: date
+    valid_to: date
+
+
+@dataclass(frozen=True, kw_only=True)
+class SpecializedLinkageCertificationDto:
+    """専門医療機関連携薬局認定の出力データ。"""
+
+    certification_number: str
+    disease_category: str
+    valid_from: date
+    valid_to: date
+
+
+@dataclass(frozen=True, kw_only=True)
+class HealthSupportPharmacyNotificationDto:
+    """健康サポート薬局届出の出力データ。"""
+
+    notified_on: date
+
+
+@dataclass(frozen=True, kw_only=True)
+class PharmacyCertificationsDto:
+    """薬局機能認定・届出の出力データ。"""
+
+    community_linkage: CommunityLinkageCertificationDto | None = None
+    specialized_linkage: SpecializedLinkageCertificationDto | None = None
+    health_support: HealthSupportPharmacyNotificationDto | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
 class StoreStatusChangeDto:
     """状態履歴の公開値。"""
 
@@ -77,11 +122,69 @@ class StoreDto:
     business_hours: BusinessHoursDto | None
     licenses: StoreLicensesDto | None = None
     policy: StorePolicyDto | None = None
+    safety_manager_id: str | None = None
+    public_expense_designations: PublicExpenseDesignationsDto | None = None
+    certifications: PharmacyCertificationsDto | None = None
 
     @classmethod
     def from_entity(cls, store: Store) -> StoreDto:
         """Store エンティティから DTO を生成するファクトリメソッド"""
         return cls(
+            safety_manager_id=(
+                str(store.safety_manager_id.value)
+                if store.safety_manager_id is not None
+                else None
+            ),
+            public_expense_designations=PublicExpenseDesignationsDto(
+                public_assistance_number=(
+                    store.public_expense_designations.public_assistance_number.value
+                    if store.public_expense_designations.public_assistance_number
+                    else None
+                ),
+                support_for_independence_number=(
+                    store.public_expense_designations.support_for_independence_number.value
+                    if store.public_expense_designations.support_for_independence_number
+                    else None
+                ),
+                intractable_disease_number=(
+                    store.public_expense_designations.intractable_disease_number.value
+                    if store.public_expense_designations.intractable_disease_number
+                    else None
+                ),
+                workers_accident_number=(
+                    store.public_expense_designations.workers_accident_number.value
+                    if store.public_expense_designations.workers_accident_number
+                    else None
+                ),
+            ),
+            certifications=PharmacyCertificationsDto(
+                community_linkage=(
+                    CommunityLinkageCertificationDto(
+                        certification_number=store.certifications.community_linkage.certification_number.value,
+                        valid_from=store.certifications.community_linkage.valid_from,
+                        valid_to=store.certifications.community_linkage.valid_to,
+                    )
+                    if store.certifications.community_linkage is not None
+                    else None
+                ),
+                specialized_linkage=(
+                    SpecializedLinkageCertificationDto(
+                        certification_number=store.certifications.specialized_linkage.certification_number.value,
+                        disease_category=store.certifications.specialized_linkage.disease_category.value,
+                        valid_from=store.certifications.specialized_linkage.valid_from,
+                        valid_to=store.certifications.specialized_linkage.valid_to,
+                    )
+                    if store.certifications.specialized_linkage is not None
+                    else None
+                ),
+                health_support=(
+                    HealthSupportPharmacyNotificationDto(
+                        notified_on=store.certifications.health_support.notified_on,
+                    )
+                    if store.certifications.health_support is not None
+                    else None
+                ),
+            ),
             policy=StorePolicyDto(
                 require_prescription_audit=store.policy.require_prescription_audit,
                 prohibit_self_verification=store.policy.prohibit_self_verification,

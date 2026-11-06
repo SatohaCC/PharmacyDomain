@@ -73,6 +73,33 @@ class LeaveReason(StrEnum):
         return labels[self]
 
 
+class StoreDuty(StrEnum):
+    """所属店舗における従事区分。管理薬剤師は別途任命から判定する。"""
+
+    PHARMACIST = "pharmacist"
+    REGISTERED_SELLER = "registered_seller"
+    OTHER = "other"
+
+
+class WorkConditionRecorder(BaseNormalizedString):
+    """勤務条件を記録した認証済み主体の識別子。"""
+
+
+class WeeklyStoreHours(BaseNonNegativeDecimal):
+    """所属店舗で通常勤務する週時間数。雇用契約全体の時間数とは別の値。"""
+
+    max_integer_digits: ClassVar[int] = 3
+    max_decimal_places: ClassVar[int] = 2
+    quantity_name: ClassVar[str] = "店舗の週勤務時間"
+
+    def validate(self) -> None:
+        super().validate()
+        if self.value > Decimal("168"):
+            raise DomainValidationError(
+                "店舗の週勤務時間は168時間以内で指定してください。"
+            )
+
+
 class WeeklyContractHours(BaseNonNegativeDecimal):
     """週所定労働時間（時間単位）。
 

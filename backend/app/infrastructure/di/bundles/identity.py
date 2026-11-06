@@ -11,6 +11,12 @@ from app.application.composition.adapters.organization_snapshot_mapping import (
     StaffStoreAdapter,
 )
 from app.application.composition.adapters.staff_creator import StaffCreationAdapter
+from app.application.composition.adapters.staff_store_settings import (
+    StaffStoreSettingsAdapter,
+)
+from app.application.composition.adapters.work_condition_management import (
+    WorkConditionManagementGuard,
+)
 from app.application.composition.commands.register_contract import (
     RegisterContractUseCase,
 )
@@ -114,6 +120,20 @@ def build_identity_use_cases(
             lock,
             repositories.manager_assignment,
             clock,
+            StaffStoreSettingsAdapter(
+                repositories.staff,
+                StaffStoreAdapter(repositories.store),
+                clock,
+                WorkConditionManagementGuard(
+                    access.actor,
+                    repositories.user_account,
+                    repositories.membership,
+                    repositories.staff,
+                    repositories.manager_assignment,
+                    clock,
+                ),
+                access.actor.principal_id,
+            ),
         ),
         list_users=ListUsersUseCase(
             reader=ListUsersProjection(identity), access=access

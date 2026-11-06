@@ -351,10 +351,25 @@ from app.application.store.commands.dtos.business_hours import (
     WeekdayBusinessHoursDto as Command_store_business_hours_WeekdayBusinessHoursDto,
 )
 from app.application.store.commands.dtos.get_store import (
+    CommunityLinkageCertificationDto as Command_store_get_store_CommunityLinkageCertificationDto,
+)
+from app.application.store.commands.dtos.get_store import (
+    HealthSupportPharmacyNotificationDto as Command_store_get_store_HealthSupportPharmacyNotificationDto,
+)
+from app.application.store.commands.dtos.get_store import (
     NarcoticsRetailerLicenseDto as Command_store_get_store_NarcoticsRetailerLicenseDto,
 )
 from app.application.store.commands.dtos.get_store import (
+    PharmacyCertificationsDto as Command_store_get_store_PharmacyCertificationsDto,
+)
+from app.application.store.commands.dtos.get_store import (
     PharmacyLicenseDto as Command_store_get_store_PharmacyLicenseDto,
+)
+from app.application.store.commands.dtos.get_store import (
+    PublicExpenseDesignationsDto as Command_store_get_store_PublicExpenseDesignationsDto,
+)
+from app.application.store.commands.dtos.get_store import (
+    SpecializedLinkageCertificationDto as Command_store_get_store_SpecializedLinkageCertificationDto,
 )
 from app.application.store.commands.dtos.get_store import (
     StoreDto as Command_store_get_store_StoreDto,
@@ -1672,6 +1687,49 @@ def to_http_store_get_store__store_dto(
                 prohibit_self_verification=value.policy.prohibit_self_verification,
             )
             if value.policy is not None
+            else None
+        ),
+        safety_manager_id=value.safety_manager_id,
+        public_expense_designations=(
+            Command_store_get_store_PublicExpenseDesignationsDto(
+                public_assistance_number=value.public_expense_designations.public_assistance_number,
+                support_for_independence_number=value.public_expense_designations.support_for_independence_number,
+                intractable_disease_number=value.public_expense_designations.intractable_disease_number,
+                workers_accident_number=value.public_expense_designations.workers_accident_number,
+            )
+            if value.public_expense_designations is not None
+            else None
+        ),
+        certifications=(
+            Command_store_get_store_PharmacyCertificationsDto(
+                community_linkage=(
+                    Command_store_get_store_CommunityLinkageCertificationDto(
+                        certification_number=value.certifications.community_linkage.certification_number,
+                        valid_from=value.certifications.community_linkage.valid_from,
+                        valid_to=value.certifications.community_linkage.valid_to,
+                    )
+                    if value.certifications.community_linkage is not None
+                    else None
+                ),
+                specialized_linkage=(
+                    Command_store_get_store_SpecializedLinkageCertificationDto(
+                        certification_number=value.certifications.specialized_linkage.certification_number,
+                        disease_category=value.certifications.specialized_linkage.disease_category,
+                        valid_from=value.certifications.specialized_linkage.valid_from,
+                        valid_to=value.certifications.specialized_linkage.valid_to,
+                    )
+                    if value.certifications.specialized_linkage is not None
+                    else None
+                ),
+                health_support=(
+                    Command_store_get_store_HealthSupportPharmacyNotificationDto(
+                        notified_on=value.certifications.health_support.notified_on,
+                    )
+                    if value.certifications.health_support is not None
+                    else None
+                ),
+            )
+            if value.certifications is not None
             else None
         ),
     )

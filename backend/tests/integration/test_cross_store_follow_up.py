@@ -27,7 +27,8 @@ from app.domain.identity.entities import (
     UserAccount,
 )
 from app.domain.identity.identifiers import CorporateMembershipId
-from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole
+from app.domain.identity.primitives import ExternalSubjectKey, MembershipRole, StoreRole
+from app.domain.identity.value_objects import StoreRoleAssignment
 from app.domain.medication_history.entities import (
     MedicationHistoryRecord,
     PatientMedicalProfile,
@@ -129,8 +130,11 @@ async def _save_store_operator(
         id=CorporateMembershipId.generate(),
         account_id=account.id,
         corporate_id=corporate_id,
-        role=MembershipRole.STORE_OPERATOR,
-        store_ids=frozenset({store.id}),
+        role=MembershipRole.MEMBER,
+        store_roles=tuple(
+            StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+            for store_id in frozenset({store.id})
+        ),
         staff_id=staff.id,
     )
     link = StaffPersonLink(
@@ -197,7 +201,10 @@ async def _save_corporate_admin(
         account_id=account.id,
         corporate_id=corporate_id,
         role=MembershipRole.CORPORATE_ADMIN,
-        store_ids=store_ids,
+        store_roles=tuple(
+            StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+            for store_id in store_ids
+        ),
     )
     async with PostgresUnitOfWork(session_factory) as work:
         repositories = PostgresRepositorySet.create(work)
@@ -207,7 +214,7 @@ async def _save_corporate_admin(
         await work.commit()
     actor = ResolvedActorContext(
         principal_id="issuer/integration-follow-up-admin",
-        roles=frozenset({ActorRole.CORPORATE_ADMIN}),
+        roles=frozenset({ActorRole.CORPORATE_ADMIN, ActorRole.STORE_OPERATOR}),
         person_id=person.id,
         account_id=account.id,
         membership_id=membership.id,

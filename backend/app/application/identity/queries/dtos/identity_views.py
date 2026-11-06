@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.application.access_control.boundary_models import StoreRoleInput
 from app.application.common.optional_conversion import optional_id
 from app.domain.identity.entities import (
     CorporateMembership,
@@ -34,6 +35,7 @@ class MembershipViewDto:
     store_ids: tuple[str, ...]
     staff_id: str | None
     suspended_store_ids: tuple[str, ...] = ()
+    store_roles: tuple[StoreRoleInput, ...] = ()
 
     @classmethod
     def from_entities(
@@ -58,6 +60,10 @@ class MembershipViewDto:
                 for item in sorted(
                     membership.suspended_store_ids, key=lambda item: item.value
                 )
+            ),
+            tuple(
+                StoreRoleInput(store_id=str(item.store_id.value), role=item.role.value)
+                for item in membership.store_roles
             ),
         )
 

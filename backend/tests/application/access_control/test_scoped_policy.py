@@ -71,12 +71,25 @@ def _actor(
         Permission.VIEW_MEDICATION_HISTORY,
     ],
 )
-def test_許可店舗の業務記録は各ロールが閲覧できる(
+def test_許可店舗の業務記録_店舗ロールの有無に応じて閲覧を判定する(
     role: ActorRole, permission: Permission
 ) -> None:
-    AuthorizationService(_actor(role)).require_store(
-        permission=permission, target_corporate_id=_CORPORATE, target_store_id=_STORE
-    )
+    authorization = AuthorizationService(_actor(role))
+    if role is ActorRole.MEMBER or (
+        role is ActorRole.CORPORATE_ADMIN and permission is not Permission.VIEW_STORE
+    ):
+        with pytest.raises(AuthorizationError):
+            authorization.require_store(
+                permission=permission,
+                target_corporate_id=_CORPORATE,
+                target_store_id=_STORE,
+            )
+    else:
+        authorization.require_store(
+            permission=permission,
+            target_corporate_id=_CORPORATE,
+            target_store_id=_STORE,
+        )
 
 
 @pytest.mark.parametrize(
@@ -152,8 +165,8 @@ def test_tc43_21_22_店舗オペレータの頭書き権限を基本台帳権限
         (ActorRole.STORE_OPERATOR, Permission.MANAGE_PATIENT_HEADING, True),
         (ActorRole.STORE_VIEWER, Permission.VIEW_PATIENT_HEADING, True),
         (ActorRole.STORE_VIEWER, Permission.MANAGE_PATIENT_HEADING, False),
-        (ActorRole.CORPORATE_ADMIN, Permission.VIEW_PATIENT_HEADING, True),
-        (ActorRole.CORPORATE_ADMIN, Permission.MANAGE_PATIENT_HEADING, True),
+        (ActorRole.CORPORATE_ADMIN, Permission.VIEW_PATIENT_HEADING, False),
+        (ActorRole.CORPORATE_ADMIN, Permission.MANAGE_PATIENT_HEADING, False),
         (ActorRole.VENDOR_SYSTEM_ADMIN, Permission.VIEW_PATIENT_HEADING, True),
         (ActorRole.VENDOR_SYSTEM_ADMIN, Permission.MANAGE_PATIENT_HEADING, True),
     ],

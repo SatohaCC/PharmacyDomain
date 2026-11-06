@@ -9,6 +9,7 @@ from app.application.access_control.boundary_models import (
     ActorContext,
     ActorRole,
     ResolvedActorContext,
+    StoreRoleInput,
 )
 from app.application.access_control.policies import AuthorizationService
 from app.application.common.exceptions import AuthorizationError, NotFoundError
@@ -21,13 +22,17 @@ from app.application.identity.commands.suspend_account import SuspendAccountUseC
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.entities import CorporateMembership, UserAccount
 from app.domain.identity.identifiers import CorporateMembershipId
-from app.domain.identity.primitives import AccountStatus, MembershipRole
+from app.domain.identity.primitives import AccountStatus, MembershipRole, StoreRole
+from app.domain.identity.value_objects import StoreRoleAssignment
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.staff.identifiers import StaffId
 from app.domain.store.entities import StoreManagerAssignment
 from app.domain.store.identifiers import StoreId
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
-from tests.application.identity.helpers import create_identity_use_cases
+from tests.application.identity.helpers import (
+    create_identity_use_cases,
+    create_staff_store_settings,
+)
 from tests.factories.store_factory import create_manager_assignment, create_store
 from tests.fakes.fake_clock import FakeClock
 from tests.fakes.fake_organization_management import FakeOrganizationLock
@@ -67,7 +72,10 @@ async def _setup() -> Fixture:
         corporate_id=corporate,
         account_id=account.id,
         role=MembershipRole.CORPORATE_ADMIN,
-        store_ids=frozenset({own.id, other.id}),
+        store_roles=tuple(
+            StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+            for store_id in frozenset({own.id, other.id})
+        ),
     )
     await service.repositories.accounts.save(account)
     await service.repositories.memberships.save(membership)
@@ -80,8 +88,11 @@ async def _setup() -> Fixture:
         id=CorporateMembershipId.generate(),
         corporate_id=corporate,
         account_id=manager.id,
-        role=MembershipRole.STORE_OPERATOR,
-        store_ids=frozenset({own.id}),
+        role=MembershipRole.MEMBER,
+        store_roles=tuple(
+            StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+            for store_id in frozenset({own.id})
+        ),
         staff_id=StaffId.generate(),
     )
     await service.repositories.accounts.save(manager)
@@ -119,6 +130,14 @@ async def _setup() -> Fixture:
         FakeOrganizationLock(),
         managers,
         FakeClock(),
+        create_staff_store_settings(
+            service.repositories,
+            service.staff,
+            service.stores,
+            FakeClock(),
+            access,
+            managers,
+        ),
     )
     return Fixture(
         use_case, service.repositories, managers, assignment, membership, actor, access
@@ -162,7 +181,7 @@ async def test_管理薬剤師_担当範囲外や失効後の更新は_拒否し
     fixture = await _setup()
     membership = fixture.membership
     store = fixture.assignment.store_id
-    role = MembershipRole.STORE_VIEWER if change == "role" else None
+    role = MembershipRole.MEMBER if change == "role" else None
     status = AccountStatus.SUSPENDED if change == "status" else None
     stores = (
         (str(store.value), str(StoreId.generate().value))
@@ -193,7 +212,12 @@ async def test_管理薬剤師_担当範囲外や失効後の更新は_拒否し
                 str(target.value),
                 role=role,
                 status=status,
-                store_ids=stores,
+                store_roles=None
+                if stores is None
+                else tuple(
+                    StoreRoleInput(store_id=raw, role="store_operator")
+                    for raw in (stores)
+                ),
                 store_id=str(store.value),
                 store_is_active=False,
             )

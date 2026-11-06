@@ -96,18 +96,27 @@ def _verify_permission_classification(
         raise RuntimeError("ベンダー専用権限と法人管理者権限に重複が存在します。")
 
 
-def _store_role_allows(actor: ResolvedActorContext, permission: Permission) -> bool:
+def _store_role_allows(
+    actor: ResolvedActorContext,
+    permission: Permission,
+    *,
+    store_id: StoreId | None = None,
+) -> bool:
     """店舗ロールがその操作を行えるか。
 
     ``require`` と ``require_store`` の両方が同じ判定を必要とする。以前は同一の
     集合リテラルが2箇所に置かれており、片方へ権限を足すと、同じ操作が入口に
     よって通ったり通らなかったりする状態になりえた。
     """
+    target = store_id or actor.selected_store_id
+    roles = actor.roles
+    if target is not None and target not in actor.managed_store_ids:
+        roles = roles - {ActorRole.STORE_MANAGER}
     if permission == Permission.MANAGE_STORE_USERS:
-        return ActorRole.STORE_MANAGER in actor.roles
+        return ActorRole.STORE_MANAGER in roles
     if permission in _STORE_VIEW_PERMISSIONS:
         return bool(
-            actor.roles
+            roles
             & {
                 ActorRole.STORE_OPERATOR,
                 ActorRole.STORE_VIEWER,
@@ -115,7 +124,7 @@ def _store_role_allows(actor: ResolvedActorContext, permission: Permission) -> b
             }
         )
     if permission in _STORE_WRITE_PERMISSIONS:
-        return bool(actor.roles & {ActorRole.STORE_OPERATOR, ActorRole.STORE_MANAGER})
+        return bool(roles & {ActorRole.STORE_OPERATOR, ActorRole.STORE_MANAGER})
     return False
 
 
@@ -159,7 +168,10 @@ class AuthorizationService:
             raise TenantBoundaryNotFoundError()
         if target_store_id not in actor.store_ids:
             raise TenantBoundaryNotFoundError()
-        if ActorRole.CORPORATE_ADMIN in actor.roles:
+        if (
+            ActorRole.CORPORATE_ADMIN in actor.roles
+            and permission not in _STORE_BUSINESS_PERMISSIONS
+        ):
             self.require(permission=permission, target_corporate_id=target_corporate_id)
             return
         if (
@@ -167,7 +179,7 @@ class AuthorizationService:
             and target_store_id not in actor.managed_store_ids
         ):
             self._deny(permission)
-        if _store_role_allows(actor, permission):
+        if _store_role_allows(actor, permission, store_id=target_store_id):
             return
         self._deny(permission)
 
@@ -203,6 +215,7 @@ class AuthorizationService:
         if (
             ActorRole.CORPORATE_ADMIN in self._actor.roles
             and permission in _CORPORATE_ADMIN_PERMISSIONS
+            and permission not in _STORE_BUSINESS_PERMISSIONS
             and (self._actor.corporate_id == target_corporate_id)
         ):
             return

@@ -66,7 +66,7 @@ def _membership() -> CorporateMembership:
         account_id=UserAccountId.generate(),
         corporate_id=CorporateId.generate(),
         role=MembershipRole.CORPORATE_ADMIN,
-        store_ids=frozenset(),
+        store_roles=(),
         staff_id=StaffId.generate(),
     )
 

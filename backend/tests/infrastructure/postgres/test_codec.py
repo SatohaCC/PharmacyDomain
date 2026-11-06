@@ -575,7 +575,9 @@ def test_スタッフの社会ルール属性_JSONBを経由して往復でき�
     staff = create_staff()
     customized = (
         staff.change_employment_type(EmploymentType.PART_TIME)
-        .change_weekly_contract_hours(WeeklyContractHours(Decimal("25.5")))
+        .change_weekly_contract_hours(
+            WeeklyContractHours(Decimal("25.5")), applied_on=date(2026, 11, 3)
+        )
         .start_leave(reason=LeaveReason.CHILDCARE, left_on=date(2026, 5, 1))
     )
 

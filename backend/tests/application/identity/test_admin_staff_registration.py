@@ -120,6 +120,7 @@ async def test_tc046_初期管理者ブートストラップ_契約作成から�
             last_name_kana="カンリ",
             first_name_kana="イチロウ",
         ),
+        login_id="test-admin",
         email="admin@test-pharmacy.example.test",
         initial_password="AdminPassword123!",
     )
@@ -156,7 +157,7 @@ async def test_tc046_初期管理者ブートストラップ_契約作成から�
     assert len(credential_writer.issued) == 1
     issued_corp, issued_email, _, issued_subject = credential_writer.issued[0]
     assert issued_corp == corp_id
-    assert issued_email == "admin@test-pharmacy.example.test"
+    assert issued_email == "test-admin"
     assert issued_subject == account.external_subject.value
 
     # 3. 初期管理者のActor解決: 法人管理ロールを持ち、店舗権限は持たない
@@ -233,7 +234,7 @@ async def test_tc047_初期管理者へのスタッフ登録_名前引き継ぎ�
         account_id=account.id,
         corporate_id=corp_id,
         role=MembershipRole.CORPORATE_ADMIN,
-        store_ids=frozenset(),
+        store_roles=(),
         staff_id=None,
     )
     await membership_repo.save(membership)
@@ -341,7 +342,7 @@ async def test_tc047_初期管理者へのスタッフ登録_名前明示指定(
         account_id=account.id,
         corporate_id=corp_id,
         role=MembershipRole.CORPORATE_ADMIN,
-        store_ids=frozenset(),
+        store_roles=(),
         staff_id=None,
     )
     await membership_repo.save(membership)
@@ -449,7 +450,7 @@ async def test_tc047_初期管理者へのスタッフ登録_二重登録で409(
         account_id=account.id,
         corporate_id=corp_id,
         role=MembershipRole.CORPORATE_ADMIN,
-        store_ids=frozenset(),
+        store_roles=(),
         staff_id=StaffId.generate(),
     )
     await membership_repo.save(membership_with_staff)
@@ -510,7 +511,7 @@ async def test_tc047_初期管理者へのスタッフ登録_別法人や存在�
         account_id=account_b.id,
         corporate_id=corp_b,
         role=MembershipRole.CORPORATE_ADMIN,
-        store_ids=frozenset(),
+        store_roles=(),
         staff_id=None,
     )
     await membership_repo.save(membership_b)

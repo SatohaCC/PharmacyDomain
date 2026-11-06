@@ -32,6 +32,9 @@ from app.application.composition.adapters.staff_account_registration import (
     StaffAccountRegistrationAdapter,
 )
 from app.application.composition.adapters.staff_person_adapter import StaffPersonAdapter
+from app.application.composition.adapters.work_condition_management import (
+    WorkConditionManagementGuard,
+)
 from app.application.composition.registry import (
     CorporateUseCases,
     CoverageUseCases,
@@ -55,6 +58,9 @@ from app.application.corporate.commands.register_corporate import (
 )
 from app.application.corporate.commands.services.corporate_access import (
     CorporateAccessService,
+)
+from app.application.corporate.commands.update_corporate_details import (
+    UpdateCorporateDetailsUseCase,
 )
 from app.application.corporate.commands.update_corporate_policy import (
     UpdateCorporatePolicyUseCase,
@@ -136,6 +142,13 @@ from app.application.staff.commands.change_staff_job_title import (
 )
 from app.application.staff.commands.change_staff_names import ChangeStaffNamesUseCase
 from app.application.staff.commands.deactivate_staff import DeactivateStaffUseCase
+from app.application.staff.commands.manage_staff_leave import (
+    ReturnStaffFromLeaveUseCase,
+    StartStaffLeaveUseCase,
+)
+from app.application.staff.commands.record_store_work_condition import (
+    RecordStoreWorkConditionUseCase,
+)
 from app.application.staff.commands.register_staff import RegisterStaffUseCase
 from app.application.staff.commands.remove_staff_concurrent_store import (
     RemoveStaffConcurrentStoreUseCase,
@@ -143,10 +156,16 @@ from app.application.staff.commands.remove_staff_concurrent_store import (
 from app.application.staff.commands.transfer_staff_home_store import (
     TransferStaffHomeStoreUseCase,
 )
+from app.application.staff.commands.update_staff_employment import (
+    UpdateStaffEmploymentUseCase,
+)
 from app.application.staff.commands.update_staff_qualifications import (
     UpdateStaffQualificationsUseCase,
 )
 from app.application.staff.queries.get_staff import GetStaffUseCase
+from app.application.staff.queries.get_store_work_conditions import (
+    GetStoreWorkConditionsUseCase,
+)
 from app.application.staff.queries.list_staffs import ListStaffsUseCase
 from app.application.store.commands.change_insurance_pharmacy_number import (
     ChangeInsurancePharmacyNumberUseCase,
@@ -163,6 +182,10 @@ from app.application.store.commands.change_store_contact_info import (
 )
 from app.application.store.commands.change_store_names import ChangeStoreNamesUseCase
 from app.application.store.commands.change_store_status import ChangeStoreStatusUseCase
+from app.application.store.commands.manage_safety_manager import (
+    AppointSafetyManagerUseCase,
+    RemoveSafetyManagerUseCase,
+)
 from app.application.store.commands.manage_store_manager import (
     ManageStoreManagerUseCase,
 )
@@ -170,8 +193,14 @@ from app.application.store.commands.register_store import RegisterStoreUseCase
 from app.application.store.commands.revoke_store_closure import (
     RevokeStoreClosureUseCase,
 )
+from app.application.store.commands.update_certifications import (
+    UpdateCertificationsUseCase,
+)
 from app.application.store.commands.update_licenses import (
     UpdateStoreLicensesUseCase,
+)
+from app.application.store.commands.update_public_expense_designations import (
+    UpdatePublicExpenseDesignationsUseCase,
 )
 from app.application.store.commands.update_store_policy import (
     UpdateStorePolicyUseCase,
@@ -227,6 +256,9 @@ from app.infrastructure.readers.patient_list_patient_external_identifiers import
 )
 from app.infrastructure.readers.staff_get_staff import GetStaffProjection
 from app.infrastructure.readers.staff_list_staffs import ListStaffsProjection
+from app.infrastructure.readers.staff_store_work_conditions import (
+    StoreWorkConditionsProjection,
+)
 from app.infrastructure.readers.store_get_effective_policy import (
     GetEffectivePolicyProjection,
 )
@@ -318,6 +350,7 @@ def create_corporate_use_cases(
             repository, access, FakeOrganizationLock()
         ),
         update_policy=UpdateCorporatePolicyUseCase(repository, access),
+        update_details=UpdateCorporateDetailsUseCase(repository, access),
     )
 
 
@@ -332,6 +365,7 @@ def create_store_use_cases(
     codes = StoreCodeUniquenessService(repository)
     numbers = InsurancePharmacyNumberUniquenessService(repository)
     access = _access_for(corporate_repository, actor=actor)
+    staff_reference = ManagerStaffAdapter(InMemoryStaffRepository())
     return StoreUseCases(
         change_status=ChangeStoreStatusUseCase(
             repository,
@@ -351,7 +385,7 @@ def create_store_use_cases(
         ),
         manage_manager=ManageStoreManagerUseCase(
             repository,
-            ManagerStaffAdapter(InMemoryStaffRepository()),
+            staff_reference,
             InMemoryStoreManagerAssignmentRepository(),
             StaffPersonAdapter(InMemoryStaffPersonLinkRepository()),
             access,
@@ -388,6 +422,14 @@ def create_store_use_cases(
             reader=GetEffectivePolicyProjection(corporate_repository, repository),
             corporate_access=access,
         ),
+        update_certifications=UpdateCertificationsUseCase(repository, access),
+        update_public_expense_designations=UpdatePublicExpenseDesignationsUseCase(
+            repository, access
+        ),
+        appoint_safety_manager=AppointSafetyManagerUseCase(
+            repository, staff_reference, access
+        ),
+        remove_safety_manager=RemoveSafetyManagerUseCase(repository, access),
     )
 
 
@@ -409,6 +451,27 @@ def create_staff_use_cases(
         credentials=FakeCredentialWriter(),
     )
     return StaffUseCases(
+        record_work_condition=RecordStoreWorkConditionUseCase(
+            staffs,
+            access,
+            FakeOrganizationLock(),
+            clock,
+            WorkConditionManagementGuard(
+                access.actor,
+                InMemoryUserAccountRepository(),
+                InMemoryCorporateMembershipRepository(),
+                staffs,
+                InMemoryStoreManagerAssignmentRepository(),
+                clock,
+            ),
+        ),
+        get_work_conditions=GetStoreWorkConditionsUseCase(
+            StoreWorkConditionsProjection(
+                staffs, InMemoryStoreManagerAssignmentRepository()
+            ),
+            access,
+            clock,
+        ),
         register=RegisterStaffUseCase(
             staff_repository=staffs,
             store_repository=StaffStoreAdapter(stores),
@@ -445,6 +508,11 @@ def create_staff_use_cases(
         deactivate=DeactivateStaffUseCase(
             staffs, access, create_access_revocation(), clock
         ),
+        update_employment=UpdateStaffEmploymentUseCase(
+            staffs, access, clock, FakeOrganizationLock()
+        ),
+        start_leave=StartStaffLeaveUseCase(staffs, access),
+        return_from_leave=ReturnStaffFromLeaveUseCase(staffs, access),
     )
 
 

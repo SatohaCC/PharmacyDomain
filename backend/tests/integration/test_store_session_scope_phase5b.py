@@ -31,7 +31,9 @@ from app.domain.identity.primitives import (
     AccountStatus,
     ExternalSubjectKey,
     MembershipRole,
+    StoreRole,
 )
+from app.domain.identity.value_objects import StoreRoleAssignment
 from app.domain.medication_history.identifiers import ExternalCorrectionId
 from app.domain.medication_history.primitives import (
     CorrectionDocumentNumber,
@@ -123,16 +125,16 @@ async def _login_Ready(
     clock: FakeClock,
     *,
     corporate_id: CorporateId,
-    email: str,
+    login_id: str,
     subject: str,
 ) -> str:
     """初期パスワードを発行して初回変更まで済ませ、未選択状態の通常トークンを返す。"""
     auth = PostgresLocalAuthentication(session_factory, clock)
     async with PostgresUnitOfWork(session_factory) as work:
         writer = PostgresCredentialWriter(work)
-        await writer.issue(corporate_id, email, "InitialPassword!123", subject)
+        await writer.issue(corporate_id, login_id, "InitialPassword!123", subject)
         await work.commit()
-    initial = await auth.login(str(corporate_id.value), email, "InitialPassword!123")
+    initial = await auth.login(str(corporate_id.value), login_id, "InitialPassword!123")
     changed = await auth.change_password(initial.access_token, _PASSWORD)
     return changed.access_token
 
@@ -236,19 +238,22 @@ async def test_TC094_選択可能店舗一覧がMembership許可店舗と当日S
         id=CorporateMembershipId.generate(),
         account_id=account.id,
         corporate_id=corporate.id,
-        role=MembershipRole.STORE_OPERATOR,
+        role=MembershipRole.MEMBER,
         staff_id=staff.id,
-        store_ids=frozenset(
-            {
-                store_a1.id,
-                store_a2.id,
-                store_a3.id,
-                store_a4.id,
-                store_a5.id,
-                store_a6.id,
-                store_a7.id,
-                store_a9.id,
-            }
+        store_roles=tuple(
+            StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+            for store_id in frozenset(
+                {
+                    store_a1.id,
+                    store_a2.id,
+                    store_a3.id,
+                    store_a4.id,
+                    store_a5.id,
+                    store_a6.id,
+                    store_a7.id,
+                    store_a9.id,
+                }
+            )
         ),
         suspended_store_ids=frozenset({store_a6.id}),
     )
@@ -281,7 +286,7 @@ async def test_TC094_選択可能店舗一覧がMembership許可店舗と当日S
         session_factory,
         clock,
         corporate_id=corporate.id,
-        email="tc094@example.com",
+        login_id="tc094",
         subject=subject,
     )
     app = _local_auth_app(engine, session_factory, clock)
@@ -361,9 +366,12 @@ async def test_TC095_TC097_TC107_店舗コンテキスト選択と別タブ独�
         id=CorporateMembershipId.generate(),
         account_id=account.id,
         corporate_id=corporate.id,
-        role=MembershipRole.STORE_OPERATOR,
+        role=MembershipRole.MEMBER,
         staff_id=staff.id,
-        store_ids=frozenset({store_a1.id, store_a2.id}),
+        store_roles=tuple(
+            StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+            for store_id in frozenset({store_a1.id, store_a2.id})
+        ),
     )
 
     async with PostgresUnitOfWork(session_factory) as work:
@@ -383,7 +391,7 @@ async def test_TC095_TC097_TC107_店舗コンテキスト選択と別タブ独�
         session_factory,
         clock,
         corporate_id=corporate.id,
-        email="tc095@example.com",
+        login_id="tc095",
         subject=subject,
     )
     app = _local_auth_app(engine, session_factory, clock)
@@ -471,7 +479,7 @@ async def test_TC095_TC097_TC107_店舗コンテキスト選択と別タブ独�
         assert me_after_tamper.status_code == 200
         assert me_after_tamper.json()["corporate_id"] == str(corporate.id.value)
         assert me_after_tamper.json()["selected_store_id"] == str(store_a1.id.value)
-        assert me_after_tamper.json()["roles"] == ["store_operator"]
+        assert me_after_tamper.json()["roles"] == ["member", "store_operator"]
 
 
 @pytest.mark.asyncio
@@ -512,7 +520,10 @@ async def test_TC096_店舗未選択トークンで店舗業務は409拒否さ�
         corporate_id=corporate.id,
         role=MembershipRole.CORPORATE_ADMIN,
         staff_id=staff.id,
-        store_ids=frozenset({store_a1.id}),
+        store_roles=tuple(
+            StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+            for store_id in frozenset({store_a1.id})
+        ),
     )
     assignment = create_manager_assignment(
         corporate_id=corporate.id,
@@ -549,7 +560,7 @@ async def test_TC096_店舗未選択トークンで店舗業務は409拒否さ�
         session_factory,
         clock,
         corporate_id=corporate.id,
-        email="tc096@example.com",
+        login_id="tc096",
         subject=subject,
     )
     app = _local_auth_app(engine, session_factory, clock)
@@ -667,9 +678,12 @@ async def test_TC098_店舗選択トークン取得後に所属終了や権限�
         id=CorporateMembershipId.generate(),
         account_id=account.id,
         corporate_id=corporate.id,
-        role=MembershipRole.STORE_OPERATOR,
+        role=MembershipRole.MEMBER,
         staff_id=staff.id,
-        store_ids=frozenset({store_a1.id}),
+        store_roles=tuple(
+            StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+            for store_id in frozenset({store_a1.id})
+        ),
     )
 
     async with PostgresUnitOfWork(session_factory) as work:
@@ -688,7 +702,7 @@ async def test_TC098_店舗選択トークン取得後に所属終了や権限�
         session_factory,
         clock,
         corporate_id=corporate.id,
-        email=f"tc098-{revocation_kind}@example.com",
+        login_id=f"tc098-{revocation_kind}",
         subject=subject,
     )
     app = _local_auth_app(engine, session_factory, clock)
@@ -827,7 +841,10 @@ async def test_TC099_TC100_TC101_TC102_選択1店舗によるSQL隔離と他店4
         corporate_id=corporate.id,
         role=MembershipRole.CORPORATE_ADMIN,
         staff_id=staff.id,
-        store_ids=frozenset({store_a1.id, store_a2.id}),
+        store_roles=tuple(
+            StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+            for store_id in frozenset({store_a1.id, store_a2.id})
+        ),
     )
     mgr_person = _person(corporate.id, "管理薬剤師")
     mgr_staff = replace(
@@ -1011,7 +1028,7 @@ async def test_TC099_TC100_TC101_TC102_選択1店舗によるSQL隔離と他店4
         session_factory,
         clock,
         corporate_id=corporate.id,
-        email="tc099@example.com",
+        login_id="tc099",
         subject=subject,
     )
     app = _local_auth_app(engine, session_factory, clock)

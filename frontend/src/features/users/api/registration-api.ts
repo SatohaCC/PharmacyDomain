@@ -9,7 +9,7 @@ export async function registerUser(
   role: UserRole,
 ) {
   const params = corporationParams(corporateId);
-  const { names, storeIds } = input;
+  const { names } = input;
   const res = await result(
     api.POST("/corporates/{corporate_id}/staffs", {
       params,
@@ -18,14 +18,22 @@ export async function registerUser(
         is_registered_dietitian: true,
         initial_home_store_id: input.homeStore || undefined,
         initial_start_date: input.startDate || undefined,
+        initial_store_work_conditions: input.storeWorkConditions,
+        employment_type: input.employmentType || "regular",
+        weekly_contract_hours: input.weeklyContractHours,
+        job_title: input.jobTitle,
+        code: input.code,
+        pharmacist_license_number: input.pharmacistLicenseNumber,
+        registered_seller_number: input.registeredSellerNumber,
         account: {
-          email: input.email,
+          login_id: input.loginId,
+          email: input.email || null,
           password: input.initialPassword,
           role,
-          store_ids: storeIds.length > 0 ? storeIds : undefined,
+          store_roles: input.storeRoles,
         },
       },
     }),
   );
-  return { id: res.staff_id, email: res.email };
+  return { id: res.staff_id, loginId: res.login_id };
 }

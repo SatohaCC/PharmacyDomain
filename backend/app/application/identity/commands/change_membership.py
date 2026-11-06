@@ -8,6 +8,7 @@ from app.application.access_control.boundary_models import (
     ActorRole,
     Permission,
     ResolvedActorContext,
+    StoreRoleInput,
 )
 from app.application.access_control.interfaces.corporate_access import (
     CorporateAccessBoundary,
@@ -17,16 +18,22 @@ from app.application.common.clock import Clock, business_date
 from app.application.common.exceptions import AuthorizationError, NotFoundError
 from app.application.common.organization_lock import OrganizationLock
 from app.application.common.unit_of_work import UnitOfWork
+from app.application.identity.boundary_models import StoreWorkConditionChange
 from app.application.identity.commands.dtos.identity_views import MembershipDto
 from app.application.identity.commands.services.repositories import IdentityRepositories
 from app.application.identity.commands.services.support import (
     ensure_administrator_preserved,
     validate_membership_target,
 )
+from app.application.identity.interfaces.staff_store_settings import (
+    StaffStoreSettingsBoundary,
+)
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.identity.exceptions import IdentityConflictError
 from app.domain.identity.identifiers import CorporateMembershipId
-from app.domain.identity.primitives import AccountStatus, MembershipRole
+from app.domain.identity.primitives import AccountStatus, MembershipRole, StoreRole
+from app.domain.identity.value_objects import StoreRoleAssignment
 from app.domain.staff.repositories import StaffRepository
 from app.domain.store.identifiers import StoreId
 from app.domain.store.repositories import (
@@ -52,6 +59,7 @@ class ChangeMembershipUseCase:
         lock: OrganizationLock,
         managers: StoreManagerAssignmentRepository,
         clock: Clock,
+        staff_store_settings: StaffStoreSettingsBoundary,
     ) -> None:
         self._repositories = repositories
         self._staff = staff
@@ -61,6 +69,7 @@ class ChangeMembershipUseCase:
         self._lock = lock
         self._managers = managers
         self._clock = clock
+        self._staff_store_settings = staff_store_settings
 
     async def execute(
         self,
@@ -69,9 +78,10 @@ class ChangeMembershipUseCase:
         *,
         status: str | None = None,
         role: str | None = None,
-        store_ids: tuple[str, ...] | None = None,
+        store_roles: tuple[StoreRoleInput, ...] | None = None,
         store_id: str | None = None,
         store_is_active: bool | None = None,
+        store_work_conditions: tuple[StoreWorkConditionChange, ...] = (),
     ) -> MembershipDto:
         """指定した項目だけを変更し、管理者不在になる変更を拒否する。"""
         self._unit_of_work.ensure_active()
@@ -139,9 +149,18 @@ class ChangeMembershipUseCase:
                 raise AuthorizationError(
                     "管理薬剤師は法人全体の状態・権限を変更できません。"
                 )
-            if store_ids is not None:
-                requested = frozenset(StoreId.parse(item) for item in store_ids)
-                if (requested ^ membership.store_ids) - {target_store}:
+            if store_roles is not None:
+                before = {
+                    item.store_id: item.role
+                    for item in membership.store_roles
+                    if item.store_id != target_store
+                }
+                requested = {
+                    StoreId.parse(item.store_id): StoreRole(item.role)
+                    for item in store_roles
+                    if StoreId.parse(item.store_id) != target_store
+                }
+                if requested != before:
                     raise AuthorizationError("他店舗の権限を変更できません。")
             if membership.staff_id is not None:
                 appointments = await self._managers.list_by_staff(
@@ -161,13 +180,18 @@ class ChangeMembershipUseCase:
             membership,
             status=AccountStatus(status) if status is not None else membership.status,
             role=MembershipRole(role) if role is not None else membership.role,
-            store_ids=frozenset(StoreId.parse(item) for item in store_ids)
-            if store_ids is not None
-            else membership.store_ids,
+            store_roles=tuple(
+                StoreRoleAssignment(
+                    store_id=StoreId.parse(item.store_id), role=StoreRole(item.role)
+                )
+                for item in store_roles
+            )
+            if store_roles is not None
+            else membership.store_roles,
             suspended_store_ids=membership.suspended_store_ids
             & (
-                frozenset(StoreId.parse(item) for item in store_ids)
-                if store_ids is not None
+                frozenset(StoreId.parse(item.store_id) for item in store_roles)
+                if store_roles is not None
                 else membership.store_ids
             ),
         )
@@ -202,6 +226,19 @@ class ChangeMembershipUseCase:
                 memberships=self._repositories.memberships,
                 accounts=self._repositories.accounts,
                 updated_membership=updated,
+            )
+        if store_work_conditions:
+            ids = [StoreId.parse(item.store_id) for item in store_work_conditions]
+            if len(ids) != len(set(ids)) or not set(ids) <= updated.store_ids:
+                raise DomainValidationError(
+                    "勤務条件は選択した店舗ごとに一件ずつ指定してください。"
+                )
+            if not administrator and any(item != target_store for item in ids):
+                raise AuthorizationError("他店舗の勤務条件を変更できません。")
+            if updated.staff_id is None:
+                raise DomainValidationError("勤務条件にはスタッフの紐付けが必要です。")
+            await self._staff_store_settings.apply(
+                corporate, updated.staff_id, store_work_conditions
             )
         await self._repositories.memberships.save(updated)
         return MembershipDto.from_entity(updated)

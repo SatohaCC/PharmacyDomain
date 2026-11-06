@@ -63,7 +63,7 @@ async function mock(page: Page, roles = actor.roles) {
           person_id: "person-1",
           account_id: "account-1",
           membership_id: "membership-1",
-          email: req.postDataJSON().account.email,
+          login_id: req.postDataJSON().account.login_id,
         };
       } else if (path.endsWith("/staffs")) value = [];
       else if (path.endsWith("/users"))
@@ -79,6 +79,140 @@ async function connect(page: Page, target = "/admin") {
   await page.getByLabel("Bearerトークン").fill("test-token");
   await page.getByRole("button", { name: "接続する" }).click();
 }
+
+test("所属店舗ごとに週時間数を保存し再読込後も独立して表示する", async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date("2026-11-02T03:00:00Z") });
+  await mock(page);
+  const stores = [
+    { id: "store-a", name: "A薬局" },
+    { id: "store-b", name: "B薬局" },
+  ];
+  await page.route("**/api/corporates/corp-1/stores", (route) =>
+    route.fulfill({ json: stores }),
+  );
+  await page.route("**/api/corporates/corp-1/users/member-1", (route) =>
+    route.fulfill({
+      json: {
+        id: "member-1",
+        account_id: "account-1",
+        person_id: "person-1",
+        corporate_id: "corp-1",
+        role: "member",
+        status: "active",
+        account_status: "active",
+        staff_id: "staff-1",
+        store_ids: ["store-a", "store-b"],
+        store_roles: [
+          { store_id: "store-a", role: "store_operator" },
+          { store_id: "store-b", role: "store_viewer" },
+        ],
+      },
+    }),
+  );
+  await page.route("**/api/corporates/corp-1/staffs/staff-1", (route) =>
+    route.fulfill({
+      json: {
+        id: "staff-1",
+        corporate_id: "corp-1",
+        last_name: "テスト",
+        first_name: "太郎",
+        last_name_kana: "テスト",
+        first_name_kana: "タロウ",
+        is_active: true,
+        employment_type: "regular",
+      },
+    }),
+  );
+  const saved: {
+    store: string;
+    weekly_hours: string | null;
+    effective_from: string;
+    duty: string;
+  }[] = [];
+  await page.route(
+    "**/api/corporates/corp-1/staffs/staff-1/**",
+    async (route) => {
+      const rows = ["store-a", "store-b"].map((store) => {
+        const history = saved
+          .filter((item) => item.store === store)
+          .map((item) => ({
+            ...item,
+            recorded_at: "2026-11-03T03:00:00Z",
+            recorded_by: "vendor",
+          }));
+        return {
+          store_id: store,
+          starts_on: "2026-01-01",
+          ends_on: null,
+          is_primary: store === "store-a",
+          current: history.at(-1) || null,
+          history,
+        };
+      });
+      await route.fulfill({ json: rows });
+    },
+  );
+  let saveCalls = 0;
+  await page.route("**/api/corporates/corp-1/users/member-1", (route) => {
+    if (route.request().method() !== "PATCH")
+      return route.fulfill({
+        json: {
+          id: "member-1",
+          account_id: "account-1",
+          person_id: "person-1",
+          corporate_id: "corp-1",
+          role: "member",
+          status: "active",
+          account_status: "active",
+          staff_id: "staff-1",
+          store_ids: ["store-a", "store-b"],
+          store_roles: [
+            { store_id: "store-a", role: "store_operator" },
+            { store_id: "store-b", role: "store_viewer" },
+          ],
+        },
+      });
+    saveCalls++;
+    const body = route.request().postDataJSON();
+    expect(body.store_roles).toEqual([
+      { store_id: "store-a", role: "store_operator" },
+      { store_id: "store-b", role: "store_viewer" },
+    ]);
+    for (const item of body.store_work_conditions)
+      saved.push({ store: item.store_id, ...item });
+    return route.fulfill({ json: { id: "member-1" } });
+  });
+  await connect(page, "/admin/corporates/corp-1/users/member-1");
+  await page
+    .getByRole("button", { name: "所属・権限・勤務時間を変更" })
+    .click();
+  await expect(page.getByRole("checkbox", { name: "A薬局" })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "B薬局" })).toBeChecked();
+  await page.getByLabel("A薬局の週勤務時間（時間）").fill("32");
+  await page.getByLabel("B薬局の週勤務時間（時間）").fill("8");
+  await page.getByLabel("A薬局の勤務条件の適用開始日").fill("2026-11-01");
+  await page.getByLabel("B薬局の勤務条件の適用開始日").fill("2026-11-02");
+  await page
+    .getByRole("button", { name: "所属・権限・勤務時間を保存する" })
+    .click();
+  await expect(
+    page.getByText("所属店舗・権限・勤務時間を更新しました。"),
+  ).toBeVisible();
+  expect(saveCalls).toBe(1);
+  expect(saved.map((item) => [item.store, item.weekly_hours])).toEqual([
+    ["store-a", "32"],
+    ["store-b", "8"],
+  ]);
+  await page.reload();
+  await expect(
+    page.getByRole("cell", { name: "32時間", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("cell", { name: "8時間", exact: true }),
+  ).toBeVisible();
+});
 test("法人と店舗を登録できる", async ({ page }) => {
   await mock(page);
   await connect(page);
@@ -93,7 +227,7 @@ test("法人と店舗を登録できる", async ({ page }) => {
   await page.getByLabel(/^管理者の名(?:必須| 必須)?$/).fill("花子");
   await page.getByLabel("管理者の姓（カナ）").fill("テスト");
   await page.getByLabel("管理者の名（カナ）").fill("ハナコ");
-  await page.getByLabel("メールアドレス").fill("test-admin@example.test");
+  await page.getByLabel("ログインID").fill("test-admin");
   await page.getByLabel("初期パスワード").fill("test-initial-password-12345");
   await page.getByRole("button", { name: "登録する" }).click();
   await expect(page.getByRole("heading", { name: corp.name })).toBeVisible();
@@ -159,7 +293,7 @@ for (const [status, message] of [
     await page.getByLabel(/^管理者の名(?:必須| 必須)?$/).fill("花子");
     await page.getByLabel("管理者の姓（カナ）").fill("テスト");
     await page.getByLabel("管理者の名（カナ）").fill("ハナコ");
-    await page.getByLabel("メールアドレス").fill("test-admin@example.test");
+    await page.getByLabel("ログインID").fill("test-admin");
     await page.getByLabel("初期パスワード").fill("test-initial-password-12345");
     await page.getByRole("button", { name: "登録する" }).click();
     await expect(page.getByRole("alert")).toContainText(message);
@@ -262,13 +396,18 @@ test("法人を切り替えた後に前法人の遅い店舗応答を表示し�
   await expect(page.getByRole("cell", { name: "前法人の店舗" })).toHaveCount(0);
 });
 
-for (const role of ["法人管理者", "店舗操作者", "店舗閲覧者"]) {
-  test(`ユーザー一括登録_${role}_本人と主所属とメールを一要求で送る`, async ({
+for (const role of ["法人管理者", "一般ユーザー"]) {
+  test(`ユーザー一括登録_${role}_本人と主所属とログインIDを一要求で送る`, async ({
     page,
   }) => {
     await mock(page);
     await page.route("**/api/corporates/corp-1/stores", (r) =>
-      r.fulfill({ json: [{ id: "store-1", name: "テスト店舗" }] }),
+      r.fulfill({
+        json: [
+          { id: "store-1", name: "テスト店舗" },
+          { id: "store-2", name: "兼務店舗" },
+        ],
+      }),
     );
     let calls = 0;
     await page.route("**/api/corporates/corp-1/staffs", async (r) => {
@@ -279,16 +418,29 @@ for (const role of ["法人管理者", "店舗操作者", "店舗閲覧者"]) {
         first_name: "太郎",
         initial_home_store_id: "store-1",
         initial_start_date: "2026-10-01",
+        initial_store_work_conditions: [
+          {
+            store_id: "store-1",
+            starts_on: "2026-10-01",
+            weekly_hours: "32",
+            duty: "other",
+          },
+          {
+            store_id: "store-2",
+            starts_on: "2026-11-01",
+            weekly_hours: "8",
+            duty: "other",
+          },
+        ],
         account: {
-          email: "test-user@example.test",
+          login_id: "test-user",
+          email: null,
           password: "test-initial-password-12345",
-          role:
-            role === "法人管理者"
-              ? "corporate_admin"
-              : role === "店舗操作者"
-                ? "store_operator"
-                : "store_viewer",
-          store_ids: ["store-1"],
+          role: role === "法人管理者" ? "corporate_admin" : "member",
+          store_roles: [
+            { store_id: "store-1", role: "store_operator" },
+            { store_id: "store-2", role: "store_viewer" },
+          ],
         },
       });
       if (calls === 1)
@@ -307,7 +459,7 @@ for (const role of ["法人管理者", "店舗操作者", "店舗閲覧者"]) {
           person_id: "person-1",
           account_id: "account-1",
           membership_id: "membership-1",
-          email: "test-user@example.test",
+          login_id: "test-user",
         },
       });
     });
@@ -329,10 +481,19 @@ for (const role of ["法人管理者", "店舗操作者", "店舗閲覧者"]) {
       .getByText("テスト店舗", { exact: true })
       .filter({ visible: true })
       .click();
+    await page
+      .getByText("兼務店舗", { exact: true })
+      .filter({ visible: true })
+      .click();
+    await page.getByRole("button", { name: /兼務店舗の操作権限/ }).click();
+    await page.getByRole("option", { name: "閲覧のみ", exact: true }).click();
+    await page.getByLabel("テスト店舗の週勤務時間（時間）").fill("32");
+    await page.getByLabel("兼務店舗の週勤務時間（時間）").fill("8");
     await page.getByRole("button", { name: /主所属店舗/ }).click();
     await page.getByRole("option", { name: "テスト店舗", exact: true }).click();
-    await page.getByLabel("所属開始日").fill("2026-10-01");
-    await page.getByLabel("メールアドレス").fill("test-user@example.test");
+    await page.getByLabel("テスト店舗の所属開始日").fill("2026-10-01");
+    await page.getByLabel("兼務店舗の所属開始日").fill("2026-11-01");
+    await page.getByLabel("ログインID").fill("test-user");
     await page.getByLabel("初期パスワード").fill("test-initial-password-12345");
     await page.getByRole("button", { name: "ユーザーを登録する" }).click();
     await expect(page.getByRole("alert")).toContainText("登録が競合");
@@ -340,7 +501,7 @@ for (const role of ["法人管理者", "店舗操作者", "店舗閲覧者"]) {
     await expect(
       page.getByRole("heading", { name: "ユーザー登録が完了しました" }),
     ).toBeVisible();
-    await expect(page.getByText("test-user@example.test")).toBeVisible();
+    await expect(page.getByText("test-user")).toBeVisible();
     expect(calls).toBe(2);
     expect(
       await page.evaluate(() =>
@@ -363,7 +524,7 @@ test("ユーザー一括登録_通信結果不明_再送を止める", async ({ 
     ["名", "太郎"],
     ["姓カナ", "テスト"],
     ["名カナ", "タロウ"],
-    ["メールアドレス", "test-user@example.test"],
+    ["ログインID", "test-user"],
     ["初期パスワード", "test-initial-password-12345"],
   ])
     await page.getByLabel(label, { exact: false }).first().fill(value);
@@ -375,7 +536,7 @@ test("ユーザー一括登録_通信結果不明_再送を止める", async ({ 
 });
 
 for (const vendor of [false, true]) {
-  test(`メール認証_${vendor ? "運営者" : "法人ユーザー"}_対応するAPIでログインする`, async ({
+  test(`ログインID認証_${vendor ? "運営者" : "法人ユーザー"}_対応するAPIでログインする`, async ({
     page,
   }) => {
     await mock(page);
@@ -386,7 +547,7 @@ for (const vendor of [false, true]) {
         calls++;
         expect(r.request().postDataJSON()).toEqual({
           ...(vendor ? {} : { corporate_id: "corp-1" }),
-          email: "test-admin@example.test",
+          login_id: "test-admin",
           password: "test-password-12345",
         });
         return r.fulfill({
@@ -400,7 +561,7 @@ for (const vendor of [false, true]) {
       await page.getByRole("option", { name: "運営者", exact: true }).click();
       await expect(page.getByLabel("法人ID")).toHaveCount(0);
     } else await page.getByLabel("法人ID").fill("corp-1");
-    await page.getByLabel("メールアドレス").fill("test-admin@example.test");
+    await page.getByLabel("ログインID").fill("test-admin");
     await page.getByLabel(/^パスワード/).fill("test-password-12345");
     await page.getByRole("button", { name: "ログイン", exact: true }).click();
     await expect(

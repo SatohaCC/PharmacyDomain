@@ -14,8 +14,8 @@ from app.domain.identity.entities import CorporateMembership, UserAccount
 from app.domain.identity.identifiers import CorporateMembershipId
 from app.domain.identity.primitives import (
     AccountStatus,
-    CorporateUserEmail,
     ExternalSubjectKey,
+    LoginId,
     MembershipRole,
 )
 from app.domain.identity.repositories import (
@@ -43,8 +43,9 @@ class ContractAdminAdapter(RegisterContractAdminOperation):
         *,
         corporate_id: str,
         person_id: str,
-        email: str,
+        login_id: str,
         initial_password: str,
+        email: str | None = None,
     ) -> RegisteredAdminUser:
         parsed_corporate_id = CorporateId.parse(corporate_id)
         parsed_person_id = AccountPersonId.parse(person_id)
@@ -65,20 +66,21 @@ class ContractAdminAdapter(RegisterContractAdminOperation):
             account_id=account_id,
             corporate_id=parsed_corporate_id,
             role=MembershipRole.CORPORATE_ADMIN,
-            store_ids=frozenset(),
+            store_roles=(),
             staff_id=None,
         )
         await self._memberships.save(membership)
 
-        normalized_email = CorporateUserEmail(email).value
+        normalized_login_id = LoginId(login_id).value
         await self._credentials.issue(
             parsed_corporate_id,
-            normalized_email,
+            normalized_login_id,
             initial_password,
             subject,
+            email=email,
         )
 
         return RegisteredAdminUser(
             id=str(account_id.value),
-            email=normalized_email,
+            login_id=normalized_login_id,
         )

@@ -7,10 +7,11 @@ import httpx
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.access_control.boundary_models import ActorRole
+from app.application.access_control.boundary_models import ActorRole, StoreRoleInput
 from app.application.access_control.policies import AuthorizationService
 from app.application.identity.boundary_models import VerifiedSubject
-from app.domain.identity.primitives import AccountStatus, MembershipRole
+from app.domain.identity.primitives import AccountStatus, MembershipRole, StoreRole
+from app.domain.identity.value_objects import StoreRoleAssignment
 from app.domain.staff.value_objects import AffiliationPeriod, StoreAffiliation
 from app.domain.store.exceptions import ManagerAssignmentConflictError
 from app.domain.store.identifiers import StoreId
@@ -43,14 +44,20 @@ async def _setup(
         await repositories.membership.save(
             replace(
                 manager_membership,
-                role=MembershipRole.STORE_OPERATOR,
-                store_ids=frozenset({fixture.store.id}),
+                role=MembershipRole.MEMBER,
+                store_roles=tuple(
+                    StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+                    for store_id in frozenset({fixture.store.id})
+                ),
             )
         )
         await repositories.membership.save(
             replace(
                 target_membership,
-                store_ids=frozenset({fixture.store.id, other.id}),
+                store_roles=tuple(
+                    StoreRoleAssignment(store_id=store_id, role=StoreRole.EDITOR)
+                    for store_id in frozenset({fixture.store.id, other.id})
+                ),
             )
         )
         target_staff = await repositories.staff.get(
@@ -182,7 +189,10 @@ async def test_在任中の管理薬剤師_他店舗の権限や勤務を追加�
                 await scope.use_cases.identity.change_membership.execute(
                     str(fixture.corporate.id.value),
                     str(fixture.memberships[0].id.value),
-                    store_ids=(str(fixture.store.id.value), str(other.value)),
+                    store_roles=tuple(
+                        StoreRoleInput(store_id=raw, role="store_operator")
+                        for raw in ((str(fixture.store.id.value), str(other.value)))
+                    ),
                 )
             else:
                 await scope.repositories.staff.save(

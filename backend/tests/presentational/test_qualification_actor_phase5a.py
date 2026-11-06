@@ -898,6 +898,8 @@ def test_TC091_資格編集_一般職と店舗管理者の自己昇格を403で�
         access = CorporateAccessService(corp_repo, AuthorizationService(actor))
         update_uc = UpdateStaffQualificationsUseCase(staff_repo, access)
         bundle = StaffUseCases(
+            record_work_condition=None,  # type: ignore[arg-type]
+            get_work_conditions=None,  # type: ignore[arg-type]
             register=None,  # type: ignore[arg-type]
             get=None,  # type: ignore[arg-type]
             list_by_corporate=None,  # type: ignore[arg-type]
@@ -909,6 +911,9 @@ def test_TC091_資格編集_一般職と店舗管理者の自己昇格を403で�
             remove_concurrent_store=None,  # type: ignore[arg-type]
             deactivate=None,  # type: ignore[arg-type]
             activate=None,  # type: ignore[arg-type]
+            update_employment=None,  # type: ignore[arg-type]
+            start_leave=None,  # type: ignore[arg-type]
+            return_from_leave=None,  # type: ignore[arg-type]
         )
         app = create_app(actor_provider=StubActorContextProvider(actor))
         app.dependency_overrides[get_staff_use_cases] = lambda: bundle
