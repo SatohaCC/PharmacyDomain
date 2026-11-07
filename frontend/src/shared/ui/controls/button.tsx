@@ -9,6 +9,7 @@ export interface ButtonProps {
   disabled?: boolean;
   pending?: boolean;
   variant?: "primary" | "secondary";
+  "aria-label"?: string;
 }
 export function Button({
   children,
@@ -17,6 +18,7 @@ export function Button({
   disabled,
   pending,
   variant = "primary",
+  "aria-label": ariaLabel,
 }: ButtonProps) {
   return (
     <AriaButton
@@ -25,6 +27,7 @@ export function Button({
         variant === "secondary" && styles.secondary,
       )}
       type={type}
+      aria-label={ariaLabel}
       isDisabled={disabled || pending}
       isPending={pending}
       onPress={onAction}

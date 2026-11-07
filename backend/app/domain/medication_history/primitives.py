@@ -41,6 +41,37 @@ class CurrentRecordFieldLabel(BaseNormalizedString):
     """今回記載欄項目のラベル表示名（例: 本日の体調変化、残薬状況）。"""
 
 
+class BlockSourceModule(StrEnum):
+    """薬歴ブロックの記述がどの経路で入力されたか。"""
+
+    MANUAL = "manual"
+    """薬剤師が直接記述した。"""
+
+    SOAP = "soap"
+    """SOAP形式の記録欄から入力された。"""
+
+    QUESTIONNAIRE = "questionnaire"
+    """問診票の回答から転記された。"""
+
+    AUDIT_RESULT = "audit_result"
+    """処方・調剤監査結果から転記された。"""
+
+    LAB_TEST = "lab_test"
+    """検査値・バイタルの登録結果から転記された。"""
+
+    RECEPTION = "reception"
+    """受付の平坦な記述欄から転記された。"""
+
+    @classmethod
+    def _missing_(cls, value: object) -> BlockSourceModule:
+        """未知の値を MANUAL として扱う。"""
+        return cls.MANUAL
+
+
+class BlockSourceId(BaseNormalizedString):
+    """ブロック出所の外部識別子。"""
+
+
 # --------------------------------------------------------------------------
 # 監査時刻
 # --------------------------------------------------------------------------

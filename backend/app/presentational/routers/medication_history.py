@@ -17,6 +17,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Query
 from pydantic import Field
 
+from app.application.access_control.boundary_models import ResolvedActorContext
 from app.application.care_event.commands.create_event import CreateEventCommand
 from app.application.care_event.queries.models import GetEventQuery
 from app.application.common.exceptions import NotFoundError
@@ -38,6 +39,9 @@ from app.application.medication_history.commands.dtos.get_medication_history imp
 from app.application.medication_history.commands.dtos.get_patient_medical_profile import (
     PatientMedicalProfileDto,
 )
+from app.application.medication_history.commands.dtos.medication_history_block import (
+    MedicationHistoryBlockDto,
+)
 from app.application.medication_history.commands.finalize_medication_history import (
     FinalizeMedicationHistoryCommand,
 )
@@ -47,6 +51,7 @@ from app.application.medication_history.commands.models import (
     CurrentRecordFieldInput,
     HandbookStatusInput,
     MajorCategoryInput,
+    MedicationHistoryBlockInput,
     MediumCategoryInput,
     ProfileUpdateInput,
     ResidualDrugInput,
@@ -63,6 +68,9 @@ from app.application.medication_history.commands.record_tracing_report_response 
 )
 from app.application.medication_history.commands.review_external_prescription_correction import (
     ReviewExternalPrescriptionCorrectionCommand,
+)
+from app.application.medication_history.commands.save_medication_history_blocks import (
+    SaveMedicationHistoryBlocksCommand,
 )
 from app.application.medication_history.commands.save_store_current_record_fields import (
     SaveStoreCurrentRecordFieldsCommand,
@@ -91,6 +99,9 @@ from app.application.medication_history.queries.dtos.get_patient_medical_profile
 from app.application.medication_history.queries.dtos.list_pending_external_corrections import (
     PendingExternalCorrectionDto,
 )
+from app.application.medication_history.queries.dtos.medication_history_block import (
+    MedicationHistoryBlockDto as QueryMedicationHistoryBlockDto,
+)
 from app.application.medication_history.queries.dtos.verify_statutory_record import (
     StatutoryRecordSufficiencyDto,
 )
@@ -103,10 +114,12 @@ from app.application.medication_history.queries.models import (
     GetMedicationHistoryViewQuery,
     GetPatientMedicalProfileQuery,
     ListMedicationHistoriesQuery,
+    ListMedicationHistoryBlocksQuery,
     ListPendingExternalCorrectionsQuery,
     VerifyStatutoryRecordQuery,
 )
 from app.presentational.dependencies import (
+    Actor,
     CareEventUseCasesDep,
     DispensingUseCasesDep,
     MedicationHistoryUseCasesDep,
@@ -280,6 +293,13 @@ class SaveStoreCurrentRecordFieldsRequest(RequestModel):
     """店舗の今回記載欄設定の保存入力。"""
 
     fields: tuple[CurrentRecordFieldInput, ...] = ()
+
+
+class SaveMedicationHistoryBlocksRequest(RequestModel):
+    """薬歴ブロック保存リクエスト。"""
+
+    store_id: str
+    blocks: tuple[MedicationHistoryBlockInput, ...] = ()
 
 
 @router.post(
@@ -877,6 +897,55 @@ async def save_store_current_record_fields(
             corporate_id=corporate_id,
             store_id=store_id,
             fields=body.fields,
+        )
+    )
+
+
+@router.get(
+    "/medication-histories/{record_id}/blocks",
+    response_model=list[QueryMedicationHistoryBlockDto],
+)
+async def list_medication_history_blocks(
+    corporate_id: str,
+    record_id: str,
+    use_cases: MedicationHistoryUseCasesDep,
+    store_id: Annotated[str, Query(description="薬歴が属する店舗ID。")],
+) -> tuple[QueryMedicationHistoryBlockDto, ...]:
+    """薬歴のブロック一覧を取得する。"""
+    return await use_cases.list_blocks.execute(
+        ListMedicationHistoryBlocksQuery(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            record_id=record_id,
+        )
+    )
+
+
+@router.put(
+    "/medication-histories/{record_id}/blocks",
+    response_model=list[MedicationHistoryBlockDto],
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def save_medication_history_blocks(
+    corporate_id: str,
+    record_id: str,
+    body: SaveMedicationHistoryBlocksRequest,
+    use_cases: MedicationHistoryUseCasesDep,
+    actor: Actor,
+) -> tuple[MedicationHistoryBlockDto, ...]:
+    """下書き薬歴のブロック群を保存する。"""
+    staff_id = (
+        str(actor.staff_id.value)
+        if isinstance(actor, ResolvedActorContext) and actor.staff_id is not None
+        else None
+    )
+    return await use_cases.save_blocks.execute(
+        SaveMedicationHistoryBlocksCommand(
+            corporate_id=corporate_id,
+            store_id=body.store_id,
+            record_id=record_id,
+            blocks=body.blocks,
+            staff_id=staff_id,
         )
     )
 

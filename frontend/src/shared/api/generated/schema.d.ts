@@ -1722,6 +1722,54 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/corporates/{corporate_id}/receptions/{reception_id}/current-record-fields": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Current Record Values
+     * @description 受付の今回記載欄入力値を取得する。
+     */
+    get: operations["get_current_record_values_corporates__corporate_id__receptions__reception_id__current_record_fields_get"];
+    /**
+     * Save Current Record Values
+     * @description 受付の今回記載欄入力値を保存する。
+     */
+    put: operations["save_current_record_values_corporates__corporate_id__receptions__reception_id__current_record_fields_put"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/corporates/{corporate_id}/receptions/{reception_id}/blocks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Reception Blocks
+     * @description 受付に紐づく薬歴ブロック一覧を取得する。
+     */
+    get: operations["list_reception_blocks_corporates__corporate_id__receptions__reception_id__blocks_get"];
+    /**
+     * Save Reception Blocks
+     * @description 受付に紐づく薬歴ブロック群を保存する。
+     */
+    put: operations["save_reception_blocks_corporates__corporate_id__receptions__reception_id__blocks_put"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/corporates/{corporate_id}/prescriptions": {
     parameters: {
       query?: never;
@@ -2374,6 +2422,54 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/corporates/{corporate_id}/stores/{store_id}/current-record-fields": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Store Current Record Fields
+     * @description 店舗で利用可能な今回記載欄の定義一覧を取得する。
+     */
+    get: operations["list_store_current_record_fields_corporates__corporate_id__stores__store_id__current_record_fields_get"];
+    /**
+     * Save Store Current Record Fields
+     * @description 店舗の今回記載欄の定義を更新する。
+     */
+    put: operations["save_store_current_record_fields_corporates__corporate_id__stores__store_id__current_record_fields_put"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/corporates/{corporate_id}/medication-histories/{record_id}/blocks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Medication History Blocks
+     * @description 薬歴のブロック一覧を取得する。
+     */
+    get: operations["list_medication_history_blocks_corporates__corporate_id__medication_histories__record_id__blocks_get"];
+    /**
+     * Save Medication History Blocks
+     * @description 下書き薬歴のブロック群を保存する。
+     */
+    put: operations["save_medication_history_blocks_corporates__corporate_id__medication_histories__record_id__blocks_put"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/corporates/{corporate_id}/event-definitions": {
     parameters: {
       query?: never;
@@ -2470,6 +2566,26 @@ export interface paths {
      * @description 許可店舗で選べる同一患者の関連Event候補を返す。
      */
     get: operations["list_related_event_candidates_corporates__corporate_id__patients__patient_id__events_related_candidates_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/corporates/{corporate_id}/stores/{store_id}/care-events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Store Care Events
+     * @description 店舗の患者対応Event一覧を返す。
+     */
+    get: operations["list_store_care_events_corporates__corporate_id__stores__store_id__care_events_get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -2929,6 +3045,11 @@ export interface components {
       major_categories: components["schemas"]["MajorCategoryDto"][];
       /** Medium Categories */
       medium_categories: components["schemas"]["MediumCategoryDto"][];
+      /**
+       * Current Record Fields
+       * @default []
+       */
+      current_record_fields: components["schemas"]["app__application__medication_history__commands__dtos__category_catalog__CurrentRecordFieldDto"][];
     };
     /**
      * ChangeBusinessHoursRequest
@@ -3357,7 +3478,9 @@ export interface components {
       /** Patient Id */
       patient_id: string;
       /** Event Type Id */
-      event_type_id: string;
+      event_type_id?: string | null;
+      /** Standard Code */
+      standard_code?: string | null;
       /**
        * Occurred At
        * Format: date-time
@@ -3397,6 +3520,37 @@ export interface components {
       permissions: components["schemas"]["UserPermissionDto"][];
       /** Selected Store Id */
       selected_store_id?: string | null;
+    };
+    /**
+     * CurrentRecordFieldInput
+     * @description 今回記載欄項目の入力。
+     */
+    CurrentRecordFieldInput: {
+      /** Label */
+      label: string;
+      /** Display Order */
+      display_order: number;
+      /** Id */
+      id?: string | null;
+      /** Store Id */
+      store_id?: string | null;
+      /** Category Code */
+      category_code?: string | null;
+      /**
+       * Is Archived
+       * @default false
+       */
+      is_archived: boolean;
+    };
+    /**
+     * CurrentRecordFieldValueDto
+     * @description 受付に紐づく今回記載欄の入力値DTO。
+     */
+    "CurrentRecordFieldValueDto-Input": {
+      /** Field Id */
+      field_id: string;
+      /** Value Text */
+      value_text: string;
     };
     /**
      * DeactivateCoverageRequest
@@ -3989,7 +4143,9 @@ export interface components {
      */
     IngestNsipsRequest: {
       /** Reception Id */
-      reception_id: string;
+      reception_id?: string | null;
+      /** File Name */
+      file_name?: string | null;
       /** Raw Nsips Text */
       raw_nsips_text?: string | null;
       structured_bundle?: components["schemas"]["NsipsBundleRequest"] | null;
@@ -4074,6 +4230,22 @@ export interface components {
        * @default []
        */
       addition_names: string[];
+      /** File Id */
+      file_id?: string | null;
+      /** Operation */
+      operation?: string | null;
+      /** Status */
+      status?: string | null;
+      /**
+       * Was Already Applied
+       * @default false
+       */
+      was_already_applied: boolean;
+      /**
+       * Error Text
+       * @default
+       */
+      error_text: string;
     };
     /**
      * InitialStoreWorkConditionInput
@@ -4322,6 +4494,27 @@ export interface components {
       phone_number?: string | null;
       /** Fax Number */
       fax_number?: string | null;
+    };
+    /**
+     * MedicationHistoryBlockInput
+     * @description 薬歴ブロックの入力データ。
+     */
+    MedicationHistoryBlockInput: {
+      /** Category Code */
+      category_code: string;
+      /** Content */
+      content: string;
+      /** Display Order */
+      display_order: number;
+      /** Id */
+      id?: string | null;
+      /**
+       * Source Module
+       * @default manual
+       */
+      source_module: string;
+      /** Source Id */
+      source_id?: string | null;
     };
     /**
      * MedicationHistoryDto
@@ -4711,6 +4904,11 @@ export interface components {
       points?: number | null;
       /** Quantity */
       quantity?: number | null;
+      /**
+       * Category
+       * @default addition
+       */
+      category: string;
     };
     /**
      * NsipsBundleRequest
@@ -4734,6 +4932,21 @@ export interface components {
       additions: components["schemas"]["NsipsAdditionRequest"][];
       /** Correction Kind */
       correction_kind?: ("update" | "delete") | null;
+    };
+    /**
+     * NsipsDrugSupplementRequest
+     * @description 薬品補足情報。
+     */
+    NsipsDrugSupplementRequest: {
+      /** Category Code */
+      category_code: string;
+      /** Text */
+      text: string;
+      /**
+       * Supplementary Usage Code
+       * @default
+       */
+      supplementary_usage_code: string;
     };
     /**
      * NsipsInsuranceRequest
@@ -4777,6 +4990,59 @@ export interface components {
       dosage: number | string;
       /** Unit */
       unit: string;
+      /** Days Supply */
+      days_supply?: number | null;
+      /**
+       * Yj Code
+       * @default
+       */
+      yj_code: string;
+      /**
+       * Info Category
+       * @default drug
+       */
+      info_category: string;
+      /**
+       * Drug Code Type
+       * @default
+       */
+      drug_code_type: string;
+      /** Dosage Quantity */
+      dosage_quantity?: number | string | null;
+      /**
+       * Dosage Unit
+       * @default
+       */
+      dosage_unit: string;
+      /**
+       * Is Potency
+       * @default false
+       */
+      is_potency: boolean;
+      /** Unit Conversion Factor */
+      unit_conversion_factor?: number | string | null;
+      /**
+       * Uneven Doses
+       * @default []
+       */
+      uneven_doses: (number | string | null)[];
+      /**
+       * Supplements
+       * @default []
+       */
+      supplements: components["schemas"]["NsipsDrugSupplementRequest"][];
+    };
+    /**
+     * NsipsNarcoticRequest
+     * @description 麻薬施用情報。
+     */
+    NsipsNarcoticRequest: {
+      /** License Number */
+      license_number: string;
+      /** Patient Address */
+      patient_address: string;
+      /** Patient Phone */
+      patient_phone: string;
     };
     /**
      * NsipsPatientRequest
@@ -4832,6 +5098,36 @@ export interface components {
       /** Rps */
       rps: components["schemas"]["NsipsRpRequest"][];
       split_info?: components["schemas"]["NsipsSplitRequest"] | null;
+      /** Expiration Date */
+      expiration_date?: string | null;
+      narcotic_info?: components["schemas"]["NsipsNarcoticRequest"] | null;
+      /**
+       * Remaining Medication Check Code
+       * @default
+       */
+      remaining_medication_check_code: string;
+      /** Refill Total Uses */
+      refill_total_uses?: number | null;
+      /**
+       * Remarks
+       * @default []
+       */
+      remarks: components["schemas"]["NsipsRemarkRequest"][];
+    };
+    /**
+     * NsipsRemarkRequest
+     * @description 処方備考情報。
+     */
+    NsipsRemarkRequest: {
+      /** Sequence Number */
+      sequence_number: number;
+      /**
+       * Remark Type Code
+       * @default
+       */
+      remark_type_code: string;
+      /** Text */
+      text: string;
     };
     /**
      * NsipsRpRequest
@@ -4850,6 +5146,48 @@ export interface components {
       medicines: components["schemas"]["NsipsMedicineRequest"][];
       /** Preparation Method */
       preparation_method?: string | null;
+      /**
+       * Dosage Form Code
+       * @default
+       */
+      dosage_form_code: string;
+      /**
+       * Dosage Form Name
+       * @default
+       */
+      dosage_form_name: string;
+      /**
+       * Usage Code
+       * @default
+       */
+      usage_code: string;
+      /** Daily Frequency */
+      daily_frequency?: number | null;
+      /**
+       * Usage Supplements
+       * @default []
+       */
+      usage_supplements: components["schemas"]["NsipsRpUsageSupplementRequest"][];
+    };
+    /**
+     * NsipsRpUsageSupplementRequest
+     * @description 用法補足情報。
+     */
+    NsipsRpUsageSupplementRequest: {
+      /** Category Code */
+      category_code: string;
+      /** Text */
+      text: string;
+      /**
+       * Supplementary Usage Code
+       * @default
+       */
+      supplementary_usage_code: string;
+      /**
+       * Body Site Code
+       * @default
+       */
+      body_site_code: string;
     };
     /**
      * NsipsSourceAdditionDto
@@ -6452,6 +6790,56 @@ export interface components {
       dosage_supplements: components["schemas"]["DosageSupplementInput"][];
     };
     /**
+     * SaveCurrentRecordValuesRequest
+     * @description 受付の今回記載欄入力値の保存入力。
+     */
+    SaveCurrentRecordValuesRequest: {
+      /** Store Id */
+      store_id: string;
+      /**
+       * Values
+       * @default []
+       */
+      values: components["schemas"]["CurrentRecordFieldValueDto-Input"][];
+    };
+    /**
+     * SaveMedicationHistoryBlocksRequest
+     * @description 薬歴ブロック保存リクエスト。
+     */
+    SaveMedicationHistoryBlocksRequest: {
+      /** Store Id */
+      store_id: string;
+      /**
+       * Blocks
+       * @default []
+       */
+      blocks: components["schemas"]["MedicationHistoryBlockInput"][];
+    };
+    /**
+     * SaveReceptionBlocksRequest
+     * @description 受付の薬歴ブロック保存入力。
+     */
+    SaveReceptionBlocksRequest: {
+      /** Store Id */
+      store_id: string;
+      /**
+       * Blocks
+       * @default []
+       */
+      blocks: components["schemas"]["MedicationHistoryBlockInput"][];
+    };
+    /**
+     * SaveStoreCurrentRecordFieldsRequest
+     * @description 店舗の今回記載欄設定の保存入力。
+     */
+    SaveStoreCurrentRecordFieldsRequest: {
+      /**
+       * Fields
+       * @default []
+       */
+      fields: components["schemas"]["CurrentRecordFieldInput"][];
+    };
+    /**
      * SelectStoreContextRequest
      * @description 作業対象とする店舗の選択入力。
      */
@@ -7197,6 +7585,11 @@ export interface components {
        * @default []
        */
       medium_categories: components["schemas"]["MediumCategoryInput"][];
+      /**
+       * Current Record Fields
+       * @default []
+       */
+      current_record_fields: components["schemas"]["CurrentRecordFieldInput"][];
     };
     /**
      * UpdateConditionStatusIntentInput
@@ -7382,6 +7775,140 @@ export interface components {
        * @default []
        */
       slots: components["schemas"]["BusinessHourSlotInput"][];
+    };
+    /**
+     * CurrentRecordFieldDto
+     * @description 今回記載欄項目の出力DTO。
+     */
+    app__application__medication_history__commands__dtos__category_catalog__CurrentRecordFieldDto: {
+      /** Id */
+      id: string;
+      /** Label */
+      label: string;
+      /** Display Order */
+      display_order: number;
+      /** Store Id */
+      store_id?: string | null;
+      /** Category Code */
+      category_code?: string | null;
+      /**
+       * Category Badge Label
+       * @default
+       */
+      category_badge_label: string;
+      /**
+       * Is Archived
+       * @default false
+       */
+      is_archived: boolean;
+    };
+    /**
+     * MedicationHistoryBlockDto
+     * @description 薬歴ブロックの表示用DTO。
+     */
+    app__application__medication_history__commands__dtos__medication_history_block__MedicationHistoryBlockDto: {
+      /** Id */
+      id: string;
+      /** Category Code */
+      category_code: string;
+      /** Category Name */
+      category_name: string;
+      /** Category Badge Label */
+      category_badge_label: string;
+      /** Content */
+      content: string;
+      /** Display Order */
+      display_order: number;
+      /** Source Module */
+      source_module: string;
+      /** Source Id */
+      source_id?: string | null;
+      /** Updated By */
+      updated_by?: string | null;
+      /**
+       * Updated By Name
+       * @default
+       */
+      updated_by_name: string;
+      /** Updated At */
+      updated_at?: string | null;
+    };
+    /**
+     * CurrentRecordFieldDto
+     * @description 今回記載欄項目の出力DTO（参照用）。
+     */
+    app__application__medication_history__queries__dtos__category_catalog__CurrentRecordFieldDto: {
+      /** Id */
+      id: string;
+      /** Label */
+      label: string;
+      /** Display Order */
+      display_order: number;
+      /** Store Id */
+      store_id?: string | null;
+      /** Category Code */
+      category_code?: string | null;
+      /**
+       * Category Badge Label
+       * @default
+       */
+      category_badge_label: string;
+      /**
+       * Is Archived
+       * @default false
+       */
+      is_archived: boolean;
+    };
+    /**
+     * MedicationHistoryBlockDto
+     * @description 薬歴ブロックのクエリ応答DTO。
+     */
+    app__application__medication_history__queries__dtos__medication_history_block__MedicationHistoryBlockDto: {
+      /** Id */
+      id: string;
+      /** Category Code */
+      category_code: string;
+      /** Category Name */
+      category_name: string;
+      /** Category Badge Label */
+      category_badge_label: string;
+      /** Content */
+      content: string;
+      /** Display Order */
+      display_order: number;
+      /** Source Module */
+      source_module: string;
+      /** Source Id */
+      source_id?: string | null;
+      /** Updated By */
+      updated_by?: string | null;
+      /**
+       * Updated By Name
+       * @default
+       */
+      updated_by_name: string;
+      /** Updated At */
+      updated_at?: string | null;
+    };
+    /**
+     * CurrentRecordFieldValueDto
+     * @description 受付に紐づく今回記載欄の入力値DTO。
+     */
+    app__application__reception__commands__dtos__current_record_values__CurrentRecordFieldValueDto: {
+      /** Field Id */
+      field_id: string;
+      /** Value Text */
+      value_text: string;
+    };
+    /**
+     * CurrentRecordFieldValueDto
+     * @description 受付の今回記載欄入力値DTO（参照用）。
+     */
+    app__application__reception__queries__dtos__current_record_values__CurrentRecordFieldValueDto: {
+      /** Field Id */
+      field_id: string;
+      /** Value Text */
+      value_text: string;
     };
   };
   responses: never;
@@ -13687,6 +14214,274 @@ export interface operations {
       };
     };
   };
+  get_current_record_values_corporates__corporate_id__receptions__reception_id__current_record_fields_get: {
+    parameters: {
+      query: {
+        /** @description 受付を行う店舗のID。 */
+        store_id: string;
+      };
+      header?: never;
+      path: {
+        corporate_id: string;
+        reception_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["app__application__reception__queries__dtos__current_record_values__CurrentRecordFieldValueDto"][];
+        };
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  save_current_record_values_corporates__corporate_id__receptions__reception_id__current_record_fields_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+        reception_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SaveCurrentRecordValuesRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["app__application__reception__commands__dtos__current_record_values__CurrentRecordFieldValueDto"][];
+        };
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  list_reception_blocks_corporates__corporate_id__receptions__reception_id__blocks_get: {
+    parameters: {
+      query: {
+        /** @description 受付を行う店舗のID。 */
+        store_id: string;
+      };
+      header?: never;
+      path: {
+        corporate_id: string;
+        reception_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["app__application__medication_history__queries__dtos__medication_history_block__MedicationHistoryBlockDto"][];
+        };
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  save_reception_blocks_corporates__corporate_id__receptions__reception_id__blocks_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+        reception_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SaveReceptionBlocksRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["app__application__medication_history__commands__dtos__medication_history_block__MedicationHistoryBlockDto"][];
+        };
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
   register_prescription_corporates__corporate_id__prescriptions_post: {
     parameters: {
       query?: never;
@@ -15930,6 +16725,271 @@ export interface operations {
       };
     };
   };
+  list_store_current_record_fields_corporates__corporate_id__stores__store_id__current_record_fields_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+        store_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["app__application__medication_history__queries__dtos__category_catalog__CurrentRecordFieldDto"][];
+        };
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  save_store_current_record_fields_corporates__corporate_id__stores__store_id__current_record_fields_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+        store_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SaveStoreCurrentRecordFieldsRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["app__application__medication_history__commands__dtos__category_catalog__CurrentRecordFieldDto"][];
+        };
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  list_medication_history_blocks_corporates__corporate_id__medication_histories__record_id__blocks_get: {
+    parameters: {
+      query: {
+        /** @description 薬歴が属する店舗ID。 */
+        store_id: string;
+      };
+      header?: never;
+      path: {
+        corporate_id: string;
+        record_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["app__application__medication_history__queries__dtos__medication_history_block__MedicationHistoryBlockDto"][];
+        };
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  save_medication_history_blocks_corporates__corporate_id__medication_histories__record_id__blocks_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        corporate_id: string;
+        record_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SaveMedicationHistoryBlocksRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["app__application__medication_history__commands__dtos__medication_history_block__MedicationHistoryBlockDto"][];
+        };
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
   list_event_definitions_corporates__corporate_id__event_definitions_get: {
     parameters: {
       query?: never;
@@ -16300,6 +17360,77 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["RelatedEventCandidateDto"][];
+        };
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  list_store_care_events_corporates__corporate_id__stores__store_id__care_events_get: {
+    parameters: {
+      query?: {
+        /** @description 対象患者のID。 */
+        patient_id?: string | null;
+      };
+      header?: never;
+      path: {
+        corporate_id: string;
+        store_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["EventDto"][];
         };
       };
       /** @description 資格情報が無い、または検証できない。 */

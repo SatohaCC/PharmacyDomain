@@ -121,6 +121,9 @@ from app.application.medication_history.commands.record_tracing_report_response 
 from app.application.medication_history.commands.review_external_prescription_correction import (
     ReviewExternalPrescriptionCorrectionUseCase,
 )
+from app.application.medication_history.commands.save_medication_history_blocks import (
+    SaveMedicationHistoryBlocksUseCase,
+)
 from app.application.medication_history.commands.save_store_current_record_fields import (
     SaveStoreCurrentRecordFieldsUseCase,
 )
@@ -147,6 +150,9 @@ from app.application.medication_history.queries.get_patient_medical_profile impo
 )
 from app.application.medication_history.queries.list_medication_histories_by_patient import (
     ListMedicationHistoriesByPatientUseCase,
+)
+from app.application.medication_history.queries.list_medication_history_blocks import (
+    ListMedicationHistoryBlocksUseCase,
 )
 from app.application.medication_history.queries.list_pending_external_corrections import (
     ListPendingExternalCorrectionsUseCase,
@@ -361,6 +367,8 @@ class MedicationHistoryUseCases:
     update_category_catalog: UpdateCategoryCatalogUseCase
     list_store_current_record_fields: ListStoreCurrentRecordFieldsUseCase
     save_store_current_record_fields: SaveStoreCurrentRecordFieldsUseCase
+    save_blocks: SaveMedicationHistoryBlocksUseCase
+    list_blocks: ListMedicationHistoryBlocksUseCase
     record_tracing_report: RecordTracingReportUseCase
     record_tracing_report_response: RecordTracingReportResponseUseCase
     get_view: GetMedicationHistoryViewUseCase
