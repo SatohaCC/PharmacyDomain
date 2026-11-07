@@ -82,5 +82,25 @@ class InMemoryEventRepository(EventRepository):
             for event in events
         )
 
+    async def list_by_store(
+        self,
+        *,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+        patient_id: PatientId | None = None,
+    ) -> tuple[Event, ...]:
+        events = [
+            copy.deepcopy(event)
+            for event in self.items.values()
+            if event.corporate_id == corporate_id
+            and event.store_id == store_id
+            and (patient_id is None or event.patient_id == patient_id)
+        ]
+        events.sort(
+            key=lambda e: (e.created_at.value, e.id.value),
+            reverse=True,
+        )
+        return tuple(events)
+
     async def save(self, event: Event) -> None:
         self.items[event.id] = copy.deepcopy(event)

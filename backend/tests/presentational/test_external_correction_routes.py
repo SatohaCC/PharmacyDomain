@@ -89,6 +89,8 @@ def client(
         verify_statutory_record=history_fixture.verify_statutory_record,
         get_category_catalog=history_fixture.get_category_catalog,
         update_category_catalog=history_fixture.update_category_catalog,
+        list_store_current_record_fields=cast(Any, None),
+        save_store_current_record_fields=cast(Any, None),
         record_tracing_report=history_fixture.record_tracing_report,
         record_tracing_report_response=history_fixture.record_tracing_report_response,
         get_view=cast(Any, None),

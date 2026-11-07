@@ -7,24 +7,32 @@ import pytest
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.entities import MedicationHistoryCategoryCatalog
 from app.domain.medication_history.exceptions import (
+    CurrentRecordFieldCategoryNotFoundError,
+    DuplicateCurrentRecordFieldIdError,
     DuplicateMajorCategoryError,
     DuplicateMediumCategoryError,
     MajorCategoryNotFoundError,
     RequiredCategoryMissingError,
 )
-from app.domain.medication_history.identifiers import CategoryCatalogId
+from app.domain.medication_history.identifiers import (
+    CategoryCatalogId,
+    CurrentRecordFieldId,
+)
 from app.domain.medication_history.primitives import (
     CategoryDisplayOrder,
+    CurrentRecordFieldLabel,
     MajorCategoryCode,
     MajorCategoryName,
     MediumCategoryCode,
     MediumCategoryName,
 )
 from app.domain.medication_history.value_objects import (
+    CurrentRecordFieldDefinition,
     MajorCategoryDefinition,
     MediumCategoryDefinition,
     SoapRecord,
 )
+from app.domain.store.identifiers import StoreId
 from tests.factories.medication_history_factory import (
     create_note,
     create_record,
@@ -382,3 +390,75 @@ def test_validate_record_compliance_missing_required() -> None:
     with pytest.raises(RequiredCategoryMissingError) as exc_info:
         catalog.validate_record_compliance(record)
     assert "P（計画）" in str(exc_info.value)
+
+
+def test_記載区分カタログ_今回記載欄設定の更新_正常に更新される() -> None:
+    """TC-CAT-11: 今回記載欄の項目定義が正常に追加・更新できること。"""
+    catalog = _sample_catalog()
+    field_id_1 = CurrentRecordFieldId.generate()
+    field_id_2 = CurrentRecordFieldId.generate()
+    store_id = StoreId.generate()
+
+    fields = (
+        CurrentRecordFieldDefinition(
+            field_id=field_id_1,
+            label=CurrentRecordFieldLabel("本日の体調変化"),
+            display_order=CategoryDisplayOrder(1),
+            category_code=MediumCategoryCode("s"),
+        ),
+        CurrentRecordFieldDefinition(
+            field_id=field_id_2,
+            label=CurrentRecordFieldLabel("残薬の有無確認"),
+            display_order=CategoryDisplayOrder(2),
+            store_id=store_id,
+        ),
+    )
+
+    updated = catalog.update_current_record_fields(fields)
+    assert len(updated.current_record_fields) == 2
+    assert updated.current_record_fields[0].label.value == "本日の体調変化"
+    assert updated.current_record_fields[1].store_id == store_id
+
+
+def test_記載区分カタログ_今回記載欄設定の重複ID_DuplicateCurrentRecordFieldIdErrorを送出する() -> (
+    None
+):
+    """TC-CAT-12: 今回記載欄項目でIDが重複している場合例外となること。"""
+    catalog = _sample_catalog()
+    dup_id = CurrentRecordFieldId.generate()
+
+    fields = (
+        CurrentRecordFieldDefinition(
+            field_id=dup_id,
+            label=CurrentRecordFieldLabel("体調変化1"),
+            display_order=CategoryDisplayOrder(1),
+        ),
+        CurrentRecordFieldDefinition(
+            field_id=dup_id,
+            label=CurrentRecordFieldLabel("体調変化2"),
+            display_order=CategoryDisplayOrder(2),
+        ),
+    )
+
+    with pytest.raises(DuplicateCurrentRecordFieldIdError):
+        catalog.update_current_record_fields(fields)
+
+
+def test_記載区分カタログ_今回記載欄設定の存在しない中区分コード_CurrentRecordFieldCategoryNotFoundErrorを送出する() -> (
+    None
+):
+    """TC-CAT-13: カタログに存在しない中区分コードを指定した場合例外となること。"""
+    catalog = _sample_catalog()
+    field_id = CurrentRecordFieldId.generate()
+
+    fields = (
+        CurrentRecordFieldDefinition(
+            field_id=field_id,
+            label=CurrentRecordFieldLabel("体調変化"),
+            display_order=CategoryDisplayOrder(1),
+            category_code=MediumCategoryCode("unknown_medium_code"),
+        ),
+    )
+
+    with pytest.raises(CurrentRecordFieldCategoryNotFoundError):
+        catalog.update_current_record_fields(fields)

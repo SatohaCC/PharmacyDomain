@@ -16,6 +16,9 @@ from app.application.care_event.queries.list_event_definitions import (
 from app.application.care_event.queries.list_related_event_candidates import (
     ListRelatedEventCandidatesUseCase,
 )
+from app.application.care_event.queries.list_store_care_events import (
+    ListStoreCareEventsUseCase,
+)
 from app.application.common.clock import Clock
 from app.application.composition.adapters.care_event_references import (
     EventMedicationHistoryReferenceAdapter,
@@ -38,6 +41,9 @@ from app.infrastructure.readers.care_event_list_event_definitions import (
 )
 from app.infrastructure.readers.care_event_list_related_event_candidates import (
     ListRelatedEventCandidatesProjection,
+)
+from app.infrastructure.readers.care_event_list_store_events import (
+    ListStoreCareEventsProjection,
 )
 
 
@@ -91,6 +97,11 @@ def build_care_event_use_cases(
                 event_repository=repositories.event
             ),
             patient_boundary=event_patient,
+            corporate_access=corporate_access,
+            store_operations=store_operations,
+        ),
+        list_by_store=ListStoreCareEventsUseCase(
+            reader=ListStoreCareEventsProjection(repositories.event),
             corporate_access=corporate_access,
             store_operations=store_operations,
         ),

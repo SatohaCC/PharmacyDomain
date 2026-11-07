@@ -92,6 +92,9 @@ from app.application.medication_history.commands.record_tracing_report_response 
 from app.application.medication_history.commands.review_external_prescription_correction import (
     ReviewExternalPrescriptionCorrectionUseCase,
 )
+from app.application.medication_history.commands.save_store_current_record_fields import (
+    SaveStoreCurrentRecordFieldsUseCase,
+)
 from app.application.medication_history.commands.services.profile_projection_service import (
     PatientMedicalProfileProjectionService,
 )
@@ -121,6 +124,9 @@ from app.application.medication_history.queries.list_medication_histories_by_pat
 )
 from app.application.medication_history.queries.list_pending_external_corrections import (
     ListPendingExternalCorrectionsUseCase,
+)
+from app.application.medication_history.queries.list_store_current_record_fields import (
+    ListStoreCurrentRecordFieldsUseCase,
 )
 from app.application.medication_history.queries.services.statutory_projection import (
     StatutoryProjectionService,
@@ -189,6 +195,9 @@ from app.infrastructure.readers.medication_history_list_medication_histories_by_
 )
 from app.infrastructure.readers.medication_history_list_pending_external_corrections import (
     ListPendingExternalCorrectionsProjection,
+)
+from app.infrastructure.readers.medication_history_list_store_current_record_fields import (
+    ListStoreCurrentRecordFieldsProjection,
 )
 from app.infrastructure.readers.medication_history_verify_statutory_record import (
     VerifyStatutoryRecordProjection,
@@ -474,6 +483,16 @@ def build_medication_history_use_cases(
         update_category_catalog=UpdateCategoryCatalogUseCase(
             catalog_repository,
             corporate_access,
+        ),
+        list_store_current_record_fields=ListStoreCurrentRecordFieldsUseCase(
+            reader=ListStoreCurrentRecordFieldsProjection(catalog_repository),
+            corporate_access=corporate_access,
+            store_operations=store_operations,
+        ),
+        save_store_current_record_fields=SaveStoreCurrentRecordFieldsUseCase(
+            repository=catalog_repository,
+            corporate_access=corporate_access,
+            store_operations=store_operations,
         ),
         record_tracing_report=RecordTracingReportUseCase(
             record_repository,

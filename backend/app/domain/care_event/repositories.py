@@ -56,4 +56,14 @@ class EventRepository(Protocol):
         self, *, corporate_id: CorporateId, patient_id: PatientId
     ) -> tuple[RelatedEventReference, ...]: ...
 
+    async def list_by_store(
+        self,
+        *,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+        patient_id: PatientId | None = None,
+    ) -> tuple[Event, ...]:
+        """店舗の業務Event一覧を取得する。"""
+        ...
+
     async def save(self, event: Event) -> None: ...
