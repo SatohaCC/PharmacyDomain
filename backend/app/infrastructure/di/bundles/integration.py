@@ -39,6 +39,7 @@ def build_integration_use_cases(
         register_patient_use_case=patient_use_cases.register,
         register_patient_external_id_use_case=patient_use_cases.register_external_identifier,
         medication_history_repo=repositories.medication_history,
+        nsips_file_repo=repositories.nsips_file,
         clock=clock,
     )
     reader = PostgresGetNsipsSourceQueryReader(

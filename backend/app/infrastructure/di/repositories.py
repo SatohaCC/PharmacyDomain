@@ -46,6 +46,9 @@ from app.infrastructure.medication_history.postgres.patient_medical_profile impo
 from app.infrastructure.medicine_catalog.postgres.medicine_catalog import (
     PostgresMedicineCatalogRepository,
 )
+from app.infrastructure.nsips.postgres.nsips_file import (
+    PostgresNsipsFileRepository,
+)
 from app.infrastructure.patient.postgres.patient import PostgresPatientRepository
 from app.infrastructure.patient.postgres.patient_external_identifier import (
     PostgresPatientExternalIdentifierRepository,
@@ -97,6 +100,7 @@ class PostgresRepositorySet:
     patient_medical_profile: PostgresPatientMedicalProfileRepository
     medicine_catalog: PostgresMedicineCatalogRepository
     reception: PostgresReceptionRepository
+    nsips_file: PostgresNsipsFileRepository
 
     @classmethod
     def create(cls, unit_of_work: PostgresUnitOfWork) -> Self:
@@ -132,4 +136,5 @@ class PostgresRepositorySet:
             ),
             medicine_catalog=PostgresMedicineCatalogRepository(unit_of_work),
             reception=PostgresReceptionRepository(unit_of_work),
+            nsips_file=PostgresNsipsFileRepository(unit_of_work),
         )

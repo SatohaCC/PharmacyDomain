@@ -36,3 +36,8 @@ class IngestNsipsResultDto:
     coverage_selection_record_id: str | None = None
     dispensed_date: str | None = None
     addition_names: tuple[str, ...] = ()
+    file_id: str | None = None
+    operation: str | None = None
+    status: str | None = None
+    was_already_applied: bool = False
+    error_text: str = ""

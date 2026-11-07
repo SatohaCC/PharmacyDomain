@@ -5,11 +5,15 @@ from __future__ import annotations
 from app.application.integration.boundary_models import (
     NsipsAdditionInfo,
     NsipsBundle,
+    NsipsDrugSupplementInfo,
     NsipsInsuranceInfo,
     NsipsMedicineInfo,
+    NsipsNarcoticInfo,
     NsipsPatientInfo,
     NsipsPrescriptionInfo,
+    NsipsRemarkInfo,
     NsipsRpInfo,
+    NsipsRpUsageSupplementInfo,
     NsipsSplitInfo,
 )
 
@@ -28,6 +32,15 @@ def map_patient(value: NsipsPatientInfo) -> dict[str, object]:
     }
 
 
+def map_drug_supplement(value: NsipsDrugSupplementInfo) -> dict[str, object]:
+    """薬品補足情報の辞書表現を返す。"""
+    return {
+        "category_code": value.category_code,
+        "text": value.text,
+        "supplementary_usage_code": value.supplementary_usage_code,
+    }
+
+
 def map_medicine(value: NsipsMedicineInfo) -> dict[str, object]:
     """受付原本の項目名と値の対応を固定する。"""
     return {
@@ -35,6 +48,26 @@ def map_medicine(value: NsipsMedicineInfo) -> dict[str, object]:
         "medicine_name": value.medicine_name,
         "dosage": value.dosage,
         "unit": value.unit,
+        "days_supply": value.days_supply,
+        "yj_code": value.yj_code,
+        "info_category": value.info_category,
+        "drug_code_type": value.drug_code_type,
+        "dosage_quantity": value.dosage_quantity,
+        "dosage_unit": value.dosage_unit,
+        "is_potency": value.is_potency,
+        "unit_conversion_factor": value.unit_conversion_factor,
+        "uneven_doses": list(value.uneven_doses),
+        "supplements": [map_drug_supplement(item) for item in value.supplements],
+    }
+
+
+def map_rp_usage_supplement(value: NsipsRpUsageSupplementInfo) -> dict[str, object]:
+    """用法補足情報の辞書表現を返す。"""
+    return {
+        "category_code": value.category_code,
+        "text": value.text,
+        "supplementary_usage_code": value.supplementary_usage_code,
+        "body_site_code": value.body_site_code,
     }
 
 
@@ -49,6 +82,13 @@ def map_rp(value: NsipsRpInfo) -> dict[str, object]:
         "preparation_method": value.preparation_method
         if value.preparation_method is not None
         else None,
+        "dosage_form_code": value.dosage_form_code,
+        "dosage_form_name": value.dosage_form_name,
+        "usage_code": value.usage_code,
+        "daily_frequency": value.daily_frequency,
+        "usage_supplements": [
+            map_rp_usage_supplement(item) for item in value.usage_supplements
+        ],
     }
 
 
@@ -58,6 +98,24 @@ def map_split(value: NsipsSplitInfo) -> dict[str, object]:
         "iteration": value.iteration,
         "total_split_count": value.total_split_count,
         "split_reason": value.split_reason,
+    }
+
+
+def map_narcotic(value: NsipsNarcoticInfo) -> dict[str, object]:
+    """麻薬情報の辞書表現を返す。"""
+    return {
+        "license_number": value.license_number,
+        "patient_address": value.patient_address,
+        "patient_phone": value.patient_phone,
+    }
+
+
+def map_remark(value: NsipsRemarkInfo) -> dict[str, object]:
+    """処方備考の辞書表現を返す。"""
+    return {
+        "sequence_number": value.sequence_number,
+        "remark_type_code": value.remark_type_code,
+        "text": value.text,
     }
 
 
@@ -83,6 +141,13 @@ def map_prescription(value: NsipsPrescriptionInfo) -> dict[str, object]:
         "split_info": map_split(value.split_info)
         if value.split_info is not None
         else None,
+        "expiration_date": value.expiration_date,
+        "narcotic_info": map_narcotic(value.narcotic_info)
+        if value.narcotic_info is not None
+        else None,
+        "remaining_medication_check_code": value.remaining_medication_check_code,
+        "refill_total_uses": value.refill_total_uses,
+        "remarks": [map_remark(item) for item in value.remarks],
     }
 
 
@@ -121,6 +186,7 @@ def map_addition(value: NsipsAdditionInfo) -> dict[str, object]:
         "name": value.name,
         "points": value.points if value.points is not None else None,
         "quantity": value.quantity if value.quantity is not None else None,
+        "category": value.category,
     }
 
 
@@ -140,4 +206,5 @@ def map_bundle(value: NsipsBundle) -> dict[str, object]:
         "correction_kind": value.correction_kind
         if value.correction_kind is not None
         else None,
+        "file_name": value.file_name if value.file_name is not None else None,
     }

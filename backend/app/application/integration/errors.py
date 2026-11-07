@@ -47,3 +47,12 @@ class NsipsReceptionNotFoundError(NsipsError):
 
     default_message = "対象の受付が見つかりません。"
     default_code = "NSIPS_RECEPTION_NOT_FOUND"
+
+
+class UnknownNsipsFileNameError(NsipsParseError):
+    """NSIPSファイル名から操作種別・ファイルIDを判定できなかった場合の例外。"""
+
+    default_message = (
+        "NSIPSファイル名から操作種別またはファイルIDを判定できませんでした。"
+    )
+    default_code = "UNKNOWN_NSIPS_FILE_NAME"
