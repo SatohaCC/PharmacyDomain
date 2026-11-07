@@ -78,3 +78,13 @@ export const Empty: Story = {
     onSearch: () => {},
   },
 };
+
+export const WithCreatePermission: Story = {
+  args: {
+    patients: samplePatients,
+    storeId: "store-001",
+    initialKeyword: "",
+    canCreatePatient: true,
+    onSearch: () => {},
+  },
+};

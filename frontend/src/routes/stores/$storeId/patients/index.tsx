@@ -23,7 +23,12 @@ function PatientsIndexComponent() {
   const { storeId } = Route.useParams();
   const search = Route.useSearch();
   const patients = Route.useLoaderData();
+  const { actor } = Route.useRouteContext();
   const navigate = useNavigate();
+
+  const canCreatePatient =
+    actor.roles?.includes("corporate_admin") ||
+    actor.roles?.includes("vendor_system_admin");
 
   const handleSearch = async (keyword: string) => {
     await navigate({
@@ -40,6 +45,7 @@ function PatientsIndexComponent() {
       storeId={storeId}
       initialKeyword={search.keyword || ""}
       onSearch={(kw) => void handleSearch(kw)}
+      canCreatePatient={canCreatePatient}
     />
   );
 }

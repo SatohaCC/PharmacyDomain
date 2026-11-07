@@ -23,6 +23,7 @@ export interface PatientListViewProps {
   initialKeyword?: string;
   onSearch: (keyword: string) => void;
   isSearching?: boolean;
+  canCreatePatient?: boolean;
 }
 
 export function PatientListView({
@@ -31,6 +32,7 @@ export function PatientListView({
   initialKeyword = "",
   onSearch,
   isSearching = false,
+  canCreatePatient = false,
 }: PatientListViewProps) {
   const [keyword, setKeyword] = useState(initialKeyword);
 
@@ -48,12 +50,14 @@ export function PatientListView({
     <Panel>
       <Title>
         <Subheading>患者一覧・検索</Subheading>
-        <Link
-          href={`/stores/${encodeURIComponent(storeId)}/patients/new`}
-          appearance="action"
-        >
-          患者を新規登録
-        </Link>
+        {canCreatePatient && (
+          <Link
+            href={`/stores/${encodeURIComponent(storeId)}/patients/new`}
+            appearance="action"
+          >
+            患者を新規登録
+          </Link>
+        )}
       </Title>
 
       <form onSubmit={handleSubmit} style={{ marginBlock: "1rem" }}>

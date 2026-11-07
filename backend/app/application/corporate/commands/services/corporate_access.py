@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from app.application.access_control.boundary_models import ActorContext, Permission
 from app.application.access_control.policies import AuthorizationService
+from app.application.common.exceptions import AuthorizationError
 from app.application.corporate.commands.services.support import (
     load_active_corporate_or_raise,
     load_corporate_or_raise,
@@ -41,6 +42,25 @@ class CorporateAccessService:
         """権限を確認し、有効な対象法人を返す。"""
         self.require_permission(permission=permission, corporate_id=corporate_id)
         return await load_active_corporate_or_raise(self._repository, corporate_id)
+
+    async def require_active_any(
+        self, *, corporate_id: CorporateId, permissions: tuple[Permission, ...]
+    ) -> Corporate:
+        """指定権限のいずれかを満たすことを確認し、有効な対象法人を返す。"""
+        last_error: Exception | None = None
+        for permission in permissions:
+            try:
+                self.require_permission(
+                    permission=permission, corporate_id=corporate_id
+                )
+                return await load_active_corporate_or_raise(
+                    self._repository, corporate_id
+                )
+            except AuthorizationError as err:
+                last_error = err
+        if last_error is not None:
+            raise last_error
+        raise AuthorizationError("権限が不足しています。")
 
     async def require_existing(
         self, *, corporate_id: CorporateId, permission: Permission

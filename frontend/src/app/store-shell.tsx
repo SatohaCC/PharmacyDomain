@@ -45,9 +45,11 @@ export function StoreShell({
           <Link href={`/stores/${encodeURIComponent(storeId)}/patients`}>
             患者一覧・検索
           </Link>
-          <Link href={`/stores/${encodeURIComponent(storeId)}/patients/new`}>
-            新規患者登録
-          </Link>
+          {isAdmin && (
+            <Link href={`/stores/${encodeURIComponent(storeId)}/patients/new`}>
+              新規患者登録
+            </Link>
+          )}
           {isAdmin && <Link href="/admin">管理画面へ</Link>}
           <Button variant="secondary" onAction={() => void logout()}>
             ログアウト

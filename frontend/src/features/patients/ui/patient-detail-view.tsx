@@ -27,7 +27,9 @@ import {
 export interface PatientDetailViewProps {
   patient: PatientDetail;
   heading?: PatientHeading | null;
+  headingFetchError?: string | null;
   medicalProfile?: PatientMedicalProfile | null;
+  medicalProfileFetchError?: string | null;
   storeId: string;
   onUpdateHeading?: (input: {
     expectedRevision: number;
@@ -39,7 +41,9 @@ export interface PatientDetailViewProps {
 export function PatientDetailView({
   patient,
   heading,
+  headingFetchError,
   medicalProfile,
+  medicalProfileFetchError,
   onUpdateHeading,
 }: PatientDetailViewProps) {
   const [isEditingHeading, setIsEditingHeading] = useState(false);
@@ -158,109 +162,127 @@ export function PatientDetailView({
           )}
         </Title>
 
-        {headingError && <Alert tone="error">{headingError}</Alert>}
-
-        {isEditingHeading ? (
-          <form onSubmit={handleHeadingSubmit} style={{ marginTop: "1rem" }}>
-            <FieldGroup>
-              <FieldLabel htmlFor="heading-summary">サマリ（概要）</FieldLabel>
-              <TextArea
-                id="heading-summary"
-                rows={3}
-                value={summaryInput}
-                onChange={(e) => setSummaryInput(e.target.value)}
-                placeholder="患者の概要や主要な留意点を入力"
-              />
-            </FieldGroup>
-            <FieldGroup>
-              <FieldLabel htmlFor="heading-notes">申し送り・特記事項</FieldLabel>
-              <TextArea
-                id="heading-notes"
-                rows={4}
-                value={notesInput}
-                onChange={(e) => setNotesInput(e.target.value)}
-                placeholder="店舗スタッフ間での申し送り、服薬指導上の注意点などを入力"
-              />
-            </FieldGroup>
-            <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
-              <Button type="submit" variant="primary" disabled={savingHeading}>
-                {savingHeading ? "保存中..." : "頭書きを保存"}
-              </Button>
-              <Button
-                variant="secondary"
-                disabled={savingHeading}
-                onAction={() => setIsEditingHeading(false)}
-              >
-                キャンセル
-              </Button>
-            </div>
-          </form>
-        ) : (
-          <div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBlock: "1rem" }}>
-              <div>
-                <span style={{ fontSize: "14px", color: "#6b7280", fontWeight: "bold", display: "block", marginBottom: "0.25rem" }}>
-                  サマリ
-                </span>
-                <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>
-                  {heading?.summary || "（未登録）"}
-                </p>
-              </div>
-              <div>
-                <span style={{ fontSize: "14px", color: "#6b7280", fontWeight: "bold", display: "block", marginBottom: "0.25rem" }}>
-                  申し送り・特記事項
-                </span>
-                <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>
-                  {heading?.notes || "（未登録）"}
-                </p>
-              </div>
-            </div>
-            {heading && (
-              <small style={{ color: "#6b7280" }}>
-                改訂: {heading.revision} / 最終更新日時:{" "}
-                {heading.updated_at
-                  ? new Date(heading.updated_at).toLocaleString("ja-JP")
-                  : "—"}
-              </small>
-            )}
+        {headingFetchError ? (
+          <div style={{ marginBlock: "1rem" }}>
+            <Alert tone="error">
+              頭書き情報の取得に失敗しました: {headingFetchError}
+            </Alert>
           </div>
-        )}
+        ) : (
+          <>
+            {headingError && <Alert tone="error">{headingError}</Alert>}
 
-        {heading?.history && heading.history.length > 0 && (
-          <Details>
-            <Summary>改訂履歴を表示（{heading.history.length}件）</Summary>
-            <div
-              style={{
-                marginTop: "0.5rem",
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.75rem",
-                borderInlineStart: "2px solid #e5e7eb",
-                paddingInlineStart: "1rem",
-              }}
-            >
-              {heading.history.map((rev) => (
-                <div key={rev.revision} style={{ fontSize: "14px" }}>
-                  <div>
-                    <strong>改訂 #{rev.revision}</strong>
-                    <span style={{ color: "#6b7280", marginLeft: "0.5rem" }}>
-                      {rev.recorded_at ? new Date(rev.recorded_at).toLocaleString("ja-JP") : "—"}
-                    </span>
-                  </div>
-                  {rev.summary && <p style={{ margin: "0.25rem 0" }}>サマリ: {rev.summary}</p>}
-                  {rev.notes && <p style={{ margin: "0.25rem 0" }}>特記事項: {rev.notes}</p>}
+            {isEditingHeading ? (
+              <form onSubmit={handleHeadingSubmit} style={{ marginTop: "1rem" }}>
+                <FieldGroup>
+                  <FieldLabel htmlFor="heading-summary">サマリ（概要）</FieldLabel>
+                  <TextArea
+                    id="heading-summary"
+                    rows={3}
+                    value={summaryInput}
+                    onChange={(e) => setSummaryInput(e.target.value)}
+                    placeholder="患者の概要や主要な留意点を入力"
+                  />
+                </FieldGroup>
+                <FieldGroup>
+                  <FieldLabel htmlFor="heading-notes">申し送り・特記事項</FieldLabel>
+                  <TextArea
+                    id="heading-notes"
+                    rows={4}
+                    value={notesInput}
+                    onChange={(e) => setNotesInput(e.target.value)}
+                    placeholder="店舗スタッフ間での申し送り、服薬指導上の注意点などを入力"
+                  />
+                </FieldGroup>
+                <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
+                  <Button type="submit" variant="primary" disabled={savingHeading}>
+                    {savingHeading ? "保存中..." : "頭書きを保存"}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    disabled={savingHeading}
+                    onAction={() => setIsEditingHeading(false)}
+                  >
+                    キャンセル
+                  </Button>
                 </div>
-              ))}
-            </div>
-          </Details>
+              </form>
+            ) : (
+              <div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBlock: "1rem" }}>
+                  <div>
+                    <span style={{ fontSize: "14px", color: "#6b7280", fontWeight: "bold", display: "block", marginBottom: "0.25rem" }}>
+                      サマリ
+                    </span>
+                    <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>
+                      {heading?.summary || "（未登録）"}
+                    </p>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: "14px", color: "#6b7280", fontWeight: "bold", display: "block", marginBottom: "0.25rem" }}>
+                      申し送り・特記事項
+                    </span>
+                    <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>
+                      {heading?.notes || "（未登録）"}
+                    </p>
+                  </div>
+                </div>
+                {heading && (
+                  <small style={{ color: "#6b7280" }}>
+                    改訂: {heading.revision} / 最終更新日時:{" "}
+                    {heading.updated_at
+                      ? new Date(heading.updated_at).toLocaleString("ja-JP")
+                      : "—"}
+                  </small>
+                )}
+              </div>
+            )}
+
+            {heading?.history && heading.history.length > 0 && (
+              <Details>
+                <Summary>改訂履歴を表示（{heading.history.length}件）</Summary>
+                <div
+                  style={{
+                    marginTop: "0.5rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.75rem",
+                    borderInlineStart: "2px solid #e5e7eb",
+                    paddingInlineStart: "1rem",
+                  }}
+                >
+                  {heading.history.map((rev) => (
+                    <div key={rev.revision} style={{ fontSize: "14px" }}>
+                      <div>
+                        <strong>改訂 #{rev.revision}</strong>
+                        <span style={{ color: "#6b7280", marginLeft: "0.5rem" }}>
+                          {rev.recorded_at ? new Date(rev.recorded_at).toLocaleString("ja-JP") : "—"}
+                        </span>
+                      </div>
+                      {rev.summary && <p style={{ margin: "0.25rem 0" }}>サマリ: {rev.summary}</p>}
+                      {rev.notes && <p style={{ margin: "0.25rem 0" }}>特記事項: {rev.notes}</p>}
+                    </div>
+                  ))}
+                </div>
+              </Details>
+            )}
+          </>
         )}
       </Panel>
 
       {/* 臨床プロファイル（薬歴からの投影）パネル */}
-      {medicalProfile && (
+      {(medicalProfile || medicalProfileFetchError) && (
         <Panel>
           <SectionHeading>臨床プロファイル（薬歴投影）</SectionHeading>
-          <Paragraph>薬歴から自動構築された臨床情報の現在値です。</Paragraph>
+          {medicalProfileFetchError ? (
+            <div style={{ marginTop: "1rem" }}>
+              <Alert tone="error">
+                臨床プロファイルの取得に失敗しました: {medicalProfileFetchError}
+              </Alert>
+            </div>
+          ) : medicalProfile ? (
+            <>
+              <Paragraph>薬歴から自動構築された臨床情報の現在値です。</Paragraph>
 
           <Cards>
             <div style={{ padding: "1rem", border: "1px solid #e5e7eb", borderRadius: "8px" }}>
@@ -315,6 +337,8 @@ export function PatientDetailView({
               )}
             </div>
           </Cards>
+            </>
+          ) : null}
         </Panel>
       )}
     </div>

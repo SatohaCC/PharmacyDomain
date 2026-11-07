@@ -10,6 +10,7 @@ from app.application.access_control.boundary_models import (
     ActorRole,
     ResolvedActorContext,
 )
+from app.application.access_control.errors import StoreContextRequiredError
 from app.application.access_control.policies import AuthorizationService
 from app.application.common.exceptions import AuthorizationError
 from app.application.corporate.commands.services.corporate_access import (
@@ -33,6 +34,7 @@ from app.domain.shared.person_name import (
     PersonNamePart,
     PersonNames,
 )
+from app.domain.store.identifiers import StoreId
 from app.infrastructure.readers.patient_list_patients import ListPatientsProjection
 from tests.application.access_helpers import AutoProvisioningCorporateRepository
 from tests.fakes.in_memory_patient_repository import InMemoryPatientRepository
@@ -207,4 +209,78 @@ async def test_患者一覧_権限なし_認可エラーになる() -> None:
 
     # Act & Assert
     with pytest.raises(AuthorizationError):
+        await use_case.execute(ListPatientsQuery(corporate_id=str(corporate_id.value)))
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("role", [ActorRole.STORE_OPERATOR, ActorRole.STORE_VIEWER])
+async def test_患者一覧_店舗スタッフ_店舗選択済み_参照できる(role: ActorRole) -> None:
+    # Arrange
+    corporate_id = CorporateId.generate()
+    store_id = StoreId.generate()
+    corp_repo = AutoProvisioningCorporateRepository()
+    patient_repo = InMemoryPatientRepository()
+    actor = ResolvedActorContext(
+        principal_id="test-store-operator",
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+        roles=frozenset({role}),
+        corporate_id=corporate_id,
+        store_ids=frozenset({store_id}),
+        selected_store_id=store_id,
+        require_store_selection=True,
+    )
+    access = CorporateAccessService(corp_repo, AuthorizationService(actor))
+
+    p = _make_patient(
+        corporate_id=corporate_id,
+        patient_number=1,
+        last_name="山田",
+        first_name="太郎",
+        last_name_kana="ヤマダ",
+        first_name_kana="タロウ",
+    )
+    await patient_repo.save(p)
+
+    use_case = ListPatientsUseCase(
+        reader=ListPatientsProjection(patient_repo),
+        corporate_access=access,
+    )
+
+    # Act
+    results = await use_case.execute(
+        ListPatientsQuery(corporate_id=str(corporate_id.value))
+    )
+
+    # Assert
+    assert len(results) == 1
+    assert results[0].last_name == "山田"
+
+
+@pytest.mark.anyio
+async def test_患者一覧_店舗スタッフ_店舗未選択_StoreContextRequiredError() -> None:
+    # Arrange
+    corporate_id = CorporateId.generate()
+    store_id = StoreId.generate()
+    corp_repo = AutoProvisioningCorporateRepository()
+    patient_repo = InMemoryPatientRepository()
+    actor = ResolvedActorContext(
+        principal_id="test-store-operator",
+        person_id=AccountPersonId.generate(),
+        account_id=UserAccountId.generate(),
+        roles=frozenset({ActorRole.STORE_OPERATOR}),
+        corporate_id=corporate_id,
+        store_ids=frozenset({store_id}),
+        selected_store_id=None,
+        require_store_selection=True,
+    )
+    access = CorporateAccessService(corp_repo, AuthorizationService(actor))
+
+    use_case = ListPatientsUseCase(
+        reader=ListPatientsProjection(patient_repo),
+        corporate_access=access,
+    )
+
+    # Act & Assert
+    with pytest.raises(StoreContextRequiredError):
         await use_case.execute(ListPatientsQuery(corporate_id=str(corporate_id.value)))

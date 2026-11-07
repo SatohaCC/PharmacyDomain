@@ -169,3 +169,14 @@ export const MergedPatient: Story = {
     storeId: "store-001",
   },
 };
+
+export const WithFetchErrors: Story = {
+  args: {
+    patient: samplePatient,
+    heading: null,
+    headingFetchError: "サーバー一時障害により取得できませんでした。",
+    medicalProfile: null,
+    medicalProfileFetchError: "通信エラーが発生しました。",
+    storeId: "store-001",
+  },
+};

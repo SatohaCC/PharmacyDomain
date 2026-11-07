@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Panel } from "../../../shared/ui/layout/panel";
 import {
   Subheading,
@@ -29,9 +29,16 @@ export function PatientRegistrationView({
   const [firstNameKana, setFirstNameKana] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const lock = useRef(false);
+
+  const busy = isSubmitting || submitting;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy || lock.current) {
+      return;
+    }
     if (!lastName.trim() || !firstName.trim()) {
       setError("氏名（姓・名）を入力してください。");
       return;
@@ -41,7 +48,9 @@ export function PatientRegistrationView({
       return;
     }
 
+    lock.current = true;
     setError(null);
+    setSubmitting(true);
     try {
       await onSubmit({
         last_name: lastName.trim(),
@@ -54,6 +63,9 @@ export function PatientRegistrationView({
       setError(
         err instanceof Error ? err.message : "患者の登録に失敗しました。",
       );
+    } finally {
+      lock.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -121,8 +133,13 @@ export function PatientRegistrationView({
             marginTop: "1.5rem",
           }}
         >
-          <Button type="submit" variant="primary" disabled={isSubmitting}>
-            {isSubmitting ? "登録中..." : "患者を登録する"}
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={busy}
+            pending={busy}
+          >
+            {busy ? "登録中..." : "患者を登録する"}
           </Button>
           <Link href={`/stores/${encodeURIComponent(storeId)}/patients`}>
             キャンセル

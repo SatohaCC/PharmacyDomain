@@ -27,7 +27,8 @@ class ListPatientsUseCase:
 
     async def execute(self, query: ListPatientsQuery) -> list[PatientSummaryDto]:
         corporate_id = CorporateId.parse(query.corporate_id)
-        await self._corporate_access.require_active(
-            corporate_id=corporate_id, permission=Permission.VIEW_PATIENT
+        await self._corporate_access.require_active_any(
+            corporate_id=corporate_id,
+            permissions=(Permission.VIEW_PATIENT, Permission.VIEW_PATIENT_HEADING),
         )
         return await self._reader.read(query)

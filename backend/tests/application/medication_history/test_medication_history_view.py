@@ -105,6 +105,27 @@ class _PermissionLimitedCorporateAccess(CorporateAccessBoundary):
             permission=permission,
         )
 
+    async def require_active_any(
+        self,
+        *,
+        corporate_id: CorporateId,
+        permissions: tuple[Permission, ...],
+    ) -> Corporate:
+        """要求権限のいずれかを満たすことを要求する。"""
+        last_error: AuthorizationError | None = None
+        for permission in permissions:
+            self.requested_permissions.append(permission)
+            if permission == self._denied:
+                last_error = AuthorizationError(f"{permission.value} がありません。")
+                continue
+            return await self._delegate.require_active(
+                corporate_id=corporate_id,
+                permission=permission,
+            )
+        if last_error is not None:
+            raise last_error
+        raise AuthorizationError("いずれの要求権限も満たしていません。")
+
 
 def _profile(address: str) -> MedicationHistoryPatientProfileDto:
     """読取時点の患者プロフィールを組み立てる。"""
