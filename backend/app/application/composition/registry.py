@@ -121,6 +121,9 @@ from app.application.medication_history.commands.record_tracing_report_response 
 from app.application.medication_history.commands.review_external_prescription_correction import (
     ReviewExternalPrescriptionCorrectionUseCase,
 )
+from app.application.medication_history.commands.save_medication_history_blocks import (
+    SaveMedicationHistoryBlocksUseCase,
+)
 from app.application.medication_history.commands.save_store_current_record_fields import (
     SaveStoreCurrentRecordFieldsUseCase,
 )
@@ -147,6 +150,9 @@ from app.application.medication_history.queries.get_patient_medical_profile impo
 )
 from app.application.medication_history.queries.list_medication_histories_by_patient import (
     ListMedicationHistoriesByPatientUseCase,
+)
+from app.application.medication_history.queries.list_medication_history_blocks import (
+    ListMedicationHistoryBlocksUseCase,
 )
 from app.application.medication_history.queries.list_pending_external_corrections import (
     ListPendingExternalCorrectionsUseCase,
@@ -220,6 +226,9 @@ from app.application.reception.commands.save_current_record_values import (
 )
 from app.application.reception.queries.get_current_record_values import (
     GetCurrentRecordValuesUseCase,
+)
+from app.application.reception.queries.resolve_reception_medication_history import (
+    ResolveReceptionMedicationHistoryUseCase,
 )
 from app.application.staff.commands.activate_staff import ActivateStaffUseCase
 from app.application.staff.commands.assign_staff_concurrent_store import (
@@ -361,6 +370,8 @@ class MedicationHistoryUseCases:
     update_category_catalog: UpdateCategoryCatalogUseCase
     list_store_current_record_fields: ListStoreCurrentRecordFieldsUseCase
     save_store_current_record_fields: SaveStoreCurrentRecordFieldsUseCase
+    save_blocks: SaveMedicationHistoryBlocksUseCase
+    list_blocks: ListMedicationHistoryBlocksUseCase
     record_tracing_report: RecordTracingReportUseCase
     record_tracing_report_response: RecordTracingReportResponseUseCase
     get_view: GetMedicationHistoryViewUseCase
@@ -504,3 +515,4 @@ class ReceptionUseCases:
     associate_medication_history: AssociateReceptionMedicationHistoryUseCase
     save_current_record_values: SaveCurrentRecordValuesUseCase
     get_current_record_values: GetCurrentRecordValuesUseCase
+    resolve_medication_history: ResolveReceptionMedicationHistoryUseCase

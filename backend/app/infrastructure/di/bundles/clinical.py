@@ -92,6 +92,9 @@ from app.application.medication_history.commands.record_tracing_report_response 
 from app.application.medication_history.commands.review_external_prescription_correction import (
     ReviewExternalPrescriptionCorrectionUseCase,
 )
+from app.application.medication_history.commands.save_medication_history_blocks import (
+    SaveMedicationHistoryBlocksUseCase,
+)
 from app.application.medication_history.commands.save_store_current_record_fields import (
     SaveStoreCurrentRecordFieldsUseCase,
 )
@@ -121,6 +124,9 @@ from app.application.medication_history.queries.get_patient_medical_profile impo
 )
 from app.application.medication_history.queries.list_medication_histories_by_patient import (
     ListMedicationHistoriesByPatientUseCase,
+)
+from app.application.medication_history.queries.list_medication_history_blocks import (
+    ListMedicationHistoryBlocksUseCase,
 )
 from app.application.medication_history.queries.list_pending_external_corrections import (
     ListPendingExternalCorrectionsUseCase,
@@ -189,6 +195,9 @@ from app.infrastructure.readers.medication_history_get_medication_history_view i
 )
 from app.infrastructure.readers.medication_history_get_patient_medical_profile import (
     GetPatientMedicalProfileProjection,
+)
+from app.infrastructure.readers.medication_history_list_blocks import (
+    ListMedicationHistoryBlocksProjection,
 )
 from app.infrastructure.readers.medication_history_list_medication_histories_by_patient import (
     ListMedicationHistoriesByPatientProjection,
@@ -491,6 +500,21 @@ def build_medication_history_use_cases(
         ),
         save_store_current_record_fields=SaveStoreCurrentRecordFieldsUseCase(
             repository=catalog_repository,
+            corporate_access=corporate_access,
+            store_operations=store_operations,
+        ),
+        save_blocks=SaveMedicationHistoryBlocksUseCase(
+            repository=record_repository,
+            catalog_repository=catalog_repository,
+            corporate_access=corporate_access,
+            store_operations=store_operations,
+            clock=clock,
+        ),
+        list_blocks=ListMedicationHistoryBlocksUseCase(
+            reader=ListMedicationHistoryBlocksProjection(
+                repository=record_repository,
+                catalog_repository=catalog_repository,
+            ),
             corporate_access=corporate_access,
             store_operations=store_operations,
         ),

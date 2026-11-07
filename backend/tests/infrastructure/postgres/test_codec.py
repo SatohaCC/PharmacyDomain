@@ -40,14 +40,22 @@ from app.domain.dispensing.primitives import (
 )
 from app.domain.foundation.exceptions import DomainError
 from app.domain.foundation.primitives.base import DomainPrimitive
-from app.domain.medication_history.entities import MedicationHistoryRecord
+from app.domain.medication_history.entities import (
+    MedicationHistoryBlock,
+    MedicationHistoryRecord,
+)
+from app.domain.medication_history.identifiers import MedicationHistoryBlockId
 from app.domain.medication_history.primitives import (
+    BlockSourceModule,
+    CategoryDisplayOrder,
     CounselingMethod,
+    CounselingNote,
     FinalizedTimestamp,
     FollowUpRecordedTimestamp,
     MedicationHistoryReviewResult,
     MedicationHistorySourceSystem,
     MedicationHistoryStatus,
+    MediumCategoryCode,
 )
 from app.domain.medication_history.value_objects import ProfileUpdateIntents
 from app.domain.patient.entities import Patient
@@ -997,3 +1005,27 @@ def test_tc43_独立した服薬記録はEventと任意の調剤情報を往復�
     assert restored_follow_up.dispensing_id is None
     assert restored_follow_up.prescription_id is None
     assert restored_follow_up.store_id == follow_up.store_id
+
+
+def test_薬歴ブロック_ブロック情報が正しく往復する() -> None:
+    # Arrange
+    record = create_record()
+    block = MedicationHistoryBlock(
+        id=MedicationHistoryBlockId.generate(),
+        category_code=MediumCategoryCode("s"),
+        content=CounselingNote("花粉症の症状あり。"),
+        display_order=CategoryDisplayOrder(10),
+        source_module=BlockSourceModule.SOAP,
+    )
+    with_blocks = record.update_blocks((block,))
+
+    # Act
+    encoded = encode_aggregate(with_blocks)
+    restored = decode_aggregate(encoded, MedicationHistoryRecord)
+
+    # Assert
+    assert len(restored.blocks) == 1
+    assert restored.blocks[0].id == block.id
+    assert restored.blocks[0].category_code == block.category_code
+    assert restored.blocks[0].content == block.content
+    assert restored.blocks[0].display_order == block.display_order

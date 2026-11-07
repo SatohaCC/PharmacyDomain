@@ -14,4 +14,16 @@ class GetCurrentRecordValuesQuery:
     reception_id: str
 
 
-__all__ = ["GetCurrentRecordValuesQuery"]
+@dataclass(frozen=True, kw_only=True)
+class ResolveReceptionMedicationHistoryQuery:
+    """受付に紐づく薬歴またはEvent IDの解決条件。"""
+
+    corporate_id: str
+    store_id: str
+    reception_id: str
+
+
+__all__ = [
+    "GetCurrentRecordValuesQuery",
+    "ResolveReceptionMedicationHistoryQuery",
+]

@@ -208,3 +208,15 @@ class BillingAdditionInput:
     name: str
     points: int | None = None
     quantity: int | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class MedicationHistoryBlockInput:
+    """薬歴ブロックの入力データ。"""
+
+    category_code: str
+    content: str
+    display_order: int
+    id: str | None = None
+    source_module: str = "manual"
+    source_id: str | None = None

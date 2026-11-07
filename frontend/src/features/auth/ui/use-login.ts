@@ -38,7 +38,9 @@ export function useLogin(
     } else {
       restrictedToken.current = "";
       setAccessToken(session.access_token);
-      await navigate(returnTo);
+      const target =
+        returnTo === "/admin" && loginKind === "corporate" ? "/" : returnTo;
+      await navigate(target);
     }
   };
   const tokenSubmission = async (d: FormData) => {

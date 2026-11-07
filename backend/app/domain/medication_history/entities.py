@@ -46,6 +46,7 @@ from app.domain.medication_history.identifiers import (
     CategoryCatalogId,
     FactRecordId,
     FollowUpId,
+    MedicationHistoryBlockId,
     MedicationHistoryRecordId,
     PatientMedicalProfileId,
     TracingReportId,
@@ -54,10 +55,13 @@ from app.domain.medication_history.primitives import (
     AllergenName,
     AmendmentReason,
     AmendmentTimestamp,
+    BlockSourceId,
+    BlockSourceModule,
     CategoryDisplayOrder,
     ConditionName,
     ConditionStatus,
     CounselingMethod,
+    CounselingNote,
     CounselingTimestamp,
     ExternalCorrectionDecision,
     ExternalCorrectionReason,
@@ -186,6 +190,36 @@ class MedicationHistoryFactCorrection(Entity[FactRecordId]):
                 raise DomainValidationError("配列追加には新しい要素IDと値が必要です。")
         elif self.element_id is not None:
             raise DomainValidationError("要素IDの新規発行は配列追加時だけ許可します。")
+
+
+@dataclass(frozen=True, eq=False, kw_only=True)
+class MedicationHistoryBlock(Entity[MedicationHistoryBlockId]):
+    """1つの記載区分に対応する薬歴本文のブロック。"""
+
+    id: MedicationHistoryBlockId
+    category_code: MediumCategoryCode
+    content: CounselingNote
+    display_order: CategoryDisplayOrder
+    source_module: BlockSourceModule = BlockSourceModule.MANUAL
+    source_id: BlockSourceId | None = None
+    updated_by: StaffId | None = None
+    updated_at: datetime | None = None
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "id": "薬歴ブロックID",
+        "category_code": "中区分コード",
+        "content": "記載本文",
+        "display_order": "表示順",
+        "source_module": "入力経路",
+        "source_id": "出所ID",
+        "updated_by": "更新スタッフID",
+        "updated_at": "更新日時",
+    }
+
+    @property
+    def has_content(self) -> bool:
+        """本文が空でないか。"""
+        return bool(self.content.value.strip())
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)
@@ -361,6 +395,13 @@ class MedicationHistoryCategoryCatalog(AggregateRoot[CategoryCatalogId]):
         """薬歴記録が本カタログの法人必須ルールを満たしているか検証する。"""
         required_mediums = self.required_medium_categories()
         for req in required_mediums:
+            has_in_blocks = any(
+                block.category_code == req.code and block.has_content
+                for block in record.blocks
+            )
+            if has_in_blocks:
+                continue
+
             code_val = req.code.value.lower()
             if code_val in _SOAP_SECTION_MAPPING:
                 field_name = _SOAP_SECTION_MAPPING[code_val]
@@ -864,6 +905,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
     # 別モジュールの frozen dataclass なので ruff が不変性を追えない（RUF009）。
     profile_updates: ProfileUpdateIntents = field(default_factory=ProfileUpdateIntents)
     additional_notes: tuple[CategorizedNote, ...] = ()
+    blocks: tuple[MedicationHistoryBlock, ...] = ()
     billing_additions: tuple[BillingAddition, ...] = ()
     source_system: MedicationHistorySourceSystem | None = None
     imported_at: MedicationHistoryImportTimestamp | None = None
@@ -920,9 +962,15 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             is MedicationHistoryReviewResult.NO_ADDITIONAL_RECORDABLE_ITEMS
         ):
             return
-        if not any(
+        has_soap_evidence = any(
             note.has_content for note in (*self.soap.assessment, *self.soap.plan)
-        ):
+        )
+        has_block_evidence = any(
+            block.has_content
+            for block in self.blocks
+            if block.category_code.value in ("a", "p")
+        )
+        if not has_soap_evidence and not has_block_evidence:
             raise MedicationHistoryDomainError(
                 "確定には薬剤師が記載したAssessmentまたはPlanが必要です。"
             )
@@ -936,7 +984,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         """確定済みの薬歴に、指導内容等の記載が1件以上存在することを検証する。
 
         S/O/A/Pの全項目を画一的に必須とするものではありませんが、
-        SOAPおよび補足メモの双方が未記入である白紙状態での確定は拒否します。
+        SOAP、補足メモ、記載ブロックのすべてが未記入である白紙状態での確定は拒否します。
         """
         if not self.status.is_finalized:
             return
@@ -944,7 +992,8 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         has_additional = any(
             note.has_content for note in self.effective_facts.additional_notes
         )
-        if not has_soap and not has_additional:
+        has_blocks = any(block.has_content for block in self.blocks)
+        if not has_soap and not has_additional and not has_blocks:
             raise SoapContentRequiredError()
 
     def _ensure_finalization_metadata_is_valid(self) -> None:
@@ -1333,6 +1382,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         profile_updates: ProfileUpdateIntents | None = None,
         additional_notes: tuple[CategorizedNote, ...] | None = None,
         billing_additions: tuple[BillingAddition, ...] | None = None,
+        blocks: tuple[MedicationHistoryBlock, ...] | None = None,
     ) -> Self:
         """下書き状態の各項目を一括更新する。
 
@@ -1361,7 +1411,16 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             billing_additions=billing_additions
             if billing_additions is not None
             else self.billing_additions,
+            blocks=blocks if blocks is not None else self.blocks,
         )
+
+    def update_blocks(self, blocks: tuple[MedicationHistoryBlock, ...]) -> Self:
+        """下書き状態の薬歴ブロック群を一括で更新する。
+
+        確定済みの薬歴は直接変更できません（確定後の修正は amend による追記のみ）。
+        """
+        self._ensure_not_finalized()
+        return replace(self, blocks=blocks)
 
     def finalize(
         self,

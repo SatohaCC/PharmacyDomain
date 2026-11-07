@@ -13,7 +13,7 @@ from dataclasses import asdict, replace
 from datetime import datetime, timedelta
 from http import HTTPStatus
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -1009,6 +1009,8 @@ def history_client(
             corporate_access=history_fixture.corporate_access,
             store_operations=history_fixture.store_operations,
         ),
+        save_blocks=cast(Any, None),
+        list_blocks=cast(Any, None),
         record_tracing_report=history_fixture.record_tracing_report,
         record_tracing_report_response=history_fixture.record_tracing_report_response,
         get_view=view_use_case,

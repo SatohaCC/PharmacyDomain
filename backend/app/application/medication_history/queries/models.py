@@ -75,3 +75,12 @@ class ListStoreCurrentRecordFieldsQuery:
     corporate_id: str
     store_id: str
     include_archived: bool = False
+
+
+@dataclass(frozen=True, kw_only=True)
+class ListMedicationHistoryBlocksQuery:
+    """薬歴ブロック一覧取得条件。"""
+
+    corporate_id: str
+    store_id: str
+    record_id: str

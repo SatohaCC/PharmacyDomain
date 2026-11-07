@@ -13,6 +13,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
+from app.application.access_control.boundary_models import ResolvedActorContext
+from app.application.common.exceptions import NotFoundError
 from app.application.coverage.commands.dtos.get_coverage_selection import (
     CoverageSelectionRecordDto,
 )
@@ -26,6 +28,21 @@ from app.application.coverage.queries.dtos.get_last_coverage_selection import (
     LastCoverageSelectionCandidateDto,
 )
 from app.application.coverage.queries.models import GetLastCoverageSelectionQuery
+from app.application.medication_history.commands.dtos.medication_history_block import (
+    MedicationHistoryBlockDto,
+)
+from app.application.medication_history.commands.models import (
+    MedicationHistoryBlockInput,
+)
+from app.application.medication_history.commands.save_medication_history_blocks import (
+    SaveMedicationHistoryBlocksCommand,
+)
+from app.application.medication_history.queries.dtos.medication_history_block import (
+    MedicationHistoryBlockDto as QueryMedicationHistoryBlockDto,
+)
+from app.application.medication_history.queries.models import (
+    ListMedicationHistoryBlocksQuery,
+)
 from app.application.reception.commands.associate_reception_medication_history import (
     AssociateReceptionMedicationHistoryCommand,
 )
@@ -38,11 +55,14 @@ from app.application.reception.commands.save_current_record_values import (
 from app.application.reception.queries.dtos.current_record_values import (
     CurrentRecordFieldValueDto as QueryCurrentRecordFieldValueDto,
 )
-from app.application.reception.queries.get_current_record_values import (
+from app.application.reception.queries.models import (
     GetCurrentRecordValuesQuery,
+    ResolveReceptionMedicationHistoryQuery,
 )
 from app.presentational.dependencies import (
+    Actor,
     CoverageUseCasesDep,
+    MedicationHistoryUseCasesDep,
     ReceptionUseCasesDep,
     get_actor_context,
 )
@@ -96,6 +116,13 @@ class SaveCurrentRecordValuesRequest(RequestModel):
 
     store_id: str
     values: tuple[CurrentRecordFieldValueDto, ...] = ()
+
+
+class SaveReceptionBlocksRequest(RequestModel):
+    """受付の薬歴ブロック保存入力。"""
+
+    store_id: str
+    blocks: tuple[MedicationHistoryBlockInput, ...] = ()
 
 
 @router.post(
@@ -213,6 +240,78 @@ async def save_current_record_values(
             store_id=body.store_id,
             reception_id=reception_id,
             values=body.values,
+        )
+    )
+
+
+@router.get(
+    "/receptions/{reception_id}/blocks",
+    response_model=list[QueryMedicationHistoryBlockDto],
+)
+async def list_reception_blocks(
+    corporate_id: str,
+    reception_id: str,
+    use_cases: MedicationHistoryUseCasesDep,
+    reception_use_cases: ReceptionUseCasesDep,
+    store_id: Annotated[str, Query(description="受付を行う店舗のID。")],
+) -> tuple[QueryMedicationHistoryBlockDto, ...]:
+    """受付に紐づく薬歴ブロック一覧を取得する。"""
+    record_id = await reception_use_cases.resolve_medication_history.execute(
+        ResolveReceptionMedicationHistoryQuery(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            reception_id=reception_id,
+        )
+    )
+    if record_id is None:
+        return ()
+    return await use_cases.list_blocks.execute(
+        ListMedicationHistoryBlocksQuery(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            record_id=record_id,
+        )
+    )
+
+
+@router.put(
+    "/receptions/{reception_id}/blocks",
+    response_model=list[MedicationHistoryBlockDto],
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def save_reception_blocks(
+    corporate_id: str,
+    reception_id: str,
+    body: SaveReceptionBlocksRequest,
+    use_cases: MedicationHistoryUseCasesDep,
+    reception_use_cases: ReceptionUseCasesDep,
+    actor: Actor,
+) -> tuple[MedicationHistoryBlockDto, ...]:
+    """受付に紐づく薬歴ブロック群を保存する。"""
+    record_id = await reception_use_cases.resolve_medication_history.execute(
+        ResolveReceptionMedicationHistoryQuery(
+            corporate_id=corporate_id,
+            store_id=body.store_id,
+            reception_id=reception_id,
+        )
+    )
+    if record_id is None:
+        raise NotFoundError(
+            "指定された受付に紐づく薬歴が見つかりません。",
+            code="MEDICATION_HISTORY_NOT_FOUND",
+        )
+    staff_id = (
+        str(actor.staff_id.value)
+        if isinstance(actor, ResolvedActorContext) and actor.staff_id is not None
+        else None
+    )
+    return await use_cases.save_blocks.execute(
+        SaveMedicationHistoryBlocksCommand(
+            corporate_id=corporate_id,
+            store_id=body.store_id,
+            record_id=record_id,
+            blocks=body.blocks,
+            staff_id=staff_id,
         )
     )
 

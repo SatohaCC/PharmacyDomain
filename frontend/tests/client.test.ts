@@ -26,4 +26,12 @@ describe("API境界", () => {
   ])("危険な戻り先を採用しない: %s", (p) => {
     expect(safeReturnPath(p)).toBe("/admin");
   });
+  it.each([
+    "/",
+    "/admin",
+    "/admin/corporates",
+    "/stores/01930000-0000-7000-8000-000000000006/patients",
+  ])("安全な内部パスを許可する: %s", (p) => {
+    expect(safeReturnPath(p)).toBe(p);
+  });
 });
