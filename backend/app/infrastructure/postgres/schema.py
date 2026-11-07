@@ -18,6 +18,7 @@ from sqlalchemy import (
     PrimaryKeyConstraint,
     String,
     Table,
+    Text,
     UniqueConstraint,
     text,
 )
@@ -516,6 +517,42 @@ receptions = Table(
     Column("updated_at", DateTime(timezone=True), nullable=False),
     PrimaryKeyConstraint("corporate_id", "store_id", "id", name="pk_receptions"),
     Index("ix_receptions_corporate_store", "corporate_id", "store_id"),
+)
+
+nsips_files = Table(
+    "nsips_files",
+    metadata,
+    Column("id", UUID(as_uuid=True), nullable=False),
+    Column("corporate_id", UUID(as_uuid=True), nullable=False),
+    Column("store_id", UUID(as_uuid=True), nullable=False),
+    Column("file_id", String(128), nullable=False),
+    Column("file_name", String(256), nullable=False),
+    Column("operation", String(32), nullable=False),
+    Column("status", String(32), nullable=False),
+    Column("received_at", DateTime(timezone=True), nullable=False),
+    Column("raw_payload", Text, nullable=False),
+    Column("target_reception_id", UUID(as_uuid=True), nullable=True),
+    Column("processed_at", DateTime(timezone=True), nullable=True),
+    Column("error_text", Text, nullable=False),
+    Column("payload", JSONB, nullable=False),
+    Column("version", Integer, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    PrimaryKeyConstraint("id", name="pk_nsips_files"),
+    Index(
+        "ix_nsips_files_identity",
+        "corporate_id",
+        "store_id",
+        "file_id",
+        "operation",
+    ),
+    Index(
+        "ix_nsips_files_applied",
+        "corporate_id",
+        "store_id",
+        "file_id",
+        "status",
+    ),
 )
 
 patient_coverages = Table(

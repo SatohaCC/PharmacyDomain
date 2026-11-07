@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from dataclasses import dataclass, fields, is_dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal
@@ -15,10 +16,13 @@ from app.application.access_control.interfaces.corporate_access import (
 )
 from app.application.access_control.policies import AuthorizationService
 from app.application.common.clock import Clock
-from app.application.common.optional_conversion import build_optional
+from app.application.common.optional_conversion import build_optional, unwrap
 from app.application.common.unit_of_work import UnitOfWork
 from app.application.integration.boundary_models import (
     NsipsBundle,
+    NsipsFileRecord,
+    NsipsFileStatus,
+    NsipsOperation,
     _PatientProfileApplication,
 )
 from app.application.integration.commands.dtos.ingest_nsips import IngestNsipsResultDto
@@ -29,6 +33,10 @@ from app.application.integration.commands.models import (
     _PATIENT_PROFILE_FIELD_PATHS,
     _SUPPORTED_RAW_NSIPS_VERSIONS,
 )
+from app.application.integration.commands.services.file_name import (
+    ParsedNsipsFileName,
+    parse_nsips_file_name,
+)
 from app.application.integration.commands.services.mapper import NsipsDataMapper
 from app.application.integration.commands.services.parser import NsipsParser
 from app.application.integration.commands.services.source_mapping import map_bundle
@@ -37,6 +45,9 @@ from app.application.integration.errors import (
     NsipsPatientIdentityConflictError,
     NsipsReceptionNotFoundError,
     NsipsSourceConflictError,
+)
+from app.application.integration.interfaces.nsips_file_repository import (
+    NsipsFileRepository,
 )
 from app.application.integration.interfaces.registration_operations import (
     RegisterPatientExternalIdentifierOperation,
@@ -120,6 +131,7 @@ class IngestNsipsCommand:
     raw_nsips_text: str | None = None
     structured_bundle: NsipsBundle | None = None
     expected_fingerprint: str | None = None
+    file_name: str | None = None
 
 
 class IngestNsipsUseCase:
@@ -137,6 +149,7 @@ class IngestNsipsUseCase:
         register_patient_use_case: RegisterPatientOperation,
         register_patient_external_id_use_case: RegisterPatientExternalIdentifierOperation,
         medication_history_repo: MedicationHistoryRepository | None = None,
+        nsips_file_repo: NsipsFileRepository | None = None,
         parser: NsipsParser | None = None,
         mapper: NsipsDataMapper | None = None,
         clock: Clock,
@@ -152,6 +165,7 @@ class IngestNsipsUseCase:
             register_patient_external_id_use_case
         )
         self._medication_history_repo = medication_history_repo
+        self._nsips_file_repo = nsips_file_repo
         self._parser = parser or NsipsParser()
         self._mapper = mapper or NsipsDataMapper()
         self._clock = clock
@@ -486,7 +500,6 @@ class IngestNsipsUseCase:
         self._unit_of_work.ensure_active()
         corporate_id = CorporateId.parse(command.corporate_id)
         store_id = StoreId.parse(command.store_id)
-        reception_id = self._parse_reception_id(command.reception_id)
 
         # 認可・店舗セッション・有効店舗検証
         await self._corporate_access.require_active(
@@ -505,6 +518,219 @@ class IngestNsipsUseCase:
                 "現在の店舗状態ではこの操作を実行できません。"
             )
 
+        parsed_file_name: ParsedNsipsFileName | None = None
+        operation: NsipsOperation = NsipsOperation.CREATE
+        file_id: str | None = None
+        if command.file_name is not None:
+            parsed_file_name = parse_nsips_file_name(command.file_name)
+            operation = parsed_file_name.operation
+            file_id = parsed_file_name.file_id
+            if parsed_file_name.is_bulk and self._nsips_file_repo is not None:
+                applied_reg = await self._nsips_file_repo.get_applied_by_file_id(
+                    corporate_id=corporate_id, store_id=store_id, file_id=file_id
+                )
+                if applied_reg is not None:
+                    operation = NsipsOperation.UPDATE
+
+        raw_payload = command.raw_nsips_text or ""
+        received_at = self._clock.now()
+
+        # 台帳の冪等性検証（同一ファイル・同一内容が適用済みなら即座に成功結果を返す）
+        if (
+            parsed_file_name is not None
+            and self._nsips_file_repo is not None
+            and file_id is not None
+        ):
+            existing_ledger = await self._nsips_file_repo.get_by_identity(
+                corporate_id=corporate_id,
+                store_id=store_id,
+                file_id=file_id,
+                operation=operation,
+            )
+            if (
+                existing_ledger is not None
+                and existing_ledger.status is NsipsFileStatus.APPLIED
+                and (
+                    existing_ledger.raw_payload == raw_payload
+                    or (
+                        not raw_payload
+                        and existing_ledger.target_reception_id is not None
+                    )
+                )
+            ):
+                return IngestNsipsResultDto(
+                    reception_id=str(existing_ledger.target_reception_id.value)
+                    if existing_ledger.target_reception_id is not None
+                    else (command.reception_id or ""),
+                    source_fingerprint="",
+                    source_status=ReceptionSourceStatus.CURRENT.value,
+                    corporate_id=command.corporate_id,
+                    store_id=command.store_id,
+                    patient_id="",
+                    patient_name="",
+                    is_new_patient=False,
+                    is_duplicate=True,
+                    file_id=file_id,
+                    operation=operation.value,
+                    status=NsipsFileStatus.APPLIED.value,
+                    was_already_applied=True,
+                )
+
+        try:
+            result = await self._execute_ingest(
+                command=command,
+                corporate_id=corporate_id,
+                store_id=store_id,
+                parsed_file_name=parsed_file_name,
+                operation=operation,
+                file_id=file_id,
+                raw_payload=raw_payload,
+                received_at=received_at,
+            )
+            if (
+                parsed_file_name is not None
+                and self._nsips_file_repo is not None
+                and file_id is not None
+            ):
+                ledger = await self._nsips_file_repo.get_by_identity(
+                    corporate_id=corporate_id,
+                    store_id=store_id,
+                    file_id=file_id,
+                    operation=operation,
+                )
+                if ledger is None:
+                    ledger = NsipsFileRecord(
+                        id=uuid.uuid7(),
+                        corporate_id=corporate_id,
+                        store_id=store_id,
+                        file_id=file_id,
+                        file_name=command.file_name or "",
+                        operation=operation,
+                        status=NsipsFileStatus.PENDING,
+                        received_at=received_at,
+                        raw_payload=raw_payload,
+                    )
+                else:
+                    ledger = replace(
+                        ledger,
+                        raw_payload=raw_payload,
+                        file_name=command.file_name or ledger.file_name,
+                    )
+                target_rec_id = ReceptionId.parse(result.reception_id)
+                applied_ledger = replace(
+                    ledger,
+                    status=NsipsFileStatus.APPLIED,
+                    target_reception_id=target_rec_id,
+                    processed_at=self._clock.now(),
+                    error_text="",
+                )
+                await self._nsips_file_repo.save(applied_ledger)
+            return result
+        except Exception as exc:
+            if (
+                parsed_file_name is not None
+                and self._nsips_file_repo is not None
+                and file_id is not None
+            ):
+                ledger = await self._nsips_file_repo.get_by_identity(
+                    corporate_id=corporate_id,
+                    store_id=store_id,
+                    file_id=file_id,
+                    operation=operation,
+                )
+                if ledger is None:
+                    ledger = NsipsFileRecord(
+                        id=uuid.uuid7(),
+                        corporate_id=corporate_id,
+                        store_id=store_id,
+                        file_id=file_id,
+                        file_name=command.file_name or "",
+                        operation=operation,
+                        status=NsipsFileStatus.PENDING,
+                        received_at=received_at,
+                        raw_payload=raw_payload,
+                    )
+                failed_ledger = replace(
+                    ledger,
+                    status=NsipsFileStatus.FAILED,
+                    processed_at=self._clock.now(),
+                    error_text=str(exc),
+                )
+                await self._nsips_file_repo.save(failed_ledger)
+            raise
+
+    async def _execute_ingest(
+        self,
+        *,
+        command: IngestNsipsCommand,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+        parsed_file_name: ParsedNsipsFileName | None,
+        operation: NsipsOperation,
+        file_id: str | None,
+        raw_payload: str,
+        received_at: datetime,
+    ) -> IngestNsipsResultDto:
+        """取込処理の実体を実行する。"""
+        # 取消ファイル（処方本文なし）の特別処理
+        if (
+            operation == NsipsOperation.DELETE
+            and command.structured_bundle is None
+            and command.raw_nsips_text is None
+        ):
+            if command.reception_id is not None:
+                reception_id = self._parse_reception_id(command.reception_id)
+            elif self._nsips_file_repo is not None and file_id is not None:
+                applied = await self._nsips_file_repo.get_applied_by_file_id(
+                    corporate_id=corporate_id,
+                    store_id=store_id,
+                    file_id=file_id,
+                )
+                if applied is None or applied.target_reception_id is None:
+                    raise NsipsReceptionNotFoundError(
+                        f"file_id '{file_id}' に対応する適用済みの受付が見つかりません。"
+                    )
+                reception_id = applied.target_reception_id
+            else:
+                raise NsipsParseError("取消操作の対象受付を特定できません。")
+
+            target_reception = await self._reception_repo.get(
+                corporate_id=corporate_id, store_id=store_id, reception_id=reception_id
+            )
+            if target_reception is None:
+                raise NsipsReceptionNotFoundError(
+                    f"受付 {reception_id} が見つかりません。"
+                )
+
+            updated_reception = replace(
+                target_reception, source_status=ReceptionSourceStatus.WITHDRAWN
+            )
+            await self._reception_repo.save(updated_reception)
+            return IngestNsipsResultDto(
+                reception_id=str(target_reception.id.value),
+                source_fingerprint=target_reception.latest_fingerprint.value,
+                source_status=ReceptionSourceStatus.WITHDRAWN.value,
+                corporate_id=command.corporate_id,
+                store_id=command.store_id,
+                patient_id=str(target_reception.patient_id.value),
+                prescription_id=str(target_reception.prescription_id.value)
+                if target_reception.prescription_id is not None
+                else None,
+                dispensing_id=str(target_reception.dispensing_id.value)
+                if target_reception.dispensing_id is not None
+                else None,
+                medication_history_id=str(target_reception.medication_history_id.value)
+                if target_reception.medication_history_id is not None
+                else None,
+                patient_name="",
+                is_new_patient=False,
+                is_duplicate=False,
+                file_id=file_id,
+                operation=operation.value,
+                status=NsipsFileStatus.APPLIED.value,
+                was_already_applied=False,
+            )
+
         # 入力検証
         if (command.structured_bundle is None) == (command.raw_nsips_text is None):
             raise NsipsParseError(
@@ -521,10 +747,43 @@ class IngestNsipsUseCase:
                 )
         self._validate_required_insurance_values(bundle)
 
+        if command.file_name is not None:
+            if (
+                operation in (NsipsOperation.UPDATE, NsipsOperation.DELETE)
+                and bundle.correction_kind is None
+            ):
+                bundle = replace(
+                    bundle, correction_kind=operation.value, file_name=command.file_name
+                )
+            else:
+                bundle = replace(bundle, file_name=command.file_name)
+
+        # 受付IDの解決
+        if command.reception_id is not None:
+            reception_id = self._parse_reception_id(command.reception_id)
+        elif parsed_file_name is not None and operation == NsipsOperation.CREATE:
+            reception_id = ReceptionId.generate()
+        elif parsed_file_name is not None:
+            assert file_id is not None
+            if self._nsips_file_repo is not None:
+                applied_ledger = await self._nsips_file_repo.get_applied_by_file_id(
+                    corporate_id=corporate_id,
+                    store_id=store_id,
+                    file_id=file_id,
+                )
+                if applied_ledger is None or applied_ledger.target_reception_id is None:
+                    raise NsipsReceptionNotFoundError(
+                        f"file_id '{file_id}' に対応する適用済みの受付が見つかりません。"
+                    )
+                reception_id = applied_ledger.target_reception_id
+            else:
+                raise NsipsParseError("受付IDが必要です。")
+        else:
+            raise NsipsParseError("受付IDが必要です。")
+
         coverage_review_reason = self._coverage_review_reason(bundle)
         incoming_fingerprints = self._fingerprint_bundle(bundle)
         incoming_fingerprint = self._combined_fingerprint(incoming_fingerprints)
-        received_at = self._clock.now()
         source_data = self._source_data(
             bundle,
             imported_at=received_at,
@@ -610,6 +869,10 @@ class IngestNsipsUseCase:
                     if bundle.dispensed_date
                     else None,
                     addition_names=tuple(add.name for add in bundle.additions),
+                    file_id=file_id,
+                    operation=unwrap(operation),
+                    status=NsipsFileStatus.APPLIED.value if parsed_file_name else None,
+                    was_already_applied=False,
                 )
 
             # 内容が異なる訂正: correction_kind と expected_fingerprint の一致を検証
@@ -620,7 +883,7 @@ class IngestNsipsUseCase:
                 raise NsipsSourceConflictError(
                     "既存受付への変更には correction_kind の指定が必要です。"
                 )
-            if (
+            if command.file_name is None and (
                 command.expected_fingerprint is None
                 or command.expected_fingerprint
                 != existing_reception.latest_fingerprint.value
@@ -628,7 +891,7 @@ class IngestNsipsUseCase:
                 raise NsipsSourceConflictError()
 
             if bundle.correction_kind == ExternalCorrectionKind.DELETE:
-                return await self._process_external_deletion_notice(
+                del_result = await self._process_external_deletion_notice(
                     command=command,
                     corporate_id=corporate_id,
                     store_id=store_id,
@@ -638,6 +901,13 @@ class IngestNsipsUseCase:
                     incoming_fingerprint=incoming_fingerprint,
                     incoming_fingerprints=incoming_fingerprints,
                     received_at=received_at,
+                )
+                return replace(
+                    del_result,
+                    file_id=file_id,
+                    operation=unwrap(operation),
+                    status=NsipsFileStatus.APPLIED.value if parsed_file_name else None,
+                    was_already_applied=False,
                 )
 
             # UPDATE処理
@@ -749,6 +1019,10 @@ class IngestNsipsUseCase:
                 if bundle.dispensed_date
                 else None,
                 addition_names=tuple(add.name for add in bundle.additions),
+                file_id=file_id,
+                operation=unwrap(operation),
+                status=NsipsFileStatus.APPLIED.value if parsed_file_name else None,
+                was_already_applied=False,
             )
 
         # 初回受信処理
@@ -828,6 +1102,10 @@ class IngestNsipsUseCase:
             if bundle.dispensed_date
             else None,
             addition_names=tuple(add.name for add in bundle.additions),
+            file_id=file_id,
+            operation=unwrap(operation),
+            status=NsipsFileStatus.APPLIED.value if parsed_file_name else None,
+            was_already_applied=False,
         )
 
     async def _process_external_deletion_notice(
@@ -849,6 +1127,11 @@ class IngestNsipsUseCase:
 
         内部の処方・調剤・薬歴の物理削除や自動取消は行わない。
         """
+        parsed_file_name = (
+            parse_nsips_file_name(command.file_name) if command.file_name else None
+        )
+        file_id = parsed_file_name.file_id if parsed_file_name else None
+        operation = parsed_file_name.operation if parsed_file_name else None
         has_pending_review = False
         history_id = reception.medication_history_id
         if history_id is not None and self._medication_history_repo is not None:
@@ -924,4 +1207,8 @@ class IngestNsipsUseCase:
             if bundle.dispensed_date
             else None,
             addition_names=tuple(add.name for add in bundle.additions),
+            file_id=file_id,
+            operation=unwrap(operation),
+            status=NsipsFileStatus.APPLIED.value if parsed_file_name else None,
+            was_already_applied=False,
         )

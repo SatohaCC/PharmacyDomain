@@ -55,6 +55,9 @@ from tests.fakes.in_memory_dispensing_process_repository import (
 from tests.fakes.in_memory_medication_history_repository import (
     InMemoryMedicationHistoryRepository,
 )
+from tests.fakes.in_memory_nsips_file_repository import (
+    InMemoryNsipsFileRepository,
+)
 from tests.fakes.in_memory_patient_coverage_repository import (
     InMemoryPatientCoverageRepository,
 )
@@ -109,6 +112,7 @@ class NsipsFixture:
     patient_coverage_repo: InMemoryPatientCoverageRepository
     coverage_selection_repo: InMemoryCoverageSelectionRecordRepository
     reception_repo: InMemoryReceptionRepository
+    nsips_file_repo: InMemoryNsipsFileRepository
 
 
 async def execute_structured_test_command(
@@ -244,6 +248,7 @@ async def create_fixture() -> NsipsFixture:
     patient_coverage_repo = InMemoryPatientCoverageRepository()
     coverage_selection_repo = InMemoryCoverageSelectionRecordRepository()
     reception_repo = InMemoryReceptionRepository()
+    nsips_file_repo = InMemoryNsipsFileRepository()
 
     # ユースケース組み立て
     register_patient = RegisterPatientUseCase(patient_repo, corporate_access)
@@ -261,6 +266,7 @@ async def create_fixture() -> NsipsFixture:
         register_patient_use_case=register_patient,
         register_patient_external_id_use_case=register_patient_ext,
         medication_history_repo=medication_history_repo,
+        nsips_file_repo=nsips_file_repo,
         parser=NsipsParser(),
         mapper=NsipsDataMapper(),
         clock=clock,
@@ -276,6 +282,7 @@ async def create_fixture() -> NsipsFixture:
         register_patient_use_case=register_patient,
         register_patient_external_id_use_case=register_patient_ext,
         medication_history_repo=medication_history_repo,
+        nsips_file_repo=nsips_file_repo,
         parser=NsipsParser(),
         mapper=NsipsDataMapper(),
         clock=clock,
@@ -302,4 +309,5 @@ async def create_fixture() -> NsipsFixture:
         patient_coverage_repo=patient_coverage_repo,
         coverage_selection_repo=coverage_selection_repo,
         reception_repo=reception_repo,
+        nsips_file_repo=nsips_file_repo,
     )

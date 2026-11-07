@@ -37,6 +37,7 @@ public_modules = [
     "commands.ingest_nsips",
     "errors",
     "interfaces.get_nsips_source_query_reader",
+    "interfaces.nsips_file_repository",
     "queries.dtos.get_nsips_source",
     "queries.get_nsips_source",
     "queries.models",

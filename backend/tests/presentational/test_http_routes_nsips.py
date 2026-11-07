@@ -59,6 +59,7 @@ def test_同受付の外部IDと属性不一致POST_409と保存不変とOpenAPI
                 nsips_fixture.medication_history_repo,
                 nsips_fixture.patient_coverage_repo,
                 nsips_fixture.coverage_selection_repo,
+                nsips_fixture.nsips_file_repo,
             )
         )
 
@@ -552,6 +553,7 @@ def fixture_is_empty(fixture: NsipsFixture) -> bool:
             fixture.dispensing_repo.items,
             fixture.medication_history_repo.items,
             fixture.reception_repo.items,
+            fixture.nsips_file_repo.items,
         )
     )
 
