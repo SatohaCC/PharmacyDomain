@@ -7,12 +7,16 @@ from app.application.access_control.interfaces.corporate_access import (
     CorporateAccessBoundary,
 )
 from app.application.access_control.policies import AuthorizationService
-from app.application.corporate.commands.models import RegisterCorporateCommand
+from app.application.corporate.commands.models import (
+    RegisterCorporateCommand,
+    RegisteredCorporate,
+)
 from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.corporate.primitives import (
     CorporateAddressLine,
     CorporateEmailAddress,
+    CorporateLoginCode,
     CorporateName,
     CorporateNumber,
     CorporatePhoneNumber,
@@ -44,7 +48,7 @@ class RegisterCorporateUseCase:
         self._uniqueness_service = uniqueness_service
         self._corporate_access = corporate_access
 
-    async def execute(self, command: RegisterCorporateCommand) -> CorporateId:
+    async def execute(self, command: RegisterCorporateCommand) -> RegisteredCorporate:
         AuthorizationService(self._corporate_access.actor).require_vendor_system_admin(
             permission=Permission.REGISTER_CORPORATE
         )
@@ -100,6 +104,7 @@ class RegisterCorporateUseCase:
 
         corporate = Corporate(
             id=CorporateId.generate(),
+            login_code=CorporateLoginCode(await self._repository.allocate_login_code()),
             name=name,
             representative_name=rep_name,
             corporate_type=corporate_type,
@@ -117,4 +122,6 @@ class RegisterCorporateUseCase:
             contact_info=contact_info,
         )
         await self._repository.save(corporate)
-        return corporate.id
+        return RegisteredCorporate(
+            id=corporate.id, login_code=corporate.login_code.value
+        )

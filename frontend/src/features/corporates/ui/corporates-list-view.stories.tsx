@@ -19,6 +19,7 @@ export const 一覧: Story = {
       items: [
         {
           id: "example",
+        corporate_code: "012345",
           name: "テスト薬局グループ",
           representative_name: "テスト 太郎",
           is_active: true,

@@ -23,6 +23,7 @@ from app.domain.corporate.value_objects import (
 )
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.shared.person_name import PersonNamePart
+from tests.fakes.corporate_login_codes import create_login_code
 
 
 def _representative() -> CorporateRepresentativeName:
@@ -149,6 +150,7 @@ def test_法人_法人格および法人番号とインボイス番号を設定_
 
     # Act
     corporate = Corporate(
+        login_code=create_login_code(),
         id=CorporateId.generate(),
         name=CorporateName("株式会社 メディカル"),
         representative_name=_representative(),
@@ -175,6 +177,7 @@ def test_法人_法人番号とインボイス番号が不一致_エラーを送
     # Act / Assert
     with pytest.raises(DomainValidationError) as exc_info:
         Corporate(
+            login_code=create_login_code(),
             id=CorporateId.generate(),
             name=CorporateName("株式会社 メディカル"),
             representative_name=_representative(),
@@ -189,6 +192,7 @@ def test_法人_法人番号とインボイス番号が不一致_エラーを送
 def test_法人_各種変更メソッド_新しい不変インスタンスを返す() -> None:
     # Arrange
     corporate = Corporate(
+        login_code=create_login_code(),
         id=CorporateId.generate(),
         name=CorporateName("株式会社 メディカル"),
         representative_name=_representative(),

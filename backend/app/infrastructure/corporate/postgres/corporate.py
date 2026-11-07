@@ -22,7 +22,7 @@ from app.infrastructure.postgres.repository_base import (
     AggregateMapping,
     PostgresRepositoryBase,
 )
-from app.infrastructure.postgres.schema import corporates
+from app.infrastructure.postgres.schema import corporate_login_codes, corporates
 
 
 def _corporate_columns(corporate: Corporate) -> dict[str, object]:
@@ -30,6 +30,7 @@ def _corporate_columns(corporate: Corporate) -> dict[str, object]:
     return {
         "id": corporate.id.value,
         "name": corporate.name.value,
+        "login_code": corporate.login_code.value,
         "representative_name": corporate.representative_name.full_name,
         "status": corporate.status.value,
     }
@@ -50,6 +51,19 @@ class PostgresCorporateRepository(
     CorporateSearchRepository,
 ):
     """法人集約を PostgreSQL へ保存・検索する。"""
+
+    async def allocate_login_code(self) -> str:
+        """同時登録でも重複しない連番を6桁で返す。"""
+        while True:
+            number = await self.session.scalar(
+                select(corporate_login_codes.next_value())
+            )
+            code = f"{number:06d}"
+            existing = await self.session.scalar(
+                select(corporates.c.id).where(corporates.c.login_code == code)
+            )
+            if existing is None:
+                return code
 
     async def get(self, corporate_id: CorporateId) -> Corporate | None:
         """IDで法人を検索する。"""

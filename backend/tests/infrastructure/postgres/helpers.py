@@ -19,6 +19,7 @@ from app.domain.corporate.primitives import CorporateName
 from app.domain.corporate.value_objects import CorporateRepresentativeName
 from app.domain.shared.person_name import PersonNamePart
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
+from tests.fakes.corporate_login_codes import create_login_code
 from tests.fakes.recording_async_session import FakeResult, RecordingAsyncSession
 
 _MIGRATIONS_PACKAGE = "migrations.versions"
@@ -55,6 +56,7 @@ def ordered_migrations() -> list[Any]:
 def create_corporate(name: str = "テスト薬局グループ") -> Corporate:
     """テスト用の法人を1件作る。"""
     return Corporate(
+        login_code=create_login_code(),
         id=CorporateId.generate(),
         name=CorporateName(name),
         representative_name=CorporateRepresentativeName(

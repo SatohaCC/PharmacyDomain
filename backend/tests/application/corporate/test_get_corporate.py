@@ -28,6 +28,7 @@ async def test_get_corporate_returns_response_dto() -> None:
     # Assert
     assert actual == CorporateResponseDto(
         id=str(corporate.id.value),
+        corporate_code=corporate.login_code.value,
         name="テスト法人",
         representative_name="山田 太郎",
         is_active=True,

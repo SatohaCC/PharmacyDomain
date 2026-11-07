@@ -49,7 +49,7 @@ async def test_register_corporate_returns_id_and_persists_corporate() -> None:
     corporate_id = await use_case.execute(command)
 
     # Assert
-    actual = await repository.get(corporate_id)
+    actual = await repository.get(corporate_id.id)
     assert actual is not None
     assert actual.name.value == command.name
     assert actual.representative_name.full_name == "山田 太郎"

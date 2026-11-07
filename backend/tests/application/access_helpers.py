@@ -18,6 +18,7 @@ from app.domain.corporate.repositories import CorporateRepository
 from app.domain.corporate.value_objects import CorporateRepresentativeName
 from app.domain.shared.actor import AccountPersonId, UserAccountId
 from app.domain.shared.person_name import PersonNamePart
+from tests.fakes.corporate_login_codes import create_login_code
 
 
 class AutoProvisioningCorporateRepository(CorporateRepository):
@@ -25,6 +26,13 @@ class AutoProvisioningCorporateRepository(CorporateRepository):
 
     def __init__(self) -> None:
         self._inactive_corporate_ids: set[CorporateId] = set()
+        self._next_login_code = 0
+
+    async def allocate_login_code(self) -> str:
+        """登録用コードを予約する。"""
+        code = f"{self._next_login_code:06d}"
+        self._next_login_code += 1
+        return code
 
     def set_inactive(self, corporate_id: CorporateId) -> None:
         """指定された法人を無効状態として認識させる。"""
@@ -37,6 +45,7 @@ class AutoProvisioningCorporateRepository(CorporateRepository):
             else CorporateStatus.ACTIVE
         )
         return Corporate(
+            login_code=create_login_code(),
             id=corporate_id,
             name=CorporateName(f"テスト法人-{corporate_id.value}"),
             representative_name=CorporateRepresentativeName(

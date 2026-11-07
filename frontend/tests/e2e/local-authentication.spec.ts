@@ -6,7 +6,7 @@ test("初期パスワードでは変更画面へ進みパスワードと制限�
   let meCalls = 0;
   await page.route("**/api/auth/login", async (route) => {
     expect(route.request().postDataJSON()).toEqual({
-      corporate_id: "test-corporate",
+      corporate_code: "012345",
       login_id: "test-admin",
       password: "test-initial-password-12345",
     });
@@ -60,7 +60,7 @@ test("初期パスワードでは変更画面へ進みパスワードと制限�
     }),
   );
   await page.goto("/login");
-  await page.getByLabel("法人ID").fill("test-corporate");
+  await page.getByLabel("6桁の法人コード").fill("012345");
   await page.getByLabel("ログインID").fill("test-admin");
   await page
     .getByLabel(/^パスワード(?:必須| 必須)?$/)
@@ -110,7 +110,7 @@ test("ログイン失敗では管理画面へ進まない", async ({ page }) => 
     }),
   );
   await page.goto("/login");
-  await page.getByLabel("法人ID").fill("test-corporate");
+  await page.getByLabel("6桁の法人コード").fill("012345");
   await page.getByLabel("ログインID").fill("test-admin");
   await page
     .getByLabel(/^パスワード(?:必須| 必須)?$/)

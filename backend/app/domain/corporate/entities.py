@@ -7,6 +7,7 @@ from typing import Self
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.corporate.primitives import (
+    CorporateLoginCode,
     CorporateName,
     CorporateNumber,
     CorporateStatus,
@@ -28,6 +29,7 @@ class Corporate(AggregateRoot[CorporateId]):
     """法人エンティティ（集約ルート）。複数の薬局店舗を束ねるマルチテナントの境界"""
 
     id: CorporateId
+    login_code: CorporateLoginCode
     name: CorporateName
     representative_name: CorporateRepresentativeName
     corporate_type: CorporateType = CorporateType.STOCK_COMPANY

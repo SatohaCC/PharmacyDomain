@@ -88,6 +88,7 @@ def test_登録した法人を取得できる(api: Api) -> None:
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {
         "id": corporate_id,
+        "corporate_code": "000000",
         "name": "サンプル法人",
         "representative_name": "山田 太郎",
         "is_active": True,

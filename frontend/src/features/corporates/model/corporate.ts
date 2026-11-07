@@ -21,6 +21,7 @@ export const CORPORATE_TYPE_OPTIONS = Object.entries(
 
 export interface Corporate {
   id: string;
+  corporate_code: string;
   name: string;
   representative_name: string;
   is_active: boolean;

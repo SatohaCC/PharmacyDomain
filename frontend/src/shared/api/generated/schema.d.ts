@@ -3384,6 +3384,8 @@ export interface components {
     CorporateResponseDto: {
       /** Id */
       id: string;
+      /** Corporate Code */
+      corporate_code: string;
       /** Name */
       name: string;
       /** Representative Name */
@@ -4343,8 +4345,8 @@ export interface components {
      * @description ログイン入力。秘密をモデルの文字列表現へ含めない。
      */
     LoginRequest: {
-      /** Corporate Id */
-      corporate_id: string;
+      /** Corporate Code */
+      corporate_code: string;
       /** Login Id */
       login_id: string;
       /** Password */
@@ -6618,16 +6620,28 @@ export interface components {
       insurance_pharmacy_number?: string | null;
     };
     /**
-     * RegisteredContract
-     * @description 登録を完了した契約の識別子。
+     * RegisteredContractResponse
+     * @description 法人契約と初期管理者の登録結果。
      */
-    RegisteredContract: {
+    RegisteredContractResponse: {
       /** Id */
       id: string;
       /** Account Id */
       account_id: string;
       /** Login Id */
       login_id: string;
+      /** Corporate Code */
+      corporate_code: string;
+    };
+    /**
+     * RegisteredCorporateResponse
+     * @description 登録完了した法人の内部IDとログインコード。
+     */
+    RegisteredCorporateResponse: {
+      /** Id */
+      id: string;
+      /** Corporate Code */
+      corporate_code: string;
     };
     /**
      * RegisteredIdResponse
@@ -7938,7 +7952,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["RegisteredContract"];
+          "application/json": components["schemas"]["RegisteredContractResponse"];
         };
       };
       /** @description 資格情報が無い、または検証できない。 */
@@ -9243,7 +9257,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["RegisteredIdResponse"];
+          "application/json": components["schemas"]["RegisteredCorporateResponse"];
         };
       };
       /** @description 資格情報が無い、または検証できない。 */

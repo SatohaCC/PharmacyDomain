@@ -145,3 +145,14 @@ class CorporateSearchText(BaseNormalizedString):
 
 class CorporatePageSize(BasePositiveInt):
     """法人検索で取得する件数。"""
+
+
+class CorporateLoginCode(BaseNormalizedString):
+    """ログイン時に法人を識別する半角数字6桁。"""
+
+    def _normalize(self, value: str) -> str:
+        return value
+
+    def validate(self) -> None:
+        if re.fullmatch(r"[0-9]{6}", self.value) is None:
+            raise DomainValidationError("法人コードは半角数字6桁で入力してください。")

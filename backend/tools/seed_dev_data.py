@@ -28,7 +28,7 @@ from datetime import date
 
 from app.domain.corporate.entities import Corporate
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.corporate.primitives import CorporateName
+from app.domain.corporate.primitives import CorporateLoginCode, CorporateName
 from app.domain.corporate.value_objects import CorporateRepresentativeName
 from app.domain.identity.entities import (
     AccountPerson,
@@ -211,6 +211,7 @@ def build_seed_data() -> SeedData:
             external_subject=ExternalSubjectKey(_ADMIN_SUBJECT),
         ),
         corporate=Corporate(
+            login_code=CorporateLoginCode("000000"),
             id=corporate_id,
             name=CorporateName("シード薬局グループ"),
             representative_name=CorporateRepresentativeName(

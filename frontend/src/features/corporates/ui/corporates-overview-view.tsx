@@ -87,6 +87,7 @@ export function CorporateOverviewView({
         <Row>
           <div>
             <Subheading>法人情報</Subheading>
+            <Paragraph>法人コード：{corporate.corporate_code}（ログイン時に使用）</Paragraph>
             <Paragraph>登記情報・税務番号・所在地・連絡先情報です。</Paragraph>
           </div>
           <Button

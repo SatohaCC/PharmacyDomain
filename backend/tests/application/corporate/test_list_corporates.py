@@ -16,6 +16,7 @@ from app.domain.shared.person_name import PersonNamePart
 from app.infrastructure.readers.corporate_list_corporates import (
     ListCorporatesProjection,
 )
+from tests.fakes.corporate_login_codes import create_login_code
 from tests.fakes.in_memory_corporate_search_repository import (
     InMemoryCorporateSearchRepository,
 )
@@ -23,6 +24,7 @@ from tests.fakes.in_memory_corporate_search_repository import (
 
 def _corporate(index: int) -> Corporate:
     return Corporate(
+        login_code=create_login_code(),
         id=CorporateId.generate(),
         name=CorporateName(f"法人{index:03d}"),
         representative_name=CorporateRepresentativeName(

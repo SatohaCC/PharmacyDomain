@@ -61,6 +61,7 @@ async def test_読み込んだ集約の保存が_同じ世代の行だけを更�
     row = {
         "id": corporate.id.value,
         "name": corporate.name.value,
+        "login_code": corporate.login_code.value,
         "representative_name": corporate.representative_name.full_name,
         "status": corporate.status.value,
         "payload": encode_aggregate(corporate),
@@ -90,6 +91,7 @@ async def test_更新が0行なら_同時更新エラーになる() -> None:
     row = {
         "id": corporate.id.value,
         "name": corporate.name.value,
+        "login_code": corporate.login_code.value,
         "representative_name": corporate.representative_name.full_name,
         "status": corporate.status.value,
         "payload": encode_aggregate(corporate),
@@ -225,6 +227,7 @@ async def test_version列の無い行は_復元を拒否する() -> None:
     row = {
         "id": corporate.id.value,
         "name": corporate.name.value,
+        "login_code": corporate.login_code.value,
         "representative_name": corporate.representative_name.full_name,
         "status": corporate.status.value,
         "payload": encode_aggregate(corporate),

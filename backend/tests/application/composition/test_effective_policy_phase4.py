@@ -66,6 +66,7 @@ from tests.application.dispensing.helpers import (
     create_start_command,
 )
 from tests.factories.store_factory import create_store
+from tests.fakes.corporate_login_codes import create_login_code
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository
 from tests.fakes.in_memory_identity_repositories import (
     InMemoryStaffPersonLinkRepository,
@@ -87,6 +88,7 @@ def _make_store(corporate_id: CorporateId, store_id: StoreId | None = None) -> S
 def _make_corporate(corporate_id: CorporateId | None = None) -> Corporate:
     cid = corporate_id or CorporateId.generate()
     return Corporate(
+        login_code=create_login_code(),
         id=cid,
         name=CorporateName(f"テスト法人-{str(cid.value)}"),
         representative_name=CorporateRepresentativeName(

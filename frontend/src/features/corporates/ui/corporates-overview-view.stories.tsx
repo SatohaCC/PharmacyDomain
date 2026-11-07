@@ -6,6 +6,7 @@ const meta = {
   args: {
     corporate: {
       id: "example",
+        corporate_code: "012345",
       name: "株式会社 メディカルファーマシー",
       representative_name: "山田 太郎",
       is_active: true,

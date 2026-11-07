@@ -7,6 +7,7 @@ from app.domain.corporate.primitives import CorporateName
 from app.domain.corporate.services import CorporateNameUniquenessService
 from app.domain.corporate.value_objects import CorporateRepresentativeName
 from app.domain.shared.person_name import PersonNamePart
+from tests.fakes.corporate_login_codes import create_login_code
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository
 
 
@@ -37,6 +38,7 @@ async def test_ensure_name_is_unique_raises_error_when_name_already_exists() -> 
     repository = InMemoryCorporateRepository()
     existing_name = CorporateName("既存テスト法人")
     existing_corporate = Corporate(
+        login_code=create_login_code(),
         id=CorporateId.generate(),
         name=existing_name,
         representative_name=create_representative(),
@@ -61,6 +63,7 @@ async def test_ensure_name_is_unique_allows_the_current_corporate_name() -> None
     repository = InMemoryCorporateRepository()
     existing_name = CorporateName("既存テスト法人")
     existing_corporate = Corporate(
+        login_code=create_login_code(),
         id=CorporateId.generate(),
         name=existing_name,
         representative_name=create_representative(),

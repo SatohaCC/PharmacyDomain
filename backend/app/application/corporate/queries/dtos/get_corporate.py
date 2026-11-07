@@ -29,6 +29,7 @@ class CorporateResponseDto:
     """取得結果として画面やAPIに返すデータ構造（DTO）"""
 
     id: str
+    corporate_code: str
     name: str
     representative_name: str
     is_active: bool
@@ -46,6 +47,7 @@ class CorporateResponseDto:
         """Corporate エンティティから DTO を復元するファクトリメソッド"""
         return cls(
             id=str(corporate.id.value),
+            corporate_code=corporate.login_code.value,
             name=corporate.name.value,
             representative_name=corporate.representative_name.full_name,
             is_active=corporate.is_active,

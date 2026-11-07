@@ -21,6 +21,16 @@ class InMemoryCorporateRepository(
         self.items: dict[CorporateId, Corporate] = {}
         #: ``save()`` が呼ばれた回数。変更が無いときに保存を省いているかの検証に使う。
         self.save_count = 0
+        self._next_login_code = 0
+
+    async def allocate_login_code(self) -> str:
+        """保存済みコードを避けて次の6桁コードを予約する。"""
+        used = {item.login_code.value for item in self.items.values()}
+        while f"{self._next_login_code:06d}" in used:
+            self._next_login_code += 1
+        code = f"{self._next_login_code:06d}"
+        self._next_login_code += 1
+        return code
 
     async def get(self, corporate_id: CorporateId) -> Corporate | None:
         item = self.items.get(corporate_id)

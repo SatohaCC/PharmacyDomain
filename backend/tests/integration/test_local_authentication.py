@@ -32,6 +32,50 @@ CHANGED = "test-personal-password-67890"
 
 
 @pytest.mark.asyncio
+async def test_法人コード_未登録とパスワード不一致は_同じ失敗応答になる(
+    engine: AsyncEngine, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    fixture = await setup_organization(engine, session_factory)
+    async with httpx.AsyncClient(
+        transport=local_app(fixture), base_url="http://test"
+    ) as client:
+        created = await client.post(
+            "/contracts",
+            json=contract_body(),
+            headers={"Authorization": "Bearer vendor"},
+        )
+        assert created.status_code == 201
+        unknown = await client.post(
+            "/auth/login",
+            json={
+                "corporate_code": "999999",
+                "login_id": "admin-example",
+                "password": INITIAL,
+            },
+        )
+        incorrect = await client.post(
+            "/auth/login",
+            json={
+                "corporate_code": created.json()["corporate_code"],
+                "login_id": "admin-example",
+                "password": "wrong",
+            },
+        )
+        legacy = await client.post(
+            "/auth/login",
+            json={
+                "corporate_id": created.json()["id"],
+                "login_id": "admin-example",
+                "password": INITIAL,
+            },
+        )
+
+    assert unknown.status_code == incorrect.status_code == 401
+    assert unknown.json() == incorrect.json()
+    assert legacy.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_ローカル認証_法人所属のない有効な運営者は利用開始できる(
     engine: AsyncEngine, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
@@ -87,7 +131,7 @@ async def test_ローカル認証_停止後は正しいパスワードでもロ�
         login = await client.post(
             "/auth/login",
             json={
-                "corporate_id": str(fixture.corporate.id.value),
+                "corporate_code": fixture.corporate.login_code.value,
                 "login_id": login_id,
                 "password": INITIAL,
             },
@@ -123,7 +167,7 @@ async def test_ローカル認証_停止後は正しいパスワードでもロ�
         correct = await client.post(
             "/auth/login",
             json={
-                "corporate_id": str(fixture.corporate.id.value),
+                "corporate_code": fixture.corporate.login_code.value,
                 "login_id": login_id,
                 "password": CHANGED if changed else INITIAL,
             },
@@ -131,7 +175,7 @@ async def test_ローカル認証_停止後は正しいパスワードでもロ�
         incorrect = await client.post(
             "/auth/login",
             json={
-                "corporate_id": str(fixture.corporate.id.value),
+                "corporate_code": fixture.corporate.login_code.value,
                 "login_id": login_id,
                 "password": "wrong",
             },
@@ -216,7 +260,7 @@ async def test_新規契約_招待なしで登録し初回変更後にだけ業�
         login = await client.post(
             "/auth/login",
             json={
-                "corporate_id": corporate_id,
+                "corporate_code": created.json()["corporate_code"],
                 "login_id": "ADMIN-EXAMPLE",
                 "password": INITIAL,
             },
@@ -267,7 +311,7 @@ async def test_新規契約_招待なしで登録し初回変更後にだけ業�
             await client.post(
                 "/auth/login",
                 json={
-                    "corporate_id": corporate_id,
+                    "corporate_code": created.json()["corporate_code"],
                     "login_id": "admin-example",
                     "password": INITIAL,
                 },
@@ -278,7 +322,7 @@ async def test_新規契約_招待なしで登録し初回変更後にだけ業�
         again = await client.post(
             "/auth/login",
             json={
-                "corporate_id": corporate_id,
+                "corporate_code": created.json()["corporate_code"],
                 "login_id": "admin-example",
                 "password": CHANGED,
             },
@@ -341,14 +385,14 @@ async def test_ローカル認証_連続失敗と期限切れを拒否する(
             headers={"Authorization": "Bearer vendor"},
         )
         assert resp.status_code == 201
-        corporate_id = resp.json()["id"]
+        corporate_code = resp.json()["corporate_code"]
         # Act / Assert
         for _ in range(5):
             assert (
                 await client.post(
                     "/auth/login",
                     json={
-                        "corporate_id": corporate_id,
+                        "corporate_code": corporate_code,
                         "login_id": "admin-example",
                         "password": "wrong",
                     },
@@ -358,7 +402,7 @@ async def test_ローカル認証_連続失敗と期限切れを拒否する(
             await client.post(
                 "/auth/login",
                 json={
-                    "corporate_id": corporate_id,
+                    "corporate_code": corporate_code,
                     "login_id": "admin-example",
                     "password": INITIAL,
                 },
@@ -368,7 +412,7 @@ async def test_ローカル認証_連続失敗と期限切れを拒否する(
         login = await client.post(
             "/auth/login",
             json={
-                "corporate_id": corporate_id,
+                "corporate_code": corporate_code,
                 "login_id": "admin-example",
                 "password": INITIAL,
             },
@@ -397,11 +441,11 @@ async def test_初回変更_同じセッションの同時使用は一度だけ�
             json=contract_body(),
             headers={"Authorization": "Bearer vendor"},
         )
-        corporate_id = resp.json()["id"]
+        corporate_code = resp.json()["corporate_code"]
         login = await client.post(
             "/auth/login",
             json={
-                "corporate_id": corporate_id,
+                "corporate_code": corporate_code,
                 "login_id": "admin-example",
                 "password": INITIAL,
             },
