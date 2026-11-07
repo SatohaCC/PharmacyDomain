@@ -227,6 +227,9 @@ from app.application.reception.commands.save_current_record_values import (
 from app.application.reception.queries.get_current_record_values import (
     GetCurrentRecordValuesUseCase,
 )
+from app.application.reception.queries.resolve_reception_medication_history import (
+    ResolveReceptionMedicationHistoryUseCase,
+)
 from app.application.staff.commands.activate_staff import ActivateStaffUseCase
 from app.application.staff.commands.assign_staff_concurrent_store import (
     AssignStaffConcurrentStoreUseCase,
@@ -512,3 +515,4 @@ class ReceptionUseCases:
     associate_medication_history: AssociateReceptionMedicationHistoryUseCase
     save_current_record_values: SaveCurrentRecordValuesUseCase
     get_current_record_values: GetCurrentRecordValuesUseCase
+    resolve_medication_history: ResolveReceptionMedicationHistoryUseCase

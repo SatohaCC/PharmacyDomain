@@ -158,6 +158,7 @@ def client() -> Iterator[
             reader=GetCurrentRecordValuesProjection(reception_repo),
             corporate_access=corporate_access,
         ),
+        resolve_medication_history=cast(Any, None),
     )
 
     # MedicationHistory use cases

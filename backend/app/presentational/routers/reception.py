@@ -14,6 +14,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 
 from app.application.access_control.boundary_models import ResolvedActorContext
+from app.application.common.exceptions import NotFoundError
 from app.application.coverage.commands.dtos.get_coverage_selection import (
     CoverageSelectionRecordDto,
 )
@@ -54,8 +55,9 @@ from app.application.reception.commands.save_current_record_values import (
 from app.application.reception.queries.dtos.current_record_values import (
     CurrentRecordFieldValueDto as QueryCurrentRecordFieldValueDto,
 )
-from app.application.reception.queries.get_current_record_values import (
+from app.application.reception.queries.models import (
     GetCurrentRecordValuesQuery,
+    ResolveReceptionMedicationHistoryQuery,
 )
 from app.presentational.dependencies import (
     Actor,
@@ -250,14 +252,24 @@ async def list_reception_blocks(
     corporate_id: str,
     reception_id: str,
     use_cases: MedicationHistoryUseCasesDep,
+    reception_use_cases: ReceptionUseCasesDep,
     store_id: Annotated[str, Query(description="受付を行う店舗のID。")],
 ) -> tuple[QueryMedicationHistoryBlockDto, ...]:
     """受付に紐づく薬歴ブロック一覧を取得する。"""
+    record_id = await reception_use_cases.resolve_medication_history.execute(
+        ResolveReceptionMedicationHistoryQuery(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            reception_id=reception_id,
+        )
+    )
+    if record_id is None:
+        return ()
     return await use_cases.list_blocks.execute(
         ListMedicationHistoryBlocksQuery(
             corporate_id=corporate_id,
             store_id=store_id,
-            record_id=reception_id,
+            record_id=record_id,
         )
     )
 
@@ -272,9 +284,22 @@ async def save_reception_blocks(
     reception_id: str,
     body: SaveReceptionBlocksRequest,
     use_cases: MedicationHistoryUseCasesDep,
+    reception_use_cases: ReceptionUseCasesDep,
     actor: Actor,
 ) -> tuple[MedicationHistoryBlockDto, ...]:
     """受付に紐づく薬歴ブロック群を保存する。"""
+    record_id = await reception_use_cases.resolve_medication_history.execute(
+        ResolveReceptionMedicationHistoryQuery(
+            corporate_id=corporate_id,
+            store_id=body.store_id,
+            reception_id=reception_id,
+        )
+    )
+    if record_id is None:
+        raise NotFoundError(
+            "指定された受付に紐づく薬歴が見つかりません。",
+            code="MEDICATION_HISTORY_NOT_FOUND",
+        )
     staff_id = (
         str(actor.staff_id.value)
         if isinstance(actor, ResolvedActorContext) and actor.staff_id is not None
@@ -284,7 +309,7 @@ async def save_reception_blocks(
         SaveMedicationHistoryBlocksCommand(
             corporate_id=corporate_id,
             store_id=body.store_id,
-            record_id=reception_id,
+            record_id=record_id,
             blocks=body.blocks,
             staff_id=staff_id,
         )

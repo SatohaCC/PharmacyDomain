@@ -392,6 +392,61 @@ def test_validate_record_compliance_missing_required() -> None:
     assert "P（計画）" in str(exc_info.value)
 
 
+def test_validate_record_compliance_satisfied_by_blocks() -> None:
+    """必須中区分がブロックに記載されている場合に検証をパスすること。"""
+    from app.domain.medication_history.entities import MedicationHistoryBlock
+    from app.domain.medication_history.identifiers import MedicationHistoryBlockId
+    from app.domain.medication_history.primitives import CounselingNote
+
+    soap_code = MajorCategoryCode("soap")
+    catalog = _sample_catalog(
+        major_categories=(
+            MajorCategoryDefinition(
+                code=soap_code,
+                name=MajorCategoryName("SOAP"),
+                display_order=CategoryDisplayOrder(1),
+            ),
+        ),
+        medium_categories=(
+            MediumCategoryDefinition(
+                code=MediumCategoryCode("s"),
+                major_category_code=soap_code,
+                name=MediumCategoryName("S（主観的情報）"),
+                display_order=CategoryDisplayOrder(1),
+                is_required=True,
+            ),
+            MediumCategoryDefinition(
+                code=MediumCategoryCode("p"),
+                major_category_code=soap_code,
+                name=MediumCategoryName("P（計画）"),
+                display_order=CategoryDisplayOrder(2),
+                is_required=True,
+            ),
+        ),
+    )
+
+    record = create_record(
+        soap=SoapRecord(subjective=(), plan=()),
+    ).update_blocks(
+        (
+            MedicationHistoryBlock(
+                id=MedicationHistoryBlockId.generate(),
+                category_code=MediumCategoryCode("s"),
+                content=CounselingNote("Sをブロックで記載"),
+                display_order=CategoryDisplayOrder(1),
+            ),
+            MedicationHistoryBlock(
+                id=MedicationHistoryBlockId.generate(),
+                category_code=MediumCategoryCode("p"),
+                content=CounselingNote("Pをブロックで記載"),
+                display_order=CategoryDisplayOrder(2),
+            ),
+        )
+    )
+
+    catalog.validate_record_compliance(record)
+
+
 def test_記載区分カタログ_今回記載欄設定の更新_正常に更新される() -> None:
     """TC-CAT-11: 今回記載欄の項目定義が正常に追加・更新できること。"""
     catalog = _sample_catalog()

@@ -48,7 +48,11 @@ EXPECTED_AGGREGATE_ROOTS: frozenset[str] = frozenset(
 ALLOWED_CHILD_ENTITIES: dict[str, frozenset[str]] = {
     "Prescription": frozenset({"PrescriptionInquiry"}),
     "MedicationHistoryRecord": frozenset(
-        {"TracingReport", "MedicationHistoryFactCorrection"}
+        {
+            "TracingReport",
+            "MedicationHistoryFactCorrection",
+            "MedicationHistoryBlock",
+        }
     ),
 }
 

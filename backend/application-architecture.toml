@@ -61,7 +61,7 @@ public_modules = ["commands.audit_drug_interactions", "commands.cancel_prescript
 
 [features.reception]
 depends_on = ["access_control"]
-public_modules = ["commands.associate_reception_medication_history", "commands.dtos.current_record_values", "commands.save_current_record_values", "interfaces.get_current_record_values_query_reader", "interfaces.references", "queries.dtos.current_record_values", "queries.get_current_record_values", "queries.models", "values"]
+public_modules = ["commands.associate_reception_medication_history", "commands.dtos.current_record_values", "commands.save_current_record_values", "interfaces.get_current_record_values_query_reader", "interfaces.references", "interfaces.resolve_reception_medication_history_query_reader", "queries.dtos.current_record_values", "queries.get_current_record_values", "queries.models", "queries.resolve_reception_medication_history", "values"]
 
 [features.staff]
 depends_on = ["access_control", "store"]

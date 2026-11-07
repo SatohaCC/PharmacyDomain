@@ -9,21 +9,36 @@ from typing import Any, cast
 import pytest
 from fastapi.testclient import TestClient
 
-from app.application.composition.registry import MedicationHistoryUseCases
+from app.application.composition.registry import (
+    MedicationHistoryUseCases,
+    ReceptionUseCases,
+)
 from app.application.medication_history.commands.save_medication_history_blocks import (
     SaveMedicationHistoryBlocksUseCase,
 )
 from app.application.medication_history.queries.list_medication_history_blocks import (
     ListMedicationHistoryBlocksUseCase,
 )
+from app.application.reception.queries.resolve_reception_medication_history import (
+    ResolveReceptionMedicationHistoryUseCase,
+)
 from app.bootstrap import create_app
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.entities import MedicationHistoryCategoryCatalog
+from app.domain.reception.entities import Reception
+from app.domain.reception.identifiers import ReceptionId
+from app.domain.reception.primitives import ReceptionFingerprint
 from app.domain.store.identifiers import StoreId
 from app.infrastructure.readers.medication_history_list_blocks import (
     ListMedicationHistoryBlocksProjection,
 )
-from app.presentational.dependencies import get_medication_history_use_cases
+from app.infrastructure.readers.reception_resolve_medication_history import (
+    ResolveReceptionMedicationHistoryProjection,
+)
+from app.presentational.dependencies import (
+    get_medication_history_use_cases,
+    get_reception_use_cases,
+)
 from tests.application.access_helpers import (
     AutoProvisioningCorporateRepository,
     create_vendor_corporate_access_for,
@@ -37,6 +52,7 @@ from tests.fakes.in_memory_medication_history_repository import (
     InMemoryMedicationHistoryCategoryCatalogRepository,
     InMemoryMedicationHistoryRepository,
 )
+from tests.fakes.in_memory_reception_repository import InMemoryReceptionRepository
 from tests.fakes.stub_actor_context_provider import (
     VALID_TOKEN,
     StubActorContextProvider,
@@ -54,6 +70,7 @@ def client_env() -> Iterator[
         StoreId,
         InMemoryMedicationHistoryRepository,
         InMemoryMedicationHistoryCategoryCatalogRepository,
+        InMemoryReceptionRepository,
     ]
 ]:
     corporate_repo = AutoProvisioningCorporateRepository()
@@ -63,6 +80,7 @@ def client_env() -> Iterator[
 
     record_repo = InMemoryMedicationHistoryRepository()
     catalog_repo = InMemoryMedicationHistoryCategoryCatalogRepository()
+    reception_repo = InMemoryReceptionRepository()
     store_operations = FakeMedicationHistoryStoreOperations()
     clock = FakeClock()
 
@@ -81,6 +99,10 @@ def client_env() -> Iterator[
         reader=projection,
         corporate_access=corporate_access,
         store_operations=store_operations,
+    )
+    resolve_medication_history_uc = ResolveReceptionMedicationHistoryUseCase(
+        reader=ResolveReceptionMedicationHistoryProjection(reception_repo),
+        corporate_access=corporate_access,
     )
 
     medication_history_bundle = MedicationHistoryUseCases(
@@ -108,13 +130,21 @@ def client_env() -> Iterator[
         review_external_correction=cast(Any, None),
     )
 
+    reception_bundle = ReceptionUseCases(
+        associate_medication_history=cast(Any, None),
+        save_current_record_values=cast(Any, None),
+        get_current_record_values=cast(Any, None),
+        resolve_medication_history=resolve_medication_history_uc,
+    )
+
     app = create_app(actor_provider=StubActorContextProvider(vendor_admin()))
     app.dependency_overrides[get_medication_history_use_cases] = lambda: (
         medication_history_bundle
     )
+    app.dependency_overrides[get_reception_use_cases] = lambda: reception_bundle
 
     test_client = TestClient(app, raise_server_exceptions=True)
-    yield test_client, corporate_id, store_id, record_repo, catalog_repo
+    yield test_client, corporate_id, store_id, record_repo, catalog_repo, reception_repo
 
 
 def test_薬歴ブロック保存および一覧取得_正常系(
@@ -124,10 +154,11 @@ def test_薬歴ブロック保存および一覧取得_正常系(
         StoreId,
         InMemoryMedicationHistoryRepository,
         InMemoryMedicationHistoryCategoryCatalogRepository,
+        InMemoryReceptionRepository,
     ],
 ) -> None:
     # Arrange
-    client, corporate_id, store_id, record_repo, catalog_repo = client_env
+    client, corporate_id, store_id, record_repo, catalog_repo, _ = client_env
     catalog = MedicationHistoryCategoryCatalog.create_default(corporate_id=corporate_id)
     catalog_repo.items[corporate_id] = catalog
 
@@ -189,18 +220,32 @@ def test_受付経由ブロック保存および一覧取得_正常系(
         StoreId,
         InMemoryMedicationHistoryRepository,
         InMemoryMedicationHistoryCategoryCatalogRepository,
+        InMemoryReceptionRepository,
     ],
 ) -> None:
     # Arrange
-    client, corporate_id, store_id, record_repo, catalog_repo = client_env
+    client, corporate_id, store_id, record_repo, catalog_repo, reception_repo = (
+        client_env
+    )
     catalog = MedicationHistoryCategoryCatalog.create_default(corporate_id=corporate_id)
     catalog_repo.items[corporate_id] = catalog
 
     record = create_record(corporate_id=corporate_id, store_id=store_id)
     record_repo.items[record.id] = record
 
+    reception = Reception(
+        id=ReceptionId.generate(),
+        corporate_id=corporate_id,
+        store_id=store_id,
+        patient_id=record.patient_id,
+        latest_fingerprint=ReceptionFingerprint("0" * 64),
+        field_fingerprints=(),
+        medication_history_id=record.id,
+    )
+    reception_repo.items[(corporate_id, store_id, reception.id)] = reception
+
     base_url = (
-        f"/corporates/{corporate_id.value}/receptions/{record.event_id.value}/blocks"
+        f"/corporates/{corporate_id.value}/receptions/{reception.id.value}/blocks"
     )
 
     # Act 1: PUT reception blocks
@@ -237,3 +282,60 @@ def test_受付経由ブロック保存および一覧取得_正常系(
     listed_blocks = get_res.json()
     assert len(listed_blocks) == 1
     assert listed_blocks[0]["content"] == "受付経由での訴え記録。"
+
+
+def test_受付経由ブロック_薬歴未作成時は一覧空取得および保存時404(
+    client_env: tuple[
+        TestClient,
+        CorporateId,
+        StoreId,
+        InMemoryMedicationHistoryRepository,
+        InMemoryMedicationHistoryCategoryCatalogRepository,
+        InMemoryReceptionRepository,
+    ],
+) -> None:
+    # Arrange
+    client, corporate_id, store_id, _, _, reception_repo = client_env
+
+    # 薬歴IDもEvent IDも紐づいていない受付
+    reception = Reception(
+        id=ReceptionId.generate(),
+        corporate_id=corporate_id,
+        store_id=store_id,
+        patient_id=create_record(
+            corporate_id=corporate_id, store_id=store_id
+        ).patient_id,
+        latest_fingerprint=ReceptionFingerprint("0" * 64),
+        field_fingerprints=(),
+    )
+    reception_repo.items[(corporate_id, store_id, reception.id)] = reception
+
+    base_url = (
+        f"/corporates/{corporate_id.value}/receptions/{reception.id.value}/blocks"
+    )
+
+    # Act & Assert: GET should return empty list
+    get_res = client.get(
+        base_url,
+        params={"store_id": str(store_id.value)},
+        headers=_HEADERS,
+    )
+    assert get_res.status_code == HTTPStatus.OK
+    assert get_res.json() == []
+
+    # Act & Assert: PUT should return 404
+    put_res = client.put(
+        base_url,
+        headers=_HEADERS,
+        json={
+            "store_id": str(store_id.value),
+            "blocks": [
+                {
+                    "category_code": "s",
+                    "content": "受付経由での訴え記録。",
+                    "display_order": 10,
+                }
+            ],
+        },
+    )
+    assert put_res.status_code == HTTPStatus.NOT_FOUND

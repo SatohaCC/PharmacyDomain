@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Panel } from "../../../shared/ui/layout/panel";
 import { Badge } from "../../../shared/ui/data-display/badge";
 import {
@@ -65,8 +65,10 @@ export function BlocksEditorView({
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const editRevision = useRef(0);
 
   const handleContentChange = (clientKey: string, newContent: string) => {
+    editRevision.current += 1;
     setBlocks((prev) =>
       prev.map((b) =>
         b.clientKey === clientKey ? { ...b, content: newContent } : b,
@@ -77,6 +79,7 @@ export function BlocksEditorView({
   };
 
   const handleCategoryChange = (clientKey: string, newCategoryCode: string) => {
+    editRevision.current += 1;
     const matched = availableCategories.find((c) => c.code === newCategoryCode);
     setBlocks((prev) =>
       prev.map((b) =>
@@ -95,6 +98,7 @@ export function BlocksEditorView({
   };
 
   const handleAddBlock = (categoryCode = "s") => {
+    editRevision.current += 1;
     const matched = availableCategories.find((c) => c.code === categoryCode);
     const newBlock: BlockItemState = {
       clientKey: createClientKey("new"),
@@ -111,6 +115,7 @@ export function BlocksEditorView({
   };
 
   const handleRemoveBlock = (clientKey: string) => {
+    editRevision.current += 1;
     setBlocks((prev) =>
       prev
         .filter((b) => b.clientKey !== clientKey)
@@ -122,6 +127,7 @@ export function BlocksEditorView({
 
   const handleMoveUp = (index: number) => {
     if (index <= 0) return;
+    editRevision.current += 1;
     setBlocks((prev) => {
       const copy = [...prev];
       const temp = copy[index - 1];
@@ -135,6 +141,7 @@ export function BlocksEditorView({
 
   const handleMoveDown = (index: number) => {
     if (index >= blocks.length - 1) return;
+    editRevision.current += 1;
     setBlocks((prev) => {
       const copy = [...prev];
       const temp = copy[index + 1];
@@ -147,6 +154,7 @@ export function BlocksEditorView({
   };
 
   const handleHearingValueChange = (fieldId: string, value: string) => {
+    editRevision.current += 1;
     setCurrentHearing((prev) =>
       prev.map((item) =>
         item.field_id === fieldId ? { ...item, value } : item,
@@ -157,6 +165,7 @@ export function BlocksEditorView({
 
   const handleSave = useCallback(async () => {
     if (!onSave || saving) return;
+    const saveRevision = editRevision.current;
     setSaving(true);
     setErrorMessage(null);
     try {
@@ -172,8 +181,12 @@ export function BlocksEditorView({
       if (onSaveHearingItems && currentHearing.length > 0) {
         await onSaveHearingItems(currentHearing);
       }
-      setIsDirty(false);
-      setSaveStatus("下書きを保存しました");
+      if (editRevision.current === saveRevision) {
+        setIsDirty(false);
+        setSaveStatus("下書きを保存しました");
+      } else {
+        setSaveStatus("最新の変更は未保存です");
+      }
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "下書き保存中にエラーが発生しました。";

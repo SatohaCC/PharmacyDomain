@@ -754,6 +754,7 @@ forbidden_modules = [
     "app.application.reception.commands.associate_reception_medication_history",
     "app.application.reception.commands.save_current_record_values",
     "app.application.reception.queries.get_current_record_values",
+    "app.application.reception.queries.resolve_reception_medication_history",
     "app.application.staff.commands.activate_staff",
     "app.application.staff.commands.assign_staff_concurrent_store",
     "app.application.staff.commands.change_staff_job_title",

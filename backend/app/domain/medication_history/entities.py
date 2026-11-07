@@ -395,6 +395,13 @@ class MedicationHistoryCategoryCatalog(AggregateRoot[CategoryCatalogId]):
         """薬歴記録が本カタログの法人必須ルールを満たしているか検証する。"""
         required_mediums = self.required_medium_categories()
         for req in required_mediums:
+            has_in_blocks = any(
+                block.category_code == req.code and block.has_content
+                for block in record.blocks
+            )
+            if has_in_blocks:
+                continue
+
             code_val = req.code.value.lower()
             if code_val in _SOAP_SECTION_MAPPING:
                 field_name = _SOAP_SECTION_MAPPING[code_val]
