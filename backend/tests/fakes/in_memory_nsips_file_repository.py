@@ -54,6 +54,23 @@ class InMemoryNsipsFileRepository(NsipsFileRepository):
                 return copy.deepcopy(item)
         return None
 
+    async def reserve(
+        self,
+        ledger: NsipsFileRecord,
+    ) -> NsipsFileRecord | None:
+        """ファイル取込を予約する。既に同一操作のエントリが存在すれば既存レコードを返し、新規予約できた場合は None を返す。"""
+        key = (
+            ledger.corporate_id,
+            ledger.store_id,
+            ledger.file_id,
+            ledger.operation,
+        )
+        existing = self.items.get(key)
+        if existing is not None:
+            return copy.deepcopy(existing)
+        self.items[key] = copy.deepcopy(ledger)
+        return None
+
     async def save(self, ledger: NsipsFileRecord) -> None:
         """台帳エントリを保存する。"""
         key = (
@@ -63,6 +80,10 @@ class InMemoryNsipsFileRepository(NsipsFileRepository):
             ledger.operation,
         )
         self.items[key] = copy.deepcopy(ledger)
+
+    async def save_failed(self, ledger: NsipsFileRecord) -> None:
+        """失敗した台帳エントリを保存する。"""
+        await self.save(ledger)
 
 
 __all__ = ["InMemoryNsipsFileRepository"]

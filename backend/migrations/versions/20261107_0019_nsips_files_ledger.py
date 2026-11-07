@@ -24,6 +24,7 @@ def upgrade() -> None:
         sa.Column("operation", sa.String(length=32), nullable=False),
         sa.Column("status", sa.String(length=32), nullable=False),
         sa.Column("received_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("payload_fingerprint", sa.String(length=64), nullable=False),
         sa.Column("raw_payload", sa.Text(), nullable=False),
         sa.Column("target_reception_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("processed_at", sa.DateTime(timezone=True), nullable=True),
@@ -33,11 +34,13 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id", name="pk_nsips_files"),
-    )
-    op.create_index(
-        "ix_nsips_files_identity",
-        "nsips_files",
-        ["corporate_id", "store_id", "file_id", "operation"],
+        sa.UniqueConstraint(
+            "corporate_id",
+            "store_id",
+            "file_id",
+            "operation",
+            name="uq_nsips_files_identity",
+        ),
     )
     op.create_index(
         "ix_nsips_files_applied",
@@ -49,5 +52,4 @@ def upgrade() -> None:
 def downgrade() -> None:
     """nsips_files テーブルを削除する。"""
     op.drop_index("ix_nsips_files_applied", table_name="nsips_files")
-    op.drop_index("ix_nsips_files_identity", table_name="nsips_files")
     op.drop_table("nsips_files")

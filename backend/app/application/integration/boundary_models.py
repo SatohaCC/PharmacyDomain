@@ -205,6 +205,7 @@ class NsipsFileRecord:
     operation: NsipsOperation
     status: NsipsFileStatus
     received_at: datetime
+    payload_fingerprint: str = ""
     raw_payload: str = ""
     target_reception_id: ReceptionId | None = None
     processed_at: datetime | None = None

@@ -36,8 +36,19 @@ class NsipsFileRepository(Protocol):
         """指定された file_id で適用済みの登録・一括台帳エントリを取得する。"""
         ...
 
+    async def reserve(
+        self,
+        ledger: NsipsFileRecord,
+    ) -> NsipsFileRecord | None:
+        """ファイル取込を予約する。既に同一操作のエントリが存在すれば既存レコードを返し、新規予約できた場合は None を返す。"""
+        ...
+
     async def save(self, ledger: NsipsFileRecord) -> None:
         """台帳エントリを保存する。"""
+        ...
+
+    async def save_failed(self, ledger: NsipsFileRecord) -> None:
+        """失敗した台帳エントリを保存する。実装によってはロールバックから独立して確定する。"""
         ...
 
 

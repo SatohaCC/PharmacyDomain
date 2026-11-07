@@ -535,7 +535,20 @@ class IngestNsipsUseCase:
         raw_payload = command.raw_nsips_text or ""
         received_at = self._clock.now()
 
-        # 台帳の冪等性検証（同一ファイル・同一内容が適用済みなら即座に成功結果を返す）
+        # 入力内容のフィンガープリント計算
+        if command.raw_nsips_text is not None:
+            incoming_payload_fingerprint = hashlib.sha256(
+                command.raw_nsips_text.encode("utf-8")
+            ).hexdigest()
+        elif command.structured_bundle is not None:
+            incoming_payload_fingerprint = self._combined_fingerprint(
+                self._fingerprint_bundle(command.structured_bundle)
+            ).value
+        else:
+            incoming_payload_fingerprint = "EMPTY"
+
+        # 台帳の排他予約および冪等性検証
+        ledger: NsipsFileRecord | None = None
         if (
             parsed_file_name is not None
             and self._nsips_file_repo is not None
@@ -547,34 +560,59 @@ class IngestNsipsUseCase:
                 file_id=file_id,
                 operation=operation,
             )
-            if (
-                existing_ledger is not None
-                and existing_ledger.status is NsipsFileStatus.APPLIED
-                and (
-                    existing_ledger.raw_payload == raw_payload
-                    or (
-                        not raw_payload
-                        and existing_ledger.target_reception_id is not None
-                    )
-                )
-            ):
-                return IngestNsipsResultDto(
-                    reception_id=str(existing_ledger.target_reception_id.value)
-                    if existing_ledger.target_reception_id is not None
-                    else (command.reception_id or ""),
-                    source_fingerprint="",
-                    source_status=ReceptionSourceStatus.CURRENT.value,
-                    corporate_id=command.corporate_id,
-                    store_id=command.store_id,
-                    patient_id="",
-                    patient_name="",
-                    is_new_patient=False,
-                    is_duplicate=True,
+            if existing_ledger is None:
+                pending_ledger = NsipsFileRecord(
+                    id=uuid.uuid7(),
+                    corporate_id=corporate_id,
+                    store_id=store_id,
                     file_id=file_id,
-                    operation=operation.value,
-                    status=NsipsFileStatus.APPLIED.value,
-                    was_already_applied=True,
+                    file_name=command.file_name or "",
+                    operation=operation,
+                    status=NsipsFileStatus.PENDING,
+                    received_at=received_at,
+                    payload_fingerprint=incoming_payload_fingerprint,
+                    raw_payload=raw_payload,
                 )
+                existing_ledger = await self._nsips_file_repo.reserve(pending_ledger)
+                if existing_ledger is None:
+                    ledger = pending_ledger
+
+            if existing_ledger is not None:
+                if (
+                    existing_ledger.status is NsipsFileStatus.APPLIED
+                    and existing_ledger.payload_fingerprint
+                    == incoming_payload_fingerprint
+                ):
+                    return await self._build_duplicate_result(
+                        existing_ledger=existing_ledger,
+                        corporate_id=corporate_id,
+                        store_id=store_id,
+                        command=command,
+                        file_id=file_id,
+                        operation=operation,
+                    )
+                if existing_ledger.status is NsipsFileStatus.PENDING:
+                    raise NsipsSourceConflictError(
+                        f"file_id '{file_id}' の処理が既に進行中です。"
+                    )
+                if (
+                    existing_ledger.status is NsipsFileStatus.APPLIED
+                    and existing_ledger.payload_fingerprint
+                    != incoming_payload_fingerprint
+                ):
+                    raise NsipsSourceConflictError(
+                        f"file_id '{file_id}' は既に異なる内容で取込済みです。"
+                    )
+                # FAILED等の再試行
+                ledger = replace(
+                    existing_ledger,
+                    file_name=command.file_name or existing_ledger.file_name,
+                    status=NsipsFileStatus.PENDING,
+                    payload_fingerprint=incoming_payload_fingerprint,
+                    raw_payload=raw_payload,
+                    received_at=received_at,
+                )
+                await self._nsips_file_repo.save(ledger)
 
         try:
             result = await self._execute_ingest(
@@ -591,31 +629,8 @@ class IngestNsipsUseCase:
                 parsed_file_name is not None
                 and self._nsips_file_repo is not None
                 and file_id is not None
+                and ledger is not None
             ):
-                ledger = await self._nsips_file_repo.get_by_identity(
-                    corporate_id=corporate_id,
-                    store_id=store_id,
-                    file_id=file_id,
-                    operation=operation,
-                )
-                if ledger is None:
-                    ledger = NsipsFileRecord(
-                        id=uuid.uuid7(),
-                        corporate_id=corporate_id,
-                        store_id=store_id,
-                        file_id=file_id,
-                        file_name=command.file_name or "",
-                        operation=operation,
-                        status=NsipsFileStatus.PENDING,
-                        received_at=received_at,
-                        raw_payload=raw_payload,
-                    )
-                else:
-                    ledger = replace(
-                        ledger,
-                        raw_payload=raw_payload,
-                        file_name=command.file_name or ledger.file_name,
-                    )
                 target_rec_id = ReceptionId.parse(result.reception_id)
                 applied_ledger = replace(
                     ledger,
@@ -631,33 +646,102 @@ class IngestNsipsUseCase:
                 parsed_file_name is not None
                 and self._nsips_file_repo is not None
                 and file_id is not None
+                and ledger is not None
             ):
-                ledger = await self._nsips_file_repo.get_by_identity(
-                    corporate_id=corporate_id,
-                    store_id=store_id,
-                    file_id=file_id,
-                    operation=operation,
-                )
-                if ledger is None:
-                    ledger = NsipsFileRecord(
-                        id=uuid.uuid7(),
-                        corporate_id=corporate_id,
-                        store_id=store_id,
-                        file_id=file_id,
-                        file_name=command.file_name or "",
-                        operation=operation,
-                        status=NsipsFileStatus.PENDING,
-                        received_at=received_at,
-                        raw_payload=raw_payload,
-                    )
                 failed_ledger = replace(
                     ledger,
                     status=NsipsFileStatus.FAILED,
                     processed_at=self._clock.now(),
                     error_text=str(exc),
                 )
-                await self._nsips_file_repo.save(failed_ledger)
+                await self._nsips_file_repo.save_failed(failed_ledger)
             raise
+
+    @staticmethod
+    def _extract_source_snapshot_info(
+        reception: Reception,
+    ) -> tuple[str, str]:
+        """Receptionのsource_dataからdocument_numberとpatient_nameを取り出す。"""
+        if reception.source_data is None:
+            return "", ""
+        try:
+            payload = json.loads(reception.source_data.bundle_json.value)
+            if isinstance(payload, dict):
+                presc = payload.get("prescription")
+                doc_num = (
+                    presc.get("document_number") if isinstance(presc, dict) else ""
+                )
+                pat = payload.get("patient")
+                pat_name = pat.get("kanji_name") if isinstance(pat, dict) else ""
+                return str(doc_num or ""), str(pat_name or "")
+        except Exception:
+            pass
+        return "", ""
+
+    async def _build_duplicate_result(
+        self,
+        *,
+        existing_ledger: NsipsFileRecord,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+        command: IngestNsipsCommand,
+        file_id: str,
+        operation: NsipsOperation,
+    ) -> IngestNsipsResultDto:
+        if existing_ledger.target_reception_id is not None:
+            target_reception = await self._reception_repo.get(
+                corporate_id=corporate_id,
+                store_id=store_id,
+                reception_id=existing_ledger.target_reception_id,
+            )
+            if target_reception is not None:
+                doc_number, patient_name = self._extract_source_snapshot_info(
+                    target_reception
+                )
+                return IngestNsipsResultDto(
+                    reception_id=str(target_reception.id.value),
+                    source_fingerprint=target_reception.latest_fingerprint.value,
+                    source_status=target_reception.source_status.value,
+                    corporate_id=command.corporate_id,
+                    store_id=command.store_id,
+                    patient_id=str(target_reception.patient_id.value),
+                    patient_name=patient_name,
+                    is_new_patient=False,
+                    is_duplicate=True,
+                    file_id=file_id,
+                    operation=operation.value,
+                    status=NsipsFileStatus.APPLIED.value,
+                    was_already_applied=True,
+                    prescription_id=str(target_reception.prescription_id.value)
+                    if target_reception.prescription_id is not None
+                    else None,
+                    dispensing_id=str(target_reception.dispensing_id.value)
+                    if target_reception.dispensing_id is not None
+                    else None,
+                    medication_history_id=str(
+                        target_reception.medication_history_id.value
+                    )
+                    if target_reception.medication_history_id is not None
+                    else None,
+                    document_number=doc_number if doc_number else None,
+                )
+        return IngestNsipsResultDto(
+            reception_id=str(existing_ledger.target_reception_id.value)
+            if existing_ledger.target_reception_id is not None
+            else (command.reception_id or ""),
+            source_fingerprint="",
+            source_status=ReceptionSourceStatus.CURRENT.value,
+            corporate_id=command.corporate_id,
+            store_id=command.store_id,
+            patient_id="",
+            patient_name="",
+            is_new_patient=False,
+            is_duplicate=True,
+            file_id=file_id,
+            operation=operation.value,
+            status=NsipsFileStatus.APPLIED.value,
+            was_already_applied=True,
+        )
 
     async def _execute_ingest(
         self,
@@ -702,8 +786,50 @@ class IngestNsipsUseCase:
                     f"受付 {reception_id} が見つかりません。"
                 )
 
+            has_pending_review = False
+            history_id = target_reception.medication_history_id
+            doc_number, patient_name = self._extract_source_snapshot_info(
+                target_reception
+            )
+            if history_id is not None and self._medication_history_repo is not None:
+                history = await self._medication_history_repo.get(
+                    corporate_id=corporate_id, record_id=history_id
+                )
+                if history is not None:
+                    correction = ExternalPrescriptionCorrection(
+                        correction_id=ExternalCorrectionId(
+                            self._external_correction_id(
+                                record_id_str=str(history.id.value),
+                                document_number=doc_number,
+                                fingerprint=target_reception.latest_fingerprint,
+                            )
+                        ),
+                        corrected_at=ExternalCorrectionTimestamp(received_at),
+                        source_document_number=CorrectionDocumentNumber(doc_number),
+                        reason=ExternalCorrectionReason(
+                            "NSIPS取消ファイルを受信しました。"
+                        ),
+                        details=ExternalCorrectionDetails(
+                            "対象処方の取消が通知されました。"
+                        ),
+                        kind=ExternalCorrectionKind.DELETE,
+                    )
+                    await self._medication_history_repo.save(
+                        history.record_external_correction(correction)
+                    )
+                    has_pending_review = True
+
             updated_reception = replace(
-                target_reception, source_status=ReceptionSourceStatus.WITHDRAWN
+                target_reception,
+                source_status=ReceptionSourceStatus.WITHDRAWN,
+                correction_history=(
+                    *target_reception.correction_history,
+                    ReceptionCorrection(
+                        fingerprint=target_reception.latest_fingerprint,
+                        changed_fields=(),
+                        received_at=received_at,
+                    ),
+                ),
             )
             await self._reception_repo.save(updated_reception)
             return IngestNsipsResultDto(
@@ -722,9 +848,11 @@ class IngestNsipsUseCase:
                 medication_history_id=str(target_reception.medication_history_id.value)
                 if target_reception.medication_history_id is not None
                 else None,
-                patient_name="",
+                document_number=doc_number if doc_number else None,
+                patient_name=patient_name,
                 is_new_patient=False,
                 is_duplicate=False,
+                has_pending_correction_review=has_pending_review,
                 file_id=file_id,
                 operation=operation.value,
                 status=NsipsFileStatus.APPLIED.value,

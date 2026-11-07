@@ -530,6 +530,7 @@ nsips_files = Table(
     Column("operation", String(32), nullable=False),
     Column("status", String(32), nullable=False),
     Column("received_at", DateTime(timezone=True), nullable=False),
+    Column("payload_fingerprint", String(64), nullable=False),
     Column("raw_payload", Text, nullable=False),
     Column("target_reception_id", UUID(as_uuid=True), nullable=True),
     Column("processed_at", DateTime(timezone=True), nullable=True),
@@ -539,12 +540,12 @@ nsips_files = Table(
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     PrimaryKeyConstraint("id", name="pk_nsips_files"),
-    Index(
-        "ix_nsips_files_identity",
+    UniqueConstraint(
         "corporate_id",
         "store_id",
         "file_id",
         "operation",
+        name="uq_nsips_files_identity",
     ),
     Index(
         "ix_nsips_files_applied",

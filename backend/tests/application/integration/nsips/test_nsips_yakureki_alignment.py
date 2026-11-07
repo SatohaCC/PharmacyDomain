@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 
@@ -10,6 +12,7 @@ import pytest
 from app.application.integration.boundary_models import (
     NsipsBundle,
     NsipsDrugSupplementInfo,
+    NsipsFileRecord,
     NsipsFileStatus,
     NsipsInsuranceInfo,
     NsipsMedicineInfo,
@@ -22,10 +25,19 @@ from app.application.integration.boundary_models import (
     NsipsRpUsageSupplementInfo,
 )
 from app.application.integration.commands.ingest_nsips import IngestNsipsCommand
-from app.application.integration.errors import NsipsReceptionNotFoundError
+from app.application.integration.errors import (
+    NsipsReceptionNotFoundError,
+    NsipsSourceConflictError,
+)
+from app.domain.patient.identifiers import PatientId
 from app.domain.reception.identifiers import ReceptionId
 from app.domain.reception.primitives import ReceptionSourceStatus
 from tests.application.integration.nsips.helpers import create_fixture
+from tests.factories.medication_history_factory import (
+    create_record,
+    create_soap,
+    finalize_record_with_review,
+)
 
 
 def _sample_bundle(
@@ -342,3 +354,151 @@ async def test_NSIPS訂正ファイル_未登録のfile_id_台帳にfailedが記
     assert failed_ledger is not None
     assert failed_ledger.status is NsipsFileStatus.FAILED
     assert "見つかりません" in failed_ledger.error_text
+
+
+@pytest.mark.asyncio
+async def test_NSIPS登録ファイル_同一file_idで異なる内容の再送は競合エラーとなる() -> (
+    None
+):
+    """A_<file_id>.xml を異なる処方内容（日数違い）で再送した場合、重複ではなく競合エラーとなる。"""
+    fixture = await create_fixture()
+    bundle_1 = _sample_bundle(days_supply=14)
+    cmd_1 = IngestNsipsCommand(
+        corporate_id=str(fixture.corporate_id.value),
+        store_id=str(fixture.store_id.value),
+        file_name="A_20260622-0010.xml",
+        structured_bundle=bundle_1,
+    )
+    res_1 = await fixture.use_case.execute(cmd_1)
+    assert res_1.was_already_applied is False
+
+    # Act & Assert: 異なる日数で同一Aファイルを送信すると競合エラー
+    bundle_2 = _sample_bundle(days_supply=28)
+    cmd_2 = IngestNsipsCommand(
+        corporate_id=str(fixture.corporate_id.value),
+        store_id=str(fixture.store_id.value),
+        file_name="A_20260622-0010.xml",
+        structured_bundle=bundle_2,
+    )
+    with pytest.raises(NsipsSourceConflictError):
+        await fixture.use_case.execute(cmd_2)
+
+
+@pytest.mark.asyncio
+async def test_NSIPS取消ファイル_Dプレフィックス_重複再送でwithdrawn状態と患者情報が正確に返る() -> (
+    None
+):
+    """D_<file_id>.xml を再送した際、source_status が withdrawn であり patient_id や fingerprint が正確に返る。"""
+    fixture = await create_fixture()
+    bundle = _sample_bundle()
+    create_cmd = IngestNsipsCommand(
+        corporate_id=str(fixture.corporate_id.value),
+        store_id=str(fixture.store_id.value),
+        file_name="A_20260622-0011.xml",
+        structured_bundle=bundle,
+    )
+    created = await fixture.use_case.execute(create_cmd)
+    rec_id = created.reception_id
+
+    delete_cmd = IngestNsipsCommand(
+        corporate_id=str(fixture.corporate_id.value),
+        store_id=str(fixture.store_id.value),
+        file_name="D_20260622-0011.xml",
+    )
+    deleted = await fixture.use_case.execute(delete_cmd)
+    assert deleted.source_status == "withdrawn"
+    assert deleted.was_already_applied is False
+
+    # Act: Dファイルの再送
+    duplicate_del = await fixture.use_case.execute(delete_cmd)
+
+    # Assert: 偽の CURRENT ではなく実際の withdrawn 状態と正しい患者情報が返る
+    assert duplicate_del.is_duplicate is True
+    assert duplicate_del.was_already_applied is True
+    assert duplicate_del.source_status == "withdrawn"
+    assert duplicate_del.patient_id == created.patient_id
+    assert duplicate_del.source_fingerprint == deleted.source_fingerprint
+    assert duplicate_del.reception_id == rec_id
+
+
+@pytest.mark.asyncio
+async def test_NSIPS取消ファイル_Dプレフィックス_接続薬歴に外部削除通知が記録され確認要求となる() -> (
+    None
+):
+    """処方本文なしの D_<file_id>.xml 受信時、接続された薬歴に ExternalPrescriptionCorrection が記録される。"""
+    fixture = await create_fixture()
+    bundle = _sample_bundle()
+    create_cmd = IngestNsipsCommand(
+        corporate_id=str(fixture.corporate_id.value),
+        store_id=str(fixture.store_id.value),
+        file_name="A_20260622-0012.xml",
+        structured_bundle=bundle,
+    )
+    created = await fixture.use_case.execute(create_cmd)
+    rec_id = ReceptionId.parse(created.reception_id)
+
+    # 薬歴を接続
+    history = finalize_record_with_review(
+        create_record(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            patient_id=PatientId.parse(created.patient_id),
+            dispensing_id=None,
+            prescription_id=None,
+            counselor_id=fixture.pharmacist_id,
+            counseled_at=fixture.clock.now(),
+            soap=create_soap(subjective="患者の主訴"),
+        )
+    )
+    await fixture.medication_history_repo.save(history)
+
+    reception = await fixture.reception_repo.get(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        reception_id=rec_id,
+    )
+    assert reception is not None
+    await fixture.reception_repo.save(
+        replace(reception, medication_history_id=history.id)
+    )
+
+    # Act: 本文なしの取消ファイルを送信
+    delete_cmd = IngestNsipsCommand(
+        corporate_id=str(fixture.corporate_id.value),
+        store_id=str(fixture.store_id.value),
+        file_name="D_20260622-0012.xml",
+    )
+    deleted = await fixture.use_case.execute(delete_cmd)
+
+    # Assert: 薬歴側の確認フラグが立ち、外部訂正が記録されている
+    assert deleted.has_pending_correction_review is True
+    updated_history = await fixture.medication_history_repo.get(
+        corporate_id=fixture.corporate_id,
+        record_id=history.id,
+    )
+    assert updated_history is not None
+    assert len(updated_history.external_corrections) == 1
+    assert updated_history.external_corrections[0].kind.value == "delete"
+
+
+@pytest.mark.asyncio
+async def test_NSIPS台帳_排他予約_2回目の同一予約は既存レコードを返す() -> None:
+    """reserve は初回で None（成功）、同一 (corporate, store, file_id, op) の2回目は既存エントリを返す。"""
+    fixture = await create_fixture()
+    record = NsipsFileRecord(
+        id=uuid.uuid7(),
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        file_id="RESERVE-001",
+        file_name="A_RESERVE-001.xml",
+        operation=NsipsOperation.CREATE,
+        status=NsipsFileStatus.PENDING,
+        received_at=fixture.clock.now(),
+    )
+    first = await fixture.nsips_file_repo.reserve(record)
+    assert first is None
+
+    second = await fixture.nsips_file_repo.reserve(record)
+    assert second is not None
+    assert second.file_id == "RESERVE-001"
+    assert second.status is NsipsFileStatus.PENDING
