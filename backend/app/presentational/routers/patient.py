@@ -45,6 +45,7 @@ from app.application.patient.queries.dtos.get_patient import PatientDto
 from app.application.patient.queries.dtos.get_patient_heading import (
     PatientHeadingDto as QueryPatientHeadingDto,
 )
+from app.application.patient.queries.dtos.list_patients import PatientSummaryDto
 from app.application.patient.queries.dtos.register_patient_external_identifier import (
     PatientExternalIdentifierDto as QueryPatientExternalIdentifierDto,
 )
@@ -53,6 +54,7 @@ from app.application.patient.queries.models import (
     GetPatientHeadingQuery,
     GetPatientQuery,
     ListPatientExternalIdentifiersQuery,
+    ListPatientsQuery,
 )
 from app.presentational.dependencies import PatientUseCasesDep, get_actor_context
 from app.presentational.dto_mapping import (
@@ -169,6 +171,18 @@ async def register_patient(
         )
     )
     return RegisteredIdResponse(id=str(patient_id.value))
+
+
+@router.get("/patients", response_model=list[PatientSummaryDto])
+async def list_patients(
+    corporate_id: str,
+    use_cases: PatientUseCasesDep,
+    keyword: str | None = None,
+) -> list[PatientSummaryDto]:
+    """法人に所属する患者を一覧・検索する。"""
+    return await use_cases.list.execute(
+        ListPatientsQuery(corporate_id=corporate_id, keyword=keyword)
+    )
 
 
 @router.get("/patients/{patient_id}", response_model=PatientDto)

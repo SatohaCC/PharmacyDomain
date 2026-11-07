@@ -78,6 +78,7 @@ from app.application.patient.queries.get_patient_heading import GetPatientHeadin
 from app.application.patient.queries.list_patient_external_identifiers import (
     ListPatientExternalIdentifiersUseCase,
 )
+from app.application.patient.queries.list_patients import ListPatientsUseCase
 from app.application.reception.commands.associate_reception_medication_history import (
     AssociateReceptionMedicationHistoryUseCase,
 )
@@ -108,6 +109,7 @@ from app.infrastructure.readers.patient_get_patient_heading import (
 from app.infrastructure.readers.patient_list_patient_external_identifiers import (
     ListPatientExternalIdentifiersProjection,
 )
+from app.infrastructure.readers.patient_list_patients import ListPatientsProjection
 
 # --------------------------------------------------------------------------
 # 患者
@@ -126,6 +128,10 @@ def build_patient_use_cases(
         register=RegisterPatientUseCase(patient_repository, corporate_access),
         get=GetPatientUseCase(
             reader=GetPatientProjection(patient_repository),
+            corporate_access=corporate_access,
+        ),
+        list=ListPatientsUseCase(
+            reader=ListPatientsProjection(patient_repository),
             corporate_access=corporate_access,
         ),
         change_names=ChangePatientNamesUseCase(
