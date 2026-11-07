@@ -119,7 +119,7 @@ export function StoreSettingsPanel(props: Props) {
                     ? "未登録（上限未確認）"
                     : `${props.user.staff.weekly_contract_hours}時間`}
                   {summaryBudget.incomplete
-                    ? "（勤務時間が未登録の店舗があります）"
+                    ? "（応援・スポット勤務等で勤務時間が未登録の店舗があります）"
                     : ""}
                 </Paragraph>
               )}
@@ -151,7 +151,7 @@ export function StoreSettingsPanel(props: Props) {
                         <TableCell>{roleLabel(assignment.role)}</TableCell>
                         <TableCell>
                           {current?.weekly_hours == null
-                            ? "未登録"
+                            ? "未登録（応援・スポット等）"
                             : `${current.weekly_hours}時間`}
                         </TableCell>
                         <TableCell>
@@ -198,7 +198,7 @@ export function StoreSettingsPanel(props: Props) {
                               <TableCell>{condition.effective_from}</TableCell>
                               <TableCell>
                                 {condition.weekly_hours == null
-                                  ? "未登録"
+                                  ? "未登録（応援・スポット等）"
                                   : `${condition.weekly_hours}時間`}
                               </TableCell>
                               <TableCell>{dutyLabel(condition.duty)}</TableCell>
@@ -358,6 +358,9 @@ function StoreSettingsForm({
           { value: "member", label: "一般ユーザー" },
         ]}
       />
+      <Paragraph>
+        ※ 保健所届出等に合わせた定常勤務の場合は週勤務時間を入力してください。当日の急な応援やスポット勤務の場合は、所属開始日に実際の勤務日（過去日付を指定した事後登録も可能）を指定し、週勤務時間は空欄（未登録）のままで登録できます。
+      </Paragraph>
       <FieldGroup>
         <Subheading>所属店舗を選ぶ</Subheading>
         {stores.map((store) => (
@@ -400,7 +403,7 @@ function StoreSettingsForm({
                 description={
                   existing
                     ? "登録済みの所属開始日です。勤務条件の変更は下の適用開始日で指定します。"
-                    : undefined
+                    : "当日の応援勤務や過去の応援の事後登録の場合は、実際の勤務開始日（過去日付も指定可能）を入力してください。"
                 }
               />
             )}
@@ -442,7 +445,7 @@ function StoreSettingsForm({
                     setHours((values) => ({ ...values, [store.id]: value }))
                   }
                   disabled={pending}
-                  description="0～168、小数第2位まで。空欄は未登録。"
+                  description="保健所届出等に合わせた定常勤務は0～168、小数第2位までで入力。急な応援・スポット勤務の場合は空欄（未登録）のままで構いません。"
                 />
                 <SelectField
                   label={`${store.name}の従事区分`}
@@ -470,7 +473,7 @@ function StoreSettingsForm({
           {user.staff?.weekly_contract_hours == null
             ? "未登録（上限未確認）"
             : `${user.staff.weekly_contract_hours}時間`}
-          {budget.incomplete ? "（勤務時間が未登録の店舗があります）" : ""}
+          {budget.incomplete ? "（応援・スポット勤務等で勤務時間が未登録の店舗があります）" : ""}
         </Paragraph>
       )}
       <Row>

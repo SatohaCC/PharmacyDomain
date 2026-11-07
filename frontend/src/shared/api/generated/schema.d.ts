@@ -1327,7 +1327,11 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /**
+     * List Patients
+     * @description 法人に所属する患者を一覧・検索する。
+     */
+    get: operations["list_patients_corporates__corporate_id__patients_get"];
     put?: never;
     /**
      * Register Patient
@@ -5313,6 +5317,37 @@ export interface components {
       recorded_at: string;
       /** Merged Into Id */
       merged_into_id?: string | null;
+    };
+    /**
+     * PatientSummaryDto
+     * @description 患者一覧用サマリDTO。
+     */
+    PatientSummaryDto: {
+      /** Id */
+      id: string;
+      /** Patient Number */
+      patient_number: number;
+      /** Corporate Id */
+      corporate_id: string;
+      /** Last Name */
+      last_name: string;
+      /** First Name */
+      first_name: string;
+      /** Last Name Kana */
+      last_name_kana: string;
+      /** First Name Kana */
+      first_name_kana: string;
+      /** Birth Date */
+      birth_date: string | null;
+      /** Gender */
+      gender?: string | null;
+      /** Phone Number */
+      phone_number?: string | null;
+      /**
+       * Status
+       * @default active
+       */
+      status: string;
     };
     /**
      * PendingExternalCorrectionDto
@@ -12092,6 +12127,66 @@ export interface operations {
       };
       /** @description 一意制約違反や楽観ロック衝突など、既存の状態と衝突する。 */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 入力値が形式またはドメイン規則を満たさない。 */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  list_patients_corporates__corporate_id__patients_get: {
+    parameters: {
+      query?: {
+        keyword?: string | null;
+      };
+      header?: never;
+      path: {
+        corporate_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PatientSummaryDto"][];
+        };
+      };
+      /** @description 資格情報が無い、または検証できない。 */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 主体は判明したが、その操作の権限が無い。 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description 対象が存在しない、または他テナントのため隠されている。 */
+      404: {
         headers: {
           [name: string]: unknown;
         };

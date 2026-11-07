@@ -187,6 +187,7 @@ from app.application.patient.queries.get_patient_heading import GetPatientHeadin
 from app.application.patient.queries.list_patient_external_identifiers import (
     ListPatientExternalIdentifiersUseCase,
 )
+from app.application.patient.queries.list_patients import ListPatientsUseCase
 from app.application.prescription.commands.audit_drug_interactions import (
     AuditDrugInteractionsUseCase,
 )
@@ -450,6 +451,7 @@ class PatientUseCases:
 
     register: RegisterPatientUseCase
     get: GetPatientUseCase
+    list: ListPatientsUseCase
     change_names: ChangePatientNamesUseCase
     change_birth_date: ChangePatientBirthDateUseCase
     deactivate: DeactivatePatientUseCase

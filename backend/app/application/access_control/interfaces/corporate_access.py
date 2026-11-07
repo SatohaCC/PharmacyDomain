@@ -22,3 +22,9 @@ class CorporateAccessBoundary(Protocol):
     ) -> Corporate:
         """権限を確認し、有効な対象法人を返す。"""
         ...
+
+    async def require_active_any(
+        self, *, corporate_id: CorporateId, permissions: tuple[Permission, ...]
+    ) -> Corporate:
+        """指定権限のいずれかを満たすことを確認し、有効な対象法人を返す。"""
+        ...

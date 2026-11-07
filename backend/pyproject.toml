@@ -738,6 +738,7 @@ forbidden_modules = [
     "app.application.patient.queries.get_patient_external_identifier",
     "app.application.patient.queries.get_patient_heading",
     "app.application.patient.queries.list_patient_external_identifiers",
+    "app.application.patient.queries.list_patients",
     "app.application.prescription.commands.audit_drug_interactions",
     "app.application.prescription.commands.cancel_prescription",
     "app.application.prescription.commands.ready_for_dispensing",
