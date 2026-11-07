@@ -1,1 +1,1 @@
-"""Reception query DTOs."""
+"""受付クエリDTO。"""

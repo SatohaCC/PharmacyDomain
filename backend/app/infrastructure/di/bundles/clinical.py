@@ -487,10 +487,12 @@ def build_medication_history_use_cases(
         list_store_current_record_fields=ListStoreCurrentRecordFieldsUseCase(
             reader=ListStoreCurrentRecordFieldsProjection(catalog_repository),
             corporate_access=corporate_access,
+            store_operations=store_operations,
         ),
         save_store_current_record_fields=SaveStoreCurrentRecordFieldsUseCase(
             repository=catalog_repository,
             corporate_access=corporate_access,
+            store_operations=store_operations,
         ),
         record_tracing_report=RecordTracingReportUseCase(
             record_repository,

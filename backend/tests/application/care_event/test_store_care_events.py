@@ -19,7 +19,7 @@ from app.infrastructure.readers.care_event_list_store_events import (
 from tests.application.care_event.helpers import create_fixture
 
 
-async def test_list_store_care_events_returns_store_events() -> None:
+async def test_店舗業務イベント一覧_自店舗イベントのみ取得し他店舗は除外する() -> None:
     """店舗に発生した業務Event一覧が取得でき、他店舗のEventは除外されること。"""
     fixture = create_fixture()
     store_a = fixture.store_id
@@ -63,7 +63,9 @@ async def test_list_store_care_events_returns_store_events() -> None:
     assert len(events_b) == 0
 
 
-async def test_create_event_by_standard_code_and_alias() -> None:
+async def test_業務イベント起票_標準コードとエイリアス指定_定義を解決して起票できる() -> (
+    None
+):
     """標準コードやエイリアス（phone, walk_in等）を指定してEventが起票できること。"""
     fixture = create_fixture()
     now = datetime(2026, 11, 7, 11, 0, tzinfo=UTC)

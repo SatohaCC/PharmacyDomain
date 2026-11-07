@@ -60,7 +60,7 @@ def make_reception(
     )
 
 
-async def test_save_and_get_current_record_values(
+async def test_受付今回記載欄入力値_保存と取得_正常に保存され取得できる(
     reception_repo: InMemoryReceptionRepository,
     corporate_repo: AutoProvisioningCorporateRepository,
 ) -> None:
@@ -120,7 +120,7 @@ async def test_save_and_get_current_record_values(
     assert fetched_values[1].value_text == "体調良好、副作用なし。"
 
 
-async def test_get_current_record_values_raises_not_found(
+async def test_受付今回記載欄入力値_存在しない受付_NotFoundErrorを送出する(
     reception_repo: InMemoryReceptionRepository,
     corporate_repo: AutoProvisioningCorporateRepository,
 ) -> None:

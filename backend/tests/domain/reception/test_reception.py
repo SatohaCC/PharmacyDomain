@@ -16,7 +16,7 @@ from app.domain.reception.value_objects import CurrentRecordFieldValue
 from app.domain.store.identifiers import StoreId
 
 
-def test_reception_update_current_record_values() -> None:
+def test_受付集約_今回記載欄入力値の更新_正常に更新され保持される() -> None:
     """TC-REC-01: 受付の今回記載欄入力値が正常に更新・保持されること。"""
     rec = Reception(
         id=ReceptionId.generate(),

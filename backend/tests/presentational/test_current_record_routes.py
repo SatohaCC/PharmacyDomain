@@ -182,10 +182,12 @@ def client() -> Iterator[
         list_store_current_record_fields=ListStoreCurrentRecordFieldsUseCase(
             reader=ListStoreCurrentRecordFieldsProjection(catalog_repo),
             corporate_access=corporate_access,
+            store_operations=store_operations,
         ),
         save_store_current_record_fields=SaveStoreCurrentRecordFieldsUseCase(
             repository=catalog_repo,
             corporate_access=corporate_access,
+            store_operations=store_operations,
         ),
         record_tracing_report=cast(Any, None),
         record_tracing_report_response=cast(Any, None),
@@ -214,7 +216,7 @@ def client() -> Iterator[
     app.dependency_overrides.clear()
 
 
-def test_store_current_record_fields_crud_routes(
+def test_店舗今回記載欄ルート_取得と更新_正常に応答する(
     client: tuple[
         TestClient,
         CorporateId,
@@ -259,7 +261,7 @@ def test_store_current_record_fields_crud_routes(
     assert any(f["label"] == "今回体調ヒアリング" for f in updated_fields)
 
 
-def test_reception_current_record_values_routes(
+def test_受付今回記載欄値ルート_保存と取得_正常に応答する(
     client: tuple[
         TestClient,
         CorporateId,
@@ -321,7 +323,7 @@ def test_reception_current_record_values_routes(
     assert fetched[0]["value_text"] == "残薬なし。体調変化特になし。"
 
 
-def test_care_event_store_listing_and_quick_creation_routes(
+def test_業務イベントルート_店舗一覧取得と標準コード起票_正常に応答する(
     client: tuple[
         TestClient,
         CorporateId,

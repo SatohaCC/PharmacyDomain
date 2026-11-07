@@ -1002,10 +1002,12 @@ def history_client(
                 history_fixture.category_catalog_repository
             ),
             corporate_access=history_fixture.corporate_access,
+            store_operations=history_fixture.store_operations,
         ),
         save_store_current_record_fields=SaveStoreCurrentRecordFieldsUseCase(
             repository=history_fixture.category_catalog_repository,
             corporate_access=history_fixture.corporate_access,
+            store_operations=history_fixture.store_operations,
         ),
         record_tracing_report=history_fixture.record_tracing_report,
         record_tracing_report_response=history_fixture.record_tracing_report_response,

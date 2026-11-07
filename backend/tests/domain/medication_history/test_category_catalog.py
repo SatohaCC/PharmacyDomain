@@ -392,7 +392,7 @@ def test_validate_record_compliance_missing_required() -> None:
     assert "P（計画）" in str(exc_info.value)
 
 
-def test_update_current_record_fields_success() -> None:
+def test_記載区分カタログ_今回記載欄設定の更新_正常に更新される() -> None:
     """TC-CAT-11: 今回記載欄の項目定義が正常に追加・更新できること。"""
     catalog = _sample_catalog()
     field_id_1 = CurrentRecordFieldId.generate()
@@ -420,7 +420,9 @@ def test_update_current_record_fields_success() -> None:
     assert updated.current_record_fields[1].store_id == store_id
 
 
-def test_current_record_fields_duplicate_id_rejected() -> None:
+def test_記載区分カタログ_今回記載欄設定の重複ID_DuplicateCurrentRecordFieldIdErrorを送出する() -> (
+    None
+):
     """TC-CAT-12: 今回記載欄項目でIDが重複している場合例外となること。"""
     catalog = _sample_catalog()
     dup_id = CurrentRecordFieldId.generate()
@@ -442,7 +444,9 @@ def test_current_record_fields_duplicate_id_rejected() -> None:
         catalog.update_current_record_fields(fields)
 
 
-def test_current_record_fields_invalid_category_code_rejected() -> None:
+def test_記載区分カタログ_今回記載欄設定の存在しない中区分コード_CurrentRecordFieldCategoryNotFoundErrorを送出する() -> (
+    None
+):
     """TC-CAT-13: カタログに存在しない中区分コードを指定した場合例外となること。"""
     catalog = _sample_catalog()
     field_id = CurrentRecordFieldId.generate()

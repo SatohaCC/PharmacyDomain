@@ -8,6 +8,10 @@ from app.application.access_control.boundary_models import Permission
 from app.application.access_control.interfaces.corporate_access import (
     CorporateAccessBoundary,
 )
+from app.application.access_control.interfaces.store_operations import (
+    StoreOperation,
+    StoreOperationBoundary,
+)
 from app.application.medication_history.commands.dtos.category_catalog import (
     CurrentRecordFieldDto,
 )
@@ -46,9 +50,11 @@ class SaveStoreCurrentRecordFieldsUseCase:
         *,
         repository: MedicationHistoryCategoryCatalogRepository,
         corporate_access: CorporateAccessBoundary,
+        store_operations: StoreOperationBoundary,
     ) -> None:
         self._repository = repository
         self._corporate_access = corporate_access
+        self._store_operations = store_operations
 
     async def execute(
         self, command: SaveStoreCurrentRecordFieldsCommand
@@ -59,6 +65,11 @@ class SaveStoreCurrentRecordFieldsUseCase:
         await self._corporate_access.require_active(
             corporate_id=parsed_corporate_id,
             permission=Permission.MANAGE_MEDICATION_HISTORY,
+        )
+        await self._store_operations.require_allowed(
+            corporate_id=parsed_corporate_id,
+            store_id=parsed_store_id,
+            operation=StoreOperation.START_HISTORY,
         )
 
         catalog = await self._repository.get(corporate_id=parsed_corporate_id)
@@ -71,7 +82,7 @@ class SaveStoreCurrentRecordFieldsUseCase:
         other_fields = [
             f
             for f in catalog.current_record_fields
-            if f.store_id is not None and f.store_id != parsed_store_id
+            if f.store_id is None or f.store_id != parsed_store_id
         ]
 
         store_new_fields = [
