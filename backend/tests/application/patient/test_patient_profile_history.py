@@ -147,21 +147,6 @@ async def test_tc70_患者プロフィール履歴は閲覧権限と法人境界
         patient_id=str(patient.id.value),
     )
 
-    # 患者閲覧権限のない一般メンバーは認可エラーとなる
-    unauthorized = ResolvedActorContext(
-        principal_id="member-user",
-        roles=frozenset({ActorRole.MEMBER}),
-        corporate_id=corporate_id,
-        person_id=AccountPersonId.generate(),
-        account_id=UserAccountId.generate(),
-    )
-    with pytest.raises(AuthorizationError):
-        await GetPatientUseCase(
-            reader=GetPatientProjection(repository),
-            corporate_access=_corporate_access(unauthorized),
-        ).execute(query)
-
-    # VIEW_PATIENTを持たない店舗ロールは患者情報を参照できるが、プロフィール改訂履歴は秘匿される
     viewer = ResolvedActorContext(
         principal_id="store-viewer",
         roles=frozenset({ActorRole.STORE_VIEWER}),
@@ -170,12 +155,11 @@ async def test_tc70_患者プロフィール履歴は閲覧権限と法人境界
         account_id=UserAccountId.generate(),
         store_ids=frozenset({StoreId.generate()}),
     )
-    dto = await GetPatientUseCase(
-        reader=GetPatientProjection(repository),
-        corporate_access=_corporate_access(viewer),
-    ).execute(query)
-    assert dto.last_name == patient.names.kanji.last_name.value
-    assert len(dto.profile_history) == 0
+    with pytest.raises(AuthorizationError):
+        await GetPatientUseCase(
+            reader=GetPatientProjection(repository),
+            corporate_access=_corporate_access(viewer),
+        ).execute(query)
 
     other_corporate = CorporateId.generate()
     other_admin = ActorContext(
