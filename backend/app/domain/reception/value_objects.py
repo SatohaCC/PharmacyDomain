@@ -5,7 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from app.domain.foundation.value_object import ValueObject
+from app.domain.medication_history.identifiers import CurrentRecordFieldId
 from app.domain.reception.primitives import (
+    CurrentRecordFieldValueText,
     ReceptionBillingCode,
     ReceptionBillingName,
     ReceptionBillingPoints,
@@ -43,3 +46,11 @@ class ReceptionSourceData:
     imported_at: datetime
     is_follow_up: bool = False
     billing_additions: tuple[ReceptionBillingAddition, ...] = ()
+
+
+@dataclass(frozen=True, kw_only=True)
+class CurrentRecordFieldValue(ValueObject):
+    """受付に紐づく今回記載欄の入力値。"""
+
+    field_id: CurrentRecordFieldId
+    value_text: CurrentRecordFieldValueText

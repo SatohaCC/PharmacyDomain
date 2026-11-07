@@ -29,6 +29,7 @@ from app.application.care_event.queries.dtos.list_related_candidates import (
 from app.application.care_event.queries.models import (
     GetEventQuery,
     ListRelatedEventCandidatesQuery,
+    ListStoreCareEventsQuery,
 )
 from app.presentational.dependencies import CareEventUseCasesDep, get_actor_context
 from app.presentational.dto_mapping import (
@@ -72,7 +73,8 @@ class CreateEventRequest(RequestModel):
 
     store_id: str
     patient_id: str
-    event_type_id: str
+    event_type_id: str | None = None
+    standard_code: str | None = None
     occurred_at: datetime
     related_event_id: str | None = None
     reception_id: str | None = None
@@ -155,6 +157,7 @@ async def create_event(
                 store_id=body.store_id,
                 patient_id=body.patient_id,
                 event_type_id=body.event_type_id,
+                standard_code=body.standard_code,
                 occurred_at=body.occurred_at,
                 related_event_id=body.related_event_id,
                 reception_id=body.reception_id,
@@ -197,6 +200,27 @@ async def list_related_event_candidates(
             patient_id=patient_id,
         )
     )
+
+
+@router.get(
+    "/stores/{store_id}/care-events",
+    response_model=tuple[EventDto, ...],
+)
+async def list_store_care_events(
+    corporate_id: str,
+    store_id: str,
+    use_cases: CareEventUseCasesDep,
+    patient_id: Annotated[str | None, Query(description="対象患者のID。")] = None,
+) -> tuple[EventDto, ...]:
+    """店舗の患者対応Event一覧を返す。"""
+    events = await use_cases.list_by_store.execute(
+        ListStoreCareEventsQuery(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            patient_id=patient_id,
+        )
+    )
+    return tuple(to_http_care_event_create_event__event_dto(event) for event in events)
 
 
 __all__ = ["router"]

@@ -134,6 +134,12 @@ from app.application.patient.queries.list_patients import ListPatientsUseCase
 from app.application.reception.commands.associate_reception_medication_history import (
     AssociateReceptionMedicationHistoryUseCase,
 )
+from app.application.reception.commands.save_current_record_values import (
+    SaveCurrentRecordValuesUseCase,
+)
+from app.application.reception.queries.get_current_record_values import (
+    GetCurrentRecordValuesUseCase,
+)
 from app.application.staff.commands.activate_staff import ActivateStaffUseCase
 from app.application.staff.commands.assign_staff_concurrent_store import (
     AssignStaffConcurrentStoreUseCase,
@@ -256,6 +262,9 @@ from app.infrastructure.readers.patient_list_patient_external_identifiers import
     ListPatientExternalIdentifiersProjection,
 )
 from app.infrastructure.readers.patient_list_patients import ListPatientsProjection
+from app.infrastructure.readers.reception_get_current_record_values import (
+    GetCurrentRecordValuesProjection,
+)
 from app.infrastructure.readers.staff_get_staff import GetStaffProjection
 from app.infrastructure.readers.staff_list_staffs import ListStaffsProjection
 from app.infrastructure.readers.staff_store_work_conditions import (
@@ -629,6 +638,14 @@ def create_reception_use_cases(
             ),
             corporate_access=access,
             unit_of_work=NullUnitOfWork(),
+        ),
+        save_current_record_values=SaveCurrentRecordValuesUseCase(
+            reception_repository=receptions,
+            corporate_access=access,
+        ),
+        get_current_record_values=GetCurrentRecordValuesUseCase(
+            reader=GetCurrentRecordValuesProjection(receptions),
+            corporate_access=access,
         ),
     )
 

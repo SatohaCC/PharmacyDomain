@@ -49,6 +49,18 @@ class MediumCategoryInput:
 
 
 @dataclass(frozen=True, kw_only=True)
+class CurrentRecordFieldInput:
+    """今回記載欄項目の入力。"""
+
+    label: str
+    display_order: int
+    id: str | None = None
+    store_id: str | None = None
+    category_code: str | None = None
+    is_archived: bool = False
+
+
+@dataclass(frozen=True, kw_only=True)
 class SoapInput:
     """SOAP各セクションの入力。"""
 

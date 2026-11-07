@@ -66,3 +66,12 @@ class VerifyStatutoryRecordQuery:
 
     corporate_id: str
     record_id: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class ListStoreCurrentRecordFieldsQuery:
+    """店舗の今回記載欄項目一覧取得条件。"""
+
+    corporate_id: str
+    store_id: str
+    include_archived: bool = False

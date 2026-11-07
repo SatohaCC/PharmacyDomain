@@ -18,6 +18,9 @@ from app.application.care_event.queries.list_event_definitions import (
 from app.application.care_event.queries.list_related_event_candidates import (
     ListRelatedEventCandidatesUseCase,
 )
+from app.application.care_event.queries.list_store_care_events import (
+    ListStoreCareEventsUseCase,
+)
 from app.application.composition.commands.register_contract import (
     RegisterContractUseCase,
 )
@@ -118,6 +121,9 @@ from app.application.medication_history.commands.record_tracing_report_response 
 from app.application.medication_history.commands.review_external_prescription_correction import (
     ReviewExternalPrescriptionCorrectionUseCase,
 )
+from app.application.medication_history.commands.save_store_current_record_fields import (
+    SaveStoreCurrentRecordFieldsUseCase,
+)
 from app.application.medication_history.commands.start_medication_history import (
     StartMedicationHistoryUseCase,
 )
@@ -144,6 +150,9 @@ from app.application.medication_history.queries.list_medication_histories_by_pat
 )
 from app.application.medication_history.queries.list_pending_external_corrections import (
     ListPendingExternalCorrectionsUseCase,
+)
+from app.application.medication_history.queries.list_store_current_record_fields import (
+    ListStoreCurrentRecordFieldsUseCase,
 )
 from app.application.medication_history.queries.verify_statutory_record import (
     VerifyStatutoryRecordUseCase,
@@ -205,6 +214,12 @@ from app.application.prescription.commands.start_inquiry import StartInquiryUseC
 from app.application.prescription.queries.get_prescription import GetPrescriptionUseCase
 from app.application.reception.commands.associate_reception_medication_history import (
     AssociateReceptionMedicationHistoryUseCase,
+)
+from app.application.reception.commands.save_current_record_values import (
+    SaveCurrentRecordValuesUseCase,
+)
+from app.application.reception.queries.get_current_record_values import (
+    GetCurrentRecordValuesUseCase,
 )
 from app.application.staff.commands.activate_staff import ActivateStaffUseCase
 from app.application.staff.commands.assign_staff_concurrent_store import (
@@ -298,6 +313,7 @@ class CareEventUseCases:
     list_definitions: ListEventDefinitionsUseCase
     update_definition: UpdateEventDefinitionUseCase
     list_related_candidates: ListRelatedEventCandidatesUseCase
+    list_by_store: ListStoreCareEventsUseCase
 
 
 @dataclass(frozen=True, slots=True)
@@ -343,6 +359,8 @@ class MedicationHistoryUseCases:
     verify_statutory_record: VerifyStatutoryRecordUseCase
     get_category_catalog: EnsureCategoryCatalogUseCase
     update_category_catalog: UpdateCategoryCatalogUseCase
+    list_store_current_record_fields: ListStoreCurrentRecordFieldsUseCase
+    save_store_current_record_fields: SaveStoreCurrentRecordFieldsUseCase
     record_tracing_report: RecordTracingReportUseCase
     record_tracing_report_response: RecordTracingReportResponseUseCase
     get_view: GetMedicationHistoryViewUseCase
@@ -484,3 +502,5 @@ class ReceptionUseCases:
     """受付コンテキストのユースケース。"""
 
     associate_medication_history: AssociateReceptionMedicationHistoryUseCase
+    save_current_record_values: SaveCurrentRecordValuesUseCase
+    get_current_record_values: GetCurrentRecordValuesUseCase

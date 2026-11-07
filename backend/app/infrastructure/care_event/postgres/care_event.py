@@ -153,6 +153,30 @@ class PostgresEventRepository(PostgresRepositoryBase, EventRepository):
             for row in result.mappings().all()
         )
 
+    async def list_by_store(
+        self,
+        *,
+        corporate_id: CorporateId,
+        store_id: StoreId,
+        patient_id: PatientId | None = None,
+    ) -> tuple[Event, ...]:
+        """店舗の業務Event一覧を取得する。"""
+        stmt = (
+            select(care_events)
+            .where(
+                care_events.c.corporate_id == corporate_id.value,
+                care_events.c.store_id == store_id.value,
+            )
+            .order_by(
+                care_events.c.created_at.desc(),
+                care_events.c.id.desc(),
+            )
+        )
+        if patient_id is not None:
+            stmt = stmt.where(care_events.c.patient_id == patient_id.value)
+        events = await self.find_all(EVENT_MAPPING, stmt)
+        return tuple(events)
+
     async def save(self, event: Event) -> None:
         await self.save_with_conflict_map(
             EVENT_MAPPING,

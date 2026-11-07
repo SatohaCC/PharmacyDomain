@@ -82,6 +82,12 @@ from app.application.patient.queries.list_patients import ListPatientsUseCase
 from app.application.reception.commands.associate_reception_medication_history import (
     AssociateReceptionMedicationHistoryUseCase,
 )
+from app.application.reception.commands.save_current_record_values import (
+    SaveCurrentRecordValuesUseCase,
+)
+from app.application.reception.queries.get_current_record_values import (
+    GetCurrentRecordValuesUseCase,
+)
 from app.domain.coverage.services import (
     CoverageSelectionService,
     PatientCoverageConflictService,
@@ -110,6 +116,9 @@ from app.infrastructure.readers.patient_list_patient_external_identifiers import
     ListPatientExternalIdentifiersProjection,
 )
 from app.infrastructure.readers.patient_list_patients import ListPatientsProjection
+from app.infrastructure.readers.reception_get_current_record_values import (
+    GetCurrentRecordValuesProjection,
+)
 
 # --------------------------------------------------------------------------
 # 患者
@@ -261,6 +270,14 @@ def build_reception_use_cases(
             ),
             corporate_access=corporate_access,
             unit_of_work=unit_of_work,
+        ),
+        save_current_record_values=SaveCurrentRecordValuesUseCase(
+            reception_repository=repositories.reception,
+            corporate_access=corporate_access,
+        ),
+        get_current_record_values=GetCurrentRecordValuesUseCase(
+            reader=GetCurrentRecordValuesProjection(repositories.reception),
+            corporate_access=corporate_access,
         ),
     )
 

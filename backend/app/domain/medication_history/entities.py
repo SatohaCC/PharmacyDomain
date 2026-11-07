@@ -17,6 +17,8 @@ from app.domain.medication_history.exceptions import (
     AdverseReactionNotFoundError,
     AllergyNotFoundError,
     ConcurrentMedicationNotFoundError,
+    CurrentRecordFieldCategoryNotFoundError,
+    DuplicateCurrentRecordFieldIdError,
     DuplicatedTracingReportIdError,
     DuplicateMajorCategoryError,
     DuplicateMediumCategoryError,
@@ -95,6 +97,7 @@ from app.domain.medication_history.value_objects import (
     BillingAddition,
     CategorizedNote,
     ConcurrentMedicationRecord,
+    CurrentRecordFieldDefinition,
     EffectiveMedicationHistoryFacts,
     ExternalCorrectionReviewEvent,
     ExternalPrescriptionCorrection,
@@ -187,12 +190,13 @@ class MedicationHistoryFactCorrection(Entity[FactRecordId]):
 
 @dataclass(frozen=True, eq=False, kw_only=True)
 class MedicationHistoryCategoryCatalog(AggregateRoot[CategoryCatalogId]):
-    """法人ごとの薬歴記載区分（大区分・中区分）を管理する集約ルート。"""
+    """法人ごとの薬歴記載区分（大区分・中区分）および今回記載欄設定を管理する集約ルート。"""
 
     id: CategoryCatalogId
     corporate_id: CorporateId
     major_categories: tuple[MajorCategoryDefinition, ...]
     medium_categories: tuple[MediumCategoryDefinition, ...]
+    current_record_fields: tuple[CurrentRecordFieldDefinition, ...] = ()
 
     def validate(self) -> None:
         """集約の不変条件（大区分の存在、コード重複防止等）を検証する。"""
@@ -211,6 +215,28 @@ class MedicationHistoryCategoryCatalog(AggregateRoot[CategoryCatalogId]):
         for med in self.medium_categories:
             if med.major_category_code.value not in major_code_set:
                 raise MajorCategoryNotFoundError()
+
+        # 今回記載欄項目のID重複検証
+        field_ids = [f.field_id for f in self.current_record_fields]
+        if len(field_ids) != len(set(field_ids)):
+            raise DuplicateCurrentRecordFieldIdError()
+
+        # 今回記載欄が参照する中区分コードの存在確認
+        medium_code_set = set(medium_codes)
+        for record_field in self.current_record_fields:
+            if (
+                record_field.category_code is not None
+                and record_field.category_code.value not in medium_code_set
+            ):
+                raise CurrentRecordFieldCategoryNotFoundError()
+
+    def update_current_record_fields(
+        self, fields: tuple[CurrentRecordFieldDefinition, ...]
+    ) -> Self:
+        """今回記載欄の設定項目を更新する。"""
+        updated = replace(self, current_record_fields=fields)
+        updated.validate()
+        return updated
 
     @classmethod
     def create_default(cls, *, corporate_id: CorporateId) -> Self:

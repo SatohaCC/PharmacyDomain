@@ -29,6 +29,18 @@ from app.application.coverage.queries.models import GetLastCoverageSelectionQuer
 from app.application.reception.commands.associate_reception_medication_history import (
     AssociateReceptionMedicationHistoryCommand,
 )
+from app.application.reception.commands.dtos.current_record_values import (
+    CurrentRecordFieldValueDto,
+)
+from app.application.reception.commands.save_current_record_values import (
+    SaveCurrentRecordValuesCommand,
+)
+from app.application.reception.queries.dtos.current_record_values import (
+    CurrentRecordFieldValueDto as QueryCurrentRecordFieldValueDto,
+)
+from app.application.reception.queries.get_current_record_values import (
+    GetCurrentRecordValuesQuery,
+)
 from app.presentational.dependencies import (
     CoverageUseCasesDep,
     ReceptionUseCasesDep,
@@ -77,6 +89,13 @@ class AssociateReceptionMedicationHistoryResponse(RequestModel):
 
     reception_id: str
     medication_history_id: str
+
+
+class SaveCurrentRecordValuesRequest(RequestModel):
+    """受付の今回記載欄入力値の保存入力。"""
+
+    store_id: str
+    values: tuple[CurrentRecordFieldValueDto, ...] = ()
 
 
 @router.post(
@@ -153,6 +172,48 @@ async def associate_reception_medication_history(
     return AssociateReceptionMedicationHistoryResponse(
         reception_id=reception.reception_id,
         medication_history_id=reception.medication_history_id,
+    )
+
+
+@router.get(
+    "/receptions/{reception_id}/current-record-fields",
+    response_model=list[QueryCurrentRecordFieldValueDto],
+)
+async def get_current_record_values(
+    corporate_id: str,
+    reception_id: str,
+    use_cases: ReceptionUseCasesDep,
+    store_id: Annotated[str, Query(description="受付を行う店舗のID。")],
+) -> tuple[QueryCurrentRecordFieldValueDto, ...]:
+    """受付の今回記載欄入力値を取得する。"""
+    return await use_cases.get_current_record_values.execute(
+        GetCurrentRecordValuesQuery(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            reception_id=reception_id,
+        )
+    )
+
+
+@router.put(
+    "/receptions/{reception_id}/current-record-fields",
+    response_model=list[CurrentRecordFieldValueDto],
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def save_current_record_values(
+    corporate_id: str,
+    reception_id: str,
+    body: SaveCurrentRecordValuesRequest,
+    use_cases: ReceptionUseCasesDep,
+) -> tuple[CurrentRecordFieldValueDto, ...]:
+    """受付の今回記載欄入力値を保存する。"""
+    return await use_cases.save_current_record_values.execute(
+        SaveCurrentRecordValuesCommand(
+            corporate_id=corporate_id,
+            store_id=body.store_id,
+            reception_id=reception_id,
+            values=body.values,
+        )
     )
 
 

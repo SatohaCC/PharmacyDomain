@@ -114,6 +114,20 @@ class RequiredCategoryMissingError(MedicationHistoryDomainError):
         super().__init__(message)
 
 
+class DuplicateCurrentRecordFieldIdError(MedicationHistoryDomainError):
+    """今回記載欄項目のIDが重複している場合の例外。"""
+
+    default_message = "同一の区分カタログ内で今回記載欄項目のIDが重複しています。"
+    default_code = "MEDICATION_HISTORY_DUPLICATE_CURRENT_RECORD_FIELD_ID"
+
+
+class CurrentRecordFieldCategoryNotFoundError(MedicationHistoryDomainError):
+    """今回記載欄項目が参照する中区分が存在しない場合の例外。"""
+
+    default_message = "指定された中区分コードは区分カタログに存在しません。"
+    default_code = "MEDICATION_HISTORY_CURRENT_RECORD_FIELD_CATEGORY_NOT_FOUND"
+
+
 class ResidualDrugDetailRequiredError(MedicationHistoryDomainError):
     """残薬ありとしたのに数量または理由が無い場合の例外。
 

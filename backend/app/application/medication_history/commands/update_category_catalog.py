@@ -12,14 +12,19 @@ from app.application.medication_history.commands.dtos.category_catalog import (
     CategoryCatalogDto,
 )
 from app.application.medication_history.commands.models import (
+    CurrentRecordFieldInput,
     MajorCategoryInput,
     MediumCategoryInput,
 )
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.medication_history.entities import MedicationHistoryCategoryCatalog
-from app.domain.medication_history.identifiers import CategoryCatalogId
+from app.domain.medication_history.identifiers import (
+    CategoryCatalogId,
+    CurrentRecordFieldId,
+)
 from app.domain.medication_history.primitives import (
     CategoryDisplayOrder,
+    CurrentRecordFieldLabel,
     MajorCategoryCode,
     MajorCategoryName,
     MediumCategoryCode,
@@ -29,9 +34,11 @@ from app.domain.medication_history.repositories import (
     MedicationHistoryCategoryCatalogRepository,
 )
 from app.domain.medication_history.value_objects import (
+    CurrentRecordFieldDefinition,
     MajorCategoryDefinition,
     MediumCategoryDefinition,
 )
+from app.domain.store.identifiers import StoreId
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -41,6 +48,7 @@ class UpdateCategoryCatalogCommand:
     corporate_id: str
     major_categories: tuple[MajorCategoryInput, ...] = ()
     medium_categories: tuple[MediumCategoryInput, ...] = ()
+    current_record_fields: tuple[CurrentRecordFieldInput, ...] = ()
 
 
 class UpdateCategoryCatalogUseCase:
@@ -87,11 +95,31 @@ class UpdateCategoryCatalogUseCase:
             )
             for m in command.medium_categories
         )
+        fields = (
+            tuple(
+                CurrentRecordFieldDefinition(
+                    field_id=CurrentRecordFieldId.parse(f.id)
+                    if f.id is not None
+                    else CurrentRecordFieldId.generate(),
+                    label=CurrentRecordFieldLabel(f.label),
+                    display_order=CategoryDisplayOrder(f.display_order),
+                    store_id=StoreId.parse(f.store_id) if f.store_id else None,
+                    category_code=MediumCategoryCode(f.category_code)
+                    if f.category_code
+                    else None,
+                    is_archived=f.is_archived,
+                )
+                for f in command.current_record_fields
+            )
+            if command.current_record_fields
+            else (existing.current_record_fields if existing is not None else ())
+        )
         catalog = MedicationHistoryCategoryCatalog(
             id=catalog_id,
             corporate_id=parsed_corporate_id,
             major_categories=major_categories,
             medium_categories=medium_categories,
+            current_record_fields=fields,
         )
         await self._repository.save(catalog)
         return CategoryCatalogDto.from_entity(catalog)

@@ -20,3 +20,12 @@ class ListRelatedEventCandidatesQuery:
     corporate_id: str
     store_id: str
     patient_id: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class ListStoreCareEventsQuery:
+    """店舗の業務Event一覧取得の入力。"""
+
+    corporate_id: str
+    store_id: str
+    patient_id: str | None = None

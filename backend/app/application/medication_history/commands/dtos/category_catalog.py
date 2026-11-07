@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.application.common.optional_conversion import optional_id, unwrap
 from app.domain.medication_history.entities import MedicationHistoryCategoryCatalog
 from app.domain.medication_history.value_objects import (
+    CurrentRecordFieldDefinition,
     MajorCategoryDefinition,
     MediumCategoryDefinition,
 )
@@ -54,6 +56,36 @@ class MediumCategoryDto:
 
 
 @dataclass(frozen=True, kw_only=True)
+class CurrentRecordFieldDto:
+    """今回記載欄項目の出力DTO。"""
+
+    id: str
+    label: str
+    display_order: int
+    store_id: str | None = None
+    category_code: str | None = None
+    category_badge_label: str = ""
+    is_archived: bool = False
+
+    @classmethod
+    def from_value(
+        cls,
+        value: CurrentRecordFieldDefinition,
+        *,
+        badge_label: str = "",
+    ) -> CurrentRecordFieldDto:
+        return cls(
+            id=str(value.field_id.value),
+            label=value.label.value,
+            display_order=value.display_order.value,
+            store_id=optional_id(value.store_id),
+            category_code=unwrap(value.category_code),
+            category_badge_label=badge_label,
+            is_archived=value.is_archived,
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
 class CategoryCatalogDto:
     """区分カタログ集約の出力DTO。"""
 
@@ -61,11 +93,13 @@ class CategoryCatalogDto:
     corporate_id: str
     major_categories: tuple[MajorCategoryDto, ...]
     medium_categories: tuple[MediumCategoryDto, ...]
+    current_record_fields: tuple[CurrentRecordFieldDto, ...] = ()
 
     @classmethod
     def from_entity(
         cls, entity: MedicationHistoryCategoryCatalog
     ) -> CategoryCatalogDto:
+        medium_map = {m.code.value: m.name.value for m in entity.medium_categories}
         return cls(
             id=str(entity.id.value),
             corporate_id=str(entity.corporate_id.value),
@@ -74,5 +108,14 @@ class CategoryCatalogDto:
             ),
             medium_categories=tuple(
                 MediumCategoryDto.from_value(m) for m in entity.medium_categories
+            ),
+            current_record_fields=tuple(
+                CurrentRecordFieldDto.from_value(
+                    f,
+                    badge_label=medium_map.get(
+                        f.category_code.value if f.category_code else "", ""
+                    ),
+                )
+                for f in entity.current_record_fields
             ),
         )

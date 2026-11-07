@@ -21,7 +21,7 @@ from app.application.care_event.interfaces.references import (
     EventReceptionBoundary,
 )
 from app.application.common.clock import Clock
-from app.domain.care_event.entities import Event
+from app.domain.care_event.entities import Event, EventDefinition
 from app.domain.care_event.exceptions import EventAlreadyAssociatedError
 from app.domain.care_event.identifiers import EventId, EventTypeId
 from app.domain.care_event.primitives import (
@@ -49,7 +49,8 @@ class CreateEventCommand:
     corporate_id: str
     store_id: str
     patient_id: str
-    event_type_id: str
+    event_type_id: str | None = None
+    standard_code: str | None = None
     occurred_at: datetime
     related_event_id: str | None = None
     reception_id: str | None = None
@@ -97,10 +98,32 @@ class CreateEventUseCase:
         await self._patient_boundary.require_exists(
             corporate_id=corporate_id, patient_id=patient_id
         )
-        event_type_id = EventTypeId.parse(command.event_type_id)
-        definition = await self._event_definition_repository.get(
-            corporate_id=corporate_id, event_type_id=event_type_id
-        )
+        definition: EventDefinition | None = None
+        if command.event_type_id is not None:
+            event_type_id = EventTypeId.parse(command.event_type_id)
+            definition = await self._event_definition_repository.get(
+                corporate_id=corporate_id, event_type_id=event_type_id
+            )
+        elif command.standard_code is not None:
+            alias_map = {
+                "dispensing": "prescription_reception",
+                "phone": "telephone_follow_up",
+                "walk_in": "in_person_consultation",
+                "follow_up": "medication_period_follow_up",
+            }
+            target_code = alias_map.get(command.standard_code, command.standard_code)
+            definitions = await self._event_definition_repository.list_for_corporate(
+                corporate_id=corporate_id
+            )
+            for d in definitions:
+                if d.standard_code is not None and d.standard_code.value == target_code:
+                    definition = d
+                    break
+        else:
+            raise DomainError(
+                "イベント種別IDまたは標準コードのいずれかを指定してください。"
+            )
+
         if definition is None:
             raise TenantBoundaryNotFoundError()
         if not definition.is_active:
