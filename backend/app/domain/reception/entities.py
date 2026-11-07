@@ -18,7 +18,11 @@ from app.domain.reception.primitives import (
     ReceptionFingerprint,
     ReceptionSourceStatus,
 )
-from app.domain.reception.value_objects import ReceptionCorrection, ReceptionSourceData
+from app.domain.reception.value_objects import (
+    CurrentRecordFieldValue,
+    ReceptionCorrection,
+    ReceptionSourceData,
+)
 from app.domain.store.identifiers import StoreId
 
 
@@ -40,9 +44,16 @@ class Reception(AggregateRoot[ReceptionId]):
     source_data_history: tuple[ReceptionSourceData, ...] = ()
     event_id: EventId | None = None
     source_status: ReceptionSourceStatus = ReceptionSourceStatus.CURRENT
+    current_record_values: tuple[CurrentRecordFieldValue, ...] = ()
 
     def associate_event(self, event_id: EventId) -> Reception:
         """処方受付に対応する薬局業務イベント（調剤・服薬指導など）を一意に関連付ける。"""
         if self.event_id is not None and self.event_id != event_id:
             raise ReceptionEventAlreadyAssociatedError()
         return replace(self, event_id=event_id)
+
+    def update_current_record_values(
+        self, values: tuple[CurrentRecordFieldValue, ...]
+    ) -> Reception:
+        """今回記載欄の入力値を更新する。"""
+        return replace(self, current_record_values=values)

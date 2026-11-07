@@ -23,6 +23,7 @@ from app.domain.medication_history.exceptions import (
 )
 from app.domain.medication_history.identifiers import (
     AmendmentId,
+    CurrentRecordFieldId,
     ExternalCorrectionId,
     MedicationHistoryRecordId,
 )
@@ -45,6 +46,7 @@ from app.domain.medication_history.primitives import (
     CounselingMethod,
     CounselingNote,
     CounselingTimestamp,
+    CurrentRecordFieldLabel,
     DispensingProcessStatus,
     ExternalCorrectionDecision,
     ExternalCorrectionDetails,
@@ -228,6 +230,27 @@ class MediumCategoryDefinition(ValueObject):
         "display_order": "表示順",
         "is_required": "確定時必須フラグ",
         "is_enabled": "有効フラグ",
+    }
+
+
+@dataclass(frozen=True, kw_only=True)
+class CurrentRecordFieldDefinition(ValueObject):
+    """今回記載欄の設定項目定義。"""
+
+    field_id: CurrentRecordFieldId
+    label: CurrentRecordFieldLabel
+    display_order: CategoryDisplayOrder
+    store_id: StoreId | None = None
+    category_code: MediumCategoryCode | None = None
+    is_archived: bool = False
+
+    _FIELD_LABELS: ClassVar[Mapping[str, str]] = {
+        "field_id": "今回記載欄項目ID",
+        "label": "項目名",
+        "display_order": "表示順",
+        "store_id": "対象店舗ID",
+        "category_code": "紐づく中区分コード",
+        "is_archived": "アーカイブフラグ",
     }
 
 

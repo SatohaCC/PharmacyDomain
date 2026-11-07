@@ -35,6 +35,9 @@ from app.application.care_event.queries.list_event_definitions import (
 from app.application.care_event.queries.list_related_event_candidates import (
     ListRelatedEventCandidatesUseCase,
 )
+from app.application.care_event.queries.list_store_care_events import (
+    ListStoreCareEventsUseCase,
+)
 from app.application.composition.adapters.care_event_references import (
     EventMedicationHistoryReferenceAdapter,
     EventReceptionReferenceAdapter,
@@ -63,6 +66,9 @@ from app.application.medication_history.commands.models import (
 from app.application.medication_history.commands.review_external_prescription_correction import (
     ReviewExternalPrescriptionCorrectionUseCase,
 )
+from app.application.medication_history.commands.save_store_current_record_fields import (
+    SaveStoreCurrentRecordFieldsUseCase,
+)
 from app.application.medication_history.interfaces.get_medication_history_view_reader import (
     CurrentPatientProfileBoundary,
 )
@@ -77,6 +83,9 @@ from app.application.medication_history.queries.get_medication_history_view impo
 )
 from app.application.medication_history.queries.list_pending_external_corrections import (
     ListPendingExternalCorrectionsUseCase,
+)
+from app.application.medication_history.queries.list_store_current_record_fields import (
+    ListStoreCurrentRecordFieldsUseCase,
 )
 from app.bootstrap import create_app
 from app.domain.care_event.entities import EventDefinition
@@ -109,6 +118,9 @@ from app.infrastructure.readers.care_event_list_event_definitions import (
 from app.infrastructure.readers.care_event_list_related_event_candidates import (
     ListRelatedEventCandidatesProjection,
 )
+from app.infrastructure.readers.care_event_list_store_events import (
+    ListStoreCareEventsProjection,
+)
 from app.infrastructure.readers.dispensing_get_dispensing import GetDispensingProjection
 from app.infrastructure.readers.medication_history_get_follow_up_source import (
     GetFollowUpSourceProjection,
@@ -118,6 +130,9 @@ from app.infrastructure.readers.medication_history_get_medication_history_view i
 )
 from app.infrastructure.readers.medication_history_list_pending_external_corrections import (
     ListPendingExternalCorrectionsProjection,
+)
+from app.infrastructure.readers.medication_history_list_store_current_record_fields import (
+    ListStoreCurrentRecordFieldsProjection,
 )
 from app.presentational.dependencies import (
     get_care_event_use_cases,
@@ -940,6 +955,11 @@ def history_client(
             corporate_access=history_fixture.corporate_access,
             store_operations=history_fixture.store_operations,
         ),
+        list_by_store=ListStoreCareEventsUseCase(
+            reader=ListStoreCareEventsProjection(history_fixture.event_repository),
+            corporate_access=history_fixture.corporate_access,
+            store_operations=history_fixture.store_operations,
+        ),
     )
     view_use_case = GetMedicationHistoryViewUseCase(
         reader=GetMedicationHistoryViewProjection(
@@ -977,6 +997,16 @@ def history_client(
         verify_statutory_record=history_fixture.verify_statutory_record,
         get_category_catalog=history_fixture.get_category_catalog,
         update_category_catalog=history_fixture.update_category_catalog,
+        list_store_current_record_fields=ListStoreCurrentRecordFieldsUseCase(
+            reader=ListStoreCurrentRecordFieldsProjection(
+                history_fixture.category_catalog_repository
+            ),
+            corporate_access=history_fixture.corporate_access,
+        ),
+        save_store_current_record_fields=SaveStoreCurrentRecordFieldsUseCase(
+            repository=history_fixture.category_catalog_repository,
+            corporate_access=history_fixture.corporate_access,
+        ),
         record_tracing_report=history_fixture.record_tracing_report,
         record_tracing_report_response=history_fixture.record_tracing_report_response,
         get_view=view_use_case,

@@ -30,6 +30,12 @@ class CategoryCatalogId(EntityUUID):
     identifier_name = "区分カタログID"
 
 
+class CurrentRecordFieldId(EntityUUID):
+    """今回記載欄項目の一意識別子（UUIDv7）。"""
+
+    identifier_name = "今回記載欄項目ID"
+
+
 class FollowUpId(EntityUUID):
     """服薬期間中のフォローアップ記録を一意に識別するID（UUIDv7）。"""
 

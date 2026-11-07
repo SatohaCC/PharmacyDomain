@@ -8,6 +8,7 @@ from enum import StrEnum
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.foundation.primitives.base import DomainPrimitive
 from app.domain.foundation.primitives.primitives import (
+    BaseFreeText,
     BaseNonNegativeInt,
     BaseNormalizedString,
 )
@@ -74,3 +75,7 @@ class ReceptionOriginalJson(DomainPrimitive[str]):
             json.loads(self.value)
         except (ValueError, TypeError) as exc:
             raise DomainValidationError("受付原本のJSONが不正です。") from exc
+
+
+class CurrentRecordFieldValueText(BaseFreeText):
+    """受付の今回記載欄に入力されたテキスト内容。"""

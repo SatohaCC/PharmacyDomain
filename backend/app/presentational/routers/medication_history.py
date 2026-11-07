@@ -30,6 +30,7 @@ from app.application.medication_history.commands.correct_medication_history_fact
 )
 from app.application.medication_history.commands.dtos.category_catalog import (
     CategoryCatalogDto,
+    CurrentRecordFieldDto,
 )
 from app.application.medication_history.commands.dtos.get_medication_history import (
     MedicationHistoryDto,
@@ -43,6 +44,7 @@ from app.application.medication_history.commands.finalize_medication_history imp
 from app.application.medication_history.commands.models import (
     BillingAdditionInput,
     CategorizedNoteInput,
+    CurrentRecordFieldInput,
     HandbookStatusInput,
     MajorCategoryInput,
     MediumCategoryInput,
@@ -62,6 +64,9 @@ from app.application.medication_history.commands.record_tracing_report_response 
 from app.application.medication_history.commands.review_external_prescription_correction import (
     ReviewExternalPrescriptionCorrectionCommand,
 )
+from app.application.medication_history.commands.save_store_current_record_fields import (
+    SaveStoreCurrentRecordFieldsCommand,
+)
 from app.application.medication_history.commands.start_medication_history import (
     StartMedicationHistoryCommand,
 )
@@ -70,6 +75,9 @@ from app.application.medication_history.commands.update_category_catalog import 
 )
 from app.application.medication_history.commands.update_medication_history_draft import (
     UpdateMedicationHistoryDraftCommand,
+)
+from app.application.medication_history.queries.dtos.category_catalog import (
+    CurrentRecordFieldDto as QueryCurrentRecordFieldDto,
 )
 from app.application.medication_history.queries.dtos.get_medication_history import (
     MedicationHistoryDto as QueryMedicationHistoryDto,
@@ -85,6 +93,9 @@ from app.application.medication_history.queries.dtos.list_pending_external_corre
 )
 from app.application.medication_history.queries.dtos.verify_statutory_record import (
     StatutoryRecordSufficiencyDto,
+)
+from app.application.medication_history.queries.list_store_current_record_fields import (
+    ListStoreCurrentRecordFieldsQuery,
 )
 from app.application.medication_history.queries.models import (
     GetFollowUpSourceQuery,
@@ -262,6 +273,13 @@ class UpdateCategoryCatalogRequest(RequestModel):
 
     major_categories: tuple[MajorCategoryInput, ...] = ()
     medium_categories: tuple[MediumCategoryInput, ...] = ()
+    current_record_fields: tuple[CurrentRecordFieldInput, ...] = ()
+
+
+class SaveStoreCurrentRecordFieldsRequest(RequestModel):
+    """店舗の今回記載欄設定の保存入力。"""
+
+    fields: tuple[CurrentRecordFieldInput, ...] = ()
 
 
 @router.post(
@@ -819,6 +837,46 @@ async def update_medication_history_category_catalog(
             corporate_id=corporate_id,
             major_categories=body.major_categories,
             medium_categories=body.medium_categories,
+            current_record_fields=body.current_record_fields,
+        )
+    )
+
+
+@router.get(
+    "/stores/{store_id}/current-record-fields",
+    response_model=list[QueryCurrentRecordFieldDto],
+)
+async def list_store_current_record_fields(
+    corporate_id: str,
+    store_id: str,
+    use_cases: MedicationHistoryUseCasesDep,
+) -> tuple[QueryCurrentRecordFieldDto, ...]:
+    """店舗で利用可能な今回記載欄の定義一覧を取得する。"""
+    return await use_cases.list_store_current_record_fields.execute(
+        ListStoreCurrentRecordFieldsQuery(
+            corporate_id=corporate_id,
+            store_id=store_id,
+        )
+    )
+
+
+@router.put(
+    "/stores/{store_id}/current-record-fields",
+    response_model=list[CurrentRecordFieldDto],
+    responses=error_responses(HTTPStatus.CONFLICT),
+)
+async def save_store_current_record_fields(
+    corporate_id: str,
+    store_id: str,
+    body: SaveStoreCurrentRecordFieldsRequest,
+    use_cases: MedicationHistoryUseCasesDep,
+) -> tuple[CurrentRecordFieldDto, ...]:
+    """店舗の今回記載欄の定義を更新する。"""
+    return await use_cases.save_store_current_record_fields.execute(
+        SaveStoreCurrentRecordFieldsCommand(
+            corporate_id=corporate_id,
+            store_id=store_id,
+            fields=body.fields,
         )
     )
 
