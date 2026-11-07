@@ -106,6 +106,42 @@ export const 保存失敗で入力保持: Story = {
   },
 };
 
+export const 応援スポット勤務表示: Story = {
+  args: {
+    conditions: [
+      {
+        store_id: "store-a",
+        starts_on: "2026-11-01",
+        ends_on: null,
+        is_primary: true,
+        is_managing_pharmacist: false,
+        current: {
+          effective_from: "2026-11-01",
+          weekly_hours: "32",
+          duty: "pharmacist",
+          recorded_at: "2026-11-01T00:00:00Z",
+          recorded_by: "admin",
+        },
+        history: [],
+      },
+      {
+        store_id: "store-b",
+        starts_on: "2026-11-05",
+        ends_on: null,
+        is_primary: false,
+        is_managing_pharmacist: false,
+        current: null, // 応援・スポットのため勤務時間未登録
+        history: [],
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("未登録（応援・スポット等）")).toBeVisible();
+    await expect(canvas.getByText("32時間")).toBeVisible();
+  },
+};
+
 export const 合計超過では保存しない: Story = {
   args: {
     user: {

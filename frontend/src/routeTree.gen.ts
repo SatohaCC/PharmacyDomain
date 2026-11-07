@@ -14,15 +14,20 @@ import { Route as AdminRouteRouteImport } from './routes/admin/route'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminCorporatesRouteRouteImport } from './routes/admin/corporates/route'
 import { Route as LoginIndexRouteImport } from './routes/login/index'
+import { Route as StoresStoreIdRouteRouteImport } from './routes/stores/$storeId/route'
 import { Route as AdminCorporatesIndexRouteImport } from './routes/admin/corporates/index'
 import { Route as AdminCorporatesCorporateIdRouteRouteImport } from './routes/admin/corporates/$corporateId/route'
 import { Route as AuthCallbackIndexRouteImport } from './routes/auth/callback/index'
+import { Route as StoresStoreIdIndexRouteImport } from './routes/stores/$storeId/index'
 import { Route as AdminCorporatesCorporateIdIndexRouteImport } from './routes/admin/corporates/$corporateId/index'
 import { Route as AdminCorporatesCorporateIdStoresRouteRouteImport } from './routes/admin/corporates/$corporateId/stores/route'
 import { Route as AdminCorporatesCorporateIdUsersRouteRouteImport } from './routes/admin/corporates/$corporateId/users/route'
 import { Route as AdminCorporatesNewIndexRouteImport } from './routes/admin/corporates/new/index'
+import { Route as StoresStoreIdPatientsIndexRouteImport } from './routes/stores/$storeId/patients/index'
+import { Route as StoresStoreIdPatientsNewRouteImport } from './routes/stores/$storeId/patients/new'
 import { Route as AdminCorporatesCorporateIdStoresIndexRouteImport } from './routes/admin/corporates/$corporateId/stores/index'
 import { Route as AdminCorporatesCorporateIdUsersIndexRouteImport } from './routes/admin/corporates/$corporateId/users/index'
+import { Route as StoresStoreIdPatientsPatientIdIndexRouteImport } from './routes/stores/$storeId/patients/$patientId/index'
 import { Route as AdminCorporatesCorporateIdStoresStoreIdIndexRouteImport } from './routes/admin/corporates/$corporateId/stores/$storeId/index'
 import { Route as AdminCorporatesCorporateIdStoresNewIndexRouteImport } from './routes/admin/corporates/$corporateId/stores/new/index'
 import { Route as AdminCorporatesCorporateIdUsersUserIdIndexRouteImport } from './routes/admin/corporates/$corporateId/users/$userId/index'
@@ -53,6 +58,11 @@ const LoginIndexRoute = LoginIndexRouteImport.update({
   path: '/login/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StoresStoreIdRouteRoute = StoresStoreIdRouteRouteImport.update({
+  id: '/stores/$storeId',
+  path: '/stores/$storeId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminCorporatesIndexRoute = AdminCorporatesIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -68,6 +78,11 @@ const AuthCallbackIndexRoute = AuthCallbackIndexRouteImport.update({
   id: '/auth/callback/',
   path: '/auth/callback/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const StoresStoreIdIndexRoute = StoresStoreIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => StoresStoreIdRouteRoute,
 } as any)
 const AdminCorporatesCorporateIdIndexRoute =
   AdminCorporatesCorporateIdIndexRouteImport.update({
@@ -92,6 +107,18 @@ const AdminCorporatesNewIndexRoute = AdminCorporatesNewIndexRouteImport.update({
   path: '/new/',
   getParentRoute: () => AdminCorporatesRouteRoute,
 } as any)
+const StoresStoreIdPatientsIndexRoute =
+  StoresStoreIdPatientsIndexRouteImport.update({
+    id: '/patients/',
+    path: '/patients/',
+    getParentRoute: () => StoresStoreIdRouteRoute,
+  } as any)
+const StoresStoreIdPatientsNewRoute =
+  StoresStoreIdPatientsNewRouteImport.update({
+    id: '/patients/new',
+    path: '/patients/new',
+    getParentRoute: () => StoresStoreIdRouteRoute,
+  } as any)
 const AdminCorporatesCorporateIdStoresIndexRoute =
   AdminCorporatesCorporateIdStoresIndexRouteImport.update({
     id: '/',
@@ -103,6 +130,12 @@ const AdminCorporatesCorporateIdUsersIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => AdminCorporatesCorporateIdUsersRouteRoute,
+  } as any)
+const StoresStoreIdPatientsPatientIdIndexRoute =
+  StoresStoreIdPatientsPatientIdIndexRouteImport.update({
+    id: '/patients/$patientId/',
+    path: '/patients/$patientId/',
+    getParentRoute: () => StoresStoreIdRouteRoute,
   } as any)
 const AdminCorporatesCorporateIdStoresStoreIdIndexRoute =
   AdminCorporatesCorporateIdStoresStoreIdIndexRouteImport.update({
@@ -133,17 +166,22 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
   '/admin/corporates': typeof AdminCorporatesRouteRouteWithChildren
+  '/stores/$storeId': typeof StoresStoreIdRouteRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/login/': typeof LoginIndexRoute
   '/admin/corporates/$corporateId': typeof AdminCorporatesCorporateIdRouteRouteWithChildren
   '/admin/corporates/': typeof AdminCorporatesIndexRoute
   '/auth/callback/': typeof AuthCallbackIndexRoute
+  '/stores/$storeId/': typeof StoresStoreIdIndexRoute
   '/admin/corporates/$corporateId/stores': typeof AdminCorporatesCorporateIdStoresRouteRouteWithChildren
   '/admin/corporates/$corporateId/users': typeof AdminCorporatesCorporateIdUsersRouteRouteWithChildren
+  '/stores/$storeId/patients/new': typeof StoresStoreIdPatientsNewRoute
   '/admin/corporates/$corporateId/': typeof AdminCorporatesCorporateIdIndexRoute
   '/admin/corporates/new/': typeof AdminCorporatesNewIndexRoute
+  '/stores/$storeId/patients/': typeof StoresStoreIdPatientsIndexRoute
   '/admin/corporates/$corporateId/stores/': typeof AdminCorporatesCorporateIdStoresIndexRoute
   '/admin/corporates/$corporateId/users/': typeof AdminCorporatesCorporateIdUsersIndexRoute
+  '/stores/$storeId/patients/$patientId/': typeof StoresStoreIdPatientsPatientIdIndexRoute
   '/admin/corporates/$corporateId/stores/$storeId/': typeof AdminCorporatesCorporateIdStoresStoreIdIndexRoute
   '/admin/corporates/$corporateId/stores/new/': typeof AdminCorporatesCorporateIdStoresNewIndexRoute
   '/admin/corporates/$corporateId/users/$userId/': typeof AdminCorporatesCorporateIdUsersUserIdIndexRoute
@@ -155,10 +193,14 @@ export interface FileRoutesByTo {
   '/login': typeof LoginIndexRoute
   '/admin/corporates': typeof AdminCorporatesIndexRoute
   '/auth/callback': typeof AuthCallbackIndexRoute
+  '/stores/$storeId': typeof StoresStoreIdIndexRoute
+  '/stores/$storeId/patients/new': typeof StoresStoreIdPatientsNewRoute
   '/admin/corporates/$corporateId': typeof AdminCorporatesCorporateIdIndexRoute
   '/admin/corporates/new': typeof AdminCorporatesNewIndexRoute
+  '/stores/$storeId/patients': typeof StoresStoreIdPatientsIndexRoute
   '/admin/corporates/$corporateId/stores': typeof AdminCorporatesCorporateIdStoresIndexRoute
   '/admin/corporates/$corporateId/users': typeof AdminCorporatesCorporateIdUsersIndexRoute
+  '/stores/$storeId/patients/$patientId': typeof StoresStoreIdPatientsPatientIdIndexRoute
   '/admin/corporates/$corporateId/stores/$storeId': typeof AdminCorporatesCorporateIdStoresStoreIdIndexRoute
   '/admin/corporates/$corporateId/stores/new': typeof AdminCorporatesCorporateIdStoresNewIndexRoute
   '/admin/corporates/$corporateId/users/$userId': typeof AdminCorporatesCorporateIdUsersUserIdIndexRoute
@@ -169,17 +211,22 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
   '/admin/corporates': typeof AdminCorporatesRouteRouteWithChildren
+  '/stores/$storeId': typeof StoresStoreIdRouteRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/login/': typeof LoginIndexRoute
   '/admin/corporates/$corporateId': typeof AdminCorporatesCorporateIdRouteRouteWithChildren
   '/admin/corporates/': typeof AdminCorporatesIndexRoute
   '/auth/callback/': typeof AuthCallbackIndexRoute
+  '/stores/$storeId/': typeof StoresStoreIdIndexRoute
   '/admin/corporates/$corporateId/stores': typeof AdminCorporatesCorporateIdStoresRouteRouteWithChildren
   '/admin/corporates/$corporateId/users': typeof AdminCorporatesCorporateIdUsersRouteRouteWithChildren
+  '/stores/$storeId/patients/new': typeof StoresStoreIdPatientsNewRoute
   '/admin/corporates/$corporateId/': typeof AdminCorporatesCorporateIdIndexRoute
   '/admin/corporates/new/': typeof AdminCorporatesNewIndexRoute
+  '/stores/$storeId/patients/': typeof StoresStoreIdPatientsIndexRoute
   '/admin/corporates/$corporateId/stores/': typeof AdminCorporatesCorporateIdStoresIndexRoute
   '/admin/corporates/$corporateId/users/': typeof AdminCorporatesCorporateIdUsersIndexRoute
+  '/stores/$storeId/patients/$patientId/': typeof StoresStoreIdPatientsPatientIdIndexRoute
   '/admin/corporates/$corporateId/stores/$storeId/': typeof AdminCorporatesCorporateIdStoresStoreIdIndexRoute
   '/admin/corporates/$corporateId/stores/new/': typeof AdminCorporatesCorporateIdStoresNewIndexRoute
   '/admin/corporates/$corporateId/users/$userId/': typeof AdminCorporatesCorporateIdUsersUserIdIndexRoute
@@ -191,17 +238,22 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/admin/corporates'
+    | '/stores/$storeId'
     | '/admin/'
     | '/login/'
     | '/admin/corporates/$corporateId'
     | '/admin/corporates/'
     | '/auth/callback/'
+    | '/stores/$storeId/'
     | '/admin/corporates/$corporateId/stores'
     | '/admin/corporates/$corporateId/users'
+    | '/stores/$storeId/patients/new'
     | '/admin/corporates/$corporateId/'
     | '/admin/corporates/new/'
+    | '/stores/$storeId/patients/'
     | '/admin/corporates/$corporateId/stores/'
     | '/admin/corporates/$corporateId/users/'
+    | '/stores/$storeId/patients/$patientId/'
     | '/admin/corporates/$corporateId/stores/$storeId/'
     | '/admin/corporates/$corporateId/stores/new/'
     | '/admin/corporates/$corporateId/users/$userId/'
@@ -213,10 +265,14 @@ export interface FileRouteTypes {
     | '/login'
     | '/admin/corporates'
     | '/auth/callback'
+    | '/stores/$storeId'
+    | '/stores/$storeId/patients/new'
     | '/admin/corporates/$corporateId'
     | '/admin/corporates/new'
+    | '/stores/$storeId/patients'
     | '/admin/corporates/$corporateId/stores'
     | '/admin/corporates/$corporateId/users'
+    | '/stores/$storeId/patients/$patientId'
     | '/admin/corporates/$corporateId/stores/$storeId'
     | '/admin/corporates/$corporateId/stores/new'
     | '/admin/corporates/$corporateId/users/$userId'
@@ -226,17 +282,22 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/admin/corporates'
+    | '/stores/$storeId'
     | '/admin/'
     | '/login/'
     | '/admin/corporates/$corporateId'
     | '/admin/corporates/'
     | '/auth/callback/'
+    | '/stores/$storeId/'
     | '/admin/corporates/$corporateId/stores'
     | '/admin/corporates/$corporateId/users'
+    | '/stores/$storeId/patients/new'
     | '/admin/corporates/$corporateId/'
     | '/admin/corporates/new/'
+    | '/stores/$storeId/patients/'
     | '/admin/corporates/$corporateId/stores/'
     | '/admin/corporates/$corporateId/users/'
+    | '/stores/$storeId/patients/$patientId/'
     | '/admin/corporates/$corporateId/stores/$storeId/'
     | '/admin/corporates/$corporateId/stores/new/'
     | '/admin/corporates/$corporateId/users/$userId/'
@@ -246,6 +307,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRouteRoute: typeof AdminRouteRouteWithChildren
+  StoresStoreIdRouteRoute: typeof StoresStoreIdRouteRouteWithChildren
   LoginIndexRoute: typeof LoginIndexRoute
   AuthCallbackIndexRoute: typeof AuthCallbackIndexRoute
 }
@@ -287,6 +349,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/stores/$storeId': {
+      id: '/stores/$storeId'
+      path: '/stores/$storeId'
+      fullPath: '/stores/$storeId'
+      preLoaderRoute: typeof StoresStoreIdRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/corporates/': {
       id: '/admin/corporates/'
       path: '/'
@@ -307,6 +376,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/auth/callback/'
       preLoaderRoute: typeof AuthCallbackIndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/stores/$storeId/': {
+      id: '/stores/$storeId/'
+      path: '/'
+      fullPath: '/stores/$storeId/'
+      preLoaderRoute: typeof StoresStoreIdIndexRouteImport
+      parentRoute: typeof StoresStoreIdRouteRoute
     }
     '/admin/corporates/$corporateId/': {
       id: '/admin/corporates/$corporateId/'
@@ -336,6 +412,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCorporatesNewIndexRouteImport
       parentRoute: typeof AdminCorporatesRouteRoute
     }
+    '/stores/$storeId/patients/': {
+      id: '/stores/$storeId/patients/'
+      path: '/patients'
+      fullPath: '/stores/$storeId/patients/'
+      preLoaderRoute: typeof StoresStoreIdPatientsIndexRouteImport
+      parentRoute: typeof StoresStoreIdRouteRoute
+    }
+    '/stores/$storeId/patients/new': {
+      id: '/stores/$storeId/patients/new'
+      path: '/patients/new'
+      fullPath: '/stores/$storeId/patients/new'
+      preLoaderRoute: typeof StoresStoreIdPatientsNewRouteImport
+      parentRoute: typeof StoresStoreIdRouteRoute
+    }
     '/admin/corporates/$corporateId/stores/': {
       id: '/admin/corporates/$corporateId/stores/'
       path: '/'
@@ -349,6 +439,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/corporates/$corporateId/users/'
       preLoaderRoute: typeof AdminCorporatesCorporateIdUsersIndexRouteImport
       parentRoute: typeof AdminCorporatesCorporateIdUsersRouteRoute
+    }
+    '/stores/$storeId/patients/$patientId/': {
+      id: '/stores/$storeId/patients/$patientId/'
+      path: '/patients/$patientId'
+      fullPath: '/stores/$storeId/patients/$patientId/'
+      preLoaderRoute: typeof StoresStoreIdPatientsPatientIdIndexRouteImport
+      parentRoute: typeof StoresStoreIdRouteRoute
     }
     '/admin/corporates/$corporateId/stores/$storeId/': {
       id: '/admin/corporates/$corporateId/stores/$storeId/'
@@ -473,9 +570,28 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
   AdminRouteRouteChildren,
 )
 
+interface StoresStoreIdRouteRouteChildren {
+  StoresStoreIdIndexRoute: typeof StoresStoreIdIndexRoute
+  StoresStoreIdPatientsNewRoute: typeof StoresStoreIdPatientsNewRoute
+  StoresStoreIdPatientsIndexRoute: typeof StoresStoreIdPatientsIndexRoute
+  StoresStoreIdPatientsPatientIdIndexRoute: typeof StoresStoreIdPatientsPatientIdIndexRoute
+}
+
+const StoresStoreIdRouteRouteChildren: StoresStoreIdRouteRouteChildren = {
+  StoresStoreIdIndexRoute: StoresStoreIdIndexRoute,
+  StoresStoreIdPatientsNewRoute: StoresStoreIdPatientsNewRoute,
+  StoresStoreIdPatientsIndexRoute: StoresStoreIdPatientsIndexRoute,
+  StoresStoreIdPatientsPatientIdIndexRoute:
+    StoresStoreIdPatientsPatientIdIndexRoute,
+}
+
+const StoresStoreIdRouteRouteWithChildren =
+  StoresStoreIdRouteRoute._addFileChildren(StoresStoreIdRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRouteRoute: AdminRouteRouteWithChildren,
+  StoresStoreIdRouteRoute: StoresStoreIdRouteRouteWithChildren,
   LoginIndexRoute: LoginIndexRoute,
   AuthCallbackIndexRoute: AuthCallbackIndexRoute,
 }

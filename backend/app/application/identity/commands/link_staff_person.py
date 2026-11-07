@@ -56,7 +56,9 @@ class LinkStaffPersonUseCase:
         await self._access.require_active(
             corporate_id=corporate, permission=Permission.MANAGE_STAFF
         )
-        person = await self._people.get(AccountPersonId.parse(person_id))
+        person = await self._people.find_for_corporate(
+            corporate, AccountPersonId.parse(person_id)
+        )
         staff = await self._staff.get(
             corporate_id=corporate, staff_id=StaffId.parse(staff_id)
         )

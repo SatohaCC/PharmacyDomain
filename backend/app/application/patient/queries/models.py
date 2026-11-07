@@ -35,3 +35,11 @@ class ListPatientExternalIdentifiersQuery:
 
     corporate_id: str
     patient_id: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class ListPatientsQuery:
+    """患者一覧取得のクエリ。"""
+
+    corporate_id: str
+    keyword: str | None = None

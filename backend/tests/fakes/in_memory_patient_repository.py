@@ -40,6 +40,20 @@ class InMemoryPatientRepository(PatientRepository):
             return None
         return copy.deepcopy(item)
 
+    async def list_by_corporate(
+        self,
+        corporate_id: CorporateId,
+    ) -> list[Patient]:
+        """指定法人の全患者を取得する。患者番号昇順で返す。"""
+        return sorted(
+            [
+                copy.deepcopy(item)
+                for item in self.items.values()
+                if item.corporate_id == corporate_id
+            ],
+            key=lambda p: p.patient_number.value,
+        )
+
     async def save(self, patient: Patient) -> None:
         """患者をコピーして保存する。"""
         self.save_calls += 1

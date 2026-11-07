@@ -31,6 +31,13 @@ class PatientRepository(Protocol):
         """
         ...
 
+    async def list_by_corporate(
+        self,
+        corporate_id: CorporateId,
+    ) -> list[Patient]:
+        """指定された法人内の全患者を取得する。"""
+        ...
+
     async def save(self, patient: Patient) -> None:
         """患者を新規登録または変更保存する。"""
         ...

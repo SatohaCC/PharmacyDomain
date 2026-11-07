@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
+from sqlalchemy.sql import select
 
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.patient.entities import Patient
@@ -50,6 +51,18 @@ class PostgresPatientRepository(PostgresRepositoryBase, PatientRepository):
         return await self.get_by_id(
             PATIENT_MAPPING, patient_id, corporate_id=corporate_id
         )
+
+    async def list_by_corporate(
+        self,
+        corporate_id: CorporateId,
+    ) -> list[Patient]:
+        """法人境界に一致する患者一覧を取得する。患者番号昇順で返す。"""
+        statement = (
+            select(patients)
+            .where(patients.c.corporate_id == corporate_id.value)
+            .order_by(patients.c.patient_number.asc())
+        )
+        return await self.find_all(PATIENT_MAPPING, statement)
 
     async def save(self, patient: Patient) -> None:
         """患者を保存する。"""

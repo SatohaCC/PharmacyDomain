@@ -1,18 +1,28 @@
 """本人確認から最新の権限・SQL範囲までをHTTP経由で検証する。"""
 
+from uuid import uuid4
+
 import httpx
 import pytest
 from fastapi import FastAPI
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.application.access_control.boundary_models import StoreRoleInput
 from app.application.identity.boundary_models import VerifiedSubject
 from app.bootstrap import create_app
 from app.domain.identity.primitives import AccountStatus, MembershipRole
+from app.domain.shared.actor import AccountPersonId
 from app.domain.store.identifiers import StoreId
+from app.infrastructure.di.repositories import PostgresRepositorySet
+from app.infrastructure.postgres.connection import PostgresUnitOfWork
+from app.infrastructure.postgres.schema import staff_person_links
 from app.presentational.authentication import UnconfiguredActorContextProvider
 from app.presentational.dependencies import STATE_ATTRIBUTE, PresentationState
+from tests.factories.identity_factory import create_account_person
+from tests.factories.staff_factory import create_staff
 from tests.fakes.verified_subject_provider import StubVerifiedSubjectProvider
+from tests.infrastructure.postgres.helpers import create_corporate
 from tests.integration.organization_helpers import (
     Organization,
     external_subject_of,
@@ -167,3 +177,50 @@ async def test_店舗ロールはスタッフ最小情報だけ取得でき法�
             json={"role": "corporate_admin"},
         )
         assert escalation.status_code == 403, escalation.text
+
+
+@pytest.mark.asyncio
+async def test_スタッフ本人リンクAPI_別法人本人と未存在本人は同じ404でリンクを作らない(
+    engine: AsyncEngine, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    fixture = await setup_organization(engine, session_factory)
+    foreign_corporate = create_corporate(name=f"テスト本人境界法人-{uuid4().hex}")
+    foreign_person = create_account_person(corporate_id=foreign_corporate.id)
+    async with PostgresUnitOfWork(session_factory) as work:
+        repositories = PostgresRepositorySet.create(work)
+        await repositories.corporate.save(foreign_corporate)
+        await repositories.account_person.save(foreign_person)
+        await work.commit()
+    staff = create_staff(corporate_id=fixture.corporate.id)
+    async with PostgresUnitOfWork(session_factory) as work:
+        await PostgresRepositorySet.create(work).staff.save(staff)
+        await work.commit()
+    staff_id = staff.id
+    foreign_person_id = foreign_person.id
+    missing_person_id = AccountPersonId.generate()
+    url = (
+        f"/corporates/{fixture.corporate.id.value}/staffs/{staff_id.value}/person-link"
+    )
+    app = identity_app(fixture)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+        headers={"Authorization": "Bearer person"},
+    ) as client:
+        responses = []
+        for person_id in (foreign_person_id, missing_person_id):
+            response = await client.post(url, json={"person_id": str(person_id.value)})
+            responses.append(response)
+            assert response.status_code == 404, response.text
+            async with engine.connect() as connection:
+                saved_link = await connection.scalar(
+                    select(staff_person_links.c.id).where(
+                        staff_person_links.c.id == staff_id.value
+                    )
+                )
+            assert saved_link is None
+
+    assert responses[0].json()["code"] == responses[1].json()["code"]
+    assert responses[0].json()["message"] == responses[1].json()["message"]
+    assert responses[0].json()["errors"] == responses[1].json()["errors"]

@@ -44,7 +44,13 @@ async def test_スタッフに一度対応させた本人を別人へ付け替�
     link = await fixture.service.link_staff.execute(
         str(corporate_id.value), str(fixture.person.id.value), str(staff.id.value)
     )
+    assert link.corporate_id == corporate_id
     assert link.person_id == fixture.person.id
+    assert link.id == staff.id
+    saved_link = await fixture.repositories.links.get(staff.id)
+    assert saved_link is not None
+    assert saved_link.corporate_id == corporate_id
+    assert saved_link.person_id == fixture.person.id
     other = replace(fixture.person, id=AccountPersonId.generate())
     await fixture.repositories.people.save(other)
     with pytest.raises(IdentityConflictError):
@@ -53,6 +59,81 @@ async def test_スタッフに一度対応させた本人を別人へ付け替�
         )
     actual = await fixture.repositories.links.get(staff.id)
     assert actual is not None and actual.person_id == fixture.person.id
+
+
+@pytest.mark.asyncio
+async def test_スタッフ本人リンク_同じ対応を再実行すると一件のまま成功する() -> None:
+    fixture = await _setup()
+    corporate_id = CorporateId.parse(fixture.command.corporate_id)
+    staff = create_staff(corporate_id=corporate_id)
+    await fixture.service.staff.save(staff)
+
+    first = await fixture.service.link_staff.execute(
+        str(corporate_id.value), str(fixture.person.id.value), str(staff.id.value)
+    )
+    second = await fixture.service.link_staff.execute(
+        str(corporate_id.value), str(fixture.person.id.value), str(staff.id.value)
+    )
+
+    assert first == second
+    assert first.corporate_id == corporate_id
+    assert first.person_id == fixture.person.id
+    assert first.id == staff.id
+    saved_link = await fixture.repositories.links.get(staff.id)
+    assert saved_link is not None
+    assert saved_link.person_id == fixture.person.id
+
+
+@pytest.mark.asyncio
+async def test_スタッフ本人リンク_別法人スタッフと未存在スタッフはNotFoundとなりリンクを作らない() -> (
+    None
+):
+    fixture = await _setup()
+    corporate_id = CorporateId.parse(fixture.command.corporate_id)
+    foreign_staff = create_staff(corporate_id=CorporateId.generate())
+    await fixture.service.staff.save(foreign_staff)
+    missing_staff_id = create_staff(corporate_id=corporate_id).id
+
+    results: list[type[Exception]] = []
+    for staff_id in (foreign_staff.id, missing_staff_id):
+        with pytest.raises(NotFoundError) as error:
+            await fixture.service.link_staff.execute(
+                str(corporate_id.value),
+                str(fixture.person.id.value),
+                str(staff_id.value),
+            )
+        results.append(type(error.value))
+        assert await fixture.repositories.links.get(staff_id) is None
+
+    assert results == [NotFoundError, NotFoundError]
+
+
+@pytest.mark.asyncio
+async def test_スタッフ本人リンク_別法人本人と未存在本人は同じNotFoundでリンクを作らない() -> (
+    None
+):
+    fixture = await _setup()
+    corporate_id = CorporateId.parse(fixture.command.corporate_id)
+    staff = create_staff(corporate_id=corporate_id)
+    await fixture.service.staff.save(staff)
+    foreign_person = replace(
+        fixture.person,
+        id=AccountPersonId.generate(),
+        corporate_id=CorporateId.generate(),
+    )
+    await fixture.repositories.people.save(foreign_person)
+    missing_person_id = AccountPersonId.generate()
+
+    observed: list[type[Exception]] = []
+    for person_id in (foreign_person.id, missing_person_id):
+        with pytest.raises(NotFoundError) as error:
+            await fixture.service.link_staff.execute(
+                str(corporate_id.value), str(person_id.value), str(staff.id.value)
+            )
+        observed.append(type(error.value))
+        assert await fixture.repositories.links.get(staff.id) is None
+
+    assert observed == [NotFoundError, NotFoundError]
 
 
 @pytest.mark.asyncio
