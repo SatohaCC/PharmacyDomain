@@ -8349,6 +8349,7 @@ export interface operations {
       query?: {
         cursor?: string | null;
         limit?: number;
+        store_id?: string | null;
       };
       header?: never;
       path: {

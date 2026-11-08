@@ -33,6 +33,7 @@ class ListUsersUseCase:
         *,
         after: str | None = None,
         limit: int = DEFAULT_PAGE_SIZE,
+        store_id: str | None = None,
     ) -> Page[MembershipViewDto]:
         """IDの昇順で並べ、続きがあればカーソルを返す。"""
         corporate = CorporateId.parse(corporate_id)
@@ -60,4 +61,7 @@ class ListUsersUseCase:
                 limit=limit,
                 store_ids=tuple(str(item.value) for item in actor.managed_store_ids),
             )
-        return await self._reader.read(corporate_id, after=after, limit=limit)
+        store_ids = (store_id,) if store_id else None
+        return await self._reader.read(
+            corporate_id, after=after, limit=limit, store_ids=store_ids
+        )

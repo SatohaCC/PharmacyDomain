@@ -7,6 +7,8 @@ import type {
   StoreNamesInput,
   StoreAddressInput,
   StoreContactInput,
+  StoreLicenses,
+  ManagerAssignment,
 } from "../model/store";
 
 export const createStore = (id: string, body: StoreInput) =>
@@ -205,4 +207,85 @@ export const updateStoreBusinessHours = (
         exceptions: body.exceptions ?? [],
       },
     }),
+  );
+
+export const updateStoreLicenses = (
+  corporateId: string,
+  storeId: string,
+  body: StoreLicenses,
+) =>
+  result(
+    api.PUT("/corporates/{corporate_id}/stores/{store_id}/licenses", {
+      params: { path: { corporate_id: corporateId, store_id: storeId } },
+      body,
+    }),
+  );
+
+export const listStoreManagerAssignments = (
+  corporateId: string,
+  storeId: string,
+  signal?: AbortSignal,
+): Promise<{ items: ManagerAssignment[]; next_cursor?: string | null }> =>
+  result(
+    api.GET("/corporates/{corporate_id}/stores/{store_id}/manager-assignments", {
+      params: { path: { corporate_id: corporateId, store_id: storeId } },
+      signal,
+    }),
+  );
+
+export const appointStoreManager = (
+  corporateId: string,
+  storeId: string,
+  staffId: string,
+  startsOn: string,
+) =>
+  result(
+    api.POST("/corporates/{corporate_id}/stores/{store_id}/manager-assignments", {
+      params: { path: { corporate_id: corporateId, store_id: storeId } },
+      body: {
+        action: "appoint",
+        staff_id: staffId,
+        starts_on: startsOn,
+      },
+    }),
+  );
+
+export const replaceStoreManager = (
+  corporateId: string,
+  storeId: string,
+  currentAssignmentId: string,
+  newStaffId: string,
+  effectiveOn: string,
+) =>
+  result(
+    api.POST("/corporates/{corporate_id}/stores/{store_id}/manager-replacement", {
+      params: { path: { corporate_id: corporateId, store_id: storeId } },
+      body: {
+        current_assignment_id: currentAssignmentId,
+        new_staff_id: newStaffId,
+        effective_on: effectiveOn,
+      },
+    }),
+  );
+
+export const endStoreManager = (
+  corporateId: string,
+  storeId: string,
+  assignmentId: string,
+  endsOn: string,
+) =>
+  result(
+    api.POST(
+      "/corporates/{corporate_id}/stores/{store_id}/manager-assignments/{assignment_id}/ending",
+      {
+        params: {
+          path: {
+            corporate_id: corporateId,
+            store_id: storeId,
+            assignment_id: assignmentId,
+          },
+        },
+        body: { ends_on: endsOn },
+      },
+    ),
   );

@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { StoreDetailView } from "./store-detail-view";
-import type { StoreDetail, BusinessWeekday } from "../model/store";
+import type {
+  StoreDetail,
+  BusinessWeekday,
+  StoreLicenses,
+  ManagerAssignment,
+} from "../model/store";
 import {
   updateStoreNames,
   updateStoreCode,
@@ -11,18 +16,35 @@ import {
   appointSafetyManager,
   removeSafetyManager,
   updateStoreBusinessHours,
+  updateStoreLicenses,
+  appointStoreManager,
+  replaceStoreManager,
+  endStoreManager,
   suspendStore,
   resumeStore,
   closeStore,
 } from "../api/store-api";
 
+export interface StoreStaffUser {
+  id: string;
+  person_id: string;
+  role: string;
+  status: string;
+  account_status: string | null;
+  staff_id?: string | null;
+}
+
 export function StoreDetailPage({
   store: initialStore,
   corporateId,
+  managers = [],
+  staffUsers = [],
   onRefresh,
 }: {
   store: StoreDetail;
   corporateId: string;
+  managers?: ManagerAssignment[];
+  staffUsers?: StoreStaffUser[];
   onRefresh: () => Promise<void>;
 }) {
   const [store, setStore] = useState<StoreDetail>(initialStore);
@@ -209,6 +231,72 @@ export function StoreDetailPage({
     }
   };
 
+  const handleUpdateLicenses = async (licenses: StoreLicenses) => {
+    clearMessages();
+    try {
+      await updateStoreLicenses(corporateId, store.id, licenses);
+      setStore((prev) => ({
+        ...prev,
+        licenses,
+      }));
+      setStatusMessage("許認可情報を更新しました。");
+      await onRefresh();
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "許認可情報の更新に失敗しました。",
+      );
+    }
+  };
+
+  const handleAppointStoreManager = async (staffId: string, startsOn: string) => {
+    clearMessages();
+    try {
+      await appointStoreManager(corporateId, store.id, staffId, startsOn);
+      setStatusMessage("管理薬剤師を任命しました。");
+      await onRefresh();
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "管理薬剤師の任命に失敗しました。",
+      );
+    }
+  };
+
+  const handleReplaceStoreManager = async (
+    currentAssignmentId: string,
+    newStaffId: string,
+    effectiveOn: string,
+  ) => {
+    clearMessages();
+    try {
+      await replaceStoreManager(
+        corporateId,
+        store.id,
+        currentAssignmentId,
+        newStaffId,
+        effectiveOn,
+      );
+      setStatusMessage("管理薬剤師を交代しました。");
+      await onRefresh();
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "管理薬剤師の交代に失敗しました。",
+      );
+    }
+  };
+
+  const handleEndStoreManager = async (assignmentId: string, endsOn: string) => {
+    clearMessages();
+    try {
+      await endStoreManager(corporateId, store.id, assignmentId, endsOn);
+      setStatusMessage("管理薬剤師の任期を終了しました。");
+      await onRefresh();
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "管理薬剤師の任期終了に失敗しました。",
+      );
+    }
+  };
+
   const handleChangeStatus = async (
     action: "suspend" | "resume" | "close",
     reason: string,
@@ -238,9 +326,15 @@ export function StoreDetailPage({
     <StoreDetailView
       store={store}
       corporateId={corporateId}
+      managers={managers}
+      staffUsers={staffUsers}
       onUpdateBasic={handleUpdateBasic}
       onUpdateAddress={handleUpdateAddress}
       onUpdateContact={handleUpdateContact}
+      onUpdateLicenses={handleUpdateLicenses}
+      onAppointStoreManager={handleAppointStoreManager}
+      onReplaceStoreManager={handleReplaceStoreManager}
+      onEndStoreManager={handleEndStoreManager}
       onUpdatePublicExpenses={handleUpdatePublicExpenses}
       onUpdateCertifications={handleUpdateCertifications}
       onAppointSafetyManager={handleAppointSafetyManager}

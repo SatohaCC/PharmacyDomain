@@ -10,10 +10,14 @@ export const listUsers = (
   id: string,
   cursor?: string,
   signal?: AbortSignal,
+  storeId?: string,
 ): Promise<UserList> =>
   result(
     api.GET("/corporates/{corporate_id}/users", {
-      params: { ...corporationParams(id), query: { cursor } },
+      params: {
+        path: { corporate_id: id },
+        query: { cursor, store_id: storeId },
+      },
       signal,
     }),
   );

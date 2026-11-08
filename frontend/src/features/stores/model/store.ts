@@ -77,6 +77,29 @@ export interface StoreInput {
   insurance_pharmacy_number: string | null;
 }
 
+export interface LicensePeriod {
+  number: string;
+  valid_from: string;
+  valid_to: string;
+}
+
+export interface StoreLicenses {
+  pharmacy_license: LicensePeriod;
+  narcotics_retailer_license?: LicensePeriod | null;
+}
+
+export interface ManagerAssignment {
+  id: string;
+  assignment_id?: string;
+  corporate_id?: string;
+  store_id?: string;
+  staff_id: string;
+  starts_on: string;
+  ends_on?: string | null;
+  status: string;
+  replaced_by_id?: string | null;
+}
+
 export interface StoreDetail {
   id: string;
   corporate_id: string;
@@ -91,7 +114,7 @@ export interface StoreDetail {
   code: string | null;
   insurance_pharmacy_number: string | null;
   status: string;
-  licenses?: unknown | null;
+  licenses?: StoreLicenses | null;
   safety_manager_id?: string | null;
   public_expense_designations?: {
     public_assistance_number?: string | null;

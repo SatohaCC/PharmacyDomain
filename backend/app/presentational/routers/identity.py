@@ -196,9 +196,12 @@ async def list_users(
     use_cases: IdentityUseCasesDep,
     cursor: str | None = None,
     limit: int = Query(default=50, ge=1, le=100),
+    store_id: str | None = None,
 ) -> Page[MembershipViewDto]:
     """自法人のユーザー権限を一覧する。"""
-    return await use_cases.list_users.execute(corporate_id, after=cursor, limit=limit)
+    return await use_cases.list_users.execute(
+        corporate_id, after=cursor, limit=limit, store_id=store_id
+    )
 
 
 @router.get(
