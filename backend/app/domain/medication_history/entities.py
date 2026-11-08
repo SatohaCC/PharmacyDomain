@@ -1694,6 +1694,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
                     amendment_id=amendment_id,
                 )
             else:
+                self._ensure_not_finalized()
                 updated = replace(self, soap=amended_soap)
                 draft_updated = True
         else:
