@@ -108,6 +108,7 @@ def client(
             history_fixture.staff_qualification,
             prescription_repo,
             history_fixture.clock,
+            organization_lock=history_fixture.organization_lock,
         ),
     )
     app = create_app(actor_provider=StubActorContextProvider(history_fixture.actor))

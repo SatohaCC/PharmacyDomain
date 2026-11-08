@@ -1,11 +1,16 @@
 """外部処方訂正の判断履歴と解決状態を検証する。"""
 
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
 
 from app.domain.medication_history.entities import MedicationHistoryRecord
-from app.domain.medication_history.exceptions import MedicationHistoryDomainError
+from app.domain.medication_history.exceptions import (
+    MedicationHistoryAlreadyFinalizedError,
+    MedicationHistoryDomainError,
+    PendingExternalPrescriptionCorrectionError,
+)
 from app.domain.medication_history.identifiers import ExternalCorrectionId
 from app.domain.medication_history.primitives import (
     CorrectionDocumentNumber,
@@ -16,6 +21,7 @@ from app.domain.medication_history.primitives import (
     ExternalCorrectionStatus,
     ExternalCorrectionTimestamp,
     FinalizedTimestamp,
+    MedicationHistoryStatus,
 )
 from app.domain.medication_history.value_objects import (
     ExternalPrescriptionCorrection,
@@ -90,6 +96,28 @@ def test_TC02_追記訂正とレビュー判断を同じ薬歴へ追記する() 
         else None
     ) == correction.review_events[-1].amendment_id.value
     assert reviewed.has_pending_correction_review is False
+
+
+def test_移行記録の外部訂正にAMENDを選ぶと元SOAPを保持して拒否される() -> None:
+    original_soap = create_soap(subjective="移行した原本の指導記録。")
+    legacy_record = replace(
+        create_record(counseled_at=COUNSELED_AT, soap=original_soap),
+        status=MedicationHistoryStatus.LEGACY_RECORDED,
+    ).record_external_correction(_correction())
+
+    with pytest.raises(MedicationHistoryAlreadyFinalizedError):
+        legacy_record.review_external_correction(
+            correction_id="corr-review-001",
+            decision=ExternalCorrectionDecision.AMEND,
+            reason="移行記録のSOAPを訂正する。",
+            reviewed_by=StaffId.generate(),
+            reviewed_at=_REVIEWED_AT,
+            amended_soap=create_soap(subjective="訂正後のSOAP。"),
+        )
+
+    assert legacy_record.soap == original_soap
+    assert legacy_record.amendments == ()
+    assert legacy_record.external_corrections[0].review_events == ()
 
 
 def test_TC03_理由付き不採用は解決し空白理由は拒否する() -> None:
@@ -256,3 +284,11 @@ def test_TC09_解決済み訂正への再判断は元履歴を上書きしない
         )
 
     assert resolved.external_corrections[0].review_events == old_events
+
+
+def test_未解決の外部訂正がある下書きは確定できない() -> None:
+    """未解決の外部訂正を通常レビュー結果で迂回して確定できない。"""
+    draft = create_record().record_external_correction(_correction())
+
+    with pytest.raises(PendingExternalPrescriptionCorrectionError):
+        finalize_record_with_review(draft)

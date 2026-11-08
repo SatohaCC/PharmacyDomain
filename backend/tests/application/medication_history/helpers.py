@@ -129,6 +129,7 @@ from tests.fakes.in_memory_reception_repository import InMemoryReceptionReposito
 from tests.fakes.medication_history_reference_boundaries import (
     FakeCounselorQualificationSource,
     FakeDispensingSource,
+    FakeMedicationHistoryEventOccurrenceBoundary,
     FakeMedicationHistoryStoreReference,
     FakeStatutoryRecordSource,
 )
@@ -196,6 +197,8 @@ class MedicationHistoryFixture:
     counselor_id: StaffId
     dispensing: DispensingProcess
     event_repository: InMemoryEventRepository
+    event_occurrence: FakeMedicationHistoryEventOccurrenceBoundary
+    organization_lock: FakeOrganizationLock
     event_type_id: EventTypeId
 
 
@@ -262,6 +265,8 @@ def create_fixture(
     corporate_repository = AutoProvisioningCorporateRepository()
     store_operations = FakeMedicationHistoryStoreOperations()
     event_repository = InMemoryEventRepository()
+    event_occurrence = FakeMedicationHistoryEventOccurrenceBoundary()
+    organization_lock = FakeOrganizationLock()
     event_type_id = EventTypeId.generate()
     resolved_actor = actor or create_resolved_actor(
         staff_id=counselor_id,
@@ -301,11 +306,12 @@ def create_fixture(
             profile_repository,
             corporate_access,
             NullUnitOfWork(),
-            organization_lock=FakeOrganizationLock(),
+            organization_lock=organization_lock,
             category_catalog_repository=category_catalog_repository,
             staff_qualification=staff_qualification,
             counselor_service=CounselorQualificationService(),
             clock=clock,
+            event_occurrence=event_occurrence,
         ),
         amend=AmendMedicationHistoryUseCase(
             record_repository,
@@ -377,6 +383,8 @@ def create_fixture(
         counselor_id=counselor_id,
         dispensing=dispensing,
         event_repository=event_repository,
+        event_occurrence=event_occurrence,
+        organization_lock=organization_lock,
         event_type_id=event_type_id,
     )
 

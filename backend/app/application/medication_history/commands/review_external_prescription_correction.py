@@ -11,6 +11,7 @@ from app.application.access_control.interfaces.corporate_access import (
 from app.application.access_control.policies import AuthorizationService
 from app.application.common.clock import Clock, business_date
 from app.application.common.exceptions import NotFoundError
+from app.application.common.organization_lock import OrganizationLock
 from app.application.medication_history.commands.dtos.get_medication_history import (
     MedicationHistoryDto,
 )
@@ -26,7 +27,6 @@ from app.application.medication_history.interfaces.references import (
 from app.application.medication_history.values import parse_enum, required_text
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
-from app.domain.medication_history.exceptions import MedicationHistoryNotFinalizedError
 from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.primitives import (
     ExternalCorrectionDecision,
@@ -61,12 +61,15 @@ class ReviewExternalPrescriptionCorrectionUseCase:
         staff_qualification: StaffQualificationBoundary,
         prescription_repository: PrescriptionRepository,
         clock: Clock,
+        *,
+        organization_lock: OrganizationLock,
     ) -> None:
         self._repository = repository
         self._corporate_access = corporate_access
         self._staff_qualification = staff_qualification
         self._prescription_repository = prescription_repository
         self._clock = clock
+        self._organization_lock = organization_lock
         self._counselor_service = CounselorQualificationService()
 
     async def execute(
@@ -81,6 +84,12 @@ class ReviewExternalPrescriptionCorrectionUseCase:
             self._repository,
             corporate_id=corporate_id,
             record_id=MedicationHistoryRecordId.parse(command.record_id),
+        )
+        await self._organization_lock.acquire(
+            f"medication-history-retention:{corporate_id.value}:{record.patient_id.value}"
+        )
+        record = await load_record_or_raise(
+            self._repository, corporate_id=corporate_id, record_id=record.id
         )
         AuthorizationService(self._corporate_access.actor).require_store(
             permission=Permission.MANAGE_MEDICATION_HISTORY,
@@ -101,11 +110,6 @@ class ReviewExternalPrescriptionCorrectionUseCase:
         decision = parse_enum(
             ExternalCorrectionDecision, command.decision, "外部訂正の判断"
         )
-        if not record.is_finalized and decision not in (
-            ExternalCorrectionDecision.NO_ACTION,
-            ExternalCorrectionDecision.INVESTIGATING,
-        ):
-            raise MedicationHistoryNotFinalizedError()
         if decision in (
             ExternalCorrectionDecision.NO_ACTION,
             ExternalCorrectionDecision.INVESTIGATING,

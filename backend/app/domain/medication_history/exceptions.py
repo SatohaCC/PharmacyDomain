@@ -66,6 +66,13 @@ class FinalizationDelayReasonRequiredError(MedicationHistoryDomainError):
     default_code = "MEDICATION_HISTORY_FINALIZATION_DELAY_REASON_REQUIRED"
 
 
+class PendingExternalPrescriptionCorrectionError(MedicationHistoryDomainError):
+    """未解決の外部訂正が残る薬歴を確定しようとした場合の例外。"""
+
+    default_message = "未解決の外部訂正を判断してから薬歴を確定してください。"
+    default_code = "MEDICATION_HISTORY_PENDING_EXTERNAL_PRESCRIPTION_CORRECTION"
+
+
 class FinalizationDateBeforeCounselingError(MedicationHistoryDomainError):
     """確定日時が服薬指導日時より過去である場合の例外。"""
 

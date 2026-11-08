@@ -192,6 +192,7 @@ async def test_tc40_08_患者ロックを同一法人患者で共有し読取よ
         staff_qualification=fixture.staff_qualification,
         counselor_service=CounselorQualificationService(),
         clock=fixture.clock,
+        event_occurrence=fixture.event_occurrence,
         organization_lock=lock,
     )
     target_patient_record = create_record(

@@ -11,6 +11,8 @@ import {
 } from "../../../shared/ui/layout/elements";
 import { Button } from "../../../shared/ui/controls/button";
 import { Alert } from "../../../shared/ui/feedback/alert";
+import { FinalizationReviewPanel } from "./finalization-review-panel";
+import type { FinalizationReviewPanelProps } from "./finalization-review-panel";
 import {
   type CategoryOption,
   type CurrentRecordHearingItem,
@@ -40,6 +42,10 @@ export interface BlocksEditorViewProps {
   onSave?: (blocks: MedicationHistoryBlockInput[]) => Promise<void>;
   onSaveHearingItems?: (items: CurrentRecordHearingItem[]) => Promise<void>;
   readOnly?: boolean;
+  finalizationReview?: Omit<
+    FinalizationReviewPanelProps,
+    "isDraft" | "hasUnsavedChanges"
+  >;
 }
 
 export function BlocksEditorView({
@@ -50,6 +56,7 @@ export function BlocksEditorView({
   onSave,
   onSaveHearingItems,
   readOnly = false,
+  finalizationReview,
 }: BlocksEditorViewProps) {
   const [blocks, setBlocks] = useState<BlockItemState[]>(() =>
     initialBlocks.map((b, idx) => ({
@@ -372,6 +379,14 @@ export function BlocksEditorView({
             </div>
           )}
         </section>
+
+        {finalizationReview && (
+          <FinalizationReviewPanel
+            {...finalizationReview}
+            isDraft={isDraft && !readOnly}
+            hasUnsavedChanges={isDirty}
+          />
+        )}
 
         {/* フッターアクション */}
         {!readOnly && (

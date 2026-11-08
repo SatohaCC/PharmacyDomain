@@ -953,6 +953,7 @@ class Test確定と投影:
                 corporate_id=fixture.corporate_id,
                 store_id=fixture.store_id,
                 patient_id=fixture.patient_id,
+                counselor_id=fixture.counselor_id,
                 dispensing_id=fixture.dispensing.id,
                 prescription_id=fixture.dispensing.prescription_id,
                 counseled_at=datetime(2026, 8, 1, tzinfo=UTC),
