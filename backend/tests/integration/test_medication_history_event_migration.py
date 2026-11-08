@@ -103,9 +103,14 @@ def _aggregate_row[AggregateT](
 ) -> dict[str, object]:
     """旧スキーマにも共通する集約の列とJSON payloadを作る。"""
     values = mapping.row_values(aggregate)
+    if mapping.table.name == "corporates":
+        payload = encode_aggregate(aggregate)
+        payload.pop("login_code", None)
+        values["payload"] = payload
     values.update(version=1, created_at=_MIGRATED_AT, updated_at=_MIGRATED_AT)
     # 0010時点ではまだ存在しない列を除外する
     excluded_columns = {
+        "login_code",
         "pharmacy_license_number",
         "pharmacy_license_valid_from",
         "pharmacy_license_valid_to",

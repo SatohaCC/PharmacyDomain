@@ -4,6 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.domain.corporate.identifiers import CorporateId
+
+
+@dataclass(frozen=True, kw_only=True)
+class RegisteredCorporate:
+    """登録完了した法人のIDとログインコード。"""
+
+    id: CorporateId
+    login_code: str
+
 
 @dataclass(frozen=True, kw_only=True)
 class RegisterCorporateCommand:

@@ -13,6 +13,10 @@ from app.domain.corporate.value_objects import CorporateSearch
 class CorporateRepository(Protocol):
     """法人を扱うユースケースが必要とする永続化操作。"""
 
+    async def allocate_login_code(self) -> str:
+        """未使用の6桁コードを予約する。欠番は再利用しない。"""
+        ...
+
     async def get(self, corporate_id: CorporateId) -> Corporate | None:
         """指定されたIDの法人を検索して返す。"""
         ...

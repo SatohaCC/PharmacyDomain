@@ -15,6 +15,7 @@ from app.domain.corporate.repositories import (
 from app.domain.corporate.value_objects import CorporateRepresentativeName
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.shared.person_name import PersonNamePart
+from tests.fakes.corporate_login_codes import create_login_code
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository
 
 
@@ -33,7 +34,10 @@ def test_create_generates_uuid7_and_normalizes_name() -> None:
 
     # Act
     corporate = Corporate(
-        id=CorporateId.generate(), name=name, representative_name=representative_name
+        login_code=create_login_code(),
+        id=CorporateId.generate(),
+        name=name,
+        representative_name=representative_name,
     )
 
     # Assert
@@ -77,6 +81,7 @@ def test_representative_name_rejects_empty_parts(
 def test_change_name_updates_name() -> None:
     # Arrange
     corporate = Corporate(
+        login_code=create_login_code(),
         id=CorporateId.generate(),
         name=CorporateName("旧法人"),
         representative_name=representative(),
@@ -92,6 +97,7 @@ def test_change_name_updates_name() -> None:
 def test_change_representative_updates_representative() -> None:
     # Arrange
     corporate = Corporate(
+        login_code=create_login_code(),
         id=CorporateId.generate(),
         name=CorporateName("法人"),
         representative_name=representative(),
@@ -108,6 +114,7 @@ def test_法人名変更_同じ名称を指定_戻り値と元の法人の状態
     # Arrange
     original_name = CorporateName("法人")
     corporate = Corporate(
+        login_code=create_login_code(),
         id=CorporateId.generate(),
         name=original_name,
         representative_name=representative(),
@@ -150,6 +157,7 @@ async def test_repository_save_and_get() -> None:
     implementation = InMemoryCorporateRepository()
     repository: CorporateRepository = implementation
     corporate = Corporate(
+        login_code=create_login_code(),
         id=CorporateId.generate(),
         name=CorporateName("テスト法人"),
         representative_name=representative(),
@@ -168,11 +176,13 @@ async def test_repository_save_rejects_duplicate_name() -> None:
     # Arrange
     repository = InMemoryCorporateRepository()
     first = Corporate(
+        login_code=create_login_code(),
         id=CorporateId.generate(),
         name=CorporateName("テスト法人"),
         representative_name=representative(),
     )
     second = Corporate(
+        login_code=create_login_code(),
         id=CorporateId.generate(),
         name=CorporateName("テスト法人"),
         representative_name=representative("佐藤", "花子"),
@@ -193,6 +203,7 @@ async def test_catalog_repository_lists_all_corporates() -> None:
     implementation = InMemoryCorporateRepository()
     catalog: CorporateCatalogRepository = implementation
     corporate = Corporate(
+        login_code=create_login_code(),
         id=CorporateId.generate(),
         name=CorporateName("テスト法人"),
         representative_name=representative(),
@@ -211,6 +222,7 @@ async def test_repository_save_allows_updating_the_same_corporate() -> None:
     # Arrange
     repository = InMemoryCorporateRepository()
     corporate = Corporate(
+        login_code=create_login_code(),
         id=CorporateId.generate(),
         name=CorporateName("テスト法人"),
         representative_name=representative(),

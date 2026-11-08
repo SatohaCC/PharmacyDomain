@@ -44,6 +44,7 @@ from app.infrastructure.identity.postgres.vendor_operator import (
 )
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.postgres.schema import (
+    corporates,
     local_credentials,
     local_sessions,
     vendor_operators,
@@ -180,14 +181,27 @@ class PostgresLocalAuthentication(LocalAuthentication):
             return frozenset(item.id for item in stores)
 
     async def login(
-        self, corporate_id: str | CorporateId, login_id: str, password: str
+        self, corporate_code: str, login_id: str, password: str
     ) -> LoginSession:
         """失敗回数をDBで共有し、5回失敗したIDを15分間ロックする。"""
         try:
+            if (
+                len(corporate_code) != 6
+                or not corporate_code.isascii()
+                or not corporate_code.isdigit()
+            ):
+                raise LoginFailedError()
+            async with self._sessions.begin() as lookup_session:
+                match = await lookup_session.execute(
+                    select(corporates.c.id).where(
+                        corporates.c.login_code == corporate_code
+                    )
+                )
+                found_id = match.scalar_one_or_none()
             cid = (
-                corporate_id
-                if isinstance(corporate_id, CorporateId)
-                else CorporateId.parse(corporate_id)
+                CorporateId(found_id)
+                if found_id is not None
+                else CorporateId.generate()
             )
             identifier = LoginId(login_id).value
         except DomainValidationError, ValueError:

@@ -6,13 +6,13 @@ export type LoginSessionDto =
   paths["/auth/login"]["post"]["responses"]["200"]["content"]["application/json"];
 
 export const passwordLogin = (
-  corporateId: string,
+  corporateCode: string,
   login_id: string,
   password: string,
 ): Promise<LoginSessionDto> =>
   result(
     api.POST("/auth/login", {
-      body: { corporate_id: corporateId, login_id, password },
+      body: { corporate_code: corporateCode, login_id, password },
     }),
   );
 

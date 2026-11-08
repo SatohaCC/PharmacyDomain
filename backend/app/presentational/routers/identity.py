@@ -13,7 +13,6 @@ from app.application.access_control.boundary_models import (
 from app.application.common.pagination import Page
 from app.application.composition.commands.register_contract import (
     RegisterContractCommand,
-    RegisteredContract,
 )
 from app.application.identity.boundary_models import (
     StoreWorkConditionChange,
@@ -40,7 +39,11 @@ from app.presentational.dependencies import (
 from app.presentational.errors import error_responses
 from app.presentational.exceptions import AuthenticationError
 from app.presentational.routing import ApplicationRoute
-from app.presentational.schemas import RegisteredIdResponse, RequestModel
+from app.presentational.schemas import (
+    RegisteredContractResponse,
+    RegisteredIdResponse,
+    RequestModel,
+)
 
 #: 通常のIdentity操作。認証はルータ単位で掛ける。
 #:
@@ -73,12 +76,12 @@ class RegisterContractRequest(RequestModel):
     initial_password: str = Field(repr=False, min_length=15, max_length=128)
 
 
-@router.post("/contracts", status_code=201, response_model=RegisteredContract)
+@router.post("/contracts", status_code=201, response_model=RegisteredContractResponse)
 async def register_contract(
     body: RegisterContractRequest, use_cases: IdentityUseCasesDep
-) -> RegisteredContract:
+) -> RegisteredContractResponse:
     """ベンダーが法人・初期管理者・資格情報を一括登録する。"""
-    return await use_cases.register_contract.execute(
+    result = await use_cases.register_contract.execute(
         RegisterContractCommand(
             name=body.name,
             representative_last_name=body.representative_last_name,
@@ -88,6 +91,12 @@ async def register_contract(
             email=body.email,
             initial_password=body.initial_password,
         )
+    )
+    return RegisteredContractResponse(
+        id=result.id,
+        account_id=result.account_id,
+        login_id=result.login_id,
+        corporate_code=result.corporate_code,
     )
 
 

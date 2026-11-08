@@ -34,13 +34,14 @@ test("実APIとPostgreSQLで新規契約から初回ログインまで完了す�
     page.getByRole("heading", { name: /ブラウザーテスト法人/ }),
   ).toBeVisible();
   const corporateUrl = new URL(page.url()).pathname;
+  const corporateCode = (await page.getByText(/法人コード：/).innerText()).match(/[0-9]{6}/)![0];
   const context = await browser.newContext();
   const administrator = await context.newPage();
   try {
     await administrator.goto("/login");
     await administrator
-      .getByLabel("法人ID")
-      .fill(corporateUrl.split("/").at(-1)!);
+      .getByLabel("6桁の法人コード")
+      .fill(corporateCode);
     await administrator.getByLabel("ログインID").fill(loginId);
     await administrator
       .getByLabel(/^パスワード(?:必須| 必須)?$/)

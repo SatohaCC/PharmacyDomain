@@ -58,6 +58,7 @@ from app.domain.staff.value_objects import (
     StoreAffiliation,
 )
 from app.domain.store.primitives import StoreStatus
+from app.infrastructure.corporate.postgres.corporate import PostgresCorporateRepository
 from app.infrastructure.di.repositories import PostgresRepositorySet
 from app.infrastructure.di.root import PostgresCompositionRoot
 from app.infrastructure.identity.postgres.local_authentication import (
@@ -134,7 +135,12 @@ async def _login_Ready(
         writer = PostgresCredentialWriter(work)
         await writer.issue(corporate_id, login_id, "InitialPassword!123", subject)
         await work.commit()
-    initial = await auth.login(str(corporate_id.value), login_id, "InitialPassword!123")
+    async with PostgresUnitOfWork(session_factory) as work:
+        corporate = await PostgresCorporateRepository(work).get(corporate_id)
+        assert corporate is not None
+    initial = await auth.login(
+        corporate.login_code.value, login_id, "InitialPassword!123"
+    )
     changed = await auth.change_password(initial.access_token, _PASSWORD)
     return changed.access_token
 

@@ -3,6 +3,7 @@ import { CorporateLayoutView } from "./corporate-layout-view";
 import { CorporateOverviewView } from "./corporates-overview-view";
 const sampleCorporate = {
   id: "example",
+        corporate_code: "012345",
   name: "テスト薬局グループ",
   representative_name: "テスト 太郎",
   is_active: true,

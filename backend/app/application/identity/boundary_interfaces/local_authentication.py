@@ -28,7 +28,7 @@ class LocalAuthentication(Protocol):
     """未認証のログインと、制限付きセッションのパスワード変更。"""
 
     async def login(
-        self, corporate_id: str, login_id: str, password: str
+        self, corporate_code: str, login_id: str, password: str
     ) -> LoginSession:
         """法人利用者の資格情報を照合し、期限付きセッションを作る。"""
         ...

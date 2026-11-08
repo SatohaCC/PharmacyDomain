@@ -28,7 +28,7 @@ export function useLogin(
       : loginKind === "vendor"
         ? await vendorPasswordLogin(text(d, "login_id"), password)
         : await passwordLogin(
-            text(d, "corporate_id"),
+            text(d, "corporate_code"),
             text(d, "login_id"),
             password,
           );

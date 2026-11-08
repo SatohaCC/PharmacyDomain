@@ -34,7 +34,7 @@ export function LoginView({
       <Paragraph>
         {passwordChangeRequired
           ? "ご自身の新しいパスワードに変更すると利用を開始できます。"
-          : "発行されたメールアドレスとパスワードを入力してください。"}
+          : "発行されたログインIDとパスワードを入力してください。"}
       </Paragraph>
       <Form
         key={passwordChangeRequired ? "change" : "login"}
@@ -57,7 +57,7 @@ export function LoginView({
               ]}
             />
             {loginKind === "corporate" && (
-              <Field name="corporate_id" label="法人ID" required />
+              <Field name="corporate_code" label="6桁の法人コード" required />
             )}
             <Field name="login_id" label="ログインID" required />
           </>

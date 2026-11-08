@@ -22,7 +22,7 @@ from app.application.store.commands.models import (
 )
 from app.dev_main import build_actor_provider
 from app.domain.corporate.identifiers import CorporateId
-from app.domain.corporate.primitives import CorporateName
+from app.domain.corporate.primitives import CorporateLoginCode, CorporateName
 from app.domain.identity.entities import VendorOperator
 from app.domain.identity.identifiers import VendorOperatorId
 from app.domain.identity.primitives import (
@@ -50,6 +50,7 @@ async def test_営業時間登録_別法人を操作する開発ベンダー_監
     data = build_seed_data()
     target_corporate = replace(
         data.corporate,
+        login_code=CorporateLoginCode("000001"),
         id=CorporateId.generate(),
         name=CorporateName("操作対象の別法人"),
         corporate_number=None,

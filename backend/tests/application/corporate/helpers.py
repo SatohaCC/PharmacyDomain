@@ -5,6 +5,7 @@ from app.domain.corporate.identifiers import CorporateId
 from app.domain.corporate.primitives import CorporateName
 from app.domain.corporate.value_objects import CorporateRepresentativeName
 from app.domain.shared.person_name import PersonNamePart
+from tests.fakes.corporate_login_codes import create_login_code
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository
 
 
@@ -18,6 +19,7 @@ def create_representative(
 
 def create_corporate(name: str = "テスト法人") -> Corporate:
     return Corporate(
+        login_code=create_login_code(),
         id=CorporateId.generate(),
         name=CorporateName(name),
         representative_name=create_representative(),

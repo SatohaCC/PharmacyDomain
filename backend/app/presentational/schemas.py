@@ -21,6 +21,22 @@ class RegisteredIdResponse(BaseModel):
     id: str
 
 
+class RegisteredContractResponse(BaseModel):
+    """法人契約と初期管理者の登録結果。"""
+
+    id: str
+    account_id: str
+    login_id: str
+    corporate_code: str
+
+
+class RegisteredCorporateResponse(BaseModel):
+    """登録完了した法人の内部IDとログインコード。"""
+
+    id: str
+    corporate_code: str
+
+
 __all__ = [
     "RegisteredIdResponse",
     "RequestModel",

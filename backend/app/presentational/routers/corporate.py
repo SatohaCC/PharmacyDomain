@@ -35,7 +35,10 @@ from app.application.corporate.queries.models import ListCorporatesQuery
 from app.presentational.dependencies import CorporateUseCasesDep, get_actor_context
 from app.presentational.errors import error_responses
 from app.presentational.routing import ApplicationRoute
-from app.presentational.schemas import RegisteredIdResponse, RequestModel
+from app.presentational.schemas import (
+    RegisteredCorporateResponse,
+    RequestModel,
+)
 
 router = APIRouter(
     route_class=ApplicationRoute,
@@ -117,13 +120,13 @@ class UpdateCorporateDetailsRequest(RequestModel):
 @router.post(
     "",
     status_code=HTTPStatus.CREATED,
-    response_model=RegisteredIdResponse,
+    response_model=RegisteredCorporateResponse,
     responses=error_responses(HTTPStatus.CONFLICT),
 )
 async def register_corporate(
     body: RegisterCorporateRequest,
     use_cases: CorporateUseCasesDep,
-) -> RegisteredIdResponse:
+) -> RegisteredCorporateResponse:
     """法人を新規登録する。"""
     corporate_id = await use_cases.register.execute(
         RegisterCorporateCommand(
@@ -139,7 +142,9 @@ async def register_corporate(
             email=body.email,
         )
     )
-    return RegisteredIdResponse(id=str(corporate_id.value))
+    return RegisteredCorporateResponse(
+        id=str(corporate_id.id.value), corporate_code=corporate_id.login_code
+    )
 
 
 @router.get("", response_model=CorporatePageDto)

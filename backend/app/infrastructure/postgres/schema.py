@@ -16,6 +16,7 @@ from sqlalchemy import (
     Integer,
     MetaData,
     PrimaryKeyConstraint,
+    Sequence,
     String,
     Table,
     Text,
@@ -282,11 +283,16 @@ local_sessions = Table(
 
 # 集約は payload（JSONB）を正とし、検索・一意性制約に要る値だけを列へ複製する。
 # version は楽観ロック用で、集約ではなく行の世代を表す。
+corporate_login_codes = Sequence(
+    "corporate_login_codes", metadata=metadata, start=0, minvalue=0, maxvalue=999999
+)
+
 corporates = Table(
     "corporates",
     metadata,
     Column("id", UUID(as_uuid=True), primary_key=True, nullable=False),
     Column("name", String(200), nullable=False),
+    Column("login_code", String(6), nullable=False),
     Column("representative_name", String(200), nullable=False),
     Column("status", String(32), nullable=False),
     Column("payload", JSONB, nullable=False),
@@ -294,6 +300,8 @@ corporates = Table(
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     UniqueConstraint("name", name="uq_corporates_name"),
+    UniqueConstraint("login_code", name="uq_corporates_login_code"),
+    CheckConstraint("login_code ~ '^[0-9]{6}$'", name="login_code_six_digits"),
 )
 
 prescriptions = Table(

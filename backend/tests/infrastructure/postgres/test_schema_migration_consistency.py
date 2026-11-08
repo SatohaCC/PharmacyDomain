@@ -475,6 +475,16 @@ _LOCAL_SESSIONS_SELECTED_STORE_TRANSFORM_PREFIXES = (
     "ALTER TABLE local_sessions ADD CONSTRAINT fk_local_sessions_selected_store_id_stores FOREIGN KEY",
 )
 
+_CORPORATE_CODE_TRANSFORM_PREFIXES = (
+    "CREATE SEQUENCE corporate_login_codes MINVALUE 0 MAXVALUE 999999 START 0",
+    "ALTER TABLE corporates ADD COLUMN login_code VARCHAR(6)",
+    "WITH numbered AS ( SELECT id, row_number() OVER (ORDER BY id) - 1 AS number FROM corporates )",
+    "ALTER TABLE corporates ALTER COLUMN login_code SET NOT NULL",
+    "SELECT setval('corporate_login_codes',",
+    "ALTER TABLE corporates ADD CONSTRAINT uq_corporates_login_code UNIQUE (login_code)",
+    "ALTER TABLE corporates ADD CONSTRAINT ck_corporates_login_code_six_digits CHECK",
+)
+
 _LOGIN_ID_TRANSFORM_PREFIXES = (
     "ALTER TABLE vendor_operators ADD COLUMN login_id VARCHAR(64)",
     "ALTER TABLE local_credentials ADD COLUMN login_id VARCHAR(64)",
@@ -564,7 +574,15 @@ def _migration_ddl() -> set[str]:
     for statement in upgrade_statements:
         if not statement.startswith(_COMPARED_DDL_PREFIXES):
             continue
-        if statement.startswith("CREATE TABLE patient_external_identifiers "):
+        if statement.startswith("CREATE TABLE corporates "):
+            close_index = statement.rfind(")")
+            statement = _normalized_statement(
+                statement[:close_index]
+                + ", login_code VARCHAR(6) NOT NULL, CONSTRAINT uq_corporates_login_code UNIQUE (login_code), "
+                + "CONSTRAINT ck_corporates_login_code_six_digits CHECK (login_code ~ '^[0-9]{6}$')"
+                + statement[close_index:]
+            )
+        elif statement.startswith("CREATE TABLE patient_external_identifiers "):
             open_index = statement.find("(")
             close_index = statement.rfind(")")
             assert open_index != -1 and close_index > open_index
@@ -839,6 +857,7 @@ def test_マイグレーションの全DDLが_検査の対象になっている(
         )
         and not statement.startswith(_LOCAL_SESSIONS_SELECTED_STORE_TRANSFORM_PREFIXES)
         and not statement.startswith(_LOGIN_ID_TRANSFORM_PREFIXES)
+        and not statement.startswith(_CORPORATE_CODE_TRANSFORM_PREFIXES)
         and statement not in routines
         and statement not in _SUPERSEDED_ROUTINES
     ]
@@ -1182,3 +1201,9 @@ def test_tc44_15_検索列へフォローアップ登録日時を出力する() 
     assert "recorded_at" in schema.medication_history_records.c
     assert record.recorded_at is not None
     assert row_values.get("recorded_at") == record.recorded_at.value
+
+
+def test_法人コードの列と採番と制約が_前進マイグレーションにある() -> None:
+    statements = _upgrade_statements()
+    for prefix in _CORPORATE_CODE_TRANSFORM_PREFIXES:
+        assert any(statement.startswith(prefix) for statement in statements), prefix

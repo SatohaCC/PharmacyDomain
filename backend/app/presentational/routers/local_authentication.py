@@ -47,7 +47,7 @@ Credentials = Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_sche
 class LoginRequest(RequestModel):
     """ログイン入力。秘密をモデルの文字列表現へ含めない。"""
 
-    corporate_id: str
+    corporate_code: str = Field(min_length=6, max_length=6, pattern=r"^[0-9]{6}$")
     login_id: str = Field(max_length=64)
     password: str = Field(repr=False, max_length=128)
 
@@ -76,7 +76,7 @@ async def login(body: LoginRequest, auth: Auth, response: Response) -> LoginSess
     """初期パスワードでは変更専用セッションを返す。"""
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
-    return await auth.login(body.corporate_id, body.login_id, body.password)
+    return await auth.login(body.corporate_code, body.login_id, body.password)
 
 
 @router.post("/vendor/login", response_model=LoginSession)

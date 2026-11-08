@@ -15,6 +15,7 @@ from app.domain.corporate.primitives import (
 from app.domain.corporate.value_objects import CorporateRepresentativeName
 from app.domain.shared.person_name import PersonNamePart
 from tests.application.access_helpers import create_vendor_corporate_access
+from tests.fakes.corporate_login_codes import create_login_code
 from tests.fakes.in_memory_corporate_repository import InMemoryCorporateRepository
 
 
@@ -23,6 +24,7 @@ async def test_update_corporate_details_success() -> None:
     corporate_repo = InMemoryCorporateRepository()
     corporate_id = CorporateId.generate()
     corporate = Corporate(
+        login_code=create_login_code(),
         id=corporate_id,
         name=CorporateName("サンプル医療法人"),
         representative_name=CorporateRepresentativeName(

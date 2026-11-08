@@ -5,10 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from app.application.corporate.commands.models import RegisterCorporateCommand
+from app.application.corporate.commands.models import (
+    RegisterCorporateCommand,
+    RegisteredCorporate,
+)
 from app.application.identity.commands.dtos.identity_views import PersonDto
 from app.application.identity.commands.models import PersonNamesInput
-from app.domain.corporate.identifiers import CorporateId
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -20,7 +22,7 @@ class RegisteredAdminUser:
 
 
 class RegisterCorporateOperation(Protocol):
-    async def execute(self, command: RegisterCorporateCommand) -> CorporateId:
+    async def execute(self, command: RegisterCorporateCommand) -> RegisteredCorporate:
         """認可・検証を伴う登録操作を実行する。"""
         ...
 

@@ -39,9 +39,14 @@ async def test_旧店舗を稼働中かつ履歴空へ移行し本人と過去�
             for module in modules[:-1]:
                 module.upgrade()
             now = datetime(2026, 9, 1, tzinfo=UTC)
+            corporate_values = CORPORATE_MAPPING.row_values(corporate)
+            corporate_values.pop("login_code")
+            corporate_payload = encode_aggregate(corporate)
+            corporate_payload.pop("login_code")
+            corporate_values["payload"] = corporate_payload
             connection.execute(
                 insert(schema.corporates).values(
-                    **CORPORATE_MAPPING.row_values(corporate),
+                    **corporate_values,
                     version=1,
                     created_at=now,
                     updated_at=now,

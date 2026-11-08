@@ -41,6 +41,7 @@ from app.infrastructure.corporate.postgres.corporate import PostgresCorporateRep
 from app.infrastructure.postgres.codec import PersistenceMappingError
 from app.infrastructure.postgres.connection import PostgresUnitOfWork
 from app.infrastructure.store.postgres.store import PostgresStoreRepository
+from tests.fakes.corporate_login_codes import create_login_code
 
 
 def _make_store(
@@ -96,6 +97,7 @@ async def test_TC005_店舗免許を別UoWから復元し麻薬免許だけを�
         corp_repo = PostgresCorporateRepository(uow)
         await corp_repo.save(
             Corporate(
+                login_code=create_login_code(),
                 id=corporate_id,
                 name=CorporateName("テスト薬局法人"),
                 representative_name=CorporateRepresentativeName(
@@ -170,6 +172,7 @@ async def test_TC006_店舗免許の検索列ごとのpayload不一致を復元�
         corp_repo = PostgresCorporateRepository(uow)
         await corp_repo.save(
             Corporate(
+                login_code=create_login_code(),
                 id=corporate_id,
                 name=CorporateName("テスト薬局法人"),
                 representative_name=CorporateRepresentativeName(

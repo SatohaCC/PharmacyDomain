@@ -34,6 +34,7 @@ class RegisteredContract:
     id: str
     account_id: str
     login_id: str
+    corporate_code: str
 
 
 class RegisterContractUseCase:
@@ -61,7 +62,7 @@ class RegisterContractUseCase:
                 representative_first_name=command.representative_first_name,
             )
         )
-        identifier = str(corporate_id.value)
+        identifier = str(corporate_id.id.value)
         person = await self._person.execute(identifier, command.administrator)
         user = await self._admin_user.execute(
             corporate_id=identifier,
@@ -71,5 +72,8 @@ class RegisterContractUseCase:
             initial_password=command.initial_password,
         )
         return RegisteredContract(
-            id=identifier, account_id=user.id, login_id=user.login_id
+            id=identifier,
+            account_id=user.id,
+            login_id=user.login_id,
+            corporate_code=corporate_id.login_code,
         )

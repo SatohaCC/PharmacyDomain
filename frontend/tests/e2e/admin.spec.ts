@@ -546,7 +546,7 @@ for (const vendor of [false, true]) {
       (r) => {
         calls++;
         expect(r.request().postDataJSON()).toEqual({
-          ...(vendor ? {} : { corporate_id: "corp-1" }),
+          ...(vendor ? {} : { corporate_code: "012345" }),
           login_id: "test-admin",
           password: "test-password-12345",
         });
@@ -559,8 +559,8 @@ for (const vendor of [false, true]) {
     if (vendor) {
       await page.getByRole("button", { name: /ログイン種別/ }).click();
       await page.getByRole("option", { name: "運営者", exact: true }).click();
-      await expect(page.getByLabel("法人ID")).toHaveCount(0);
-    } else await page.getByLabel("法人ID").fill("corp-1");
+      await expect(page.getByLabel("6桁の法人コード")).toHaveCount(0);
+    } else await page.getByLabel("6桁の法人コード").fill("012345");
     await page.getByLabel("ログインID").fill("test-admin");
     await page.getByLabel(/^パスワード/).fill("test-password-12345");
     await page.getByRole("button", { name: "ログイン", exact: true }).click();
