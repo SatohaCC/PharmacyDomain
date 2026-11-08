@@ -7,7 +7,7 @@ AGENTS.md「Boundaryの例外契約」が求める「定義だけで raise さ�
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import date
+from datetime import date, datetime
 
 from app.application.common.exceptions import AuthorizationError
 from app.application.composition.adapters.medication_history_snapshot_mapping import (
@@ -22,13 +22,16 @@ from app.application.medication_history.errors import (
 )
 from app.application.medication_history.interfaces.references import (
     DispensingReferenceBoundary,
+    MedicationHistoryEventOccurrenceBoundary,
     StaffQualificationBoundary,
     StatutoryRecordSourceBoundary,
     StoreReferenceBoundary,
 )
+from app.domain.care_event.identifiers import EventId
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.entities import DispensingProcess
 from app.domain.dispensing.identifiers import DispensingId
+from app.domain.foundation.exceptions import DomainError
 from app.domain.medication_history.value_objects import (
     DispensingSource,
     PharmacistQualification,
@@ -44,6 +47,38 @@ from app.domain.staff.value_objects import (
     StoreAffiliation,
 )
 from app.domain.store.identifiers import StoreId
+
+
+class FakeMedicationHistoryEventOccurrenceBoundary(
+    MedicationHistoryEventOccurrenceBoundary
+):
+    """Event存在を前提に発生日時確認を記録する単体テスト境界。"""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[CorporateId, EventId, datetime | None]] = []
+        self.unknown_occurrences: set[tuple[CorporateId, EventId]] = set()
+        self.resolved_occurrences: dict[tuple[CorporateId, EventId], datetime] = {}
+
+    def mark_unknown(self, *, corporate_id: CorporateId, event_id: EventId) -> None:
+        """指定Eventを発生日時未確認として扱う。"""
+        self.unknown_occurrences.add((corporate_id, event_id))
+
+    async def resolve_unknown_occurrence(
+        self,
+        *,
+        corporate_id: CorporateId,
+        event_id: EventId,
+        occurred_at: datetime | None,
+    ) -> None:
+        """未確認Eventの時刻を必ず確認し、同じ呼び出しを記録する。"""
+        key = (corporate_id, event_id)
+        self.calls.append((corporate_id, event_id, occurred_at))
+        if key not in self.unknown_occurrences:
+            return
+        if occurred_at is None:
+            raise DomainError("Eventの発生日時が未確認です。")
+        self.resolved_occurrences[key] = occurred_at
+        self.unknown_occurrences.remove(key)
 
 
 class FakeMedicationHistoryStoreReference(StoreReferenceBoundary):
@@ -96,6 +131,9 @@ class FakeCounselorQualificationSource(StaffQualificationBoundary):
     def __init__(self) -> None:
         self.qualifications: dict[tuple[CorporateId, StaffId], StaffQualifications] = {}
         self.active_flags: dict[tuple[CorporateId, StaffId], bool] = {}
+        self.requests: list[
+            tuple[CorporateId, StaffId, StoreId | None, date | None]
+        ] = []
         self.affiliations: dict[
             tuple[CorporateId, StaffId], tuple[StoreAffiliation, ...] | None
         ] = {}
@@ -127,6 +165,7 @@ class FakeCounselorQualificationSource(StaffQualificationBoundary):
 
         資格を持たないだけのスタッフは在籍しているので例外にしない。
         """
+        self.requests.append((corporate_id, staff_id, store_id, as_of))
         key = (corporate_id, staff_id)
         qualifications = self.qualifications.get(key)
         if qualifications is None:

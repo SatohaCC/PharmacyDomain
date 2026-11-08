@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -689,6 +690,34 @@ class Test下書き更新:
 
 class Test確定真正性と遅延理由:
     """TC-08 〜 TC-14: 確定メタデータ、当日記載原則、遅延理由の検証。"""
+
+    def test_JSTの同一日ならUTC日付が変わっても遅延理由を要求しない(self) -> None:
+        # Arrange
+        japan = ZoneInfo("Asia/Tokyo")
+        record = create_record(counseled_at=datetime(2026, 10, 1, 8, 50, tzinfo=japan))
+
+        # Act
+        finalized = finalize_record_with_review(
+            record,
+            finalized_at=FinalizedTimestamp(datetime(2026, 10, 1, 9, 10, tzinfo=japan)),
+        )
+
+        # Assert
+        assert finalized.delay_reason is None
+
+    def test_JSTで翌日に確定したらUTC日付が同じでも遅延理由を要求する(self) -> None:
+        # Arrange
+        japan = ZoneInfo("Asia/Tokyo")
+        record = create_record(counseled_at=datetime(2026, 10, 1, 23, 50, tzinfo=japan))
+
+        # Act / Assert
+        with pytest.raises(FinalizationDelayReasonRequiredError):
+            finalize_record_with_review(
+                record,
+                finalized_at=FinalizedTimestamp(
+                    datetime(2026, 10, 2, 0, 10, tzinfo=japan)
+                ),
+            )
 
     def test_tc08_当日確定で確定日時と確定者が記録される(self) -> None:
         # Arrange

@@ -5,7 +5,10 @@ from datetime import UTC, datetime
 import pytest
 
 from app.domain.medication_history.entities import MedicationHistoryRecord
-from app.domain.medication_history.exceptions import MedicationHistoryDomainError
+from app.domain.medication_history.exceptions import (
+    MedicationHistoryDomainError,
+    PendingExternalPrescriptionCorrectionError,
+)
 from app.domain.medication_history.identifiers import ExternalCorrectionId
 from app.domain.medication_history.primitives import (
     CorrectionDocumentNumber,
@@ -256,3 +259,11 @@ def test_TC09_解決済み訂正への再判断は元履歴を上書きしない
         )
 
     assert resolved.external_corrections[0].review_events == old_events
+
+
+def test_未解決の外部訂正がある下書きは確定できない() -> None:
+    """未解決の外部訂正を通常レビュー結果で迂回して確定できない。"""
+    draft = create_record().record_external_correction(_correction())
+
+    with pytest.raises(PendingExternalPrescriptionCorrectionError):
+        finalize_record_with_review(draft)

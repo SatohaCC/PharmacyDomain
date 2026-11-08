@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -29,6 +30,7 @@ from app.domain.medication_history.primitives import (
     MediumCategoryCode,
     MediumCategoryName,
 )
+from app.domain.medication_history.services import CounselorQualificationService
 from app.domain.medication_history.value_objects import (
     MajorCategoryDefinition,
     MediumCategoryDefinition,
@@ -93,7 +95,10 @@ async def test_finalize_passes_when_corporate_required_categories_met(
         NullUnitOfWork(),
         organization_lock=FakeOrganizationLock(),
         category_catalog_repository=catalog_repo,
+        staff_qualification=fixture.staff_qualification,
+        counselor_service=CounselorQualificationService(),
         clock=fixture.clock,
+        event_occurrence=fixture.event_occurrence,
     )
 
     # SとPを両方入力して下書き作成
@@ -164,7 +169,10 @@ async def test_finalize_fails_when_corporate_required_categories_missing(
         NullUnitOfWork(),
         organization_lock=FakeOrganizationLock(),
         category_catalog_repository=catalog_repo,
+        staff_qualification=fixture.staff_qualification,
+        counselor_service=CounselorQualificationService(),
         clock=fixture.clock,
+        event_occurrence=fixture.event_occurrence,
     )
 
     from tests.application.medication_history.helpers import create_start_command
@@ -273,3 +281,43 @@ async def test_tc45_29_法人必須区分は_Event種別によらず適用され
         record_id=MedicationHistoryRecordId.parse(draft.id),
     )
     assert saved_draft is not None and not saved_draft.is_finalized
+
+
+@pytest.mark.asyncio
+async def test_指導者資格を指導日の日本時間で確認し確定境界を常に呼び出す() -> None:
+    """指導者と確定者の資格をそれぞれの業務日で確認する。"""
+    fixture = create_fixture()
+    counseled_at = datetime(2026, 8, 22, 14, 30, tzinfo=UTC)
+    draft = await fixture.start.execute(
+        create_start_command(
+            fixture,
+            counselor_id=str(fixture.counselor_id.value),
+            counseled_at=counseled_at,
+        )
+    )
+    fixture.staff_qualification.requests.clear()
+
+    await fixture.finalize.execute(
+        FinalizeMedicationHistoryCommand(
+            corporate_id=str(fixture.corporate_id.value),
+            record_id=draft.id,
+            delay_reason="指導日の翌日に確認内容を再点検したため。",
+            review_result="assessment_and_instruction_recorded",
+        )
+    )
+
+    assert fixture.staff_qualification.requests == [
+        (
+            fixture.corporate_id,
+            fixture.counselor_id,
+            fixture.store_id,
+            date(2026, 8, 23),
+        ),
+        (
+            fixture.corporate_id,
+            fixture.counselor_id,
+            fixture.store_id,
+            date(2026, 8, 22),
+        ),
+    ]
+    assert len(fixture.event_occurrence.calls) == 1

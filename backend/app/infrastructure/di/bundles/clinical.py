@@ -546,6 +546,7 @@ def build_medication_history_use_cases(
             counselor_qualification,
             repositories.prescription,
             clock,
+            organization_lock=actual_lock,
         ),
     )
 

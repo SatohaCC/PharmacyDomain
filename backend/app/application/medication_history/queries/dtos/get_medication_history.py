@@ -147,6 +147,7 @@ class ExternalCorrectionReviewEventDto:
     reviewed_at: str
     matched_prescription_id: str | None
     amendment_id: str | None = None
+    draft_updated: bool = False
 
     @classmethod
     def from_value(
@@ -163,6 +164,7 @@ class ExternalCorrectionReviewEventDto:
             matched_prescription_id=str(event.matched_prescription_id.value)
             if event.matched_prescription_id is not None
             else None,
+            draft_updated=event.draft_updated,
         )
 
 

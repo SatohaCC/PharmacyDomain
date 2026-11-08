@@ -3989,6 +3989,11 @@ export interface components {
       matched_prescription_id: string | null;
       /** Amendment Id */
       amendment_id?: string | null;
+      /**
+       * Draft Updated
+       * @default false
+       */
+      draft_updated: boolean;
     };
     /**
      * ExternalPrescriptionCorrectionDto

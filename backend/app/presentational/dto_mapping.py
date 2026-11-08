@@ -862,6 +862,7 @@ def to_http_medication_history_get_medication_history__external_correction_revie
         reviewed_at=value.reviewed_at,
         matched_prescription_id=value.matched_prescription_id,
         amendment_id=value.amendment_id,
+        draft_updated=value.draft_updated,
     )
 
 

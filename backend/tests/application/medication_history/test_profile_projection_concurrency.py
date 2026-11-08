@@ -151,6 +151,7 @@ async def test_3経路とも同一の患者キーでロックを先行取得す�
         staff_qualification=fixture.staff_qualification,
         counselor_service=CounselorQualificationService(),
         clock=fixture.clock,
+        event_occurrence=fixture.event_occurrence,
     )
     await use_case_finalize.execute(
         FinalizeMedicationHistoryCommand(
@@ -277,6 +278,7 @@ async def test_確定と訂正はロック待機後に対象薬歴を再読込�
         staff_qualification=fixture.staff_qualification,
         counselor_service=CounselorQualificationService(),
         clock=fixture.clock,
+        event_occurrence=fixture.event_occurrence,
     )
 
     # ロック待機後に再読込され、確定済みであるため二重確定エラーになる
@@ -338,6 +340,7 @@ async def test_3経路すべてが共通のPatientMedicalProfileProjectionServic
         staff_qualification=fixture.staff_qualification,
         counselor_service=CounselorQualificationService(),
         clock=fixture.clock,
+        event_occurrence=fixture.event_occurrence,
         projection_service=projection_service,
     )
     await use_case_finalize.execute(

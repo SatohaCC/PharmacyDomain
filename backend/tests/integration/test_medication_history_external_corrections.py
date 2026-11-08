@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.domain.care_event.entities import EventDefinition
 from app.domain.care_event.primitives import EventTypeName, EventTypeStandardCode
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.foundation.exceptions import ConcurrentModificationError
 from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.identifiers import ExternalCorrectionId
 from app.domain.medication_history.primitives import (
@@ -308,3 +309,140 @@ async def test_未指導DRAFTだけをPostgreSQLで破棄できる(
             is not None
         )
         await work.commit()
+
+
+@pytest.mark.asyncio
+async def test_外部訂正レビューの競合後に再読込しても両方の監査履歴を保持する(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """古いversionの保存を拒否し、最新集約から再試行して履歴を併合する。"""
+    corporate = create_corporate("外部訂正競合法人")
+    store = create_store(
+        corporate_id=corporate.id,
+        name="外部訂正競合店舗",
+        kana="ガイブテイセイキョウゴウテンポ",
+    )
+    patient = create_patient(corporate_id=corporate.id)
+    counselor_id = StaffId.generate()
+    reviewed_at = datetime(2026, 9, 27, 4, tzinfo=UTC)
+    record = finalize_record_with_review(
+        create_record(
+            corporate_id=corporate.id,
+            store_id=store.id,
+            patient_id=patient.id,
+            counselor_id=counselor_id,
+            counseled_at=COUNSELED_AT,
+        )
+    )
+    corrections = (
+        ExternalPrescriptionCorrection(
+            correction_id=ExternalCorrectionId("correction-retry-a"),
+            corrected_at=ExternalCorrectionTimestamp(reviewed_at),
+            source_document_number=CorrectionDocumentNumber("DOC-CORRECTION-A"),
+            reason=ExternalCorrectionReason("1件目の外部訂正を受信した。"),
+        ),
+        ExternalPrescriptionCorrection(
+            correction_id=ExternalCorrectionId("correction-retry-b"),
+            corrected_at=ExternalCorrectionTimestamp(reviewed_at),
+            source_document_number=CorrectionDocumentNumber("DOC-CORRECTION-B"),
+            reason=ExternalCorrectionReason("2件目の外部訂正を受信した。"),
+        ),
+    )
+    for correction in corrections:
+        record = record.record_external_correction(correction)
+
+    async with PostgresUnitOfWork(session_factory) as work:
+        repositories = PostgresRepositorySet.create(work)
+        await repositories.corporate.save(corporate)
+        await repositories.store.save(store)
+        await repositories.patient.save(patient)
+        definitions = await repositories.event_definition.list_for_corporate(
+            corporate_id=corporate.id
+        )
+        if not any(
+            item.standard_code is not None
+            and item.standard_code.value == "prescription_reception"
+            for item in definitions
+        ):
+            await repositories.event_definition.save(
+                EventDefinition.create_standard(
+                    code=EventTypeStandardCode("prescription_reception"),
+                    name=EventTypeName("処方箋受付"),
+                )
+            )
+        await save_history_with_event(repositories, record)
+        await work.commit()
+
+    async with PostgresUnitOfWork(session_factory) as stale_work:
+        stale_repository = PostgresRepositorySet.create(stale_work).medication_history
+        stale = await stale_repository.get(
+            corporate_id=corporate.id,
+            record_id=record.id,
+        )
+        assert stale is not None
+
+        async with PostgresUnitOfWork(session_factory) as first_work:
+            first_repository = PostgresRepositorySet.create(
+                first_work
+            ).medication_history
+            current = await first_repository.get(
+                corporate_id=corporate.id,
+                record_id=record.id,
+            )
+            assert current is not None
+            first_review = current.review_external_correction(
+                correction_id="correction-retry-a",
+                decision=ExternalCorrectionDecision.NO_ACTION,
+                reason="1件目の影響がないことを確認した。",
+                reviewed_by=counselor_id,
+                reviewed_at=ExternalCorrectionTimestamp(reviewed_at),
+            )
+            await first_repository.save(first_review)
+            await first_work.commit()
+
+        stale_review = stale.review_external_correction(
+            correction_id="correction-retry-b",
+            decision=ExternalCorrectionDecision.NO_ACTION,
+            reason="2件目の影響がないことを確認した。",
+            reviewed_by=counselor_id,
+            reviewed_at=ExternalCorrectionTimestamp(reviewed_at),
+        )
+        with pytest.raises(ConcurrentModificationError):
+            await stale_repository.save(stale_review)
+
+    async with PostgresUnitOfWork(session_factory) as retry_work:
+        retry_repository = PostgresRepositorySet.create(retry_work).medication_history
+        latest = await retry_repository.get(
+            corporate_id=corporate.id,
+            record_id=record.id,
+        )
+        assert latest is not None
+        retried = latest.review_external_correction(
+            correction_id="correction-retry-b",
+            decision=ExternalCorrectionDecision.NO_ACTION,
+            reason="2件目を再読込後に再確認した。",
+            reviewed_by=counselor_id,
+            reviewed_at=ExternalCorrectionTimestamp(reviewed_at),
+        )
+        await retry_repository.save(retried)
+        await retry_work.commit()
+
+    async with PostgresUnitOfWork(session_factory) as verify_work:
+        stored = await PostgresRepositorySet.create(verify_work).medication_history.get(
+            corporate_id=corporate.id,
+            record_id=record.id,
+        )
+
+    assert stored is not None
+    assert [
+        correction.correction_id.value for correction in stored.external_corrections
+    ] == ["correction-retry-a", "correction-retry-b"]
+    assert all(
+        correction.status is ExternalCorrectionStatus.RESOLVED
+        and len(correction.review_events) == 1
+        for correction in stored.external_corrections
+    )
+    assert (
+        stored.external_corrections[1].review_events[0].reason.value
+        == "2件目を再読込後に再確認した。"
+    )

@@ -18,6 +18,9 @@ from app.application.corporate.commands.services.corporate_access import (
     CorporateAccessService,
 )
 from app.application.corporate.errors import CorporateInactiveError
+from app.application.medication_history.commands.finalize_medication_history import (
+    FinalizeMedicationHistoryCommand,
+)
 from app.application.medication_history.commands.models import SoapInput
 from app.application.medication_history.commands.review_external_prescription_correction import (
     ReviewExternalPrescriptionCorrectionCommand,
@@ -35,7 +38,7 @@ from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.medication_history.entities import MedicationHistoryRecord
 from app.domain.medication_history.exceptions import (
     CounselorQualificationError,
-    MedicationHistoryNotFinalizedError,
+    PendingExternalPrescriptionCorrectionError,
 )
 from app.domain.medication_history.identifiers import ExternalCorrectionId
 from app.domain.medication_history.primitives import (
@@ -126,6 +129,7 @@ async def test_TC15_レビュー者と時刻はActorContextとClockから決ま�
         staff_qualification=fixture.staff_qualification,
         prescription_repository=InMemoryPrescriptionRepository(),
         clock=fixture.clock,
+        organization_lock=fixture.organization_lock,
     ).execute(command)
 
     assert not hasattr(command, "reviewed_by")
@@ -158,6 +162,7 @@ async def test_TC16_STORE_VIEWERはレビュー操作を実行できない() -> 
         staff_qualification=fixture.staff_qualification,
         prescription_repository=InMemoryPrescriptionRepository(),
         clock=fixture.clock,
+        organization_lock=fixture.organization_lock,
     )
     command = ReviewExternalPrescriptionCorrectionCommand(
         corporate_id=str(fixture.corporate_id.value),
@@ -227,6 +232,7 @@ async def test_TC138_下書き薬歴の外部訂正レビューはno_actionとin
         staff_qualification=fixture.staff_qualification,
         prescription_repository=InMemoryPrescriptionRepository(),
         clock=fixture.clock,
+        organization_lock=fixture.organization_lock,
     )
 
     # investigating
@@ -273,7 +279,7 @@ async def test_TC138_下書き薬歴の外部訂正レビューはno_actionとin
 
 
 @pytest.mark.asyncio
-async def test_TC139_下書き薬歴へのamendや不適合入力は拒否する() -> None:
+async def test_下書きの外部訂正をSOAP修正で解決し追記履歴を作らない() -> None:
     fixture = create_fixture()
     draft = replace(
         create_record(
@@ -294,33 +300,147 @@ async def test_TC139_下書き薬歴へのamendや不適合入力は拒否する
         staff_qualification=fixture.staff_qualification,
         prescription_repository=InMemoryPrescriptionRepository(),
         clock=fixture.clock,
+        organization_lock=fixture.organization_lock,
     )
-
-    # amend on draft -> 409 MedicationHistoryNotFinalizedError
-    amend_command = ReviewExternalPrescriptionCorrectionCommand(
+    command = ReviewExternalPrescriptionCorrectionCommand(
         corporate_id=str(fixture.corporate_id.value),
         record_id=str(draft.id.value),
         correction_id="corr-usecase-001",
         decision=ExternalCorrectionDecision.AMEND.value,
-        reason="下書きを修正したい。",
+        reason="外部訂正を下書きへ反映した。",
         amended_soap=SoapInput(),
     )
-    with pytest.raises(MedicationHistoryNotFinalizedError):
-        await use_case.execute(amend_command)
 
-    # match_reregistered_prescription on draft -> 409 MedicationHistoryNotFinalizedError
-    match_command = ReviewExternalPrescriptionCorrectionCommand(
+    result = await use_case.execute(command)
+
+    saved = await fixture.record_repository.get(
+        corporate_id=fixture.corporate_id, record_id=draft.id
+    )
+    assert result.id == str(draft.id.value)
+    assert result.external_corrections[0].review_events[0].draft_updated
+    assert saved is not None
+    assert not saved.is_finalized
+    assert saved.amendments == ()
+    assert saved.soap != draft.soap
+    correction = saved.external_corrections[0]
+    assert correction.status.value == "resolved"
+    event = correction.review_events[0]
+    assert event.decision is ExternalCorrectionDecision.AMEND
+    assert event.amendment_id is None
+    assert event.draft_updated
+    assert fixture.organization_lock.keys == [
+        f"medication-history-retention:{fixture.corporate_id.value}:{fixture.patient_id.value}"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_下書きの外部訂正を同一患者の再登録処方と照合できる() -> None:
+    fixture = create_fixture()
+    draft = replace(
+        create_record(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            patient_id=fixture.patient_id,
+            counselor_id=fixture.counselor_id,
+            dispensing_id=fixture.dispensing.id,
+            prescription_id=fixture.dispensing.prescription_id,
+            counseled_at=COUNSELED_AT,
+        ),
+        external_corrections=(_pending_correction(),),
+    )
+    await fixture.record_repository.save(draft)
+    matched_prescription = create_prescription(
+        corporate_id=fixture.corporate_id,
+        store_id=fixture.store_id,
+        patient_id=fixture.patient_id,
+    )
+    prescription_repository = InMemoryPrescriptionRepository()
+    await prescription_repository.save(matched_prescription)
+    use_case = ReviewExternalPrescriptionCorrectionUseCase(
+        repository=fixture.record_repository,
+        corporate_access=fixture.corporate_access,
+        staff_qualification=fixture.staff_qualification,
+        prescription_repository=prescription_repository,
+        clock=fixture.clock,
+        organization_lock=fixture.organization_lock,
+    )
+    command = ReviewExternalPrescriptionCorrectionCommand(
         corporate_id=str(fixture.corporate_id.value),
         record_id=str(draft.id.value),
         correction_id="corr-usecase-001",
         decision=ExternalCorrectionDecision.MATCH_REREGISTERED_PRESCRIPTION.value,
-        reason="照合したい。",
-        matched_prescription_id=str(fixture.dispensing.prescription_id.value),
+        reason="同一患者の再登録処方と照合した。",
+        matched_prescription_id=str(matched_prescription.id.value),
     )
-    with pytest.raises(MedicationHistoryNotFinalizedError):
-        await use_case.execute(match_command)
 
-    # no_action with amended_soap -> 422 DomainValidationError
+    result = await use_case.execute(command)
+
+    assert result.status == "draft"
+    correction = result.external_corrections[0]
+    assert correction.status == "resolved"
+    assert correction.review_events[0].matched_prescription_id == str(
+        matched_prescription.id.value
+    )
+
+
+@pytest.mark.asyncio
+async def test_確定レビュー結果では未解決外部訂正を迂回できない() -> None:
+    fixture = create_fixture()
+    draft = replace(
+        create_record(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            patient_id=fixture.patient_id,
+            counselor_id=fixture.counselor_id,
+            dispensing_id=fixture.dispensing.id,
+            prescription_id=fixture.dispensing.prescription_id,
+            counseled_at=COUNSELED_AT,
+        ),
+        external_corrections=(_pending_correction(),),
+    )
+    await fixture.record_repository.save(draft)
+
+    command = FinalizeMedicationHistoryCommand(
+        corporate_id=str(fixture.corporate_id.value),
+        record_id=str(draft.id.value),
+        review_result="assessment_and_instruction_recorded",
+    )
+    with pytest.raises(PendingExternalPrescriptionCorrectionError):
+        await fixture.finalize.execute(command)
+
+    saved = await fixture.record_repository.get(
+        corporate_id=fixture.corporate_id, record_id=draft.id
+    )
+    assert saved is not None
+    assert not saved.is_finalized
+    assert saved.external_corrections[0].review_events == ()
+
+
+@pytest.mark.asyncio
+async def test_外部訂正レビューの不適合入力は拒否する() -> None:
+    fixture = create_fixture()
+    draft = replace(
+        create_record(
+            corporate_id=fixture.corporate_id,
+            store_id=fixture.store_id,
+            patient_id=fixture.patient_id,
+            counselor_id=fixture.counselor_id,
+            dispensing_id=fixture.dispensing.id,
+            prescription_id=fixture.dispensing.prescription_id,
+            counseled_at=COUNSELED_AT,
+        ),
+        external_corrections=(_pending_correction(),),
+    )
+    await fixture.record_repository.save(draft)
+    use_case = ReviewExternalPrescriptionCorrectionUseCase(
+        repository=fixture.record_repository,
+        corporate_access=fixture.corporate_access,
+        staff_qualification=fixture.staff_qualification,
+        prescription_repository=InMemoryPrescriptionRepository(),
+        clock=fixture.clock,
+        organization_lock=fixture.organization_lock,
+    )
+
     invalid_no_action = ReviewExternalPrescriptionCorrectionCommand(
         corporate_id=str(fixture.corporate_id.value),
         record_id=str(draft.id.value),
@@ -332,7 +452,6 @@ async def test_TC139_下書き薬歴へのamendや不適合入力は拒否する
     with pytest.raises(DomainValidationError):
         await use_case.execute(invalid_no_action)
 
-    # no_action with empty reason -> 422 DomainValidationError
     empty_reason = ReviewExternalPrescriptionCorrectionCommand(
         corporate_id=str(fixture.corporate_id.value),
         record_id=str(draft.id.value),
@@ -370,6 +489,7 @@ async def test_TC05_照合先の処方箋が別患者なら解決できない() 
             staff_qualification=fixture.staff_qualification,
             prescription_repository=prescription_repository,
             clock=fixture.clock,
+            organization_lock=fixture.organization_lock,
         ).execute(command)
 
     saved = await fixture.record_repository.get(
@@ -405,6 +525,7 @@ async def test_TC05_同一患者の再登録処方と照合できる() -> None:
         staff_qualification=fixture.staff_qualification,
         prescription_repository=prescription_repository,
         clock=fixture.clock,
+        organization_lock=fixture.organization_lock,
     ).execute(command)
 
     assert reviewed.external_corrections[0].review_events[
@@ -431,6 +552,7 @@ async def test_TC17_スタッフ未解決Actorではレビューを実行でき�
         staff_qualification=fixture.staff_qualification,
         prescription_repository=InMemoryPrescriptionRepository(),
         clock=fixture.clock,
+        organization_lock=fixture.organization_lock,
     )
     command = ReviewExternalPrescriptionCorrectionCommand(
         corporate_id=str(fixture.corporate_id.value),
@@ -465,6 +587,7 @@ async def test_TC17_非薬剤師スタッフではレビューを実行できな
         staff_qualification=fixture.staff_qualification,
         prescription_repository=InMemoryPrescriptionRepository(),
         clock=fixture.clock,
+        organization_lock=fixture.organization_lock,
     )
     command = ReviewExternalPrescriptionCorrectionCommand(
         corporate_id=str(fixture.corporate_id.value),
@@ -495,6 +618,7 @@ async def test_TC18_別法人の薬歴は存在を隠蔽して404とする() -> 
         staff_qualification=fixture.staff_qualification,
         prescription_repository=InMemoryPrescriptionRepository(),
         clock=fixture.clock,
+        organization_lock=fixture.organization_lock,
     )
     command = ReviewExternalPrescriptionCorrectionCommand(
         corporate_id=str(other_corporate_id.value),
@@ -528,6 +652,7 @@ async def test_TC18_担当外店舗の薬歴は権限エラーで変更させな
         staff_qualification=fixture.staff_qualification,
         prescription_repository=InMemoryPrescriptionRepository(),
         clock=fixture.clock,
+        organization_lock=fixture.organization_lock,
     )
     command = ReviewExternalPrescriptionCorrectionCommand(
         corporate_id=str(fixture.corporate_id.value),
@@ -558,6 +683,7 @@ async def test_TC19_無効法人ではレビュー操作を拒否する() -> Non
         staff_qualification=fixture.staff_qualification,
         prescription_repository=InMemoryPrescriptionRepository(),
         clock=fixture.clock,
+        organization_lock=fixture.organization_lock,
     )
     command = ReviewExternalPrescriptionCorrectionCommand(
         corporate_id=str(fixture.corporate_id.value),
@@ -595,6 +721,7 @@ async def test_TC22_保存失敗時は部分状態を返さず保存も成立し
         staff_qualification=fixture.staff_qualification,
         prescription_repository=InMemoryPrescriptionRepository(),
         clock=fixture.clock,
+        organization_lock=fixture.organization_lock,
     )
     command = ReviewExternalPrescriptionCorrectionCommand(
         corporate_id=str(fixture.corporate_id.value),

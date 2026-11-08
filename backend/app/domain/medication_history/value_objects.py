@@ -834,6 +834,7 @@ class ExternalCorrectionReviewEvent(ValueObject):
     reviewed_at: ExternalCorrectionTimestamp
     amendment_id: AmendmentId | None = None
     matched_prescription_id: PrescriptionId | None = None
+    draft_updated: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)

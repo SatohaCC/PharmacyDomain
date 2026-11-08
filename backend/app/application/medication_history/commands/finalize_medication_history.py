@@ -9,11 +9,7 @@ from app.application.access_control.boundary_models import Permission
 from app.application.access_control.interfaces.corporate_access import (
     CorporateAccessBoundary,
 )
-from app.application.common.clock import (
-    BUSINESS_TIMEZONE,
-    Clock,
-    business_now,
-)
+from app.application.common.clock import BUSINESS_TIMEZONE, Clock, business_now
 from app.application.common.organization_lock import OrganizationLock
 from app.application.common.unit_of_work import UnitOfWork
 from app.application.medication_history.commands.dtos.get_medication_history import (
@@ -32,8 +28,12 @@ from app.application.medication_history.interfaces.references import (
 )
 from app.application.medication_history.values import parse_enum
 from app.domain.corporate.identifiers import CorporateId
+from app.domain.foundation.time import japan_business_date
 from app.domain.medication_history.entities import MedicationHistoryRecord
-from app.domain.medication_history.exceptions import MedicationHistoryDomainError
+from app.domain.medication_history.exceptions import (
+    MedicationHistoryDomainError,
+    PendingExternalPrescriptionCorrectionError,
+)
 from app.domain.medication_history.identifiers import MedicationHistoryRecordId
 from app.domain.medication_history.primitives import (
     CounselingTimestamp,
@@ -51,7 +51,6 @@ from app.domain.shared.preservation import (
     PreservationPolicyCatalog,
     PreservationRecordKind,
 )
-from app.domain.staff.identifiers import StaffId
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -90,12 +89,11 @@ class FinalizeMedicationHistoryUseCase:
         unit_of_work: UnitOfWork,
         *,
         organization_lock: OrganizationLock,
-        category_catalog_repository: MedicationHistoryCategoryCatalogRepository
-        | None = None,
-        staff_qualification: StaffQualificationBoundary | None = None,
-        counselor_service: CounselorQualificationService | None = None,
-        clock: Clock | None = None,
-        event_occurrence: MedicationHistoryEventOccurrenceBoundary | None = None,
+        category_catalog_repository: MedicationHistoryCategoryCatalogRepository,
+        staff_qualification: StaffQualificationBoundary,
+        counselor_service: CounselorQualificationService,
+        clock: Clock,
+        event_occurrence: MedicationHistoryEventOccurrenceBoundary,
         projection_service: PatientMedicalProfileProjectionService | None = None,
     ) -> None:
         self._record_repository = record_repository
@@ -136,6 +134,8 @@ class FinalizeMedicationHistoryUseCase:
         record = await load_record_or_raise(
             self._record_repository, corporate_id=corporate_id, record_id=record.id
         )
+        if record.has_pending_correction_review:
+            raise PendingExternalPrescriptionCorrectionError()
         if command.review_result is None:
             raise MedicationHistoryDomainError(
                 "薬歴確定時のレビュー結果を指定してください。"
@@ -147,25 +147,10 @@ class FinalizeMedicationHistoryUseCase:
             self._corporate_access.actor,
             error_message="薬歴の確認にはスタッフを特定できるActorが必要です。",
         )
+        business_instant = business_now(self._clock)
+        today = business_instant.date()
         counselor_id = record.counselor_id
         counseled_at = record.counseled_at
-        qualified_staff_ids: set[StaffId] = set()
-        business_instant = (
-            business_now(self._clock) if self._clock is not None else None
-        )
-        today = business_instant.date() if business_instant is not None else None
-        if (
-            self._staff_qualification is not None
-            and self._counselor_service is not None
-        ):
-            qualifications = await self._staff_qualification.get_qualifications(
-                corporate_id=corporate_id,
-                staff_id=finalizer_id,
-                store_id=record.store_id,
-                as_of=today,
-            )
-            self._counselor_service.ensure_pharmacist(qualifications)
-            qualified_staff_ids.add(finalizer_id)
         use_clock_as_counseling_time = False
         if counselor_id is None or counseled_at is None:
             if command.counseled_at is not None:
@@ -177,11 +162,6 @@ class FinalizeMedicationHistoryUseCase:
                 raise MedicationHistoryDomainError(
                     "取込下書きを確定するには実際の指導日時が必要です。"
                 )
-            if (
-                self._staff_qualification is not None
-                and self._counselor_service is not None
-            ):
-                qualified_staff_ids.add(finalizer_id)
         elif (
             command.counseled_at is not None
             and CounselingTimestamp(command.counseled_at) != counseled_at
@@ -195,48 +175,37 @@ class FinalizeMedicationHistoryUseCase:
             raise MedicationHistoryDomainError(
                 "薬歴を確定するには実際の指導者と指導日時が必要です。"
             )
-        if (
-            self._staff_qualification is not None
-            and self._counselor_service is not None
-            and (finalizer_id not in qualified_staff_ids)
-        ):
-            qualifications = await self._staff_qualification.get_qualifications(
-                corporate_id=corporate_id,
-                staff_id=finalizer_id,
-                store_id=record.store_id,
-                as_of=today,
-            )
-            self._counselor_service.ensure_pharmacist(qualifications)
-        if business_instant is None:
-            raise MedicationHistoryDomainError(
-                "薬歴確定日時を記録するClockが必要です。"
-            )
-        now = business_instant.astimezone(UTC)
-        finalized_at = FinalizedTimestamp(now)
         if use_clock_as_counseling_time:
             counselor_id = finalizer_id
-            counseled_at = CounselingTimestamp(now)
+            counseled_at = CounselingTimestamp(business_instant.astimezone(UTC))
+        qualification_checks = [(finalizer_id, today)]
+        if counselor_id is not None and counseled_at is not None:
+            qualification_checks.append(
+                (counselor_id, japan_business_date(counseled_at.value))
+            )
+        for staff_id, as_of in dict.fromkeys(qualification_checks):
+            qualifications = await self._staff_qualification.get_qualifications(
+                corporate_id=corporate_id,
+                staff_id=staff_id,
+                store_id=record.store_id,
+                as_of=as_of,
+            )
+            self._counselor_service.ensure_pharmacist(qualifications)
+        now = business_instant.astimezone(UTC)
+        finalized_at = FinalizedTimestamp(now)
         delay_reason = (
             FinalizationDelayReason(command.delay_reason)
             if command.delay_reason is not None
             else None
         )
-        if self._category_catalog_repository is not None:
-            catalog = await self._category_catalog_repository.get(
-                corporate_id=corporate_id
-            )
-            if catalog is not None:
-                catalog.validate_record_compliance(record)
-        if self._event_occurrence is not None:
-            await self._event_occurrence.resolve_unknown_occurrence(
-                corporate_id=corporate_id,
-                event_id=record.event_id,
-                occurred_at=command.event_occurred_at,
-            )
-        elif command.event_occurred_at is not None:
-            raise MedicationHistoryDomainError(
-                "Eventの発生日時を確認する保存境界がありません。"
-            )
+        catalog = await self._category_catalog_repository.get(corporate_id=corporate_id)
+        if catalog is not None:
+            catalog.validate_record_compliance(record)
+        await self._event_occurrence.resolve_unknown_occurrence(
+            corporate_id=corporate_id,
+            event_id=record.event_id,
+            occurred_at=command.event_occurred_at,
+        )
         finalized = record.finalize(
             counselor_id=counselor_id,
             counseled_at=counseled_at,

@@ -630,6 +630,7 @@ async def test_TC087_薬歴_指導と確定と訂正と外部承認は薬剤師�
         clerk_fixture.staff_qualification,
         InMemoryPrescriptionRepository(),
         clerk_fixture.clock,
+        organization_lock=clerk_fixture.organization_lock,
     )
     with pytest.raises(CounselorQualificationError):
         await review_uc.execute(

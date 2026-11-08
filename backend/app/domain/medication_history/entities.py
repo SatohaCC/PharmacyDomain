@@ -13,6 +13,7 @@ from app.domain.corporate.identifiers import CorporateId
 from app.domain.dispensing.identifiers import DispensingId
 from app.domain.foundation.entity import AggregateRoot, Entity
 from app.domain.foundation.exceptions import DomainValidationError
+from app.domain.foundation.time import japan_business_date
 from app.domain.medication_history.exceptions import (
     AdverseReactionNotFoundError,
     AllergyNotFoundError,
@@ -31,6 +32,7 @@ from app.domain.medication_history.exceptions import (
     MedicationHistoryDomainError,
     MedicationHistoryNotFinalizedError,
     MedicationHistoryUnassessedItemsError,
+    PendingExternalPrescriptionCorrectionError,
     ProfilePatientMismatchError,
     RequiredCategoryMissingError,
     SoapContentRequiredError,
@@ -1009,7 +1011,8 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             if self.finalized_at.value < facts.counseled_at.value:
                 raise FinalizationDateBeforeCounselingError()
             if (
-                self.finalized_at.value.date() != facts.counseled_at.value.date()
+                japan_business_date(self.finalized_at.value)
+                != japan_business_date(facts.counseled_at.value)
                 and facts.delay_reason is None
             ):
                 raise FinalizationDelayReasonRequiredError()
@@ -1438,6 +1441,8 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         外部取込による下書きの場合は、実際の指導者および指導日時の指定も必須です。
         """
         self._ensure_not_finalized()
+        if self.has_pending_correction_review:
+            raise PendingExternalPrescriptionCorrectionError()
         if finalized_at is None or finalized_by is None:
             raise FinalizationStaffRequiredError()
         if review_result is None:
@@ -1654,6 +1659,8 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
         if not self.is_finalized and decision not in (
             ExternalCorrectionDecision.NO_ACTION,
             ExternalCorrectionDecision.INVESTIGATING,
+            ExternalCorrectionDecision.AMEND,
+            ExternalCorrectionDecision.MATCH_REREGISTERED_PRESCRIPTION,
         ):
             raise MedicationHistoryNotFinalizedError()
         target = next(
@@ -1673,17 +1680,22 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
             raise MedicationHistoryDomainError("外部訂正の判断理由は必須です。")
 
         amendment_id: str | None = None
+        draft_updated = False
         if decision is ExternalCorrectionDecision.AMEND:
             if amended_soap is None:
-                raise MedicationHistoryDomainError("追記するSOAPを指定してください。")
-            amendment_id = str(uuid7())
-            updated = self.amend(
-                amended_soap=amended_soap,
-                reason=AmendmentReason(normalized_reason),
-                amended_by=reviewed_by,
-                amended_at=AmendmentTimestamp(reviewed_at.value),
-                amendment_id=amendment_id,
-            )
+                raise MedicationHistoryDomainError("修正後のSOAPを指定してください。")
+            if self.is_finalized:
+                amendment_id = str(uuid7())
+                updated = self.amend(
+                    amended_soap=amended_soap,
+                    reason=AmendmentReason(normalized_reason),
+                    amended_by=reviewed_by,
+                    amended_at=AmendmentTimestamp(reviewed_at.value),
+                    amendment_id=amendment_id,
+                )
+            else:
+                updated = replace(self, soap=amended_soap)
+                draft_updated = True
         else:
             updated = self
         if (
@@ -1709,6 +1721,7 @@ class MedicationHistoryRecord(AggregateRoot[MedicationHistoryRecordId]):
                 AmendmentId(amendment_id) if amendment_id is not None else None
             ),
             matched_prescription_id=matched_prescription_id,
+            draft_updated=draft_updated,
         )
         updated_target = replace(
             target,
