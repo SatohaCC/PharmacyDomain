@@ -30,6 +30,7 @@ dev = [
 ]
 
 [tool.ruff]
+cache-dir = "../.cache/ruff"
 target-version = "py314"
 line-length = 88
 extend-exclude = [
@@ -104,6 +105,7 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.mypy]
+cache_dir = "../.cache/mypy"
 python_version = "3.14"
 # 型注釈の抜けを検出できないと「mypy が通った」という情報に意味が無くなるため strict で運用する。
 strict = true
@@ -793,6 +795,7 @@ forbidden_modules = [
 
 
 [tool.pytest.ini_options]
+cache_dir = "../.cache/pytest"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 

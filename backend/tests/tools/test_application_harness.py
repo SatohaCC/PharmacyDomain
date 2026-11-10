@@ -577,7 +577,7 @@ def test_品質ゲート_通常lintが全規則と自己検証を実行する() 
     assert "pnpm run lint:application:harness" in scripts["lint"]
     assert (
         scripts["lint:application"]
-        == "uv run python -m tools.check_application_architecture"
+        == "node ../scripts/backend.mjs run python -m tools.check_application_architecture"
     )
 
 

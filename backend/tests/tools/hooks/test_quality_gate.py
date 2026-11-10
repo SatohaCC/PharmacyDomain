@@ -555,6 +555,8 @@ def test_mypy設定_Optional引数の型不整合を検出できる(tmp_path: Pa
             "--config-file",
             "backend/pyproject.toml",
             "--no-incremental",
+            "--cache-dir",
+            str(tmp_path / ".cache" / "mypy"),
             str(source),
         ],
         cwd=root,

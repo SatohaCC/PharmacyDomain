@@ -26,7 +26,9 @@ def _lint(
         scripts = json.loads((_ROOT / "package.json").read_text(encoding="utf-8"))[
             "scripts"
         ]
-        arguments = shlex.split(scripts["lint:boundaries"])[2:]
+        command = shlex.split(scripts["lint:boundaries"])
+        assert command[:3] == ["node", "../scripts/backend.mjs", "run"]
+        arguments = command[3:]
         for layer in ("domain", "application"):
             (tmp_path / "app" / layer).mkdir(parents=True, exist_ok=True)
     return subprocess.run(
