@@ -362,7 +362,7 @@ def test_アダプタ_登録済みAntigravityフック_Codexと一致するカ�
     p_matcher = p_gate["PostToolUse"][0]["matcher"]
     assert "replace_file_content" in p_matcher
     assert "write_to_file" in p_matcher
-    assert "run_command" in p_matcher
+    assert "run_command" not in p_matcher
     assert p_gate["PostToolUse"][0]["hooks"][0]["timeout"] == 60
     assert p_gate["Stop"][0]["timeout"] == 60
 

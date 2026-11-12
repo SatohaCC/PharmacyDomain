@@ -252,6 +252,9 @@ def main(event: dict[str, object]) -> dict[str, object]:
     if event.get("hook_event_name") != "Stop":
         return {}
 
+    if not changed_paths(ROOT) and not (ROOT / "tmp/quality/task.json").is_file():
+        return {}
+
     def signature_for_current_inputs() -> str:
         return hashlib.sha256(
             (
