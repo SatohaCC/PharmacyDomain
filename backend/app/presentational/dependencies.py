@@ -14,7 +14,11 @@ from typing import Annotated, Final
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.application.access_control.boundary_models import ActorContext
+from app.application.access_control.boundary_models import (
+    ActorContext,
+    ActorRole,
+)
+from app.application.common.exceptions import AuthorizationError
 from app.application.composition.registry import (
     CareEventUseCases,
     CorporateUseCases,
@@ -236,8 +240,18 @@ def get_integration_use_cases(scope: _Scope) -> IntegrationUseCases:
     return scope.use_cases.integration
 
 
+async def require_admin_actor(
+    actor: Annotated[ActorContext, Depends(get_actor_context)],
+) -> ActorContext:
+    """管理者権限（法人管理者または運営者）を要求するFastAPIセキュリティ依存関係。"""
+    if not (actor.roles & {ActorRole.VENDOR_SYSTEM_ADMIN, ActorRole.CORPORATE_ADMIN}):
+        raise AuthorizationError("管理者権限が必要です。")
+    return actor
+
+
 #: ルータが受け取る依存の別名。
 Actor = Annotated[ActorContext, Depends(get_actor_context)]
+AdminActor = Annotated[ActorContext, Depends(require_admin_actor)]
 CorporateUseCasesDep = Annotated[CorporateUseCases, Depends(get_corporate_use_cases)]
 StoreUseCasesDep = Annotated[StoreUseCases, Depends(get_store_use_cases)]
 StaffUseCasesDep = Annotated[StaffUseCases, Depends(get_staff_use_cases)]
@@ -263,6 +277,7 @@ IntegrationUseCasesDep = Annotated[
 __all__ = [
     "STATE_ATTRIBUTE",
     "Actor",
+    "AdminActor",
     "CareEventUseCasesDep",
     "CorporateUseCasesDep",
     "CoverageUseCasesDep",
@@ -294,4 +309,5 @@ __all__ = [
     "get_state",
     "get_store_use_cases",
     "get_verified_subject",
+    "require_admin_actor",
 ]

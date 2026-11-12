@@ -45,7 +45,8 @@ export function useLogin(
   };
   const tokenSubmission = async (d: FormData) => {
     setAccessToken(text(d, "token"));
-    await navigate(returnTo);
+    const target = returnTo === "/admin" ? "/" : returnTo;
+    await navigate(target);
   };
   return {
     loginKind,

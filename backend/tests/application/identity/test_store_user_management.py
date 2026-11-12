@@ -19,6 +19,7 @@ from app.application.corporate.commands.services.corporate_access import (
 from app.application.identity.commands.change_membership import ChangeMembershipUseCase
 from app.application.identity.commands.services.repositories import IdentityRepositories
 from app.application.identity.commands.suspend_account import SuspendAccountUseCase
+from app.application.identity.queries.list_users import ListUsersUseCase
 from app.domain.corporate.identifiers import CorporateId
 from app.domain.identity.entities import CorporateMembership, UserAccount
 from app.domain.identity.identifiers import CorporateMembershipId
@@ -254,3 +255,62 @@ async def test_法人管理者_アカウント停止は_自法人のユーザー
     assert actual.status == (
         AccountStatus.ACTIVE if foreign else AccountStatus.SUSPENDED
     )
+
+
+@pytest.mark.asyncio
+async def test_list_users_店舗ID指定で所属ユーザーを絞り込める() -> None:
+    corporate = CorporateId.generate()
+    store1 = StoreId.generate()
+    store2 = StoreId.generate()
+    actor = ActorContext.corporate_admin(principal_id="admin-1", corporate_id=corporate)
+    access = CorporateAccessService(
+        AutoProvisioningCorporateRepository(), AuthorizationService(actor)
+    )
+    bundle = create_identity_use_cases()
+    list_users_uc = ListUsersUseCase(reader=bundle.list_users._reader, access=access)
+
+    # 2人のアカウントと所属を作成
+    acc1 = UserAccount(
+        id=UserAccountId.generate(),
+        corporate_id=corporate,
+        person_id=AccountPersonId.generate(),
+    )
+    acc2 = UserAccount(
+        id=UserAccountId.generate(),
+        corporate_id=corporate,
+        person_id=AccountPersonId.generate(),
+    )
+    await bundle.repositories.accounts.save(acc1)
+    await bundle.repositories.accounts.save(acc2)
+
+    mem1 = CorporateMembership(
+        id=CorporateMembershipId.generate(),
+        account_id=acc1.id,
+        corporate_id=corporate,
+        role=MembershipRole.MEMBER,
+        status=AccountStatus.ACTIVE,
+        staff_id=StaffId.generate(),
+        store_roles=(StoreRoleAssignment(store_id=store1, role=StoreRole.EDITOR),),
+    )
+    mem2 = CorporateMembership(
+        id=CorporateMembershipId.generate(),
+        account_id=acc2.id,
+        corporate_id=corporate,
+        role=MembershipRole.MEMBER,
+        status=AccountStatus.ACTIVE,
+        staff_id=StaffId.generate(),
+        store_roles=(StoreRoleAssignment(store_id=store2, role=StoreRole.EDITOR),),
+    )
+    await bundle.repositories.memberships.save(mem1)
+    await bundle.repositories.memberships.save(mem2)
+
+    # store1で絞り込み
+    result1 = await list_users_uc.execute(
+        str(corporate.value), store_id=str(store1.value)
+    )
+    assert len(result1.items) == 1
+    assert result1.items[0].id == str(mem1.id.value)
+
+    # 全件取得（絞り込みなし）
+    result_all = await list_users_uc.execute(str(corporate.value))
+    assert len(result_all.items) == 2

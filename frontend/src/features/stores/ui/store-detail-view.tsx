@@ -18,9 +18,12 @@ import { Button } from "../../../shared/ui/controls/button";
 import { Checkbox } from "../../../shared/ui/controls/checkbox";
 import { TextField as Field } from "../../../shared/ui/controls/text-field";
 import { Alert } from "../../../shared/ui/feedback/alert";
+import { Link } from "../../../shared/ui/navigation/link";
 import {
   type StoreDetail,
   type BusinessWeekday,
+  type StoreLicenses,
+  type ManagerAssignment,
   STORE_STATUS_LABELS,
   ORDERED_WEEKDAYS,
   WEEKDAY_LABELS,
@@ -29,9 +32,22 @@ import {
 export interface StoreDetailViewProps {
   store: StoreDetail;
   corporateId: string;
+  managers?: ManagerAssignment[];
+  staffUsers?: {
+    id: string;
+    person_id: string;
+    role: string;
+    status: string;
+    account_status: string | null;
+    staff_id?: string | null;
+  }[];
   onUpdateBasic: (names: { name: string; name_kana: string; name_romaji?: string | null; code?: string | null }) => Promise<void>;
   onUpdateAddress: (address: { postal_code: string; address: string }) => Promise<void>;
   onUpdateContact: (contact: { phone_number: string; fax_number?: string | null; email?: string | null }) => Promise<void>;
+  onUpdateLicenses?: (licenses: StoreLicenses) => Promise<void>;
+  onAppointStoreManager?: (staffId: string, startsOn: string) => Promise<void>;
+  onReplaceStoreManager?: (currentAssignmentId: string, newStaffId: string, effectiveOn: string) => Promise<void>;
+  onEndStoreManager?: (assignmentId: string, endsOn: string) => Promise<void>;
   onUpdatePublicExpenses?: (designations: {
     public_assistance_number?: string | null;
     support_for_independence_number?: string | null;
@@ -63,9 +79,16 @@ export interface StoreDetailViewProps {
 
 export function StoreDetailView({
   store,
+  corporateId,
+  managers,
+  staffUsers,
   onUpdateBasic,
   onUpdateAddress,
   onUpdateContact,
+  onUpdateLicenses,
+  onAppointStoreManager,
+  onReplaceStoreManager,
+  onEndStoreManager,
   onUpdatePublicExpenses,
   onUpdateCertifications,
   onAppointSafetyManager,
@@ -78,6 +101,10 @@ export function StoreDetailView({
   const [basicEditing, setBasicEditing] = useState(false);
   const [addressEditing, setAddressEditing] = useState(false);
   const [contactEditing, setContactEditing] = useState(false);
+  const [licensesEditing, setLicensesEditing] = useState(false);
+  const [managerMode, setManagerMode] = useState<"idle" | "appoint" | "replace" | "end">("idle");
+  const [managerStaffId, setManagerStaffId] = useState("");
+  const [managerDate, setManagerDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [publicExpensesEditing, setPublicExpensesEditing] = useState(false);
   const [certificationsEditing, setCertificationsEditing] = useState(false);
   const [safetyManagerIdInput, setSafetyManagerIdInput] = useState("");
@@ -163,6 +190,96 @@ export function StoreDetailView({
         email: fd.get("email") ? String(fd.get("email")) : null,
       });
       setContactEditing(false);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleLicensesSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!onUpdateLicenses) return;
+    setIsSubmitting(true);
+    const fd = new FormData(e.currentTarget);
+    try {
+      const pharmNum = String(fd.get("pharmacy_license_number") || "");
+      const pharmFrom = String(fd.get("pharmacy_license_from") || "");
+      const pharmTo = String(fd.get("pharmacy_license_to") || "");
+
+      const narcNum = fd.get("narcotics_license_number")
+        ? String(fd.get("narcotics_license_number"))
+        : null;
+      const narcFrom = fd.get("narcotics_license_from")
+        ? String(fd.get("narcotics_license_from"))
+        : null;
+      const narcTo = fd.get("narcotics_license_to")
+        ? String(fd.get("narcotics_license_to"))
+        : null;
+
+      await onUpdateLicenses({
+        pharmacy_license: {
+          number: pharmNum,
+          valid_from: pharmFrom,
+          valid_to: pharmTo,
+        },
+        narcotics_retailer_license:
+          narcNum && narcFrom && narcTo
+            ? {
+                number: narcNum,
+                valid_from: narcFrom,
+                valid_to: narcTo,
+              }
+            : null,
+      });
+      setLicensesEditing(false);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const activeManager =
+    managers?.find((m) => m.status === "active") ||
+    managers?.find((m) => !m.ends_on);
+
+  const handleAppointManagerSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!onAppointStoreManager) return;
+    setIsSubmitting(true);
+    try {
+      await onAppointStoreManager(managerStaffId, managerDate);
+      setManagerMode("idle");
+      setManagerStaffId("");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleReplaceManagerSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!onReplaceStoreManager || !activeManager) return;
+    setIsSubmitting(true);
+    try {
+      await onReplaceStoreManager(
+        activeManager.id || activeManager.assignment_id || "",
+        managerStaffId,
+        managerDate,
+      );
+      setManagerMode("idle");
+      setManagerStaffId("");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEndManagerSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!onEndStoreManager || !activeManager) return;
+    setIsSubmitting(true);
+    try {
+      await onEndStoreManager(
+        activeManager.id || activeManager.assignment_id || "",
+        managerDate,
+      );
+      setManagerMode("idle");
     } finally {
       setIsSubmitting(false);
     }
@@ -416,6 +533,88 @@ export function StoreDetailView({
               <tr>
                 <TableHeader>メールアドレス</TableHeader>
                 <TableCell colSpan={3}>{store.email || "未登録"}</TableCell>
+              </tr>
+            </tbody>
+          </Table>
+        )}
+      </Panel>
+
+      <Panel>
+        <Row>
+          <SectionHeading>許認可情報</SectionHeading>
+          {onUpdateLicenses && (
+            <Button
+              variant="secondary"
+              onAction={() => setLicensesEditing(!licensesEditing)}
+              disabled={isSubmitting}
+            >
+              {licensesEditing ? "キャンセル" : "編集"}
+            </Button>
+          )}
+        </Row>
+        {licensesEditing ? (
+          <form onSubmit={(e) => void handleLicensesSubmit(e)}>
+            <Paragraph>薬局開設許可（必須）</Paragraph>
+            <Field
+              name="pharmacy_license_number"
+              label="許可番号"
+              defaultValue={store.licenses?.pharmacy_license?.number || ""}
+              required
+            />
+            <Field
+              name="pharmacy_license_from"
+              label="有効期間 開始日 (YYYY-MM-DD)"
+              defaultValue={store.licenses?.pharmacy_license?.valid_from || ""}
+              required
+            />
+            <Field
+              name="pharmacy_license_to"
+              label="有効期間 満了日 (YYYY-MM-DD)"
+              defaultValue={store.licenses?.pharmacy_license?.valid_to || ""}
+              required
+            />
+            <Paragraph>麻薬小売業者免許（任意）</Paragraph>
+            <Field
+              name="narcotics_license_number"
+              label="免許番号"
+              defaultValue={store.licenses?.narcotics_retailer_license?.number || ""}
+            />
+            <Field
+              name="narcotics_license_from"
+              label="有効期間 開始日 (YYYY-MM-DD)"
+              defaultValue={store.licenses?.narcotics_retailer_license?.valid_from || ""}
+            />
+            <Field
+              name="narcotics_license_to"
+              label="有効期間 満了日 (YYYY-MM-DD)"
+              defaultValue={store.licenses?.narcotics_retailer_license?.valid_to || ""}
+            />
+            <Row>
+              <Button type="submit" disabled={isSubmitting}>保存する</Button>
+            </Row>
+          </form>
+        ) : (
+          <Table>
+            <tbody>
+              <tr>
+                <TableHeader>薬局開設許可</TableHeader>
+                <TableCell colSpan={3}>
+                  {store.licenses?.pharmacy_license ? (
+                    `許可番号: ${store.licenses.pharmacy_license.number} (有効期間: ${store.licenses.pharmacy_license.valid_from} 〜 ${store.licenses.pharmacy_license.valid_to})`
+                  ) : (
+                    "未登録"
+                  )}
+                </TableCell>
+              </tr>
+              <tr>
+                <TableHeader>麻薬小売業者免許</TableHeader>
+                <TableCell colSpan={3}>
+                  {store.licenses?.narcotics_retailer_license ? (
+                    `免許番号: ${store.licenses.narcotics_retailer_license.number} (有効期間: ${store.licenses.narcotics_retailer_license.valid_from} 〜 ${store.licenses.narcotics_retailer_license.valid_to})`
+                  ) : (
+                    "未登録"
+                  )}
+                </TableCell>
               </tr>
             </tbody>
           </Table>
@@ -754,6 +953,175 @@ export function StoreDetailView({
       </Panel>
 
       <Panel>
+        <SectionHeading>管理薬剤師</SectionHeading>
+        <Paragraph>店舗の管理薬剤師の任命・交代・任期終了の管理を行います。</Paragraph>
+        <Table>
+          <tbody>
+            <tr>
+              <TableHeader>現在の管理薬剤師</TableHeader>
+              <TableCell>
+                {activeManager ? (
+                  <span>
+                    スタッフID: {activeManager.staff_id}（任命日: {activeManager.starts_on}）
+                  </span>
+                ) : (
+                  "未選任"
+                )}
+              </TableCell>
+              <TableCell>
+                {activeManager && (
+                  <Badge>{activeManager.status === "active" ? "任命中" : activeManager.status}</Badge>
+                )}
+              </TableCell>
+              <TableCell>
+                {activeManager ? (
+                  <Row>
+                    {onReplaceStoreManager && (
+                      <Button
+                        variant="secondary"
+                        onAction={() =>
+                          setManagerMode(managerMode === "replace" ? "idle" : "replace")
+                        }
+                        disabled={isSubmitting}
+                      >
+                        {managerMode === "replace" ? "閉じる" : "交代する"}
+                      </Button>
+                    )}
+                    {onEndStoreManager && (
+                      <Button
+                        variant="secondary"
+                        onAction={() =>
+                          setManagerMode(managerMode === "end" ? "idle" : "end")
+                        }
+                        disabled={isSubmitting}
+                      >
+                        {managerMode === "end" ? "閉じる" : "任期終了"}
+                      </Button>
+                    )}
+                  </Row>
+                ) : (
+                  onAppointStoreManager && (
+                    <Button
+                      onAction={() =>
+                        setManagerMode(managerMode === "appoint" ? "idle" : "appoint")
+                      }
+                      disabled={isSubmitting}
+                    >
+                      {managerMode === "appoint" ? "閉じる" : "管理薬剤師を任命"}
+                    </Button>
+                  )
+                )}
+              </TableCell>
+            </tr>
+          </tbody>
+        </Table>
+
+        {managerMode === "appoint" && onAppointStoreManager && (
+          <form onSubmit={(e) => void handleAppointManagerSubmit(e)} style={{ marginTop: "1rem" }}>
+            <Paragraph>管理薬剤師の新規任命</Paragraph>
+            <Field
+              name="appoint_staff_id"
+              label="任命するスタッフID"
+              value={managerStaffId}
+              onValueChange={setManagerStaffId}
+              required
+            />
+            <Field
+              name="appoint_starts_on"
+              label="任命開始日 (YYYY-MM-DD)"
+              value={managerDate}
+              onValueChange={setManagerDate}
+              required
+            />
+            <Row>
+              <Button type="submit" disabled={isSubmitting || !managerStaffId.trim()}>
+                任命を確定する
+              </Button>
+            </Row>
+          </form>
+        )}
+
+        {managerMode === "replace" && onReplaceStoreManager && activeManager && (
+          <form onSubmit={(e) => void handleReplaceManagerSubmit(e)} style={{ marginTop: "1rem" }}>
+            <Paragraph>管理薬剤師の交代手続き</Paragraph>
+            <Field
+              name="replace_staff_id"
+              label="後任スタッフID"
+              value={managerStaffId}
+              onValueChange={setManagerStaffId}
+              required
+            />
+            <Field
+              name="replace_effective_on"
+              label="交代発効日 (YYYY-MM-DD)"
+              value={managerDate}
+              onValueChange={setManagerDate}
+              required
+            />
+            <Row>
+              <Button type="submit" disabled={isSubmitting || !managerStaffId.trim()}>
+                交代を確定する
+              </Button>
+            </Row>
+          </form>
+        )}
+
+        {managerMode === "end" && onEndStoreManager && activeManager && (
+          <form onSubmit={(e) => void handleEndManagerSubmit(e)} style={{ marginTop: "1rem" }}>
+            <Paragraph>管理薬剤師の任期終了手続き</Paragraph>
+            <Field
+              name="end_date"
+              label="終了年月日 (YYYY-MM-DD)"
+              value={managerDate}
+              onValueChange={setManagerDate}
+              required
+            />
+            <Row>
+              <Button type="submit" disabled={isSubmitting || !managerDate.trim()}>
+                終了を確定する
+              </Button>
+            </Row>
+          </form>
+        )}
+
+        {managers && managers.length > 0 && (
+          <Details style={{ marginTop: "1rem" }}>
+            <Summary>任命履歴（{managers.length}件）を表示</Summary>
+            <Table>
+              <thead>
+                <tr>
+                  <TableHeader>スタッフID</TableHeader>
+                  <TableHeader>任命開始日</TableHeader>
+                  <TableHeader>任期終了日</TableHeader>
+                  <TableHeader>状態</TableHeader>
+                </tr>
+              </thead>
+              <tbody>
+                {managers.map((m) => (
+                  <tr key={m.id || m.assignment_id}>
+                    <TableCell>{m.staff_id}</TableCell>
+                    <TableCell>{m.starts_on}</TableCell>
+                    <TableCell>{m.ends_on || "—"}</TableCell>
+                    <TableCell>
+                      <Badge>
+                        {m.status === "active"
+                          ? "任命中"
+                          : m.status === "ended"
+                            ? "終了"
+                            : m.status === "cancelled"
+                              ? "取消"
+                              : m.status}
+                      </Badge>
+                    </TableCell>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </Details>
+        )}
+      </Panel>
+
+      <Panel>
         <SectionHeading>医薬品安全管理責任者</SectionHeading>
         <Paragraph>医薬品の安全使用・管理責任者の任命状況です。</Paragraph>
         <Table>
@@ -791,6 +1159,57 @@ export function StoreDetailView({
               </Button>
             </Row>
           </form>
+        )}
+      </Panel>
+
+      <Panel>
+        <Row>
+          <div>
+            <SectionHeading>店舗所属スタッフ</SectionHeading>
+            <Paragraph>
+              この店舗に配属・ロール割り当てされているスタッフの一覧です。
+            </Paragraph>
+          </div>
+          <Link
+            href={`/admin/corporates/${encodeURIComponent(corporateId)}/users`}
+            appearance="action"
+          >
+            スタッフ・権限管理（ユーザー一覧）へ
+          </Link>
+        </Row>
+        {staffUsers && staffUsers.length > 0 ? (
+          <Table>
+            <thead>
+              <tr>
+                <TableHeader>ユーザーID</TableHeader>
+                <TableHeader>スタッフID</TableHeader>
+                <TableHeader>ロール</TableHeader>
+                <TableHeader>所属状態</TableHeader>
+                <TableHeader>アカウント状態</TableHeader>
+              </tr>
+            </thead>
+            <tbody>
+              {staffUsers.map((u) => (
+                <tr key={u.id}>
+                  <TableCell>
+                    <Link
+                      href={`/admin/corporates/${encodeURIComponent(corporateId)}/users/${encodeURIComponent(u.id)}`}
+                    >
+                      {u.id}
+                    </Link>
+                  </TableCell>
+                  <TableCell>{u.staff_id || "—"}</TableCell>
+                  <TableCell>
+                    <Badge>{u.role}</Badge>
+                  </TableCell>
+                  <TableCell>{u.status}</TableCell>
+                  <TableCell>{u.account_status || "—"}</TableCell>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        ) : (
+          <Paragraph>現在、この店舗に所属しているスタッフはいません。</Paragraph>
         )}
       </Panel>
 

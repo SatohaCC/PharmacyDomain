@@ -43,6 +43,13 @@ test("品質ランナー_環境変数で明示指定されたuvキャッシュ�
   try {
     assert.equal(runPlan([{ label: "cache", command: "node", args: [] }], (_command, _args, options) => {
       receivedCacheDirectory = options.env.UV_CACHE_DIR;
+      for (const [variable, directory] of [
+        ["PYTHONPYCACHEPREFIX", "python"],
+        ["MYPY_CACHE_DIR", "mypy"],
+        ["RUFF_CACHE_DIR", "ruff"],
+      ]) {
+        assert.equal(options.env[variable], join(process.cwd(), ".cache", directory));
+      }
       return { status: 0 };
     }), 0);
   } finally {

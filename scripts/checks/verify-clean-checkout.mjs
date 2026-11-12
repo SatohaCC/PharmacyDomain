@@ -30,7 +30,7 @@ export function verificationUvCacheDirectory(worktreePath, {
   configuredCacheDirectory,
   defaultCacheDirectory,
 } = {}) {
-  if (!offline) return join(worktreePath, ".uv-cache");
+  if (!offline) return join(worktreePath, ".cache/uv");
   const cacheDirectory = configuredCacheDirectory?.trim() || defaultCacheDirectory?.trim();
   if (!cacheDirectory) throw new Error("Offline clean-checkout verification requires an available uv cache");
   return cacheDirectory;

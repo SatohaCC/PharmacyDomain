@@ -261,7 +261,7 @@ export function runPlan(plan, execute = spawnSync, reportPath = null, { concurre
     encoding: "utf8",
     maxBuffer: 16 * 1024 * 1024,
     timeout: 300_000,
-    env: { ...process.env, UV_CACHE_DIR: process.env.UV_CACHE_DIR?.trim() || resolve(ROOT, ".uv-cache"), TMP: temporary, TEMP: temporary, TMPDIR: temporary },
+    env: { ...process.env, UV_CACHE_DIR: process.env.UV_CACHE_DIR?.trim() || resolve(ROOT, ".cache/uv"), PYTHONPYCACHEPREFIX: resolve(ROOT, ".cache/python"), MYPY_CACHE_DIR: resolve(ROOT, ".cache/mypy"), RUFF_CACHE_DIR: resolve(ROOT, ".cache/ruff"), TMP: temporary, TEMP: temporary, TMPDIR: temporary },
   };
 
   if (concurrency > 1 || (execute && (execute === executeAsync || execute.constructor?.name === "AsyncFunction"))) {

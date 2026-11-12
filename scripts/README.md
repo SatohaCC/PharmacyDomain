@@ -24,7 +24,7 @@ pnpm agent:check --report tmp/quality/result.json # 完了前の検査と構造�
 node scripts/checks/verify-clean-checkout.mjs --ref <commit> # 指定commitを隔離worktreeでクリーン再検証
 ```
 
-`full`は対象側のlint・format確認・型検査・単体テストを実行する。`quick`はlint・実行入口の構文確認に加え、backendではプロジェクトのMypyを実行する。失敗・起動不能・タイムアウトは非0で終了し、他の検査も続けて結果を表示する。一時ファイルはプロジェクト内のGit管理外領域（`tmp/quality`）を使い、uv cacheは`UV_CACHE_DIR`指定時にその場所、未指定時に`.uv-cache`を使う。
+`full`は対象側のlint・format確認・型検査・単体テストを実行する。`quick`はlint・実行入口の構文確認に加え、backendではプロジェクトのMypyを実行する。失敗・起動不能・タイムアウトは非0で終了し、他の検査も続けて結果を表示する。一時ファイルはプロジェクト内のGit管理外領域（`tmp/quality`）を使い、uv cacheは`UV_CACHE_DIR`指定時にその場所、未指定時に`.cache/uv`を使う。
 
 結合テスト（実PostgreSQL、ブラウザE2E）は変更パスだけから自動選択しない。必要な場合は受入仕様JSONで明示選択する。
 

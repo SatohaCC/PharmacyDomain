@@ -22,7 +22,7 @@ test("クリーンチェックアウト_オフライン時に設定済みまた�
     }),
     "/home/test/.cache/uv",
   );
-  assert.equal(verificationUvCacheDirectory("/tmp/worktree"), join("/tmp/worktree", ".uv-cache"));
+  assert.equal(verificationUvCacheDirectory("/tmp/worktree"), join("/tmp/worktree", ".cache/uv"));
   assert.throws(
     () => verificationUvCacheDirectory("/tmp/worktree", { offline: true }),
     /requires an available uv cache/,
