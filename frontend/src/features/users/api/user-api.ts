@@ -6,6 +6,20 @@ import type { paths, components } from "../../../shared/api/generated/schema";
 export type MembershipDto =
   paths["/corporates/{corporate_id}/users/{membership_id}"]["get"]["responses"]["200"]["content"]["application/json"];
 
+export type StaffSummaryDto =
+  paths["/corporates/{corporate_id}/staffs"]["get"]["responses"]["200"]["content"]["application/json"][number];
+
+export const listStaffs = (
+  corporateId: string,
+  signal?: AbortSignal,
+): Promise<StaffSummaryDto[]> =>
+  result(
+    api.GET("/corporates/{corporate_id}/staffs", {
+      params: { path: { corporate_id: corporateId } },
+      signal,
+    }),
+  );
+
 export const listUsers = (
   id: string,
   cursor?: string,

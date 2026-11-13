@@ -4826,6 +4826,8 @@ export interface components {
       store_ids: string[];
       /** Staff Id */
       staff_id: string | null;
+      /** Staff Name */
+      staff_name?: string | null;
       /**
        * Suspended Store Ids
        * @default []

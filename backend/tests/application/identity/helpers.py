@@ -127,7 +127,7 @@ def create_identity_use_cases(*, now: datetime | None = None) -> IdentityUseCase
             create_staff_store_settings(repositories, staff, stores, clock, access),
         ),
         list_users=ListUsersUseCase(
-            reader=ListUsersProjection(repositories), access=access
+            reader=ListUsersProjection(repositories, staff), access=access
         ),
         get_user=GetUserUseCase(reader=GetUserProjection(repositories), access=access),
         suspend_account=SuspendAccountUseCase(repositories, access, work, lock),

@@ -11,13 +11,20 @@ from app.domain.corporate.identifiers import CorporateId
 from app.domain.foundation.exceptions import DomainValidationError
 from app.domain.identity.entities import CorporateMembership
 from app.domain.identity.identifiers import CorporateMembershipId
+from app.domain.staff.identifiers import StaffId
+from app.domain.staff.repositories import StaffCatalogRepository
 
 
 class ListUsersProjection(ListUsersQueryReader):
     """自法人のアクセス権をID順で返す。秘密・外部主体は返さない。"""
 
-    def __init__(self, repositories: IdentityRepositories) -> None:
+    def __init__(
+        self,
+        repositories: IdentityRepositories,
+        staffs: StaffCatalogRepository | None = None,
+    ) -> None:
         self._repositories = repositories
+        self._staffs = staffs
 
     async def read(
         self,
@@ -48,14 +55,31 @@ class ListUsersProjection(ListUsersQueryReader):
             )
         ]
         page = rows[:limit]
+        staff_names: dict[StaffId, str] = {}
+        if self._staffs is not None and any(item.staff_id is not None for item in page):
+            staff_names = {
+                staff.id: staff.names.kanji.full_name
+                for staff in await self._staffs.list_by_corporate_id(corporate)
+            }
         return Page(
-            items=tuple([await self._view(item) for item in page]),
+            items=tuple([await self._view(item, staff_names) for item in page]),
             next_cursor=str(page[-1].id.value) if len(rows) > limit else None,
         )
 
-    async def _view(self, membership: CorporateMembership) -> MembershipViewDto:
+    async def _view(
+        self,
+        membership: CorporateMembership,
+        staff_names: dict[StaffId, str],
+    ) -> MembershipViewDto:
         """権限と、その土台のアカウント状態を1つの公開値へまとめる。"""
         account = await self._repositories.accounts.get(membership.account_id)
         if account is None:
             raise NotFoundError()
-        return MembershipViewDto.from_entities(membership, account)
+        staff_name = (
+            staff_names.get(membership.staff_id)
+            if membership.staff_id is not None
+            else None
+        )
+        return MembershipViewDto.from_entities(
+            membership, account, staff_name=staff_name
+        )

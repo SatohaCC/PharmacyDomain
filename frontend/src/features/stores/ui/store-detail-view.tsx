@@ -16,6 +16,7 @@ import {
 import { Badge } from "../../../shared/ui/data-display/badge";
 import { Button } from "../../../shared/ui/controls/button";
 import { Checkbox } from "../../../shared/ui/controls/checkbox";
+import { SelectField } from "../../../shared/ui/controls/select-field";
 import { TextField as Field } from "../../../shared/ui/controls/text-field";
 import { Alert } from "../../../shared/ui/feedback/alert";
 import { Link } from "../../../shared/ui/navigation/link";
@@ -40,6 +41,16 @@ export interface StoreDetailViewProps {
     status: string;
     account_status: string | null;
     staff_id?: string | null;
+    staff_name?: string | null;
+  }[];
+  staffs?: {
+    id: string;
+    last_name: string;
+    first_name: string;
+    code: string | null;
+    is_active: boolean;
+    is_pharmacist: boolean;
+    status?: string;
   }[];
   onUpdateBasic: (names: { name: string; name_kana: string; name_romaji?: string | null; code?: string | null }) => Promise<void>;
   onUpdateAddress: (address: { postal_code: string; address: string }) => Promise<void>;
@@ -82,6 +93,7 @@ export function StoreDetailView({
   corporateId,
   managers,
   staffUsers,
+  staffs,
   onUpdateBasic,
   onUpdateAddress,
   onUpdateContact,
@@ -239,6 +251,38 @@ export function StoreDetailView({
   const activeManager =
     managers?.find((m) => m.status === "active") ||
     managers?.find((m) => !m.ends_on);
+
+  const staffById = new Map((staffs ?? []).map((s) => [s.id, s]));
+  const staffNameById = new Map<string, string>();
+  for (const s of staffs ?? []) {
+    staffNameById.set(s.id, `${s.last_name} ${s.first_name}`);
+  }
+  for (const u of staffUsers ?? []) {
+    if (u.staff_id && u.staff_name && !staffNameById.has(u.staff_id)) {
+      staffNameById.set(u.staff_id, u.staff_name);
+    }
+  }
+
+  const eligiblePharmacistOptions: { value: string; label: string }[] = [];
+  const seenStaffIds = new Set<string>();
+  for (const u of staffUsers ?? []) {
+    if (!u.staff_id || seenStaffIds.has(u.staff_id)) continue;
+    if (u.status !== "active" || u.account_status !== "active") continue;
+    const staff = staffById.get(u.staff_id);
+    if (staff) {
+      if (!staff.is_active || !staff.is_pharmacist) continue;
+      if (staff.status && staff.status !== "active") continue;
+    } else if (staffs && staffs.length > 0) {
+      continue;
+    }
+    seenStaffIds.add(u.staff_id);
+    const name = staffNameById.get(u.staff_id) ?? u.staff_id;
+    const label = staff?.code ? `${name}（${staff.code}）` : name;
+    eligiblePharmacistOptions.push({ value: u.staff_id, label });
+  }
+  const replacePharmacistOptions = activeManager
+    ? eligiblePharmacistOptions.filter((o) => o.value !== activeManager.staff_id)
+    : eligiblePharmacistOptions;
 
   const handleAppointManagerSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -962,7 +1006,9 @@ export function StoreDetailView({
               <TableCell>
                 {activeManager ? (
                   <span>
-                    スタッフID: {activeManager.staff_id}（任命日: {activeManager.starts_on}）
+                    {staffNameById.get(activeManager.staff_id) ??
+                      `スタッフID: ${activeManager.staff_id}`}
+                    （任命日: {activeManager.starts_on}）
                   </span>
                 ) : (
                   "未選任"
@@ -979,9 +1025,10 @@ export function StoreDetailView({
                     {onReplaceStoreManager && (
                       <Button
                         variant="secondary"
-                        onAction={() =>
-                          setManagerMode(managerMode === "replace" ? "idle" : "replace")
-                        }
+                        onAction={() => {
+                          setManagerStaffId("");
+                          setManagerMode(managerMode === "replace" ? "idle" : "replace");
+                        }}
                         disabled={isSubmitting}
                       >
                         {managerMode === "replace" ? "閉じる" : "交代する"}
@@ -1002,9 +1049,10 @@ export function StoreDetailView({
                 ) : (
                   onAppointStoreManager && (
                     <Button
-                      onAction={() =>
-                        setManagerMode(managerMode === "appoint" ? "idle" : "appoint")
-                      }
+                      onAction={() => {
+                        setManagerStaffId("");
+                        setManagerMode(managerMode === "appoint" ? "idle" : "appoint");
+                      }}
                       disabled={isSubmitting}
                     >
                       {managerMode === "appoint" ? "閉じる" : "管理薬剤師を任命"}
@@ -1019,13 +1067,19 @@ export function StoreDetailView({
         {managerMode === "appoint" && onAppointStoreManager && (
           <form onSubmit={(e) => void handleAppointManagerSubmit(e)} style={{ marginTop: "1rem" }}>
             <Paragraph>管理薬剤師の新規任命</Paragraph>
-            <Field
-              name="appoint_staff_id"
-              label="任命するスタッフID"
-              value={managerStaffId}
-              onValueChange={setManagerStaffId}
-              required
-            />
+            {eligiblePharmacistOptions.length > 0 ? (
+              <SelectField
+                name="appoint_staff_id"
+                label="任命する薬剤師"
+                value={managerStaffId}
+                onValueChange={setManagerStaffId}
+                options={eligiblePharmacistOptions}
+                disabled={isSubmitting}
+                required
+              />
+            ) : (
+              <Paragraph>現在有効で、この店舗に所属している薬剤師がいません。</Paragraph>
+            )}
             <Field
               name="appoint_starts_on"
               label="任命開始日 (YYYY-MM-DD)"
@@ -1044,13 +1098,19 @@ export function StoreDetailView({
         {managerMode === "replace" && onReplaceStoreManager && activeManager && (
           <form onSubmit={(e) => void handleReplaceManagerSubmit(e)} style={{ marginTop: "1rem" }}>
             <Paragraph>管理薬剤師の交代手続き</Paragraph>
-            <Field
-              name="replace_staff_id"
-              label="後任スタッフID"
-              value={managerStaffId}
-              onValueChange={setManagerStaffId}
-              required
-            />
+            {replacePharmacistOptions.length > 0 ? (
+              <SelectField
+                name="replace_staff_id"
+                label="後任薬剤師"
+                value={managerStaffId}
+                onValueChange={setManagerStaffId}
+                options={replacePharmacistOptions}
+                disabled={isSubmitting}
+                required
+              />
+            ) : (
+              <Paragraph>交代候補となる有効な所属薬剤師がいません。</Paragraph>
+            )}
             <Field
               name="replace_effective_on"
               label="交代発効日 (YYYY-MM-DD)"

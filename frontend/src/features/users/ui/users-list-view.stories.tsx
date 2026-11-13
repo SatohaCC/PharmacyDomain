@@ -19,6 +19,7 @@ export const 一覧: Story = {
           status: "active",
           account_status: "active",
           staff_id: "example-staff",
+          staff_name: "薬剤 花子",
         },
       ],
       next_cursor: null,

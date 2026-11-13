@@ -34,12 +34,17 @@ class MembershipViewDto:
     role: MembershipRole
     store_ids: tuple[str, ...]
     staff_id: str | None
+    staff_name: str | None = None
     suspended_store_ids: tuple[str, ...] = ()
     store_roles: tuple[StoreRoleInput, ...] = ()
 
     @classmethod
     def from_entities(
-        cls, membership: CorporateMembership, account: UserAccount
+        cls,
+        membership: CorporateMembership,
+        account: UserAccount,
+        *,
+        staff_name: str | None = None,
     ) -> MembershipViewDto:
         """権限とアカウントの状態を1つの公開値へまとめる。"""
         return cls(
@@ -55,6 +60,7 @@ class MembershipViewDto:
                 for item in sorted(membership.store_ids, key=lambda item: item.value)
             ),
             optional_id(membership.staff_id),
+            staff_name,
             tuple(
                 str(item.value)
                 for item in sorted(

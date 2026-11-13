@@ -32,6 +32,17 @@ export interface StoreStaffUser {
   status: string;
   account_status: string | null;
   staff_id?: string | null;
+  staff_name?: string | null;
+}
+
+export interface StoreStaffSummary {
+  id: string;
+  last_name: string;
+  first_name: string;
+  code: string | null;
+  is_active: boolean;
+  is_pharmacist: boolean;
+  status?: string;
 }
 
 export function StoreDetailPage({
@@ -39,12 +50,14 @@ export function StoreDetailPage({
   corporateId,
   managers = [],
   staffUsers = [],
+  staffs = [],
   onRefresh,
 }: {
   store: StoreDetail;
   corporateId: string;
   managers?: ManagerAssignment[];
   staffUsers?: StoreStaffUser[];
+  staffs?: StoreStaffSummary[];
   onRefresh: () => Promise<void>;
 }) {
   const [store, setStore] = useState<StoreDetail>(initialStore);
@@ -328,6 +341,7 @@ export function StoreDetailPage({
       corporateId={corporateId}
       managers={managers}
       staffUsers={staffUsers}
+      staffs={staffs}
       onUpdateBasic={handleUpdateBasic}
       onUpdateAddress={handleUpdateAddress}
       onUpdateContact={handleUpdateContact}

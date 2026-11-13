@@ -136,7 +136,7 @@ def build_identity_use_cases(
             ),
         ),
         list_users=ListUsersUseCase(
-            reader=ListUsersProjection(identity), access=access
+            reader=ListUsersProjection(identity, repositories.staff), access=access
         ),
         get_user=GetUserUseCase(reader=GetUserProjection(identity), access=access),
         suspend_account=SuspendAccountUseCase(identity, access, unit_of_work, lock),

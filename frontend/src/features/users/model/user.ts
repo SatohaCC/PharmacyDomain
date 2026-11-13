@@ -6,6 +6,7 @@ export interface UserList {
     status: string;
     account_status: string | null;
     staff_id?: string | null;
+    staff_name?: string | null;
   }[];
   next_cursor?: string | null;
 }

@@ -2,7 +2,6 @@ import { Panel } from "../../../shared/ui/layout/panel";
 import {
   Table,
   TableHeader,
-  IdentifierCell,
   TableCell,
 } from "../../../shared/ui/data-display/table";
 import { Badge } from "../../../shared/ui/data-display/badge";
@@ -44,7 +43,7 @@ export function UserListView({
         <Table>
           <thead>
             <tr>
-              <TableHeader>本人ID</TableHeader>
+              <TableHeader>スタッフ名</TableHeader>
               <TableHeader>スタッフ連携</TableHeader>
               <TableHeader>権限</TableHeader>
               <TableHeader>法人権限</TableHeader>
@@ -54,13 +53,13 @@ export function UserListView({
           <tbody>
             {data.items.map((u) => (
               <tr key={u.id}>
-                <IdentifierCell>
+                <TableCell>
                   <Link
                     href={`/admin/corporates/${encodeURIComponent(corporateId)}/users/${encodeURIComponent(u.id)}`}
                   >
-                    {u.person_id}
+                    {u.staff_name || "（スタッフ未連携）"}
                   </Link>
-                </IdentifierCell>
+                </TableCell>
                 <TableCell>
                   {u.staff_id ? <Badge>スタッフ連携済</Badge> : "—"}
                 </TableCell>

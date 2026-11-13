@@ -34,6 +34,7 @@ from tests.application.identity.helpers import (
     create_identity_use_cases,
     create_staff_store_settings,
 )
+from tests.factories.staff_factory import create_staff
 from tests.factories.store_factory import create_manager_assignment, create_store
 from tests.fakes.fake_clock import FakeClock
 from tests.fakes.fake_organization_management import FakeOrganizationLock
@@ -314,3 +315,62 @@ async def test_list_users_店舗ID指定で所属ユーザーを絞り込める(
     # 全件取得（絞り込みなし）
     result_all = await list_users_uc.execute(str(corporate.value))
     assert len(result_all.items) == 2
+
+
+@pytest.mark.asyncio
+async def test_list_users_スタッフ連携済みのメンバーにスタッフ名を返す() -> None:
+    corporate = CorporateId.generate()
+    actor = ActorContext.corporate_admin(principal_id="admin-1", corporate_id=corporate)
+    access = CorporateAccessService(
+        AutoProvisioningCorporateRepository(), AuthorizationService(actor)
+    )
+    bundle = create_identity_use_cases()
+    list_users_uc = ListUsersUseCase(reader=bundle.list_users._reader, access=access)
+
+    staff = create_staff(
+        corporate_id=corporate,
+        last_name="薬剤",
+        first_name="花子",
+        last_name_kana="ヤクザイ",
+        first_name_kana="ハナコ",
+    )
+    await bundle.staff.save(staff)
+
+    acc_linked = UserAccount(
+        id=UserAccountId.generate(),
+        corporate_id=corporate,
+        person_id=AccountPersonId.generate(),
+    )
+    acc_unlinked = UserAccount(
+        id=UserAccountId.generate(),
+        corporate_id=corporate,
+        person_id=AccountPersonId.generate(),
+    )
+    await bundle.repositories.accounts.save(acc_linked)
+    await bundle.repositories.accounts.save(acc_unlinked)
+
+    mem_linked = CorporateMembership(
+        id=CorporateMembershipId.generate(),
+        account_id=acc_linked.id,
+        corporate_id=corporate,
+        role=MembershipRole.MEMBER,
+        status=AccountStatus.ACTIVE,
+        staff_id=staff.id,
+        store_roles=(),
+    )
+    mem_unlinked = CorporateMembership(
+        id=CorporateMembershipId.generate(),
+        account_id=acc_unlinked.id,
+        corporate_id=corporate,
+        role=MembershipRole.CORPORATE_ADMIN,
+        status=AccountStatus.ACTIVE,
+        staff_id=None,
+        store_roles=(),
+    )
+    await bundle.repositories.memberships.save(mem_linked)
+    await bundle.repositories.memberships.save(mem_unlinked)
+
+    result = await list_users_uc.execute(str(corporate.value))
+    by_id = {item.id: item for item in result.items}
+    assert by_id[str(mem_linked.id.value)].staff_name == "薬剤 花子"
+    assert by_id[str(mem_unlinked.id.value)].staff_name is None
