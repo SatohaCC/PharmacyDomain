@@ -1,4 +1,4 @@
-import { api, corporationParams } from "../../../shared/api/client";
+import { api } from "../../../shared/api/client";
 import { result } from "../../../shared/api/errors";
 import type { UserList, StaffDetail } from "../model/user";
 import type { paths, components } from "../../../shared/api/generated/schema";
@@ -161,7 +161,7 @@ export const returnStaffFromLeave = (corporateId: string, staffId: string) =>
   );
 
 export const registrationOptions = async (id: string, signal?: AbortSignal) => {
-  const options = { params: corporationParams(id), signal };
+  const options = { params: { path: { corporate_id: id } }, signal };
   const stores = await result(
     api.GET("/corporates/{corporate_id}/stores", options),
   );

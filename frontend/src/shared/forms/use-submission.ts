@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, errorText } from "../api/errors";
-export function useSubmission(onSubmit: (data: FormData) => Promise<void>) {
+
+export function useSubmission(
+  onSubmit: (data: FormData) => Promise<void>,
+  onUnauthorized?: () => void,
+) {
   const lock = useRef(false);
   const [pending, setPending] = useState(false);
   const [blocked, setBlocked] = useState(false);
@@ -39,6 +43,6 @@ export function useSubmission(onSubmit: (data: FormData) => Promise<void>) {
     error,
     requiresLogin,
     submit,
-    onLogin: requiresLogin ? () => location.assign("/login") : undefined,
+    onLogin: requiresLogin ? onUnauthorized : undefined,
   };
 }

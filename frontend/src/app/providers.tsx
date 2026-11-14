@@ -1,12 +1,13 @@
-import { Canvas } from "../shared/ui/layout/elements";
+import { Canvas } from "../shared/ui/Elements";
 import {
   useNavigate,
   useRouterState,
   useBlocker,
 } from "@tanstack/react-router";
-import { NavigationProvider } from "../shared/ui/navigation/link";
+import { NavigationProvider } from "../shared/ui/Link";
 import type { ReactNode } from "react";
 import { LeaveProvider, useAllowLeave } from "../shared/navigation/leaving";
+
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <LeaveProvider>
@@ -16,7 +17,9 @@ export function Providers({ children }: { children: ReactNode }) {
 }
 function ApplicationNavigation({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const pathname = useRouterState({
+    select: (s) => (s.resolvedLocation ?? s.location).pathname,
+  });
   const allowLeave = useAllowLeave();
   useBlocker({ shouldBlockFn: () => !allowLeave(), enableBeforeUnload: false });
   return (

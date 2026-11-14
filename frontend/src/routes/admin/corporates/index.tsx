@@ -1,7 +1,8 @@
 import { useSubmission } from "../../../shared/forms/use-submission";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { CorporateListView } from "../../../features/corporates/ui/corporates-list-view";
+import { CorporateListView } from "../../../features/corporates/components/CorporatesListView";
 import { listCorporates } from "../../../features/corporates/api/corporate-api";
+
 export const Route = createFileRoute("/admin/corporates/")({
   validateSearch: (
     s: Record<string, unknown>,
@@ -23,16 +24,19 @@ function Page() {
   const data = Route.useLoaderData();
   const search = Route.useSearch();
   const navigate = useNavigate();
-  const searchSubmission = useSubmission(async (d) => {
-    await navigate({
-      to: "/admin/corporates",
-      search: {
-        name: String(d.get("name") || "").trim(),
-        status: String(d.get("status") || ""),
-        cursor: undefined,
-      },
-    });
-  });
+  const searchSubmission = useSubmission(
+    async (d) => {
+      await navigate({
+        to: "/admin/corporates",
+        search: {
+          name: String(d.get("name") || "").trim(),
+          status: String(d.get("status") || ""),
+          cursor: undefined,
+        },
+      });
+    },
+    () => location.assign("/login"),
+  );
   return (
     <CorporateListView
       key={JSON.stringify(search)}

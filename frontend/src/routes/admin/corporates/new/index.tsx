@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { CorporateRegistrationPage } from "../../../../features/corporates/ui/corporates-registration-page";
+import { CorporateRegistrationPage } from "../../../../features/corporates/components/CorporatesRegistrationPage";
+
 export const Route = createFileRoute("/admin/corporates/new/")({
   beforeLoad: ({ context }) => {
     if (!context.actor.roles.includes("vendor_system_admin"))

@@ -1,4 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
+
 export const Route = createFileRoute("/admin/")({
   beforeLoad: ({ context }) => {
     if (context.actor.roles.includes("vendor_system_admin"))

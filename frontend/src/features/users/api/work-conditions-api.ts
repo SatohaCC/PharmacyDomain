@@ -1,5 +1,6 @@
 import { api } from "../../../shared/api/client";
 import { result } from "../../../shared/api/errors";
+
 export type { StoreAffiliation } from "../model/store-work-conditions";
 
 export const getWorkConditions = (

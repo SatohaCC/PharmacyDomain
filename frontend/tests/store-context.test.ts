@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { useStoreContext } from "../src/features/stores/ui/use-store-context";
-import { useStoreScopedData } from "../src/features/stores/ui/use-store-scoped-data";
+import { useStoreContext } from "../src/features/stores/hooks/useStoreContext";
+import { useStoreScopedData } from "../src/features/stores/hooks/useStoreScopedData";
 import { accessToken, setAccessToken } from "../src/features/auth/api/session";
 import type { SelectableStore } from "../src/features/stores/model/selectable-store";
 

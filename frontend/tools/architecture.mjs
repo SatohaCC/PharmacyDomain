@@ -1,5 +1,8 @@
 import path from "node:path";
+
 const normal = (value) => value.replaceAll("\\", "/");
+const libraryPattern = /^(react-aria(?:-components)?|@react-aria\/|@stylexjs\/)/;
+
 export function violation(filename, source) {
   const file = normal(filename);
   const target = source.startsWith(".")
@@ -7,48 +10,90 @@ export function violation(filename, source) {
     : source;
   const feature = file.match(/\/src\/features\/([^/]+)\//)?.[1];
   const targetFeature = target.match(/\/src\/features\/([^/]+)\//)?.[1];
+
   if (
     file.includes("/src/") &&
     !file.includes("/src/shared/ui/") &&
-    /^(react-aria(?:-components)?|@react-aria\/|@stylexjs\/)/.test(source)
-  )
-    return "UIライブラリはshared/ui内部で使用してください。";
+    /^(react-aria(?:-components)?|@react-aria\/)/.test(source)
+  ) {
+    return "React Ariaはshared/ui内部でのみ使用してください。";
+  }
+
+  if (
+    file.includes("/src/") &&
+    !/\/src\/shared\/(?:ui|component|theme)\//.test(file) &&
+    /^@stylexjs\//.test(source)
+  ) {
+    return "StyleXはshared/ui・shared/component・shared/theme内部でのみ使用してください。";
+  }
+
   if (
     file.includes("/src/shared/ui/") &&
-    /\/src\/(features|app|routes|shared\/api)\//.test(target)
-  )
-    return "共通UIから業務・通信・配線を参照できません。";
+    /\/src\/(?:features|app|routes|shared\/(?:api|component))\//.test(target)
+  ) {
+    return "shared/uiから業務・通信・配線・shared/componentを参照できません。";
+  }
+
   if (
-    file.includes("/src/shared/api/") &&
-    /\/src\/(features|app|routes)\//.test(target)
-  )
-    return "通信基盤は認証や機能の実装を参照できません。";
-  if (feature && /\/src\/(routes|app)\//.test(target))
+    /\/src\/shared\/(?:component|theme)\//.test(file) &&
+    /\/src\/(?:features|app|routes|shared\/api)\//.test(target)
+  ) {
+    return "共通表示部品・テーマから業務・通信・配線を参照できません。";
+  }
+
+  if (feature && /\/src\/(?:routes|app)\//.test(target)) {
     return "機能からルートや配線を参照できません。";
-  if (feature && targetFeature && feature !== targetFeature)
+  }
+
+  if (feature && targetFeature && feature !== targetFeature) {
     return "機能同士の直接参照は禁止です。必要な契約を配線から渡してください。";
+  }
+
   if (
     file.includes("/model/") &&
     feature &&
     (/^(react(?:-dom)?(?:\/|$)|@tanstack\/|oidc-client-ts|openapi-fetch)/.test(
       source,
     ) ||
-      /\/src\/(shared\/(api|ui)|features\/[^/]+\/(api|ui))\//.test(target) ||
-      /\/shared\/(forms\/use-|navigation\/leaving)/.test(target))
-  )
+      /\/src\/(?:shared\/(?:api|ui|component|theme)|features\/[^/]+\/(?:api|components|hooks|ui))(?:\/|$)/.test(
+        target,
+      ) ||
+      /\/shared\/(?:forms\/use-|navigation\/leaving)/.test(target))
+  ) {
     return "モデルはReact・通信・画面の実装に依存できません。";
+  }
+
   if (
-    /-view\.tsx$/.test(file) &&
-    (/\/api\//.test(target) ||
-      /\/use-[^/]+$/.test(target) ||
+    /(?:-view|View)\.tsx$/.test(file) &&
+    (/\/api(?:\/|$)/.test(target) ||
+      /\/use(?:-[^/]+|[A-Z][^/]*)(?:\.[cm]?[jt]sx?)?$/.test(target) ||
       source === "@tanstack/react-router" ||
       target.includes("/shared/forms/submission-form"))
-  )
+  ) {
     return "viewは表示用の契約を受け取り、通信・hook・Routerに依存しません。";
-  if (feature && file.includes("/ui/") && target.includes("/shared/api/client"))
+  }
+
+  if (
+    feature &&
+    /\/(?:components|hooks|ui)\//.test(file) &&
+    target.includes("/shared/api/client")
+  ) {
     return "通信呼出しは機能のapiアダプタを経由してください。";
+  }
+
   return undefined;
 }
+
+function isAllowedAriaReexport(filename, node, sourceValue) {
+  return (
+    node.type === "ExportNamedDeclaration" &&
+    node.exportKind !== "type" &&
+    !node.specifiers?.some((specifier) => specifier.exportKind === "type") &&
+    sourceValue === "react-aria-components" &&
+    /\/src\/shared\/ui\/[^/]+\/index\.ts$/.test(normal(filename))
+  );
+}
+
 export const architecturePlugin = {
   rules: {
     boundaries: {
@@ -63,11 +108,21 @@ export const architecturePlugin = {
             node.source ||
             (node.type === "ImportExpression" ? node.source : undefined);
           if (typeof source?.value !== "string") return;
-          const libraryExport = node.type.startsWith("Export") && /^(react-aria(?:-components)?|@react-aria\/|@stylexjs\/)/.test(source.value);
-          const reason = libraryExport ? "ライブラリの型や部品を直接再エクスポートせず、独自のUI契約を定義してください。" : violation(context.filename, source.value);
-          if (reason)
+
+          const libraryExport =
+            node.type.startsWith("Export") && libraryPattern.test(source.value);
+
+          const reason =
+            libraryExport &&
+            !isAllowedAriaReexport(context.filename, node, source.value)
+              ? "ライブラリの型や部品を直接再エクスポートせず、shared/uiの最小名前付き値ラッパー経由で公開してください。"
+              : violation(context.filename, source.value);
+
+          if (reason) {
             context.report({ node, messageId: "boundary", data: { reason } });
+          }
         };
+
         return {
           ImportDeclaration: check,
           ExportNamedDeclaration: check,

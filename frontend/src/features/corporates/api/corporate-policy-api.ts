@@ -1,4 +1,4 @@
-import { api, corporationParams } from "../../../shared/api/client";
+import { api } from "../../../shared/api/client";
 import { result } from "../../../shared/api/errors";
 import type { CorporatePolicy } from "../model/corporate-policy";
 
@@ -8,7 +8,7 @@ export const updateCorporatePolicy = (
 ) =>
   result(
     api.PUT("/corporates/{corporate_id}/policy", {
-      params: corporationParams(corporateId),
+      params: { path: { corporate_id: corporateId } },
       body,
     }),
   );

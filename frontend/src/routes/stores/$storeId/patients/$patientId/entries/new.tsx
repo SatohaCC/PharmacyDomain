@@ -10,7 +10,7 @@ import {
   buildRegisterPrescriptionBody,
   type PrescriptionEntryFormInput,
 } from "../../../../../../features/prescriptions/model/prescription";
-import { EntryRegistrationView } from "../../../../../../features/prescriptions/ui/entry-registration-view";
+import { EntryRegistrationView } from "../../../../../../features/prescriptions/components/EntryRegistrationView";
 import { ApiError } from "../../../../../../shared/api/errors";
 
 export const Route = createFileRoute(

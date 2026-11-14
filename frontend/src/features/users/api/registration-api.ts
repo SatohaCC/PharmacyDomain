@@ -1,4 +1,4 @@
-import { api, corporationParams } from "../../../shared/api/client";
+import { api } from "../../../shared/api/client";
 import { result } from "../../../shared/api/errors";
 import type { RegistrationInput } from "../model/registration-input";
 import type { UserRole } from "../model/registration";
@@ -8,7 +8,7 @@ export async function registerUser(
   input: RegistrationInput,
   role: UserRole,
 ) {
-  const params = corporationParams(corporateId);
+  const params = { path: { corporate_id: corporateId } };
   const { names } = input;
   const res = await result(
     api.POST("/corporates/{corporate_id}/staffs", {

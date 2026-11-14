@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
-import { StoreDetailView } from "../src/features/stores/ui/store-detail-view";
+import { StoreDetailView } from "../src/features/stores/components/StoreDetailPage";
 import type { StoreDetail } from "../src/features/stores/model/store";
 
 const baseStore: StoreDetail = {

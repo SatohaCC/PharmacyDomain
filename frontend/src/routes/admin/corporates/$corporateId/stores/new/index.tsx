@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { StoreRegistrationPage } from "../../../../../../features/stores/ui/stores-registration-page";
+import { StoreRegistrationPage } from "../../../../../../features/stores/components/StoresRegistrationPage";
+
 export const Route = createFileRoute(
   "/admin/corporates/$corporateId/stores/new/",
 )({ component: NewStore });

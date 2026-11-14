@@ -14,7 +14,7 @@ import {
   StoreSettingsView,
   type CurrentRecordFieldSettingItem,
   type MajorCategorySettingItem,
-} from "../../../features/medication_history/ui/store-settings-view";
+} from "../../../features/medication_history/components/StoreSettingsView";
 
 export const Route = createFileRoute("/stores/$storeId/settings")({
   loader: async ({ params, context, abortController }) => {

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { UserListView } from "../../../../../features/users/ui/users-list-view";
+import { UserListView } from "../../../../../features/users/components/UsersListView";
 import { listUsers } from "../../../../../features/users/api/user-api";
+
 export const Route = createFileRoute("/admin/corporates/$corporateId/users/")({
   validateSearch: (s: Record<string, unknown>): { cursor?: string } => ({
     cursor: typeof s.cursor === "string" ? s.cursor : undefined,

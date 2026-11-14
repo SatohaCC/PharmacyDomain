@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { StoreDetailPage } from "../../../../../../features/stores/ui/store-detail-page";
+import { StoreDetailPage } from "../../../../../../features/stores/components/StoreDetailPage";
 import {
   getStore,
   listStoreManagerAssignments,

@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { getCorporate } from "../../../../features/corporates/api/corporate-api";
-import { CorporateLayoutView } from "../../../../features/corporates/ui/corporate-layout-view";
+import { CorporateLayoutView } from "../../../../features/corporates/components/CorporateLayoutView";
+
 export const Route = createFileRoute("/admin/corporates/$corporateId")({
   beforeLoad: ({ params, context }) => {
     if (

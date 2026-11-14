@@ -1,0 +1,172 @@
+import * as stylex from "@stylexjs/stylex";
+import { tokens } from "../../theme/tokens.stylex";
+
+export const styles = stylex.create({
+  list: {
+    listStyle: "none",
+    margin: 0,
+    padding: 0,
+    display: "flex",
+    flexDirection: "column",
+  },
+  item: {
+    display: "flex",
+    gap: tokens.spaceSm,
+    alignItems: "stretch",
+    "@media (max-width: 750px)": {
+      flexDirection: "column",
+      gap: tokens.spaceXs,
+      marginBottom: tokens.spaceSm,
+    },
+  },
+  rail: {
+    display: "flex",
+    alignItems: "stretch",
+    gap: "6px",
+    width: "96px",
+    flexShrink: 0,
+    "@media (max-width: 750px)": {
+      width: "auto",
+    },
+  },
+  railMeta: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-end",
+    textAlign: "right",
+    width: "76px",
+    paddingTop: "4px",
+    "@media (max-width: 750px)": {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: tokens.spaceXs,
+      textAlign: "left",
+      width: "auto",
+      paddingTop: 0,
+    },
+  },
+  dateText: {
+    fontSize: "11.5px",
+    color: tokens.text,
+    whiteSpace: "nowrap",
+  },
+  stepText: {
+    fontSize: "10px",
+    fontWeight: tokens.fontStrong,
+    color: tokens.muted,
+    marginTop: "1px",
+  },
+  stepTextActive: {
+    color: tokens.action,
+  },
+  track: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    width: "14px",
+    paddingTop: "8px",
+    "@media (max-width: 750px)": {
+      display: "none",
+    },
+  },
+  dot: {
+    width: "9px",
+    height: "9px",
+    borderRadius: "9999px",
+    backgroundColor: tokens.surface,
+    borderWidth: "2px",
+    borderStyle: "solid",
+    borderColor: tokens.border,
+    flexShrink: 0,
+  },
+  dotActive: {
+    backgroundColor: tokens.action,
+    borderColor: tokens.action,
+  },
+  line: {
+    width: "2px",
+    flex: 1,
+    minHeight: "12px",
+    backgroundColor: tokens.border,
+    marginTop: "3px",
+  },
+  card: {
+    flex: 1,
+    minWidth: 0,
+    marginBottom: "6px",
+    backgroundColor: tokens.surface,
+    borderWidth: tokens.borderWidth,
+    borderStyle: "solid",
+    borderColor: tokens.border,
+    borderRadius: tokens.radius,
+    overflow: "hidden",
+  },
+  cardSelected: {
+    borderColor: tokens.action,
+    boxShadow: `0 0 0 1px ${tokens.action}`,
+  },
+  cardHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: "6px",
+    padding: "4px 8px",
+    backgroundColor: tokens.canvas,
+    borderBottomWidth: tokens.borderWidth,
+    borderBottomStyle: "solid",
+    borderBottomColor: tokens.border,
+  },
+  cardHeaderSelected: {
+    backgroundColor: tokens.actionSubtle,
+    borderBottomColor: tokens.action,
+  },
+  headerLeft: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "2px",
+    minWidth: 0,
+  },
+  badgeRow: {
+    display: "flex",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: "4px",
+  },
+  institutionText: {
+    fontSize: "11px",
+    color: tokens.muted,
+    overflowWrap: "anywhere",
+  },
+  headerActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: "4px",
+    flexShrink: 0,
+  },
+  cardBody: {
+    display: "grid",
+    gridTemplateColumns: {
+      default: "1fr 1fr",
+      "@media (max-width: 900px)": "1fr",
+    },
+    gap: "6px",
+    padding: "6px 8px",
+  },
+  sectionBlock: {
+    minWidth: 0,
+  },
+  blockTitle: {
+    margin: 0,
+    marginBottom: "2px",
+    fontSize: "11px",
+    fontWeight: tokens.fontStrong,
+    color: tokens.muted,
+  },
+  blockContent: {
+    fontSize: "11.5px",
+    color: tokens.text,
+    lineHeight: "1.35",
+    overflowWrap: "anywhere",
+  },
+});

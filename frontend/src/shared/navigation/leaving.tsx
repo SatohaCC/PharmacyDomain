@@ -5,6 +5,7 @@ import {
   useRef,
   type ReactNode,
 } from "react";
+
 const LeaveContext = createContext<{
   register: (message: string) => () => void;
   allow: () => boolean;

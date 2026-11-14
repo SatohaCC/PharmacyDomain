@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { registrationOptions } from "../../../../../../features/users/api/user-api";
-import { UserRegistrationPage } from "../../../../../../features/users/ui/user-registration-page";
+import { UserRegistrationPage } from "../../../../../../features/users/components/UserRegistrationPage";
+
 export const Route = createFileRoute(
   "/admin/corporates/$corporateId/users/new/",
 )({

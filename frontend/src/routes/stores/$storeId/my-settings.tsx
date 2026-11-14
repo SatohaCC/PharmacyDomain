@@ -5,18 +5,18 @@ import {
   selectStoreContext,
 } from "../../../features/auth/api/local-authentication";
 import { accessToken, setAccessToken } from "../../../features/auth/api/session";
-import { StoreContextSelectorView } from "../../../features/stores/ui/store-context-selector-view";
-import { Panel, Stack } from "../../../shared/ui/layout/panel";
-import { Badge } from "../../../shared/ui/data-display/badge";
+import { StoreContextSelectorView } from "../../../features/stores/components/StoreContextSelectorView";
+import { Panel, Stack } from "../../../shared/ui/Panel";
+import { Badge } from "../../../shared/ui/Badge";
 import {
   Heading,
   SectionHeading,
   Paragraph,
   ActionRow,
-} from "../../../shared/ui/layout/elements";
-import { Form } from "../../../shared/ui/controls/form";
-import { TextField } from "../../../shared/ui/controls/text-field";
-import { Alert } from "../../../shared/ui/feedback/alert";
+} from "../../../shared/ui/Elements";
+import { Form } from "../../../shared/component/Form";
+import { TextField } from "../../../shared/ui/TextField";
+import { Alert } from "../../../shared/ui/Alert";
 import { errorText } from "../../../shared/api/errors";
 
 export const Route = createFileRoute("/stores/$storeId/my-settings")({

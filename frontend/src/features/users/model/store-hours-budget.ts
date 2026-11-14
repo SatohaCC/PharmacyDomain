@@ -1,4 +1,5 @@
 import type { StoreAffiliation } from "./store-work-conditions";
+
 export interface StoreHoursChange {
   store_id: string;
   starts_on: string;

@@ -1,0 +1,151 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { StoreDetailView } from "./StoreDetailView";
+
+const meta = {
+  title: "Features/Stores/StoreDetailView",
+  component: StoreDetailView,
+  args: {
+    corporateId: "corp-1",
+    store: {
+      id: "store-1",
+      corporate_id: "corp-1",
+      name: "テスト薬局 本店",
+      name_kana: "テストヤッキョクホンテン",
+      name_romaji: "Test Pharmacy",
+      postal_code: "1000001",
+      address: "東京都千代田区千代田1-1",
+      phone_number: "0312345678",
+      fax_number: "0312345679",
+      email: "store@example.com",
+      code: "ST-001",
+      insurance_pharmacy_number: "1234567",
+      status: "active",
+      licenses: {
+        pharmacy_license: {
+          number: "第123456号",
+          valid_from: "2024-01-01",
+          valid_to: "2029-12-31",
+        },
+        narcotics_retailer_license: {
+          number: "麻第98765号",
+          valid_from: "2024-01-01",
+          valid_to: "2026-12-31",
+        },
+      },
+      is_community_linkage: true,
+      is_specialized_linkage: false,
+      is_health_support: true,
+      business_hours: {
+        weekly: [
+          { weekday: "monday", slots: [{ opens_at: "09:00:00", closes_at: "18:00:00" }] },
+          { weekday: "tuesday", slots: [{ opens_at: "09:00:00", closes_at: "18:00:00" }] },
+          { weekday: "wednesday", slots: [{ opens_at: "09:00:00", closes_at: "18:00:00" }] },
+          { weekday: "thursday", slots: [{ opens_at: "09:00:00", closes_at: "18:00:00" }] },
+          { weekday: "friday", slots: [{ opens_at: "09:00:00", closes_at: "18:00:00" }] },
+          { weekday: "saturday", slots: [{ opens_at: "09:00:00", closes_at: "13:00:00" }] },
+          { weekday: "sunday", slots: [] },
+        ],
+        exceptions: [],
+      },
+    },
+    managers: [
+      {
+        id: "mgr-1",
+        staff_id: "staff-001",
+        starts_on: "2024-04-01",
+        ends_on: null,
+        status: "active",
+      },
+      {
+        id: "mgr-0",
+        staff_id: "staff-000",
+        starts_on: "2022-04-01",
+        ends_on: "2024-03-31",
+        status: "ended",
+      },
+    ],
+    staffUsers: [
+      {
+        id: "usr-1",
+        person_id: "person-1",
+        staff_id: "staff-001",
+        staff_name: "薬剤 太郎",
+        role: "admin",
+        status: "active",
+        account_status: "active",
+      },
+      {
+        id: "usr-2",
+        person_id: "person-2",
+        staff_id: "staff-002",
+        staff_name: "薬剤 花子",
+        role: "editor",
+        status: "active",
+        account_status: "active",
+      },
+    ],
+    staffs: [
+      {
+        id: "staff-001",
+        last_name: "薬剤",
+        first_name: "太郎",
+        code: "STF-001",
+        is_active: true,
+        is_pharmacist: true,
+        status: "active",
+      },
+      {
+        id: "staff-002",
+        last_name: "薬剤",
+        first_name: "花子",
+        code: "STF-002",
+        is_active: true,
+        is_pharmacist: true,
+        status: "active",
+      },
+    ],
+    onUpdateBasic: async () => {},
+    onUpdateAddress: async () => {},
+    onUpdateContact: async () => {},
+    onUpdateLicenses: async () => {},
+    onAppointStoreManager: async () => {},
+    onReplaceStoreManager: async () => {},
+    onEndStoreManager: async () => {},
+    onUpdateBusinessHours: async () => {},
+    onChangeStatus: async () => {},
+  },
+} satisfies Meta<typeof StoreDetailView>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const Default: Story = {};
+
+export const Suspended: Story = {
+  args: {
+    store: {
+      id: "store-2",
+      corporate_id: "corp-1",
+      name: "テスト薬局 休止店",
+      name_kana: "テストヤッキョクキュウシテン",
+      name_romaji: null,
+      postal_code: "1000002",
+      address: "東京都千代田区千代田1-2",
+      phone_number: "0312340000",
+      fax_number: null,
+      email: null,
+      code: "ST-002",
+      insurance_pharmacy_number: null,
+      status: "suspended",
+      is_community_linkage: false,
+      is_specialized_linkage: false,
+      is_health_support: false,
+    },
+  },
+};
+
+export const WithSuccessMessage: Story = {
+  args: {
+    statusMessage: "基本情報を更新しました。",
+  },
+};

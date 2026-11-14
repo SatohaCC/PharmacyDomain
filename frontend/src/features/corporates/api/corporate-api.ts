@@ -1,4 +1,4 @@
-import { api, corporationParams } from "../../../shared/api/client";
+import { api } from "../../../shared/api/client";
 import { result } from "../../../shared/api/errors";
 import type {
   Corporate,
@@ -6,6 +6,7 @@ import type {
   CorporateList,
   CorporateSearch,
 } from "../model/corporate";
+
 export const createCorporate = (body: CorporateInput) =>
   result(
     api.POST("/corporates", {
@@ -21,7 +22,7 @@ export const getCorporate = (
 ): Promise<Corporate> =>
   result(
     api.GET("/corporates/{corporate_id}", {
-      params: corporationParams(id),
+      params: { path: { corporate_id: id } },
       signal,
     }),
   );
@@ -71,7 +72,7 @@ export const updateCorporateDetails = (
 ) =>
   result(
     api.PATCH("/corporates/{corporate_id}/details", {
-      params: corporationParams(id),
+      params: { path: { corporate_id: id } },
       body,
     }),
   );

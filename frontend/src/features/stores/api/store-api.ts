@@ -1,4 +1,4 @@
-import { api, corporationParams } from "../../../shared/api/client";
+import { api } from "../../../shared/api/client";
 import { result } from "../../../shared/api/errors";
 import type {
   Store,
@@ -14,7 +14,7 @@ import type {
 export const createStore = (id: string, body: StoreInput) =>
   result(
     api.POST("/corporates/{corporate_id}/stores", {
-      params: corporationParams(id),
+      params: { path: { corporate_id: id } },
       body,
     }),
   );
@@ -25,7 +25,7 @@ export const listStores = (
 ): Promise<Store[]> =>
   result(
     api.GET("/corporates/{corporate_id}/stores", {
-      params: corporationParams(id),
+      params: { path: { corporate_id: id } },
       signal,
     }),
   );

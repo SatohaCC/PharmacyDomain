@@ -24,7 +24,12 @@ describe("API境界", () => {
     "/auth/callback",
     "/login",
   ])("危険な戻り先を採用しない: %s", (p) => {
-    expect(safeReturnPath(p)).toBe("/admin");
+    expect(
+      safeReturnPath(p, {
+        fallbackPath: "/admin",
+        allowedPrefixes: ["/admin", "/stores"],
+      }),
+    ).toBe("/admin");
   });
   it.each([
     "/",
@@ -32,6 +37,11 @@ describe("API境界", () => {
     "/admin/corporates",
     "/stores/01930000-0000-7000-8000-000000000006/patients",
   ])("安全な内部パスを許可する: %s", (p) => {
-    expect(safeReturnPath(p)).toBe(p);
+    expect(
+      safeReturnPath(p, {
+        fallbackPath: "/admin",
+        allowedPrefixes: ["/admin", "/stores"],
+      }),
+    ).toBe(p);
   });
 });

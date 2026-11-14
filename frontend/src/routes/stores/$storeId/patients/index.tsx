@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { listPatients } from "../../../../features/patients/api/patient-api";
-import { PatientListView } from "../../../../features/patients/ui/patient-list-view";
+import { PatientListView } from "../../../../features/patients/components/PatientListView";
 
 export const Route = createFileRoute("/stores/$storeId/patients/")({
   validateSearch: (

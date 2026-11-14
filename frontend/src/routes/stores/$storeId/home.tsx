@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { listPatients } from "../../../features/patients/api/patient-api";
 import { listPatientCareEvents } from "../../../features/prescriptions/api/prescription-api";
-import { Panel, Stack } from "../../../shared/ui/layout/panel";
-import { Badge } from "../../../shared/ui/data-display/badge";
+import { Panel, Stack } from "../../../shared/ui/Panel";
+import { Badge } from "../../../shared/ui/Badge";
 import {
   Heading,
   SectionHeading,
@@ -13,9 +13,15 @@ import {
   MetaText,
   StatValue,
   Title,
-} from "../../../shared/ui/layout/elements";
-import { Link } from "../../../shared/ui/navigation/link";
-import { EmptyState } from "../../../shared/ui/feedback/alert";
+} from "../../../shared/ui/Elements";
+import { Link } from "../../../shared/ui/Link";
+import { EmptyState } from "../../../shared/ui/Alert";
+import {
+  Table,
+  TableHeader,
+  TableRowHeader,
+  TableCell,
+} from "../../../shared/ui/Table";
 
 export const Route = createFileRoute("/stores/$storeId/home")({
   loader: async ({ params, context, abortController }) => {
@@ -110,34 +116,55 @@ function StoreHomePage() {
       </Cards>
 
       <Panel>
-        <SectionHeading>直近の受付・対応イベント</SectionHeading>
+        <SectionHeading id="recent-receptions-heading">
+          直近の受付・対応イベント
+        </SectionHeading>
         {events.length === 0 ? (
-          <EmptyState>この店舗の受付・対応イベントはまだありません。</EmptyState>
+          <EmptyState>
+            この店舗の受付・対応イベントはまだありません。
+          </EmptyState>
         ) : (
-          <Cards>
-            {events.map((ev) => {
-              const patientName =
-                patientNamesById[ev.patient_id] ?? ev.patient_id;
-              return (
-                <Card key={ev.event_id}>
-                  <ActionRow>
-                    <strong>{patientName}</strong>
-                    <Badge>{ev.event_type_name ?? "対応イベント"}</Badge>
-                  </ActionRow>
-                  <MetaText>
-                    {ev.occurred_at ? ev.occurred_at.slice(0, 10) : "日時未設定"}
-                  </MetaText>
-                  <ActionRow>
-                    <Link
-                      href={`/stores/${encodeURIComponent(storeId)}/patients/${encodeURIComponent(ev.patient_id)}`}
-                    >
-                      患者詳細・薬歴を開く
-                    </Link>
-                  </ActionRow>
-                </Card>
-              );
-            })}
-          </Cards>
+          <Table ariaLabelledBy="recent-receptions-heading">
+            <thead>
+              <tr>
+                <TableHeader>受付・発生日</TableHeader>
+                <TableHeader>患者名</TableHeader>
+                <TableHeader>種別</TableHeader>
+                <TableHeader>操作</TableHeader>
+              </tr>
+            </thead>
+            <tbody>
+              {events.map((ev) => {
+                const patientName =
+                  patientNamesById[ev.patient_id] ?? ev.patient_id;
+                const occurredDate = ev.occurred_at
+                  ? ev.occurred_at.slice(0, 10)
+                  : "日時未設定";
+                const eventType = ev.event_type_name ?? "対応イベント";
+                const query = new URLSearchParams({ eventId: ev.event_id });
+                if (ev.medication_history_id) {
+                  query.set("historyId", ev.medication_history_id);
+                }
+                return (
+                  <tr key={ev.event_id}>
+                    <TableCell>{occurredDate}</TableCell>
+                    <TableRowHeader>{patientName}</TableRowHeader>
+                    <TableCell>
+                      <Badge>{eventType}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        href={`/stores/${encodeURIComponent(storeId)}/patients/${encodeURIComponent(ev.patient_id)}?${query.toString()}`}
+                        ariaLabel={`患者詳細・薬歴を開く（${patientName}・${occurredDate}・${eventType}）`}
+                      >
+                        患者詳細・薬歴を開く
+                      </Link>
+                    </TableCell>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Table>
         )}
       </Panel>
     </Stack>

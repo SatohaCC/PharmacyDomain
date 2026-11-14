@@ -1,6 +1,6 @@
 import type { Preview } from "@storybook/react-vite";
-import { Canvas, Page } from "../src/shared/ui/layout/elements";
-import { NavigationProvider } from "../src/shared/ui/navigation/link";
+import { Canvas, Page } from "../src/shared/ui/Elements";
+import { NavigationProvider } from "../src/shared/ui/Link";
 import "../src/style.css";
 const preview: Preview = {
   decorators: [

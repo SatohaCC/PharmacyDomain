@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { AdminFrame } from "../shared/ui/layout/elements";
-import { Button } from "../shared/ui/controls/button";
-import { Link } from "../shared/ui/navigation/link";
+import { AdminFrame } from "../shared/component/AdminFrame";
+import { Button } from "../shared/ui/Button";
+import { Link } from "../shared/ui/Link";
 import { logout } from "../features/auth/api/session";
 
 export interface AdminShellProps {
@@ -24,6 +24,11 @@ export function AdminShell({
     : "/admin/corporates";
   return (
     <AdminFrame
+      brandHref="/admin"
+      brandLabel="薬局管理"
+      menuLabel="管理メニュー"
+      footnote="操作範囲はログイン権限に従います"
+      eyebrow="ADMIN CONSOLE"
       identity={
         actor.roles.includes("vendor_system_admin")
           ? "システム管理者"

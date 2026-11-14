@@ -1,4 +1,5 @@
 import type { Submission } from "../../../shared/forms/submission";
+
 export type UserRole = "corporate_admin" | "member";
 
 export type EmploymentType =

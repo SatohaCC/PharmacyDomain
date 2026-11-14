@@ -9,7 +9,7 @@ import { AdminShell } from "../../app/admin-shell";
 import { accessToken, setAccessToken } from "../../features/auth/api/session";
 import { currentActor, listSelectableStores } from "../../features/auth/api/actor-api";
 import { selectStoreContext } from "../../features/auth/api/local-authentication";
-import { StoreContextSelectorView } from "../../features/stores/ui/store-context-selector-view";
+import { StoreContextSelectorView } from "../../features/stores/components/StoreContextSelectorView";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async ({ location }) => {

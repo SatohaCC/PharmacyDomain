@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { StoreFrame } from "../shared/ui/layout/store-frame";
-import { Button } from "../shared/ui/controls/button";
-import { Link } from "../shared/ui/navigation/link";
+import { StoreFrame } from "../shared/component/StoreFrame";
+import { Button } from "../shared/ui/Button";
+import { Link } from "../shared/ui/Link";
 import { logout } from "../features/auth/api/session";
 
 export interface StoreShellProps {
@@ -37,7 +37,9 @@ export function StoreShell({
 
   return (
     <StoreFrame
-      storeName={storeName || "調剤現場業務"}
+      brandHref="/"
+      brandLabel={storeName || "調剤現場業務"}
+      navigationLabel="業務メニュー"
       identity={getRoleLabel()}
       navigation={
         <>

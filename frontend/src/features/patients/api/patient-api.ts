@@ -1,4 +1,4 @@
-import { api, corporationParams } from "../../../shared/api/client";
+import { api } from "../../../shared/api/client";
 import { result } from "../../../shared/api/errors";
 import type {
   ChangePatientHeadingInput,
@@ -44,7 +44,7 @@ export const registerPatient = async (
 ): Promise<string> => {
   const res = await result(
     api.POST("/corporates/{corporate_id}/patients", {
-      params: corporationParams(corporateId),
+      params: { path: { corporate_id: corporateId } },
       body: {
         ...body,
         birth_date: body.birth_date || null,

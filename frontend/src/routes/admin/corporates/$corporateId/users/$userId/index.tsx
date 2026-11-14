@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { UserDetailPage } from "../../../../../../features/users/ui/user-detail-page";
+import { UserDetailPage } from "../../../../../../features/users/components/UserDetailPage";
 import {
   getUser,
   getStaff,

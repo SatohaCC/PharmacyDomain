@@ -1,0 +1,86 @@
+import { Panel } from "../../../../shared/ui/Panel";
+import { Table, TableHeader, TableCell } from "../../../../shared/ui/Table";
+import { Badge } from "../../../../shared/ui/Badge";
+import { Title, Subheading, Paragraph } from "../../../../shared/ui/Elements";
+import { Link } from "../../../../shared/ui/Link";
+import { EmptyState as Empty } from "../../../../shared/ui/Alert";
+import type { UserList } from "../../model/user";
+
+const roles: Record<string, string> = {
+  corporate_admin: "法人管理者",
+  member: "店舗スタッフ",
+  store_operator: "店舗操作者",
+  store_viewer: "店舗閲覧者",
+};
+
+export function UserListView({
+  data,
+  corporateId,
+}: {
+  data: UserList;
+  corporateId: string;
+}) {
+  const search = {};
+  return (
+    <Panel>
+      <Title>
+        <Subheading>ユーザー一覧</Subheading>
+        <Link
+          href={`/admin/corporates/${encodeURIComponent(corporateId)}/users/new`}
+          appearance="action"
+        >
+          ユーザーを登録
+        </Link>
+      </Title>
+      <Paragraph>登録済みユーザーと法人の利用権限を表示します。</Paragraph>
+      {data.items.length ? (
+        <Table>
+          <thead>
+            <tr>
+              <TableHeader>スタッフ名</TableHeader>
+              <TableHeader>スタッフ連携</TableHeader>
+              <TableHeader>権限</TableHeader>
+              <TableHeader>法人権限</TableHeader>
+              <TableHeader>アカウント</TableHeader>
+            </tr>
+          </thead>
+          <tbody>
+            {data.items.map((u) => (
+              <tr key={u.id}>
+                <TableCell>
+                  <Link
+                    href={`/admin/corporates/${encodeURIComponent(corporateId)}/users/${encodeURIComponent(u.id)}`}
+                  >
+                    {u.staff_name || "（スタッフ未連携）"}
+                  </Link>
+                </TableCell>
+                <TableCell>
+                  {u.staff_id ? <Badge>スタッフ連携済</Badge> : "—"}
+                </TableCell>
+                <TableCell>{roles[u.role] || u.role}</TableCell>
+                <TableCell>
+                  <Badge>{u.status === "active" ? "有効" : "停止"}</Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge>
+                    {u.account_status === "active" ? "有効" : "停止"}
+                  </Badge>
+                </TableCell>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      ) : (
+        <Empty>登録はありません。</Empty>
+      )}
+      {data.next_cursor && (
+        <Link
+          href={`/admin/corporates/${encodeURIComponent(corporateId)}/users?${new URLSearchParams({ ...search, cursor: data.next_cursor! })}`}
+          appearance="action"
+        >
+          次のページ
+        </Link>
+      )}
+    </Panel>
+  );
+}

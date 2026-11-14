@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { BlocksEditorView } from "../src/features/medication_history/ui/blocks-editor-view";
+import { BlocksEditorView } from "../src/features/medication_history/components/BlocksEditorView";
 
 describe("薬歴ブロック（動的区分＋文章方式）の編集・下書き保存 (Issue #91)", () => {
   it("初期ブロックと今回記載欄（ヒアリング項目）が正しく表示される", () => {

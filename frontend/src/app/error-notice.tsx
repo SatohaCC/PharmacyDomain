@@ -1,6 +1,7 @@
-import { Paragraph } from "../shared/ui/layout/elements";
+import { Paragraph } from "../shared/ui/Elements";
 import { ApiError, errorText } from "../shared/api/errors";
-import { Alert } from "../shared/ui/feedback/alert";
+import { Alert } from "../shared/ui/Alert";
+
 export function ErrorNotice({ error }: { error: unknown }) {
   return error ? (
     <Alert>

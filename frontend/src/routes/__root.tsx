@@ -1,8 +1,9 @@
-import { Button } from "../shared/ui/controls/button";
-import { Page, Heading, Canvas } from "../shared/ui/layout/elements";
+import { Button } from "../shared/ui/Button";
+import { Page, Heading, Canvas } from "../shared/ui/Elements";
 import { Providers } from "../app/providers";
 import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { ErrorNotice } from "../app/error-notice";
+
 export const Route = createRootRoute({
   component: () => (
     <Providers>

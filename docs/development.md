@@ -74,9 +74,7 @@ composeの公開ポートはルート`.env`の`POSTGRES_PORT`を使います。�
 React・TypeScript・TanStack RouterのSPAとし、API型はOpenAPIから生成します。
 業務判断と最終認可はバックエンドが所有し、招待秘密をログ・永続ストレージへ保存しません。
 
-routesはURL・認証ガード・画面接続、featuresのviewは表示、画面用hookは状態と非同期処理、
-modelはReact非依存の規則、apiは通信を担当します。React Aria ComponentsとStyleXはshared/ui内部と
-ビルド設定に限定し、画面のpropsへライブラリ固有の型を漏らしません。境界はESLintと違反注入で検証します。
+routesとappはURL・認証ガード・画面接続、featuresは`components/<部品名>/`（表示・画面用hook・Storybook）と`hooks/`（機能共通hook）・`model`（React非依存の規則）・`api`（通信）を担当します。共通UIは`shared/ui`（React Aria ComponentsとStyleX`*.styles.ts`を組み合わせたAtomic部品の実装・Storybookテスト層）、`shared/component`（`shared/ui`部品を組み合わせた複合表示パーツ層）、`shared/theme`（StyleXトークン定義）に分離し、依存方向を`routes / app → features → shared/component → shared/ui`（`routes / app / features`からの`shared/ui`直接利用は可、`shared/ui → shared/component`は禁止）に保ちます。React Aria Componentsは`shared/ui`内部、StyleXは`shared/ui`・`shared/component`・`shared/theme`とビルド設定に限定し、画面のpropsへライブラリ固有の型を漏らしません。境界はESLintと違反注入で検証します。
 
 部品・主要viewにStorybookを併置し、実API・認証なしで状態を確認できるようにします。
 表示用データの名称は「テスト薬局」「テスト 太郎」など「テスト」を含めます。

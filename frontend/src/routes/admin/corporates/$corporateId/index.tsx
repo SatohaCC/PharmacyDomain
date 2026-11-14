@@ -3,7 +3,7 @@ import {
   getRouteApi,
   useRouter,
 } from "@tanstack/react-router";
-import { CorporateOverviewPage } from "../../../../features/corporates/ui/corporates-overview-page";
+import { CorporateOverviewPage } from "../../../../features/corporates/components/CorporatesOverviewPage";
 
 const parentRoute = getRouteApi("/admin/corporates/$corporateId");
 

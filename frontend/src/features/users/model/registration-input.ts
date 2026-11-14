@@ -1,5 +1,6 @@
 import { assessStoreHoursBudget } from "./store-hours-budget";
 import type { UserRole } from "./registration";
+
 export interface RegistrationInput {
   names: {
     last_name: string;

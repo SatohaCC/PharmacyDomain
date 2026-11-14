@@ -1,7 +1,8 @@
 import { useCallback } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { CallbackPage } from "../../../features/auth/ui/callback-page";
+import { CallbackPage } from "../../../features/auth/components/CallbackPage";
+
 export const Route = createFileRoute("/auth/callback/")({ component: Page });
 function Page() {
   const navigate = useNavigate();

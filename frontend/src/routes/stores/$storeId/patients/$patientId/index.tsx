@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useRouter, useRouterState } from "@tanstack/react-router";
 import {
   getPatient,
   getPatientHeading,
@@ -7,7 +7,7 @@ import {
   changePatientHeading,
   listPatients,
 } from "../../../../../features/patients/api/patient-api";
-import { PatientDetailView } from "../../../../../features/patients/ui/patient-detail-view";
+import { PatientDetailView } from "../../../../../features/patients/components/PatientDetailView";
 import type { PatientDetail } from "../../../../../features/patients/model/patient";
 import {
   getCategoryCatalog,
@@ -38,22 +38,22 @@ import {
 import {
   BlocksEditorView,
   type BlockItemState,
-} from "../../../../../features/medication_history/ui/blocks-editor-view";
+} from "../../../../../features/medication_history/components/BlocksEditorView";
 import {
   CenterWorkspacePanel,
   type InteractionAuditSummary,
-} from "../../../../../features/medication_history/ui/center-workspace-panel";
+} from "../../../../../features/medication_history/components/CenterWorkspacePanel";
 import {
   auditPrescriptionInteractions,
   getPrescription,
   listPatientCareEvents,
   type CareEventDto,
 } from "../../../../../features/prescriptions/api/prescription-api";
-import { ThreePane } from "../../../../../shared/ui/layout/three-pane";
-import { DetailFooterBar } from "../../../../../shared/ui/layout/detail-footer-bar";
-import { Panel } from "../../../../../shared/ui/layout/panel";
-import { Subheading, Paragraph } from "../../../../../shared/ui/layout/elements";
-import { EmptyState } from "../../../../../shared/ui/feedback/alert";
+import { ThreePane } from "../../../../../shared/component/ThreePane";
+import { DetailFooterBar } from "../../../../../shared/component/DetailFooterBar";
+import { Panel } from "../../../../../shared/ui/Panel";
+import { Subheading, Paragraph } from "../../../../../shared/ui/Elements";
+import { EmptyState } from "../../../../../shared/ui/Alert";
 import { ApiError, errorText } from "../../../../../shared/api/errors";
 
 export const Route = createFileRoute(
@@ -285,11 +285,36 @@ function PatientDetailComponent() {
     corporateId,
   } = Route.useLoaderData();
   const router = useRouter();
+  const searchStr = useRouterState({ select: (s) => s.location.searchStr });
+
+  const initialRecordId = useMemo(() => {
+    const params = new URLSearchParams(searchStr);
+    const historyId = params.get("historyId");
+    if (historyId && histories.some((h) => h.id === historyId)) {
+      return historyId;
+    }
+    const eventId = params.get("eventId");
+    if (eventId) {
+      const ev = careEvents.find((item) => item.event_id === eventId);
+      const matched =
+        (ev?.medication_history_id
+          ? histories.find((h) => h.id === ev.medication_history_id)
+          : undefined) ??
+        histories.find((h) => h.event_id === eventId) ??
+        (ev?.prescription_id
+          ? histories.find((h) => h.prescription_id === ev.prescription_id)
+          : undefined);
+      if (matched) {
+        return matched.id;
+      }
+    }
+    return histories[0]?.id ?? null;
+  }, [searchStr, histories, careEvents]);
 
   const [activeMode, setActiveMode] =
     useState<DetailFooterMode>("past_history");
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(
-    () => histories[0]?.id ?? null,
+    () => initialRecordId,
   );
   const [loadedBlocks, setLoadedBlocks] = useState<MedicationHistoryBlock[]>(
     [],
@@ -476,6 +501,7 @@ function PatientDetailComponent() {
       }
       footer={
         <DetailFooterBar
+          ariaLabel="患者詳細業務メニュー"
           items={orderFooterItems(
             DETAIL_FOOTER_ITEMS,
             loadStoreFooterOrder(storeId),

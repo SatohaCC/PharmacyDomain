@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { StoreListView } from "../../../../../features/stores/ui/stores-list-view";
+import { StoreListView } from "../../../../../features/stores/components/StoresListView";
 import { listStores } from "../../../../../features/stores/api/store-api";
+
 export const Route = createFileRoute("/admin/corporates/$corporateId/stores/")({
   loader: ({ params, abortController }) =>
     listStores(params.corporateId, abortController.signal),

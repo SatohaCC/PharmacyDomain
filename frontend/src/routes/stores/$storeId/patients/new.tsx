@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { registerPatient } from "../../../../features/patients/api/patient-api";
-import { PatientRegistrationView } from "../../../../features/patients/ui/patient-registration-view";
+import { PatientRegistrationView } from "../../../../features/patients/components/PatientRegistrationView";
 import type { RegisterPatientInput } from "../../../../features/patients/model/patient";
 
 export const Route = createFileRoute("/stores/$storeId/patients/new")({
