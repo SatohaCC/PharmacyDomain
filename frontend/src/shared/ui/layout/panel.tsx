@@ -32,10 +32,9 @@ const styles = stylex.create({
     borderColor: tokens.border,
     borderRadius: tokens.panelRadius,
     padding: {
-      default: tokens.spaceLg,
-      "@media (max-width: 750px)": tokens.spaceMd,
+      default: tokens.spaceMd,
+      "@media (max-width: 750px)": tokens.spaceSm,
     },
-    marginTop: tokens.spaceMd,
     boxShadow: tokens.shadow,
     overflowX: "auto",
   },

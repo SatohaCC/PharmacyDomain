@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Panel } from "../../../shared/ui/layout/panel";
+import { Panel, Stack } from "../../../shared/ui/layout/panel";
 import { Badge } from "../../../shared/ui/data-display/badge";
 import {
   Title,
@@ -74,7 +74,7 @@ export function PatientDetailView({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+    <Stack gap="normal">
       {/* 基本情報パネル */}
       <Panel>
         <Title>
@@ -341,6 +341,6 @@ export function PatientDetailView({
           ) : null}
         </Panel>
       )}
-    </div>
+    </Stack>
   );
 }

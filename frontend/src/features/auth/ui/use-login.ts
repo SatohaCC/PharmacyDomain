@@ -1,5 +1,6 @@
 import { useSubmission } from "../../../shared/forms/use-submission";
 import { text } from "../../../shared/forms/values";
+import { currentActor } from "../api/actor-api";
 import { setAccessToken } from "../api/session";
 import {
   passwordLogin,
@@ -38,8 +39,17 @@ export function useLogin(
     } else {
       restrictedToken.current = "";
       setAccessToken(session.access_token);
-      const target =
+      let target =
         returnTo === "/admin" && loginKind === "corporate" ? "/" : returnTo;
+      if (loginKind === "corporate" && returnTo.startsWith("/admin/")) {
+        const actor = await currentActor().catch(() => null);
+        const canAccessAdmin =
+          actor?.roles.includes("corporate_admin") ||
+          actor?.roles.includes("vendor_system_admin");
+        if (!canAccessAdmin) {
+          target = "/";
+        }
+      }
       await navigate(target);
     }
   };

@@ -7,6 +7,7 @@ import {
   Details,
   Summary,
   Row,
+  Title,
 } from "../../../shared/ui/layout/elements";
 import {
   Table,
@@ -284,6 +285,43 @@ export function StoreDetailView({
     ? eligiblePharmacistOptions.filter((o) => o.value !== activeManager.staff_id)
     : eligiblePharmacistOptions;
 
+  const eligibleStaffOptions: { value: string; label: string }[] = [];
+  const seenAnyStaffIds = new Set<string>();
+  for (const u of staffUsers ?? []) {
+    if (!u.staff_id || seenAnyStaffIds.has(u.staff_id)) continue;
+    if (u.status !== "active" || u.account_status !== "active") continue;
+    const staff = staffById.get(u.staff_id);
+    if (staff) {
+      if (!staff.is_active) continue;
+      if (staff.status && staff.status !== "active") continue;
+    } else if (staffs && staffs.length > 0) {
+      continue;
+    }
+    seenAnyStaffIds.add(u.staff_id);
+    const name = staffNameById.get(u.staff_id) ?? u.staff_id;
+    const label = staff?.code ? `${name}（${staff.code}）` : name;
+    eligibleStaffOptions.push({ value: u.staff_id, label });
+  }
+
+  const managerStatusLabel = (status: string) =>
+    status === "active" || status === "confirmed"
+      ? "任命中"
+      : status === "ended"
+        ? "終了"
+        : status === "cancelled"
+          ? "取消"
+          : status;
+
+  const roleLabels: Record<string, string> = {
+    corporate_admin: "法人管理者",
+    member: "店舗スタッフ",
+    store_operator: "店舗操作者",
+    store_viewer: "店舗閲覧者",
+  };
+
+  const accountStatusLabel = (status: string | null) =>
+    status === "active" ? "有効" : status === "suspended" ? "停止" : status || "—";
+
   const handleAppointManagerSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!onAppointStoreManager) return;
@@ -466,7 +504,7 @@ export function StoreDetailView({
       </Panel>
 
       <Panel>
-        <Row>
+        <Title>
           <SectionHeading>基本情報</SectionHeading>
           <Button
             variant="secondary"
@@ -475,7 +513,7 @@ export function StoreDetailView({
           >
             {basicEditing ? "キャンセル" : "編集"}
           </Button>
-        </Row>
+        </Title>
         {basicEditing ? (
           <form onSubmit={(e) => void handleBasicSubmit(e)}>
             <Field name="name" label="店舗名" defaultValue={store.name} required />
@@ -511,7 +549,7 @@ export function StoreDetailView({
       </Panel>
 
       <Panel>
-        <Row>
+        <Title>
           <SectionHeading>所在地情報</SectionHeading>
           <Button
             variant="secondary"
@@ -520,7 +558,7 @@ export function StoreDetailView({
           >
             {addressEditing ? "キャンセル" : "編集"}
           </Button>
-        </Row>
+        </Title>
         {addressEditing ? (
           <form onSubmit={(e) => void handleAddressSubmit(e)}>
             <Field name="postal_code" label="郵便番号" defaultValue={store.postal_code} required />
@@ -546,7 +584,7 @@ export function StoreDetailView({
       </Panel>
 
       <Panel>
-        <Row>
+        <Title>
           <SectionHeading>連絡先情報</SectionHeading>
           <Button
             variant="secondary"
@@ -555,7 +593,7 @@ export function StoreDetailView({
           >
             {contactEditing ? "キャンセル" : "編集"}
           </Button>
-        </Row>
+        </Title>
         {contactEditing ? (
           <form onSubmit={(e) => void handleContactSubmit(e)}>
             <Field name="phone_number" label="電話番号" defaultValue={store.phone_number} required />
@@ -584,7 +622,7 @@ export function StoreDetailView({
       </Panel>
 
       <Panel>
-        <Row>
+        <Title>
           <SectionHeading>許認可情報</SectionHeading>
           {onUpdateLicenses && (
             <Button
@@ -595,7 +633,7 @@ export function StoreDetailView({
               {licensesEditing ? "キャンセル" : "編集"}
             </Button>
           )}
-        </Row>
+        </Title>
         {licensesEditing ? (
           <form onSubmit={(e) => void handleLicensesSubmit(e)}>
             <Paragraph>薬局開設許可（必須）</Paragraph>
@@ -666,7 +704,7 @@ export function StoreDetailView({
       </Panel>
 
       <Panel>
-        <Row>
+        <Title>
           <div>
             <SectionHeading>開局時間（営業時間）</SectionHeading>
             <Paragraph>曜日ごとの通常開局時間および定休日の設定です。</Paragraph>
@@ -686,7 +724,7 @@ export function StoreDetailView({
               {businessHoursEditing ? "キャンセル" : "編集"}
             </Button>
           )}
-        </Row>
+        </Title>
         {businessHoursError && <Alert tone="error">{businessHoursError}</Alert>}
         {businessHoursEditing ? (
           <form onSubmit={(e) => void handleBusinessHoursSubmit(e)}>
@@ -836,7 +874,7 @@ export function StoreDetailView({
       </Panel>
 
       <Panel>
-        <Row>
+        <Title>
           <SectionHeading>公費・指定医療機関情報</SectionHeading>
           {onUpdatePublicExpenses && (
             <Button
@@ -847,7 +885,7 @@ export function StoreDetailView({
               {publicExpensesEditing ? "キャンセル" : "編集"}
             </Button>
           )}
-        </Row>
+        </Title>
         {publicExpensesEditing ? (
           <form onSubmit={(e) => void handlePublicExpensesSubmit(e)}>
             <Field
@@ -895,7 +933,7 @@ export function StoreDetailView({
       </Panel>
 
       <Panel>
-        <Row>
+        <Title>
           <SectionHeading>薬局機能認定・届出情報</SectionHeading>
           {onUpdateCertifications && (
             <Button
@@ -906,7 +944,7 @@ export function StoreDetailView({
               {certificationsEditing ? "キャンセル" : "編集"}
             </Button>
           )}
-        </Row>
+        </Title>
         {certificationsEditing ? (
           <form onSubmit={(e) => void handleCertificationsSubmit(e)}>
             <Paragraph>地域連携薬局認定</Paragraph>
@@ -1016,7 +1054,7 @@ export function StoreDetailView({
               </TableCell>
               <TableCell>
                 {activeManager && (
-                  <Badge>{activeManager.status === "active" ? "任命中" : activeManager.status}</Badge>
+                  <Badge>{managerStatusLabel(activeManager.status)}</Badge>
                 )}
               </TableCell>
               <TableCell>
@@ -1150,7 +1188,7 @@ export function StoreDetailView({
             <Table>
               <thead>
                 <tr>
-                  <TableHeader>スタッフID</TableHeader>
+                  <TableHeader>スタッフ</TableHeader>
                   <TableHeader>任命開始日</TableHeader>
                   <TableHeader>任期終了日</TableHeader>
                   <TableHeader>状態</TableHeader>
@@ -1159,19 +1197,11 @@ export function StoreDetailView({
               <tbody>
                 {managers.map((m) => (
                   <tr key={m.id || m.assignment_id}>
-                    <TableCell>{m.staff_id}</TableCell>
+                    <TableCell>{staffNameById.get(m.staff_id) ?? m.staff_id}</TableCell>
                     <TableCell>{m.starts_on}</TableCell>
                     <TableCell>{m.ends_on || "—"}</TableCell>
                     <TableCell>
-                      <Badge>
-                        {m.status === "active"
-                          ? "任命中"
-                          : m.status === "ended"
-                            ? "終了"
-                            : m.status === "cancelled"
-                              ? "取消"
-                              : m.status}
-                      </Badge>
+                      <Badge>{managerStatusLabel(m.status)}</Badge>
                     </TableCell>
                   </tr>
                 ))}
@@ -1187,8 +1217,12 @@ export function StoreDetailView({
         <Table>
           <tbody>
             <tr>
-              <TableHeader>責任者スタッフID</TableHeader>
-              <TableCell>{store.safety_manager_id || "未選任"}</TableCell>
+              <TableHeader>責任者</TableHeader>
+              <TableCell>
+                {store.safety_manager_id
+                  ? (staffNameById.get(store.safety_manager_id) ?? store.safety_manager_id)
+                  : "未選任"}
+              </TableCell>
               <TableCell>
                 {store.safety_manager_id && onRemoveSafetyManager && (
                   <Button
@@ -1205,14 +1239,19 @@ export function StoreDetailView({
         </Table>
         {onAppointSafetyManager && (
           <form onSubmit={(e) => void handleAppointSafetyManager(e)} style={{ marginTop: "1rem" }}>
-            <Field
-              name="safety_manager_id"
-              label="任命するスタッフID"
-              value={safetyManagerIdInput}
-              onValueChange={(val: string) => setSafetyManagerIdInput(val)}
-              description="スタッフのIDを入力"
-              required
-            />
+            {eligibleStaffOptions.length > 0 ? (
+              <SelectField
+                name="safety_manager_id"
+                label="任命するスタッフ"
+                value={safetyManagerIdInput}
+                onValueChange={(val: string) => setSafetyManagerIdInput(val)}
+                options={eligibleStaffOptions}
+                disabled={isSubmitting}
+                required
+              />
+            ) : (
+              <Paragraph>現在有効で、この店舗に所属しているスタッフがいません。</Paragraph>
+            )}
             <Row>
               <Button type="submit" disabled={isSubmitting || !safetyManagerIdInput.trim()}>
                 医薬品安全管理責任者に任命
@@ -1223,7 +1262,7 @@ export function StoreDetailView({
       </Panel>
 
       <Panel>
-        <Row>
+        <Title>
           <div>
             <SectionHeading>店舗所属スタッフ</SectionHeading>
             <Paragraph>
@@ -1236,13 +1275,12 @@ export function StoreDetailView({
           >
             スタッフ・権限管理（ユーザー一覧）へ
           </Link>
-        </Row>
+        </Title>
         {staffUsers && staffUsers.length > 0 ? (
           <Table>
             <thead>
               <tr>
-                <TableHeader>ユーザーID</TableHeader>
-                <TableHeader>スタッフID</TableHeader>
+                <TableHeader>スタッフ名</TableHeader>
                 <TableHeader>ロール</TableHeader>
                 <TableHeader>所属状態</TableHeader>
                 <TableHeader>アカウント状態</TableHeader>
@@ -1255,15 +1293,16 @@ export function StoreDetailView({
                     <Link
                       href={`/admin/corporates/${encodeURIComponent(corporateId)}/users/${encodeURIComponent(u.id)}`}
                     >
-                      {u.id}
+                      {u.staff_name ||
+                        (u.staff_id ? staffNameById.get(u.staff_id) : undefined) ||
+                        "（スタッフ未連携）"}
                     </Link>
                   </TableCell>
-                  <TableCell>{u.staff_id || "—"}</TableCell>
                   <TableCell>
-                    <Badge>{u.role}</Badge>
+                    <Badge>{roleLabels[u.role] ?? u.role}</Badge>
                   </TableCell>
-                  <TableCell>{u.status}</TableCell>
-                  <TableCell>{u.account_status || "—"}</TableCell>
+                  <TableCell>{accountStatusLabel(u.status)}</TableCell>
+                  <TableCell>{accountStatusLabel(u.account_status)}</TableCell>
                 </tr>
               ))}
             </tbody>

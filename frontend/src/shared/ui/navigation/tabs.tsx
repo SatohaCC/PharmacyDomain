@@ -13,11 +13,13 @@ export const Tabs = element("nav", "tabs");
 const styles = stylex.create({
   tabs: {
     display: "flex",
-    gap: tokens.spaceMd,
+    gap: tokens.spaceSm,
     flexWrap: "wrap",
+    alignItems: "center",
     borderBottomWidth: tokens.borderWidth,
     borderBottomStyle: "solid",
     borderBottomColor: tokens.border,
-    paddingBlock: tokens.spaceMd,
+    paddingBlock: tokens.spaceSm,
+    marginBottom: tokens.spaceSm,
   },
 });

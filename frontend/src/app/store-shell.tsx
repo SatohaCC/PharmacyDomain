@@ -42,6 +42,9 @@ export function StoreShell({
       navigation={
         <>
           {storeSelector}
+          <Link href={`/stores/${encodeURIComponent(storeId)}/home`}>
+            業務ホーム
+          </Link>
           <Link href={`/stores/${encodeURIComponent(storeId)}/patients`}>
             患者一覧・検索
           </Link>
@@ -50,6 +53,12 @@ export function StoreShell({
               新規患者登録
             </Link>
           )}
+          <Link href={`/stores/${encodeURIComponent(storeId)}/settings`}>
+            店舗設定
+          </Link>
+          <Link href={`/stores/${encodeURIComponent(storeId)}/my-settings`}>
+            マイ設定
+          </Link>
           {isAdmin && <Link href="/admin">管理画面へ</Link>}
           <Button variant="secondary" onAction={() => void logout()}>
             ログアウト
@@ -57,8 +66,8 @@ export function StoreShell({
         </>
       }
     >
-      <nav aria-label="パンくず" style={{ marginBottom: "1rem" }}>
-        <Link href={`/stores/${encodeURIComponent(storeId)}/patients`}>
+      <nav aria-label="パンくず">
+        <Link href={`/stores/${encodeURIComponent(storeId)}/home`}>
           業務ホーム
         </Link>
       </nav>

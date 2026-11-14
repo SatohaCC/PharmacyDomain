@@ -19,7 +19,13 @@ export const SectionHeading = element("h3", "sectionHeading");
 export const Paragraph = element("p", "paragraph");
 export const Title = element("div", "title");
 export const Row = element("div", "row");
+export const ActionRow = element("div", "actionRow");
+export const SpreadRow = element("div", "spreadRow");
+export const ComparisonGrid = element("div", "comparisonGrid");
 export const Cards = element("div", "cards");
+export const Card = element("article", "card");
+export const MetaText = element("span", "metaText");
+export const StatValue = element("strong", "statValue");
 export const Eyebrow = element("span", "eyebrow");
 
 export const FieldGroup = element("div", "field");
@@ -54,7 +60,9 @@ export function AdminFrame({
             {navigation}
           </nav>
         </details>
-        <small>操作範囲はログイン権限に従います</small>
+        <small {...stylex.props(styles.footnote)}>
+          操作範囲はログイン権限に従います
+        </small>
       </aside>
       <Page>
         <header {...stylex.props(styles.header)}>
@@ -68,7 +76,7 @@ export function AdminFrame({
 }
 const styles = stylex.create({
   canvas: {
-    minHeight: "100vh",
+    minHeight: "100dvh",
     fontFamily: '"Noto Sans JP", system-ui, sans-serif',
     fontSize: tokens.fontBody,
     lineHeight: tokens.lineHeight,
@@ -76,9 +84,9 @@ const styles = stylex.create({
     backgroundColor: tokens.canvas,
   },
   page: {
-    paddingBlock: tokens.spaceLg,
+    paddingBlock: tokens.spaceSm,
     paddingInline: {
-      default: tokens.spaceLg,
+      default: tokens.spaceMd,
       "@media (max-width: 750px)": tokens.spaceSm,
     },
     maxWidth: tokens.pageWidth,
@@ -87,6 +95,7 @@ const styles = stylex.create({
     marginInline: "auto",
   },
   entry: {
+    width: "100%",
     maxWidth: tokens.formWidth,
     marginBlock: {
       default: tokens.spaceXl,
@@ -98,6 +107,7 @@ const styles = stylex.create({
     borderStyle: "solid",
     borderColor: tokens.border,
     borderRadius: tokens.panelRadius,
+    boxShadow: tokens.shadowMd,
     padding: {
       default: tokens.spaceLg,
       "@media (max-width: 750px)": tokens.spaceMd,
@@ -106,19 +116,22 @@ const styles = stylex.create({
   heading: {
     fontSize: tokens.fontHeading,
     fontWeight: tokens.fontStrong,
-    lineHeight: "1.4",
+    letterSpacing: "-0.01em",
+    lineHeight: "1.35",
     marginTop: 0,
     marginBottom: tokens.spaceSm,
   },
   subheading: {
-    fontSize: "21px",
+    fontSize: "20px",
     fontWeight: tokens.fontStrong,
+    letterSpacing: "-0.01em",
     marginTop: 0,
-    marginBottom: tokens.spaceMd,
+    marginBottom: tokens.spaceSm,
   },
   sectionHeading: {
     fontSize: "17px",
-    marginTop: tokens.spaceLg,
+    fontWeight: tokens.fontStrong,
+    marginTop: 0,
     marginBottom: tokens.spaceSm,
   },
   paragraph: {
@@ -128,7 +141,7 @@ const styles = stylex.create({
   },
   title: {
     display: "flex",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     gap: tokens.spaceMd,
     flexWrap: "wrap",
@@ -142,13 +155,57 @@ const styles = stylex.create({
     gap: tokens.spaceMd,
     maxWidth: tokens.formWidth,
   },
-  cards: {
+  actionRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: tokens.spaceSm,
+  },
+  spreadRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: tokens.spaceSm,
+    marginBlock: tokens.spaceSm,
+  },
+  comparisonGrid: {
     display: "grid",
     gridTemplateColumns: {
-      default: "1fr 1fr",
-      "@media (max-width: 750px)": "1fr",
+      default: "repeat(3, minmax(0, 1fr))",
+      "@media (max-width: 1024px)": "1fr",
     },
+    gap: tokens.spaceSm,
+    marginTop: tokens.spaceSm,
+  },
+  cards: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
     gap: tokens.spaceMd,
+  },
+  card: {
+    containerType: "inline-size",
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spaceXs,
+    backgroundColor: tokens.surface,
+    borderWidth: tokens.borderWidth,
+    borderStyle: "solid",
+    borderColor: { default: tokens.border, ":hover": tokens.action },
+    borderRadius: tokens.panelRadius,
+    padding: tokens.spaceMd,
+    boxShadow: tokens.shadow,
+    transition: "border-color 150ms ease, box-shadow 150ms ease",
+  },
+  metaText: {
+    fontSize: tokens.fontSm,
+    color: tokens.muted,
+  },
+  statValue: {
+    fontSize: "28px",
+    fontWeight: tokens.fontStrong,
+    lineHeight: "1.2",
+    color: tokens.text,
   },
   eyebrow: {
     fontSize: tokens.fontSm,
@@ -191,41 +248,67 @@ const styles = stylex.create({
     marginBlock: tokens.spaceMd,
   },
   details: { marginBlock: tokens.spaceMd },
-  summary: { cursor: "pointer", marginBottom: tokens.spaceSm },
+  summary: {
+    cursor: "pointer",
+    fontWeight: tokens.fontStrong,
+    color: tokens.action,
+    paddingBlock: "6px",
+    marginBottom: tokens.spaceSm,
+  },
   shell: {
     display: "grid",
     gridTemplateColumns: {
-      default: "230px minmax(0,1fr)",
+      default: "256px minmax(0,1fr)",
       "@media (max-width: 750px)": "1fr",
     },
-    minHeight: "100vh",
+    minHeight: "100dvh",
   },
   aside: {
     backgroundColor: tokens.surface,
     padding: tokens.spaceMd,
     display: "flex",
     flexDirection: "column",
-    gap: tokens.spaceLg,
+    gap: tokens.spaceMd,
+    position: { default: "sticky", "@media (max-width: 750px)": "static" },
+    top: 0,
+    alignSelf: "start",
+    height: { default: "100dvh", "@media (max-width: 750px)": "auto" },
+    overflowY: { default: "auto", "@media (max-width: 750px)": "visible" },
     borderInlineEndWidth: tokens.borderWidth,
     borderInlineEndStyle: "solid",
     borderInlineEndColor: tokens.border,
   },
   brand: {
-    fontSize: "23px",
+    fontSize: "21px",
     fontWeight: tokens.fontStrong,
+    letterSpacing: "-0.01em",
     color: tokens.text,
     textDecoration: "none",
   },
   menu: { margin: 0 },
-  menuSummary: { cursor: "pointer", marginBottom: tokens.spaceSm },
-  navigation: { display: "flex", flexDirection: "column", gap: tokens.spaceMd },
+  menuSummary: {
+    cursor: "pointer",
+    fontSize: tokens.fontSm,
+    fontWeight: tokens.fontStrong,
+    color: tokens.muted,
+    letterSpacing: "0.04em",
+    marginBottom: tokens.spaceSm,
+  },
+  navigation: { display: "flex", flexDirection: "column", gap: tokens.spaceXs },
+  footnote: {
+    marginBlockStart: "auto",
+    color: tokens.muted,
+    fontSize: "12px",
+    lineHeight: "1.5",
+  },
   header: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
+    flexWrap: "wrap",
     gap: tokens.spaceSm,
     paddingBottom: tokens.spaceMd,
-    marginBottom: tokens.spaceLg,
+    marginBottom: tokens.spaceMd,
     borderBottomWidth: tokens.borderWidth,
     borderBottomStyle: "solid",
     borderBottomColor: tokens.border,

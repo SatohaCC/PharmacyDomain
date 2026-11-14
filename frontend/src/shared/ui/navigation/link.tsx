@@ -38,7 +38,9 @@ export function Link({
           ? "page"
           : undefined
       }
-      {...stylex.props(styles.link, appearance === "action" && styles.button)}
+      {...stylex.props(
+        appearance === "action" ? styles.button : styles.link,
+      )}
       onClick={(e) => {
         if (
           !e.defaultPrevented &&
@@ -60,23 +62,59 @@ export function Link({
 
 const styles = stylex.create({
   link: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: tokens.spaceXs,
+    minBlockSize: "36px",
     color: tokens.action,
     textDecoration: { default: "none", ":hover": "underline" },
+    backgroundColor: {
+      default: "transparent",
+      ":hover": tokens.surfaceSubtle,
+      ":is([aria-current='page'])": tokens.actionSubtle,
+    },
+    fontWeight: {
+      default: tokens.fontNormal,
+      ":is([aria-current='page'])": tokens.fontStrong,
+    },
+    borderInlineStartWidth: "3px",
+    borderInlineStartStyle: "solid",
+    borderInlineStartColor: {
+      default: "transparent",
+      ":is([aria-current='page'])": tokens.action,
+    },
+    borderRadius: tokens.radius,
+    paddingBlock: "6px",
+    paddingInline: "10px",
+    transition: "background-color 150ms ease, color 150ms ease, border-color 150ms ease",
     outline: { default: "none", ":focus-visible": `3px solid ${tokens.focus}` },
-    outlineOffset: "3px",
+    outlineOffset: "2px",
     overflowWrap: "anywhere",
   },
   button: {
     display: "inline-flex",
     justifyContent: "center",
     alignItems: "center",
-    paddingBlock: "12px",
-    paddingInline: tokens.spaceMd,
+    width: "fit-content",
+    minHeight: "40px",
+    paddingBlock: "9px",
+    paddingInline: tokens.spaceSm,
     borderRadius: tokens.radius,
     borderWidth: tokens.borderWidth,
     borderStyle: "solid",
     borderColor: tokens.border,
-    backgroundColor: tokens.surface,
+    backgroundColor: {
+      default: tokens.surface,
+      ":hover": tokens.surfaceSubtle,
+    },
+    color: tokens.action,
+    fontSize: "14px",
+    lineHeight: "1.25",
+    textDecoration: "none",
     fontWeight: tokens.fontStrong,
+    whiteSpace: "nowrap",
+    transition: "background-color 150ms ease, border-color 150ms ease",
+    outline: { default: "none", ":focus-visible": `3px solid ${tokens.focus}` },
+    outlineOffset: "3px",
   },
 });

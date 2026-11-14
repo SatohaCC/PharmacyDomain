@@ -12,10 +12,19 @@ function element<Tag extends keyof React.JSX.IntrinsicElements>(
 export const Badge = element("span", "badge");
 const styles = stylex.create({
   badge: {
-    fontSize: tokens.fontSm,
-    backgroundColor: tokens.canvas,
-    borderRadius: tokens.radius,
-    paddingBlock: tokens.spaceXs,
-    paddingInline: tokens.spaceSm,
+    display: "inline-flex",
+    alignItems: "center",
+    fontSize: "12px",
+    fontWeight: tokens.fontStrong,
+    lineHeight: "1.4",
+    backgroundColor: tokens.surfaceSubtle,
+    color: tokens.text,
+    borderWidth: tokens.borderWidth,
+    borderStyle: "solid",
+    borderColor: tokens.border,
+    borderRadius: "999px",
+    paddingBlock: "3px",
+    paddingInline: "10px",
+    whiteSpace: "nowrap",
   },
 });

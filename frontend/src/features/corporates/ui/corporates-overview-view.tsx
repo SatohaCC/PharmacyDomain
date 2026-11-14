@@ -5,6 +5,7 @@ import {
   Paragraph,
   Cards,
   Row,
+  Title,
 } from "../../../shared/ui/layout/elements";
 import {
   Table,
@@ -84,7 +85,7 @@ export function CorporateOverviewView({
       {errorMessage && <Alert tone="error">{errorMessage}</Alert>}
 
       <Panel>
-        <Row>
+        <Title>
           <div>
             <Subheading>法人情報</Subheading>
             <Paragraph>法人コード：{corporate.corporate_code}（ログイン時に使用）</Paragraph>
@@ -97,7 +98,7 @@ export function CorporateOverviewView({
           >
             {editing ? "キャンセル" : "編集"}
           </Button>
-        </Row>
+        </Title>
 
         {editing ? (
           <form onSubmit={(e) => void handleSubmit(e)}>

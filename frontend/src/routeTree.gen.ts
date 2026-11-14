@@ -19,6 +19,9 @@ import { Route as AdminCorporatesIndexRouteImport } from './routes/admin/corpora
 import { Route as AdminCorporatesCorporateIdRouteRouteImport } from './routes/admin/corporates/$corporateId/route'
 import { Route as AuthCallbackIndexRouteImport } from './routes/auth/callback/index'
 import { Route as StoresStoreIdIndexRouteImport } from './routes/stores/$storeId/index'
+import { Route as StoresStoreIdHomeRouteImport } from './routes/stores/$storeId/home'
+import { Route as StoresStoreIdMySettingsRouteImport } from './routes/stores/$storeId/my-settings'
+import { Route as StoresStoreIdSettingsRouteImport } from './routes/stores/$storeId/settings'
 import { Route as AdminCorporatesCorporateIdIndexRouteImport } from './routes/admin/corporates/$corporateId/index'
 import { Route as AdminCorporatesCorporateIdStoresRouteRouteImport } from './routes/admin/corporates/$corporateId/stores/route'
 import { Route as AdminCorporatesCorporateIdUsersRouteRouteImport } from './routes/admin/corporates/$corporateId/users/route'
@@ -32,6 +35,7 @@ import { Route as AdminCorporatesCorporateIdStoresStoreIdIndexRouteImport } from
 import { Route as AdminCorporatesCorporateIdStoresNewIndexRouteImport } from './routes/admin/corporates/$corporateId/stores/new/index'
 import { Route as AdminCorporatesCorporateIdUsersUserIdIndexRouteImport } from './routes/admin/corporates/$corporateId/users/$userId/index'
 import { Route as AdminCorporatesCorporateIdUsersNewIndexRouteImport } from './routes/admin/corporates/$corporateId/users/new/index'
+import { Route as StoresStoreIdPatientsPatientIdEntriesNewRouteImport } from './routes/stores/$storeId/patients/$patientId/entries/new'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -82,6 +86,21 @@ const AuthCallbackIndexRoute = AuthCallbackIndexRouteImport.update({
 const StoresStoreIdIndexRoute = StoresStoreIdIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => StoresStoreIdRouteRoute,
+} as any)
+const StoresStoreIdHomeRoute = StoresStoreIdHomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => StoresStoreIdRouteRoute,
+} as any)
+const StoresStoreIdMySettingsRoute = StoresStoreIdMySettingsRouteImport.update({
+  id: '/my-settings',
+  path: '/my-settings',
+  getParentRoute: () => StoresStoreIdRouteRoute,
+} as any)
+const StoresStoreIdSettingsRoute = StoresStoreIdSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => StoresStoreIdRouteRoute,
 } as any)
 const AdminCorporatesCorporateIdIndexRoute =
@@ -161,6 +180,12 @@ const AdminCorporatesCorporateIdUsersNewIndexRoute =
     path: '/new/',
     getParentRoute: () => AdminCorporatesCorporateIdUsersRouteRoute,
   } as any)
+const StoresStoreIdPatientsPatientIdEntriesNewRoute =
+  StoresStoreIdPatientsPatientIdEntriesNewRouteImport.update({
+    id: '/patients/$patientId/entries/new',
+    path: '/patients/$patientId/entries/new',
+    getParentRoute: () => StoresStoreIdRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -170,6 +195,9 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/login/': typeof LoginIndexRoute
   '/admin/corporates/$corporateId': typeof AdminCorporatesCorporateIdRouteRouteWithChildren
+  '/stores/$storeId/home': typeof StoresStoreIdHomeRoute
+  '/stores/$storeId/my-settings': typeof StoresStoreIdMySettingsRoute
+  '/stores/$storeId/settings': typeof StoresStoreIdSettingsRoute
   '/admin/corporates/': typeof AdminCorporatesIndexRoute
   '/auth/callback/': typeof AuthCallbackIndexRoute
   '/stores/$storeId/': typeof StoresStoreIdIndexRoute
@@ -182,6 +210,7 @@ export interface FileRoutesByFullPath {
   '/admin/corporates/$corporateId/stores/': typeof AdminCorporatesCorporateIdStoresIndexRoute
   '/admin/corporates/$corporateId/users/': typeof AdminCorporatesCorporateIdUsersIndexRoute
   '/stores/$storeId/patients/$patientId/': typeof StoresStoreIdPatientsPatientIdIndexRoute
+  '/stores/$storeId/patients/$patientId/entries/new': typeof StoresStoreIdPatientsPatientIdEntriesNewRoute
   '/admin/corporates/$corporateId/stores/$storeId/': typeof AdminCorporatesCorporateIdStoresStoreIdIndexRoute
   '/admin/corporates/$corporateId/stores/new/': typeof AdminCorporatesCorporateIdStoresNewIndexRoute
   '/admin/corporates/$corporateId/users/$userId/': typeof AdminCorporatesCorporateIdUsersUserIdIndexRoute
@@ -191,6 +220,9 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminIndexRoute
   '/login': typeof LoginIndexRoute
+  '/stores/$storeId/home': typeof StoresStoreIdHomeRoute
+  '/stores/$storeId/my-settings': typeof StoresStoreIdMySettingsRoute
+  '/stores/$storeId/settings': typeof StoresStoreIdSettingsRoute
   '/admin/corporates': typeof AdminCorporatesIndexRoute
   '/auth/callback': typeof AuthCallbackIndexRoute
   '/stores/$storeId': typeof StoresStoreIdIndexRoute
@@ -201,6 +233,7 @@ export interface FileRoutesByTo {
   '/admin/corporates/$corporateId/stores': typeof AdminCorporatesCorporateIdStoresIndexRoute
   '/admin/corporates/$corporateId/users': typeof AdminCorporatesCorporateIdUsersIndexRoute
   '/stores/$storeId/patients/$patientId': typeof StoresStoreIdPatientsPatientIdIndexRoute
+  '/stores/$storeId/patients/$patientId/entries/new': typeof StoresStoreIdPatientsPatientIdEntriesNewRoute
   '/admin/corporates/$corporateId/stores/$storeId': typeof AdminCorporatesCorporateIdStoresStoreIdIndexRoute
   '/admin/corporates/$corporateId/stores/new': typeof AdminCorporatesCorporateIdStoresNewIndexRoute
   '/admin/corporates/$corporateId/users/$userId': typeof AdminCorporatesCorporateIdUsersUserIdIndexRoute
@@ -215,6 +248,9 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/login/': typeof LoginIndexRoute
   '/admin/corporates/$corporateId': typeof AdminCorporatesCorporateIdRouteRouteWithChildren
+  '/stores/$storeId/home': typeof StoresStoreIdHomeRoute
+  '/stores/$storeId/my-settings': typeof StoresStoreIdMySettingsRoute
+  '/stores/$storeId/settings': typeof StoresStoreIdSettingsRoute
   '/admin/corporates/': typeof AdminCorporatesIndexRoute
   '/auth/callback/': typeof AuthCallbackIndexRoute
   '/stores/$storeId/': typeof StoresStoreIdIndexRoute
@@ -227,6 +263,7 @@ export interface FileRoutesById {
   '/admin/corporates/$corporateId/stores/': typeof AdminCorporatesCorporateIdStoresIndexRoute
   '/admin/corporates/$corporateId/users/': typeof AdminCorporatesCorporateIdUsersIndexRoute
   '/stores/$storeId/patients/$patientId/': typeof StoresStoreIdPatientsPatientIdIndexRoute
+  '/stores/$storeId/patients/$patientId/entries/new': typeof StoresStoreIdPatientsPatientIdEntriesNewRoute
   '/admin/corporates/$corporateId/stores/$storeId/': typeof AdminCorporatesCorporateIdStoresStoreIdIndexRoute
   '/admin/corporates/$corporateId/stores/new/': typeof AdminCorporatesCorporateIdStoresNewIndexRoute
   '/admin/corporates/$corporateId/users/$userId/': typeof AdminCorporatesCorporateIdUsersUserIdIndexRoute
@@ -242,6 +279,9 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/login/'
     | '/admin/corporates/$corporateId'
+    | '/stores/$storeId/home'
+    | '/stores/$storeId/my-settings'
+    | '/stores/$storeId/settings'
     | '/admin/corporates/'
     | '/auth/callback/'
     | '/stores/$storeId/'
@@ -254,6 +294,7 @@ export interface FileRouteTypes {
     | '/admin/corporates/$corporateId/stores/'
     | '/admin/corporates/$corporateId/users/'
     | '/stores/$storeId/patients/$patientId/'
+    | '/stores/$storeId/patients/$patientId/entries/new'
     | '/admin/corporates/$corporateId/stores/$storeId/'
     | '/admin/corporates/$corporateId/stores/new/'
     | '/admin/corporates/$corporateId/users/$userId/'
@@ -263,6 +304,9 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/login'
+    | '/stores/$storeId/home'
+    | '/stores/$storeId/my-settings'
+    | '/stores/$storeId/settings'
     | '/admin/corporates'
     | '/auth/callback'
     | '/stores/$storeId'
@@ -273,6 +317,7 @@ export interface FileRouteTypes {
     | '/admin/corporates/$corporateId/stores'
     | '/admin/corporates/$corporateId/users'
     | '/stores/$storeId/patients/$patientId'
+    | '/stores/$storeId/patients/$patientId/entries/new'
     | '/admin/corporates/$corporateId/stores/$storeId'
     | '/admin/corporates/$corporateId/stores/new'
     | '/admin/corporates/$corporateId/users/$userId'
@@ -286,6 +331,9 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/login/'
     | '/admin/corporates/$corporateId'
+    | '/stores/$storeId/home'
+    | '/stores/$storeId/my-settings'
+    | '/stores/$storeId/settings'
     | '/admin/corporates/'
     | '/auth/callback/'
     | '/stores/$storeId/'
@@ -298,6 +346,7 @@ export interface FileRouteTypes {
     | '/admin/corporates/$corporateId/stores/'
     | '/admin/corporates/$corporateId/users/'
     | '/stores/$storeId/patients/$patientId/'
+    | '/stores/$storeId/patients/$patientId/entries/new'
     | '/admin/corporates/$corporateId/stores/$storeId/'
     | '/admin/corporates/$corporateId/stores/new/'
     | '/admin/corporates/$corporateId/users/$userId/'
@@ -382,6 +431,27 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/stores/$storeId/'
       preLoaderRoute: typeof StoresStoreIdIndexRouteImport
+      parentRoute: typeof StoresStoreIdRouteRoute
+    }
+    '/stores/$storeId/home': {
+      id: '/stores/$storeId/home'
+      path: '/home'
+      fullPath: '/stores/$storeId/home'
+      preLoaderRoute: typeof StoresStoreIdHomeRouteImport
+      parentRoute: typeof StoresStoreIdRouteRoute
+    }
+    '/stores/$storeId/my-settings': {
+      id: '/stores/$storeId/my-settings'
+      path: '/my-settings'
+      fullPath: '/stores/$storeId/my-settings'
+      preLoaderRoute: typeof StoresStoreIdMySettingsRouteImport
+      parentRoute: typeof StoresStoreIdRouteRoute
+    }
+    '/stores/$storeId/settings': {
+      id: '/stores/$storeId/settings'
+      path: '/settings'
+      fullPath: '/stores/$storeId/settings'
+      preLoaderRoute: typeof StoresStoreIdSettingsRouteImport
       parentRoute: typeof StoresStoreIdRouteRoute
     }
     '/admin/corporates/$corporateId/': {
@@ -474,6 +544,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/corporates/$corporateId/users/new/'
       preLoaderRoute: typeof AdminCorporatesCorporateIdUsersNewIndexRouteImport
       parentRoute: typeof AdminCorporatesCorporateIdUsersRouteRoute
+    }
+    '/stores/$storeId/patients/$patientId/entries/new': {
+      id: '/stores/$storeId/patients/$patientId/entries/new'
+      path: '/patients/$patientId/entries/new'
+      fullPath: '/stores/$storeId/patients/$patientId/entries/new'
+      preLoaderRoute: typeof StoresStoreIdPatientsPatientIdEntriesNewRouteImport
+      parentRoute: typeof StoresStoreIdRouteRoute
     }
   }
 }
@@ -571,18 +648,27 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 )
 
 interface StoresStoreIdRouteRouteChildren {
+  StoresStoreIdHomeRoute: typeof StoresStoreIdHomeRoute
+  StoresStoreIdMySettingsRoute: typeof StoresStoreIdMySettingsRoute
+  StoresStoreIdSettingsRoute: typeof StoresStoreIdSettingsRoute
   StoresStoreIdIndexRoute: typeof StoresStoreIdIndexRoute
   StoresStoreIdPatientsNewRoute: typeof StoresStoreIdPatientsNewRoute
   StoresStoreIdPatientsIndexRoute: typeof StoresStoreIdPatientsIndexRoute
   StoresStoreIdPatientsPatientIdIndexRoute: typeof StoresStoreIdPatientsPatientIdIndexRoute
+  StoresStoreIdPatientsPatientIdEntriesNewRoute: typeof StoresStoreIdPatientsPatientIdEntriesNewRoute
 }
 
 const StoresStoreIdRouteRouteChildren: StoresStoreIdRouteRouteChildren = {
+  StoresStoreIdHomeRoute: StoresStoreIdHomeRoute,
+  StoresStoreIdMySettingsRoute: StoresStoreIdMySettingsRoute,
+  StoresStoreIdSettingsRoute: StoresStoreIdSettingsRoute,
   StoresStoreIdIndexRoute: StoresStoreIdIndexRoute,
   StoresStoreIdPatientsNewRoute: StoresStoreIdPatientsNewRoute,
   StoresStoreIdPatientsIndexRoute: StoresStoreIdPatientsIndexRoute,
   StoresStoreIdPatientsPatientIdIndexRoute:
     StoresStoreIdPatientsPatientIdIndexRoute,
+  StoresStoreIdPatientsPatientIdEntriesNewRoute:
+    StoresStoreIdPatientsPatientIdEntriesNewRoute,
 }
 
 const StoresStoreIdRouteRouteWithChildren =

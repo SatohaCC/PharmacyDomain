@@ -1,5 +1,77 @@
-* { box-sizing: border-box; }
-body { margin: 0; }
-button,input,select,textarea { font: inherit; }
-fieldset { border:0; padding:0; margin:0; min-width:0; }
-code { overflow-wrap:anywhere; }
+@layer reset, base;
+
+@layer reset {
+  :where(
+    html,
+    body,
+    main,
+    aside,
+    header,
+    nav,
+    section,
+    article,
+    footer,
+    div,
+    p,
+    h1,
+    h2,
+    h3,
+    h4,
+    ul,
+    ol,
+    li,
+    form,
+    fieldset,
+    label,
+    input,
+    select,
+    textarea,
+    button,
+    table,
+    th,
+    td
+  ) {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  fieldset {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  code {
+    overflow-wrap: anywhere;
+  }
+
+  :where(a, button, summary, [tabindex]):focus-visible {
+    outline: 3px solid #94621b;
+    outline-offset: 2px;
+  }
+
+  @media (forced-colors: active) {
+    [aria-current="page"],
+    [aria-pressed="true"] {
+      outline: 2px solid Highlight;
+      outline-offset: -2px;
+    }
+  }
+}

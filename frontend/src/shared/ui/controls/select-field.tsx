@@ -42,7 +42,10 @@ export function SelectField({
         onValueChange?.(key === null ? "" : String(key))
       }
     >
-      <Label>{label}{required && <span {...stylex.props(styles.required)}>必須</span>}</Label>
+      <Label {...stylex.props(styles.label)}>
+        {label}
+        {required && <span {...stylex.props(styles.required)}>必須</span>}
+      </Label>
       <Button aria-label={label} {...stylex.props(styles.trigger)}>
         <SelectValue>
           {({ selectedText }) =>
@@ -67,11 +70,16 @@ export function SelectField({
           ))}
         </ListBox>
       </Popover>
-      <FieldError>{label}を選択してください。</FieldError>
+      <FieldError {...stylex.props(styles.error)}>{label}を選択してください。</FieldError>
     </Select>
   );
 }
 const styles = stylex.create({
+  label: {
+    fontSize: tokens.fontSm,
+    fontWeight: tokens.fontStrong,
+    color: tokens.text,
+  },
   required:{fontSize:tokens.fontSm,color:tokens.danger,marginLeft:tokens.spaceXs},
   field: {
     display: "flex",
@@ -82,14 +90,20 @@ const styles = stylex.create({
   },
   trigger: {
     display: "flex",
+    alignItems: "center",
     justifyContent: "space-between",
-    padding: "12px",
+    minHeight: "44px",
+    fontSize: "max(1rem, 1em)",
+    paddingBlock: "10px",
+    paddingInline: tokens.spaceSm,
     borderWidth: tokens.borderWidth,
     borderStyle: "solid",
-    borderColor: tokens.border,
+    borderColor: { default: tokens.border, ":hover": tokens.muted },
     borderRadius: tokens.radius,
     backgroundColor: tokens.surface,
     color: tokens.text,
+    cursor: { default: "pointer", ":disabled": "not-allowed" },
+    transition: "border-color 150ms ease",
     outline: {
       default: "none",
       ":focus-visible": `2px solid ${tokens.action}`,
@@ -105,9 +119,14 @@ const styles = stylex.create({
     borderColor: tokens.border,
     borderRadius: tokens.radius,
     minWidth: "var(--trigger-width)",
-    boxShadow: tokens.shadow,
+    boxShadow: tokens.shadowMd,
     maxHeight: "300px",
     overflowY: "auto",
+  },
+  error: {
+    fontSize: tokens.fontSm,
+    color: tokens.danger,
+    fontWeight: tokens.fontStrong,
   },
   list: { padding: tokens.spaceXs, outline: "none" },
   option: {

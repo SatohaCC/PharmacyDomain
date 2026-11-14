@@ -15,6 +15,7 @@ import { EmptyState as Empty } from "../../../shared/ui/feedback/alert";
 import type { UserList } from "../model/user";
 const roles: Record<string, string> = {
   corporate_admin: "法人管理者",
+  member: "店舗スタッフ",
   store_operator: "店舗操作者",
   store_viewer: "店舗閲覧者",
 };
