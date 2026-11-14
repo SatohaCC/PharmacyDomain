@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
-import { Checkbox as AriaCheckbox } from "react-aria-components";
-import { styles } from "./Checkbox.styles";
+import {Checkbox as AriaCheckbox} from "react-aria-components";
+import {styles} from "./Checkbox.styles";
 
 export function Checkbox({
   label,
