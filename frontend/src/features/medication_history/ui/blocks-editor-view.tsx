@@ -220,21 +220,20 @@ export function BlocksEditorView({
         style={{ outline: "none" }}
       >
         <header>
-          <Row>
-            <SectionHeading>薬歴ブロック編集（動的区分＋文章方式）</SectionHeading>
-            <Row>
+          <Row style={{ justifyContent: "space-between", alignItems: "center", gap: "6px" }}>
+            <SectionHeading>薬歴ブロック編集</SectionHeading>
+            <Row style={{ gap: "4px", alignItems: "center" }}>
               {isDraft && <Badge aria-label="記録状態">下書き</Badge>}
               {isDirty && <Badge aria-label="編集状態">編集中</Badge>}
               {saveStatus && (
-                <span aria-live="polite" style={{ color: "green", fontSize: "0.875rem" }}>
+                <span aria-live="polite" style={{ color: "green", fontSize: "12px" }}>
                   {saveStatus}
                 </span>
               )}
             </Row>
           </Row>
           <Paragraph>
-            SOAP各区分および店舗カスタム区分をブロック単位で追加・編集・並び替えできます。
-            Ctrl+Enter で下書き保存できます。
+            区分ごとのブロック編集（Ctrl+Enter で下書き保存）
           </Paragraph>
         </header>
 
@@ -246,16 +245,16 @@ export function BlocksEditorView({
 
         {/* 今回記載欄（Hearing Items） */}
         {currentHearing.length > 0 && (
-          <section aria-label="今回記載欄" style={{ marginBottom: "1.5rem" }}>
+          <section aria-label="今回記載欄" style={{ marginBottom: "6px" }}>
             <SectionHeading>今回記載欄（ヒアリング項目）</SectionHeading>
-            <div style={{ display: "grid", gap: "0.75rem", marginTop: "0.5rem" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "6px", marginTop: "2px" }}>
               {currentHearing.map((h) => (
-                <FieldGroup key={h.field_id}>
+                <FieldGroup key={h.field_id} style={{ marginBottom: 0 }}>
                   <FieldLabel>{h.label}</FieldLabel>
                   <TextArea
                     value={h.value}
                     disabled={readOnly}
-                    rows={2}
+                    rows={1}
                     onChange={(e) =>
                       handleHearingValueChange(h.field_id, e.target.value)
                     }
@@ -269,14 +268,15 @@ export function BlocksEditorView({
 
         {/* ブロックリスト */}
         <section aria-label="薬歴ブロック一覧">
-          <Row>
+          <Row style={{ justifyContent: "space-between", alignItems: "center", gap: "6px" }}>
             <SectionHeading>記載ブロック一覧（{blocks.length}件）</SectionHeading>
             {!readOnly && (
-              <Row>
+              <Row style={{ gap: "4px", flexWrap: "wrap" }}>
                 {DEFAULT_SOAP_CATEGORIES.map((cat) => (
                   <Button
                     key={cat.code}
                     variant="secondary"
+                    size="compact"
                     onAction={() => handleAddBlock(cat.code)}
                   >
                     ＋ {cat.badge_label}ブロック
@@ -291,20 +291,20 @@ export function BlocksEditorView({
               記載ブロックがありません。「＋ ブロック」ボタンから追加してください。
             </Paragraph>
           ) : (
-            <div style={{ display: "grid", gap: "1rem", marginTop: "1rem" }}>
+            <div style={{ display: "grid", gap: "6px", marginTop: "6px" }}>
               {blocks.map((block, index) => (
                 <div
                   key={block.clientKey}
                   style={{
-                    border: "1px solid #e0e0e0",
-                    borderRadius: "8px",
-                    padding: "1rem",
-                    background: "#fafafa",
+                    border: "1px solid #d0ddd8",
+                    borderRadius: "6px",
+                    padding: "6px 8px",
+                    background: "#f8faf9",
                   }}
                   data-testid={`block-item-${index}`}
                 >
-                  <Row style={{ marginBottom: "0.5rem", justifyContent: "space-between" }}>
-                    <Row style={{ gap: "0.5rem", alignItems: "center" }}>
+                  <Row style={{ marginBottom: "4px", justifyContent: "space-between", alignItems: "center" }}>
+                    <Row style={{ gap: "4px", alignItems: "center" }}>
                       <Badge>{block.category_badge_label || block.category_code.toUpperCase()}</Badge>
                       <select
                         value={block.category_code}
@@ -314,9 +314,10 @@ export function BlocksEditorView({
                           handleCategoryChange(block.clientKey, e.target.value)
                         }
                         style={{
-                          padding: "0.25rem 0.5rem",
+                          padding: "2px 6px",
                           borderRadius: "4px",
-                          border: "1px solid #ccc",
+                          border: "1px solid #d0ddd8",
+                          fontSize: "12px",
                         }}
                       >
                         {availableCategories.map((c) => (
@@ -326,7 +327,7 @@ export function BlocksEditorView({
                         ))}
                       </select>
                       {block.updated_at && (
-                        <small style={{ color: "#666" }}>
+                        <small style={{ color: "#4f6862", fontSize: "11px" }}>
                           最終更新: {new Date(block.updated_at).toLocaleTimeString()}
                           {block.updated_by_name ? ` (${block.updated_by_name})` : ""}
                         </small>
@@ -334,9 +335,10 @@ export function BlocksEditorView({
                     </Row>
 
                     {!readOnly && (
-                      <Row style={{ gap: "0.25rem" }}>
+                      <Row style={{ gap: "3px" }}>
                         <Button
                           variant="secondary"
+                          size="compact"
                           disabled={index === 0}
                           onAction={() => handleMoveUp(index)}
                           aria-label={`ブロック${index + 1}を上へ`}
@@ -345,6 +347,7 @@ export function BlocksEditorView({
                         </Button>
                         <Button
                           variant="secondary"
+                          size="compact"
                           disabled={index === blocks.length - 1}
                           onAction={() => handleMoveDown(index)}
                           aria-label={`ブロック${index + 1}を下へ`}
@@ -353,6 +356,7 @@ export function BlocksEditorView({
                         </Button>
                         <Button
                           variant="secondary"
+                          size="compact"
                           onAction={() => handleRemoveBlock(block.clientKey)}
                           aria-label={`ブロック${index + 1}を削除`}
                         >
@@ -362,11 +366,11 @@ export function BlocksEditorView({
                     )}
                   </Row>
 
-                  <FieldGroup>
+                  <FieldGroup style={{ marginBottom: 0 }}>
                     <TextArea
                       value={block.content}
                       disabled={readOnly}
-                      rows={4}
+                      rows={2}
                       aria-label={`${block.category_name || block.category_code}の記載本文`}
                       onChange={(e) =>
                         handleContentChange(block.clientKey, e.target.value)
@@ -390,8 +394,8 @@ export function BlocksEditorView({
 
         {/* フッターアクション */}
         {!readOnly && (
-          <footer style={{ marginTop: "1.5rem" }}>
-            <Row style={{ justifyContent: "flex-end", gap: "1rem" }}>
+          <footer style={{ marginTop: "8px" }}>
+            <Row style={{ justifyContent: "flex-end", gap: "8px" }}>
               <Button
                 variant="primary"
                 pending={saving}

@@ -9,6 +9,7 @@ export interface ButtonProps {
   disabled?: boolean;
   pending?: boolean;
   variant?: "primary" | "secondary";
+  size?: "default" | "compact";
   "aria-label"?: string;
 }
 export function Button({
@@ -18,12 +19,14 @@ export function Button({
   disabled,
   pending,
   variant = "primary",
+  size = "default",
   "aria-label": ariaLabel,
 }: ButtonProps) {
   return (
     <AriaButton
       {...stylex.props(
         styles.base,
+        size === "compact" && styles.compact,
         variant === "secondary" && styles.secondary,
       )}
       type={type}
@@ -43,15 +46,15 @@ const styles = stylex.create({
     justifyContent: "center",
     gap: tokens.spaceXs,
     width: "fit-content",
-    minHeight: "40px",
-    paddingBlock: "9px",
-    paddingInline: tokens.spaceSm,
+    minHeight: "28px",
+    paddingBlock: "3px",
+    paddingInline: "10px",
     borderWidth: tokens.borderWidth,
     borderStyle: "solid",
     borderColor: "transparent",
     borderRadius: tokens.radius,
-    fontSize: "14px",
-    lineHeight: "1.25",
+    fontSize: "12px",
+    lineHeight: "1.2",
     fontWeight: tokens.fontStrong,
     whiteSpace: "nowrap",
     cursor: { default: "pointer", ":disabled": "not-allowed" },
@@ -62,6 +65,12 @@ const styles = stylex.create({
     outline: { default: "none", ":focus-visible": `3px solid ${tokens.focus}` },
     outlineOffset: "3px",
     opacity: { default: 1, ":disabled": tokens.disabledOpacity },
+  },
+  compact: {
+    minHeight: "24px",
+    paddingBlock: "2px",
+    paddingInline: "8px",
+    fontSize: "11px",
   },
   secondary: {
     color: tokens.action,

@@ -1,7 +1,11 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { changeInitialPassword } from "../../../features/auth/api/local-authentication";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import {
+  changeInitialPassword,
+  selectStoreContext,
+} from "../../../features/auth/api/local-authentication";
 import { accessToken, setAccessToken } from "../../../features/auth/api/session";
+import { StoreContextSelectorView } from "../../../features/stores/ui/store-context-selector-view";
 import { Panel, Stack } from "../../../shared/ui/layout/panel";
 import { Badge } from "../../../shared/ui/data-display/badge";
 import {
@@ -20,12 +24,44 @@ export const Route = createFileRoute("/stores/$storeId/my-settings")({
 });
 
 function MySettingsPage() {
-  const { actor, currentStore } = Route.useRouteContext();
+  const { storeId } = Route.useParams();
+  const { actor, selectableStores, currentStore } = Route.useRouteContext();
+  const router = useRouter();
+  const navigate = useNavigate();
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [switchingStore, setSwitchingStore] = useState(false);
+  const [storeFeedback, setStoreFeedback] = useState<string | null>(null);
+  const [storeError, setStoreError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleSelectStore = async (targetStoreId: string) => {
+    if (targetStoreId === storeId) return;
+    setStoreFeedback(null);
+    setStoreError(null);
+    setSwitchingStore(true);
+    try {
+      const session = await selectStoreContext(targetStoreId);
+      setAccessToken(session.access_token);
+      await router.invalidate();
+      const targetStore = selectableStores.find((s) => s.id === targetStoreId);
+      setStoreFeedback(
+        targetStore
+          ? `表示店舗を「${targetStore.name}」に切り替えました。`
+          : "表示店舗を切り替えました。",
+      );
+      await navigate({
+        to: "/stores/$storeId/my-settings",
+        params: { storeId: targetStoreId },
+      });
+    } catch (err: unknown) {
+      setStoreError(errorText(err));
+    } finally {
+      setSwitchingStore(false);
+    }
+  };
 
   const handlePasswordChange = async () => {
     setFeedback(null);
@@ -72,9 +108,26 @@ function MySettingsPage() {
           ))}
         </ActionRow>
         <Paragraph>
-          選択中の店舗: {currentStore ? `${currentStore.name}（${currentStore.code}）` : "未選択"}
+          選択中の店舗:{" "}
+          {currentStore
+            ? `${currentStore.name}（${currentStore.code}）`
+            : "未選択"}
         </Paragraph>
         <Paragraph>スタッフID: {actor.staff_id ?? "未紐付け"}</Paragraph>
+
+        <SectionHeading>表示店舗の切り替え</SectionHeading>
+        {storeFeedback ? <Alert tone="info">{storeFeedback}</Alert> : null}
+        {storeError ? <Alert tone="error">{storeError}</Alert> : null}
+        {selectableStores.length > 0 ? (
+          <StoreContextSelectorView
+            stores={selectableStores}
+            selectedStoreId={storeId}
+            onSelectStore={(id) => void handleSelectStore(id)}
+            disabled={switchingStore}
+          />
+        ) : (
+          <Paragraph>切り替え可能な店舗はありません。</Paragraph>
+        )}
       </Panel>
 
       <Panel>

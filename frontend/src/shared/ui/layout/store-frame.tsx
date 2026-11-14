@@ -3,7 +3,6 @@ import * as stylex from "@stylexjs/stylex";
 import { Badge } from "../data-display/badge";
 import { Link } from "../navigation/link";
 import { tokens } from "../theme/tokens.stylex";
-import { Page, Eyebrow } from "./elements";
 
 export interface StoreFrameProps {
   storeName?: string;
@@ -20,89 +19,95 @@ export function StoreFrame({
 }: StoreFrameProps) {
   return (
     <div {...stylex.props(styles.shell)}>
-      <aside {...stylex.props(styles.aside)}>
-        <div {...stylex.props(styles.brand)}>
-          <Link href="/">{storeName || "調剤現場業務"}</Link>
+      <header {...stylex.props(styles.header)}>
+        <div {...stylex.props(styles.headerInner)}>
+          <div {...stylex.props(styles.leftGroup)}>
+            <div {...stylex.props(styles.brand)}>
+              <Link href="/">{storeName || "調剤現場業務"}</Link>
+            </div>
+            <nav aria-label="業務メニュー" {...stylex.props(styles.navigation)}>
+              {navigation}
+            </nav>
+          </div>
+          <div {...stylex.props(styles.rightGroup)}>
+            <Badge>{identity}</Badge>
+          </div>
         </div>
-        <details {...stylex.props(styles.menu)} open>
-          <summary {...stylex.props(styles.menuSummary)}>業務メニュー</summary>
-          <nav aria-label="業務メニュー" {...stylex.props(styles.navigation)}>
-            {navigation}
-          </nav>
-        </details>
-        <small {...stylex.props(styles.footnote)}>
-          操作範囲はログイン権限と店舗コンテキストに従います
-        </small>
-      </aside>
-      <Page>
-        <header {...stylex.props(styles.header)}>
-          <Eyebrow>DISPENSARY WORKSPACE</Eyebrow>
-          <Badge>{identity}</Badge>
-        </header>
-        {children}
-      </Page>
+      </header>
+      <main {...stylex.props(styles.main)}>{children}</main>
     </div>
   );
 }
 
 const styles = stylex.create({
   shell: {
-    display: "grid",
-    gridTemplateColumns: {
-      default: "216px minmax(0,1fr)",
-      "@media (max-width: 900px)": "1fr",
-    },
-    minHeight: "100dvh",
-  },
-  aside: {
-    backgroundColor: tokens.surface,
-    padding: tokens.spaceSm,
     display: "flex",
     flexDirection: "column",
-    gap: tokens.spaceSm,
-    position: { default: "sticky", "@media (max-width: 900px)": "static" },
-    top: 0,
-    alignSelf: "start",
-    height: { default: "100dvh", "@media (max-width: 900px)": "auto" },
-    overflowY: { default: "auto", "@media (max-width: 900px)": "visible" },
-    borderInlineEndWidth: tokens.borderWidth,
-    borderInlineEndStyle: "solid",
-    borderInlineEndColor: tokens.border,
-  },
-  brand: {
-    fontSize: "20px",
-    fontWeight: tokens.fontStrong,
-    letterSpacing: "-0.01em",
-    color: tokens.text,
-    textDecoration: "none",
-    overflowWrap: "anywhere",
-  },
-  menu: { margin: 0 },
-  menuSummary: {
-    cursor: "pointer",
-    fontSize: tokens.fontSm,
-    fontWeight: tokens.fontStrong,
-    color: tokens.muted,
-    letterSpacing: "0.04em",
-    marginBottom: tokens.spaceSm,
-  },
-  navigation: { display: "flex", flexDirection: "column", gap: tokens.spaceXs },
-  footnote: {
-    marginBlockStart: "auto",
-    color: tokens.muted,
-    fontSize: tokens.fontSm,
-    lineHeight: "1.5",
+    minHeight: "100dvh",
   },
   header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-    gap: tokens.spaceSm,
-    paddingBottom: tokens.spaceSm,
-    marginBottom: tokens.spaceSm,
+    position: "sticky",
+    top: 0,
+    zIndex: 40,
+    backgroundColor: tokens.surface,
     borderBottomWidth: tokens.borderWidth,
     borderBottomStyle: "solid",
     borderBottomColor: tokens.border,
+    boxShadow: tokens.shadow,
+  },
+  headerInner: {
+    maxWidth: "1920px",
+    width: "100%",
+    marginInline: "auto",
+    minHeight: "34px",
+    paddingBlock: "2px",
+    paddingInline: "10px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "6px",
+    flexWrap: "wrap",
+  },
+  leftGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    flexWrap: "wrap",
+    minWidth: 0,
+  },
+  rightGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spaceXs,
+    flexShrink: 0,
+  },
+  brand: {
+    fontSize: "14px",
+    fontWeight: tokens.fontStrong,
+    lineHeight: "1.2",
+    letterSpacing: "-0.01em",
+    color: tokens.text,
+    textDecoration: "none",
+    whiteSpace: "nowrap",
+  },
+  navigation: {
+    display: "flex",
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: "2px",
+    fontSize: "12px",
+  },
+  main: {
+    maxWidth: "1920px",
+    width: "100%",
+    minWidth: 0,
+    marginInline: "auto",
+    paddingBlock: "6px",
+    paddingInline: "10px",
+    paddingBottom: "48px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
   },
 });

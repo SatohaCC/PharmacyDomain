@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import * as stylex from "@stylexjs/stylex";
-import { tokens } from "../theme/tokens.stylex";
 
 export interface ThreePaneProps {
   left: ReactNode;
@@ -16,7 +15,7 @@ export function ThreePane({ left, center, right, footer }: ThreePaneProps) {
       <div {...stylex.props(styles.grid)}>
         <div {...stylex.props(styles.column)}>{left}</div>
         <div {...stylex.props(styles.column)}>{center}</div>
-        <div {...stylex.props(styles.column, styles.stickyColumn)}>{right}</div>
+        <div {...stylex.props(styles.column)}>{right}</div>
       </div>
       {footer ? <div {...stylex.props(styles.footer)}>{footer}</div> : null}
     </div>
@@ -27,38 +26,34 @@ const styles = stylex.create({
   wrapper: {
     display: "flex",
     flexDirection: "column",
-    gap: tokens.spaceSm,
+    gap: "6px",
+    width: "100%",
   },
   grid: {
     display: "grid",
+    width: "100%",
     gridTemplateColumns: {
-      default: "minmax(250px, 280px) minmax(540px, 1fr) minmax(360px, 430px)",
+      default: "minmax(220px, 0.9fr) minmax(0, 3.2fr) minmax(260px, 1.9fr)",
       "@media (max-width: 1280px)": "1fr",
     },
-    gap: tokens.spaceMd,
+    gap: "8px",
     alignItems: "start",
   },
   column: {
     minWidth: 0,
     display: "flex",
     flexDirection: "column",
-    gap: tokens.spaceSm,
-  },
-  stickyColumn: {
-    position: { default: "sticky", "@media (max-width: 1280px)": "static" },
-    top: { default: "16px", "@media (max-width: 1280px)": "auto" },
-    maxHeight: {
-      default: "calc(100dvh - 104px)",
-      "@media (max-width: 1280px)": "none",
-    },
-    overflowY: { default: "auto", "@media (max-width: 1280px)": "visible" },
-    overscrollBehavior: "contain",
-    scrollbarGutter: "stable",
+    gap: "6px",
   },
   footer: {
-    position: "sticky",
-    bottom: "12px",
-    zIndex: 10,
-    marginTop: tokens.spaceXs,
+    position: "fixed",
+    bottom: "6px",
+    left: 0,
+    right: 0,
+    zIndex: 30,
+    display: "flex",
+    justifyContent: "center",
+    paddingInline: "8px",
+    pointerEvents: "none",
   },
 });

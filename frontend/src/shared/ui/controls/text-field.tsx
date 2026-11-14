@@ -71,8 +71,8 @@ const styles = stylex.create({
   field: {
     display: "flex",
     flexDirection: "column",
-    gap: tokens.spaceXs,
-    marginBottom: tokens.spaceMd,
+    gap: "3px",
+    marginBottom: "8px",
     maxWidth: tokens.formWidth,
   },
   label: {
@@ -88,10 +88,10 @@ const styles = stylex.create({
   input: {
     width: "100%",
     minWidth: 0,
-    minHeight: "44px",
-    fontSize: "max(1rem, 1em)",
-    paddingBlock: "10px",
-    paddingInline: tokens.spaceSm,
+    minHeight: "32px",
+    fontSize: "13px",
+    paddingBlock: "4px",
+    paddingInline: "8px",
     borderWidth: tokens.borderWidth,
     borderStyle: "solid",
     borderColor: {

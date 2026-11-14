@@ -60,17 +60,16 @@ export function StoreShell({
             マイ設定
           </Link>
           {isAdmin && <Link href="/admin">管理画面へ</Link>}
-          <Button variant="secondary" onAction={() => void logout()}>
+          <Button
+            variant="secondary"
+            size="compact"
+            onAction={() => void logout()}
+          >
             ログアウト
           </Button>
         </>
       }
     >
-      <nav aria-label="パンくず">
-        <Link href={`/stores/${encodeURIComponent(storeId)}/home`}>
-          業務ホーム
-        </Link>
-      </nav>
       {children}
     </StoreFrame>
   );

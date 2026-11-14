@@ -74,36 +74,38 @@ export function FinalizationReviewPanel({
   };
 
   return (
-    <section aria-label="薬歴の最終確認" style={{ marginTop: "1.5rem" }}>
+    <section aria-label="薬歴の最終確認" style={{ marginTop: "10px", fontSize: "12px" }}>
       <SectionHeading>最終確認・確定</SectionHeading>
 
       <section
         aria-label="残薬確認ガイド"
         style={{
           border: "1px solid #d7dce2",
-          borderRadius: "8px",
-          padding: "1rem",
-          marginTop: "0.75rem",
+          borderRadius: "6px",
+          padding: "6px 8px",
+          marginTop: "6px",
         }}
       >
-        <h3 style={{ marginTop: 0 }}>残薬確認ガイド</h3>
+        <h3 style={{ marginTop: 0, marginBottom: "2px", fontSize: "12px" }}>残薬確認ガイド</h3>
         <Paragraph>
           状況に応じて確認の進め方を選択してください。数量による自動判定は行いません。
         </Paragraph>
         <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend>確認の進め方</legend>
-          <div style={{ display: "grid", gap: "0.75rem", marginTop: "0.5rem" }}>
+          <legend style={{ fontSize: "11.5px", fontWeight: 600 }}>確認の進め方</legend>
+          <div style={{ display: "grid", gap: "4px", marginTop: "4px" }}>
             {RESIDUAL_GUIDANCE_OPTIONS.map((option) => (
               <label
                 key={option.value}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1.25rem 1fr",
-                  columnGap: "0.5rem",
+                  gridTemplateColumns: "16px 1fr",
+                  columnGap: "6px",
                   alignItems: "start",
-                  padding: "0.75rem",
+                  padding: "4px 6px",
                   border: "1px solid #d7dce2",
-                  borderRadius: "6px",
+                  borderRadius: "5px",
+                  fontSize: "11.5px",
+                  lineHeight: 1.35,
                 }}
               >
                 <input
@@ -118,7 +120,7 @@ export function FinalizationReviewPanel({
                 />
                 <span>
                   <strong>{option.label}</strong>
-                  <span style={{ display: "block", marginTop: "0.25rem" }}>
+                  <span style={{ display: "block", color: "#4f6862" }}>
                     {option.description}
                   </span>
                 </span>
@@ -142,8 +144,8 @@ export function FinalizationReviewPanel({
       )}
 
       {advisoryWarnings.length > 0 && (
-        <section aria-label="確認事項" style={{ marginTop: "1rem" }}>
-          <h3>確認事項</h3>
+        <section aria-label="確認事項" style={{ marginTop: "8px" }}>
+          <h3 style={{ marginTop: 0, marginBottom: "2px", fontSize: "12px" }}>確認事項</h3>
           <Paragraph>
             内容を確認してください。これらの補助情報だけでは確定を妨げません。
           </Paragraph>
@@ -157,10 +159,10 @@ export function FinalizationReviewPanel({
 
       <fieldset
         disabled={!isDraft || submitting}
-        style={{ border: 0, padding: 0, marginTop: "1rem" }}
+        style={{ border: 0, padding: 0, marginTop: "8px" }}
       >
-        <legend>薬歴の確認結果</legend>
-        <div style={{ display: "grid", gap: "0.5rem", marginTop: "0.5rem" }}>
+        <legend style={{ fontSize: "11.5px", fontWeight: 600 }}>薬歴の確認結果</legend>
+        <div style={{ display: "grid", gap: "4px", marginTop: "4px", fontSize: "12px" }}>
           <label>
             <input
               type="radio"
@@ -188,7 +190,7 @@ export function FinalizationReviewPanel({
         </div>
       </fieldset>
 
-      <FieldGroup style={{ marginTop: "1rem" }}>
+      <FieldGroup style={{ marginTop: "6px" }}>
         <FieldLabel htmlFor="medication-history-delay-reason">
           記載遅延理由{delayReasonRequired ? "（必須）" : "（任意）"}
         </FieldLabel>
@@ -196,7 +198,7 @@ export function FinalizationReviewPanel({
           id="medication-history-delay-reason"
           value={delayReason}
           disabled={!isDraft || submitting}
-          rows={2}
+          rows={1}
           onChange={(event) => setDelayReason(event.target.value)}
           placeholder="指導日と異なる日に確定する場合は理由を入力してください"
         />

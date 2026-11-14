@@ -29,6 +29,7 @@ import {
 } from "../../../../../features/medication_history/model/block";
 import {
   DETAIL_FOOTER_ITEMS,
+  filterByStoreId,
   loadStoreFooterOrder,
   orderFooterItems,
   type DetailFooterMode,
@@ -146,11 +147,13 @@ export const Route = createFileRoute(
       ).catch(() => [] as CareEventDto[]),
     ]);
 
-    const sortedHistories = [...historiesResult].sort((a, b) => {
-      const da = a.counseled_at ?? a.event_occurred_at ?? "";
-      const db = b.counseled_at ?? b.event_occurred_at ?? "";
-      return db.localeCompare(da);
-    });
+    const sortedHistories = filterByStoreId(historiesResult, params.storeId).sort(
+      (a, b) => {
+        const da = a.counseled_at ?? a.event_occurred_at ?? "";
+        const db = b.counseled_at ?? b.event_occurred_at ?? "";
+        return db.localeCompare(da);
+      },
+    );
 
     const sortedEvents = [...careEventsResult].sort((a, b) =>
       (b.occurred_at ?? "").localeCompare(a.occurred_at ?? ""),
@@ -175,7 +178,7 @@ export const Route = createFileRoute(
 
     const prescriptionsById: Record<string, PrescriptionSummaryForHistory> = {};
     for (const rx of loadedPrescriptions) {
-      if (!rx) continue;
+      if (!rx || rx.store_id !== params.storeId) continue;
       prescriptionsById[rx.id] = {
         id: rx.id,
         document_number: rx.document_number,

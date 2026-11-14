@@ -34,8 +34,9 @@ export function EmptyState({
 }
 const styles = stylex.create({
   base: {
-    padding: tokens.spaceSm,
-    marginBlock: tokens.spaceMd,
+    padding: "6px 10px",
+    marginBlock: "6px",
+    fontSize: "12px",
     borderRadius: tokens.radius,
     backgroundColor: tokens.canvas,
     overflowWrap: "anywhere",
@@ -47,5 +48,10 @@ const styles = stylex.create({
     borderInlineStartStyle: "solid",
     borderInlineStartColor: tokens.danger,
   },
-  empty: { textAlign: "center", padding: tokens.spaceLg, color: tokens.muted },
+  empty: {
+    textAlign: "center",
+    padding: "14px",
+    fontSize: "12px",
+    color: tokens.muted,
+  },
 });

@@ -2,6 +2,22 @@ import { useState } from "react";
 import { Panel } from "../../../shared/ui/layout/panel";
 import { Badge } from "../../../shared/ui/data-display/badge";
 import {
+  ContrastMatrixFrame,
+  ContrastMatrixRow,
+  ContrastHeaderCell,
+  ContrastSectionBar,
+  ContrastCell,
+  ContrastDiffText,
+  ContrastStatusTag,
+  ContrastSummaryBanner,
+  ContrastEmptySlotHeader,
+  ContrastEmptySlotCell,
+} from "../../../shared/ui/data-display/contrast-matrix";
+import {
+  TimelineList,
+  TimelineItem,
+} from "../../../shared/ui/data-display/timeline";
+import {
   Table,
   TableHeader,
   TableCell,
@@ -12,9 +28,6 @@ import {
   SectionHeading,
   Paragraph,
   Row,
-  ActionRow,
-  SpreadRow,
-  ComparisonGrid,
   MetaText,
   Cards,
 } from "../../../shared/ui/layout/elements";
@@ -24,6 +37,8 @@ import { Alert, EmptyState } from "../../../shared/ui/feedback/alert";
 import type { MedicationHistoryDto } from "../api/record-api";
 import {
   aggregateDrugUsage,
+  buildThreeVisitComparison,
+  buildTimelineEntries,
   type DetailFooterMode,
   type PrescriptionSummaryForHistory,
 } from "../model/history-modes";
@@ -85,6 +100,12 @@ function formatDate(iso: string | null): string {
   return iso.slice(0, 10);
 }
 
+function formatSlotStepLabel(visitsAgo: number): string {
+  if (visitsAgo === 0) return "今回";
+  if (visitsAgo === 1) return "前回";
+  return `${visitsAgo}回前`;
+}
+
 function joinSoapEntries(
   entries: Array<{ text: string }> | undefined,
 ): string {
@@ -110,6 +131,10 @@ export function CenterWorkspacePanel({
   onRunAudit,
 }: CenterWorkspacePanelProps) {
   const [pageOffset, setPageOffset] = useState(0);
+  const [institutionFilter, setInstitutionFilter] = useState<
+    "all" | "same_as_latest"
+  >("all");
+  const [timelineOrder, setTimelineOrder] = useState<"desc" | "asc">("desc");
 
   const allPrescriptions = Object.values(prescriptionsById);
   const latestPrescription =
@@ -118,229 +143,611 @@ export function CenterWorkspacePanel({
     )[0] ?? null;
 
   if (activeMode === "past_history") {
+    const latestRecordRxId = records[0]?.prescription_id ?? null;
+    const latestInstitutionName = latestRecordRxId
+      ? (prescriptionsById[latestRecordRxId]?.institution_name ?? null)
+      : null;
+
+    const filteredRecords =
+      institutionFilter === "same_as_latest" && latestInstitutionName
+        ? records.filter(
+            (r) =>
+              r.prescription_id &&
+              prescriptionsById[r.prescription_id]?.institution_name ===
+                latestInstitutionName,
+          )
+        : records;
+
     const windowSize = 3;
-    const maxOffset = Math.max(0, records.length - windowSize);
+    const maxOffset = Math.max(0, filteredRecords.length - windowSize);
     const safeOffset = Math.min(pageOffset, maxOffset);
-    const visibleRecords = records.slice(safeOffset, safeOffset + windowSize);
+    const visibleRecords = filteredRecords.slice(
+      safeOffset,
+      safeOffset + windowSize,
+    );
+    // 左から古い順（2回前 → 前回 → 今回）になるよう並べる
+    const chronologicalRecords = [...visibleRecords].reverse();
+    const comparison = buildThreeVisitComparison(
+      chronologicalRecords,
+      prescriptionsById,
+    );
 
     return (
       <Panel>
-        <Title>
-          <div>
-            <Subheading>過去処方・薬歴（3列比較）</Subheading>
-            <Paragraph>
-              全 {records.length} 件の薬歴・処方内容を確認できます
-            </Paragraph>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "6px",
+            marginBottom: "6px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+            <Subheading>過去の処方・薬歴（直近3回比較）</Subheading>
+            <MetaText>全 {filteredRecords.length} 件</MetaText>
           </div>
-          <Link href={newEntryHref} appearance="action">
-            新規受付・処方登録
-          </Link>
-        </Title>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "8px",
+            }}
+          >
+            {latestInstitutionName ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <Button
+                  size="compact"
+                  variant={institutionFilter === "all" ? "primary" : "secondary"}
+                  onAction={() => {
+                    setInstitutionFilter("all");
+                    setPageOffset(0);
+                  }}
+                >
+                  すべての医療機関
+                </Button>
+                <Button
+                  size="compact"
+                  variant={
+                    institutionFilter === "same_as_latest"
+                      ? "primary"
+                      : "secondary"
+                  }
+                  onAction={() => {
+                    setInstitutionFilter("same_as_latest");
+                    setPageOffset(0);
+                  }}
+                >
+                  今回と同じ医療機関のみ
+                </Button>
+              </div>
+            ) : null}
+            {filteredRecords.length > windowSize ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <Button
+                  size="compact"
+                  variant="secondary"
+                  disabled={safeOffset >= maxOffset}
+                  onAction={() =>
+                    setPageOffset(Math.min(maxOffset, safeOffset + 1))
+                  }
+                >
+                  ← 過去
+                </Button>
+                <MetaText>
+                  {safeOffset + 1}〜{safeOffset + visibleRecords.length} /{" "}
+                  {filteredRecords.length}
+                </MetaText>
+                <Button
+                  size="compact"
+                  variant="secondary"
+                  disabled={safeOffset === 0}
+                  onAction={() => setPageOffset(Math.max(0, safeOffset - 1))}
+                >
+                  最新 →
+                </Button>
+              </div>
+            ) : null}
+            <Link href={newEntryHref} appearance="action">
+              ＋ 新規受付・処方登録
+            </Link>
+          </div>
+        </div>
 
-        {records.length > windowSize ? (
-          <SpreadRow>
-            <Button
-              variant="secondary"
-              disabled={safeOffset === 0}
-              onAction={() => setPageOffset(Math.max(0, safeOffset - 1))}
-            >
-              ← 新しい履歴へ
-            </Button>
-            <MetaText>
-              {safeOffset + 1}〜{safeOffset + visibleRecords.length} /{" "}
-              {records.length} 件
-            </MetaText>
-            <Button
-              variant="secondary"
-              disabled={safeOffset >= maxOffset}
-              onAction={() =>
-                setPageOffset(Math.min(maxOffset, safeOffset + 1))
-              }
-            >
-              古い履歴へ →
-            </Button>
-          </SpreadRow>
-        ) : null}
-
-        {records.length === 0 ? (
+        {filteredRecords.length === 0 ? (
           <EmptyState>
             この患者の薬歴はまだ登録されていません。「新規受付・処方登録」から開始できます。
           </EmptyState>
         ) : (
-          <ComparisonGrid>
-            {visibleRecords.map((record) => {
-              const isSelected = record.id === selectedRecordId;
-              const soap = record.effective_soap ?? record.soap;
-              const sText = joinSoapEntries(soap.subjective);
-              const oText = joinSoapEntries(soap.objective);
-              const aText = joinSoapEntries(soap.assessment);
-              const pText = joinSoapEntries(soap.plan);
-              const rx = record.prescription_id
-                ? prescriptionsById[record.prescription_id]
-                : undefined;
+          <>
+            {comparison.summary.hasPrevious ? (
+              <ContrastSummaryBanner
+                hasChanges={!comparison.summary.isDoPrescription}
+              >
+                {comparison.summary.isDoPrescription ? (
+                  <>
+                    <ContrastStatusTag tone="slot">Do処方</ContrastStatusTag>
+                    <span>前回処方から変更なし</span>
+                  </>
+                ) : (
+                  <>
+                    <span>前回からの変更:</span>
+                    {comparison.summary.changedCount > 0 ? (
+                      <ContrastStatusTag tone="changed">
+                        用量・日数変更 {comparison.summary.changedCount}剤
+                      </ContrastStatusTag>
+                    ) : null}
+                    {comparison.summary.addedCount > 0 ? (
+                      <ContrastStatusTag tone="added">
+                        新規追加 {comparison.summary.addedCount}剤
+                      </ContrastStatusTag>
+                    ) : null}
+                    {comparison.summary.discontinuedCount > 0 ? (
+                      <ContrastStatusTag tone="discontinued">
+                        終了 {comparison.summary.discontinuedCount}剤
+                      </ContrastStatusTag>
+                    ) : null}
+                  </>
+                )}
+              </ContrastSummaryBanner>
+            ) : null}
 
-              return (
-                <article
-                  key={record.id}
-                  style={{
-                    border: "1px solid #d0ddd8",
-                    boxShadow: isSelected
-                      ? "0 0 0 2px #176b60"
-                      : "0 1px 3px rgba(32, 60, 57, 0.05)",
-                    borderRadius: "10px",
-                    padding: "0.875rem",
-                    backgroundColor: isSelected ? "#f0fdfa" : "#ffffff",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.5rem",
-                    minWidth: 0,
-                  }}
-                >
-                  <ActionRow>
-                    <strong>
-                      {formatDate(record.counseled_at ?? record.event_occurred_at)}
-                    </strong>
-                    <Badge>
-                      {STATUS_LABELS[record.status] ?? record.status}
-                    </Badge>
-                  </ActionRow>
+            <ContrastMatrixFrame>
+              {/* 列ヘッダー（固定3スロット: 2回前 / 前回 / 今回） */}
+              <ContrastMatrixRow>
+                {comparison.slots.map((record, colIdx) => {
+                  const visitsAgo = safeOffset + (2 - colIdx);
+                  const stepLabel = formatSlotStepLabel(visitsAgo);
 
-                  {rx ? (
-                    <div
-                      style={{
-                        backgroundColor: "#f8fafc",
-                        borderRadius: "6px",
-                        padding: "0.5rem",
-                        fontSize: "0.8125rem",
-                      }}
-                    >
-                      <div>
-                        <strong>{rx.institution_name}</strong>（{rx.document_number}）
-                      </div>
-                      {rx.rps.map((rp) => (
-                        <div key={rp.rp_number} style={{ marginTop: "0.25rem" }}>
-                          <div>
-                            Rp{rp.rp_number}: {rp.dosage_name} / {rp.quantity}日分
-                          </div>
-                          <ul style={{ margin: "0.125rem 0 0 1rem", padding: 0 }}>
-                            {rp.medicines.map((m, idx) => (
-                              <li key={idx}>
-                                {m.name} {m.amount}
-                                {m.unit}
-                              </li>
-                            ))}
-                          </ul>
+                  if (!record) {
+                    return (
+                      <ContrastEmptySlotHeader
+                        key={`empty-hdr-${colIdx}`}
+                        label={stepLabel}
+                      />
+                    );
+                  }
+
+                  const isSelected = record.id === selectedRecordId;
+                  const rx = record.prescription_id
+                    ? prescriptionsById[record.prescription_id]
+                    : undefined;
+
+                  return (
+                    <ContrastHeaderCell key={record.id} selected={isSelected}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "6px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            fontSize: "12px",
+                          }}
+                        >
+                          <ContrastStatusTag tone="slot">
+                            {stepLabel}
+                          </ContrastStatusTag>
+                          <strong>
+                            {formatDate(
+                              record.counseled_at ?? record.event_occurred_at,
+                            )}
+                          </strong>
+                          <Badge>
+                            {STATUS_LABELS[record.status] ?? record.status}
+                          </Badge>
                         </div>
-                      ))}
-                    </div>
-                  ) : null}
+                        <Button
+                          size="compact"
+                          variant={isSelected ? "primary" : "secondary"}
+                          onAction={() => onSelectRecord(record.id)}
+                        >
+                          {isSelected ? "編集中" : "開く"}
+                        </Button>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          color: "#4f6862",
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {rx
+                          ? `${rx.institution_name}（${rx.document_number}）`
+                          : "処方箋紐付けなし"}
+                      </div>
+                    </ContrastHeaderCell>
+                  );
+                })}
+              </ContrastMatrixRow>
 
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: "0.25rem",
-                      fontSize: "0.875rem",
-                    }}
-                  >
-                    {sText ? (
-                      <p style={{ margin: 0 }}>
-                        <strong>S:</strong> {sText}
-                      </p>
-                    ) : null}
-                    {oText ? (
-                      <p style={{ margin: 0 }}>
-                        <strong>O:</strong> {oText}
-                      </p>
-                    ) : null}
-                    {aText ? (
-                      <p style={{ margin: 0 }}>
-                        <strong>A:</strong> {aText}
-                      </p>
-                    ) : null}
-                    {pText ? (
-                      <p style={{ margin: 0 }}>
-                        <strong>P:</strong> {pText}
-                      </p>
-                    ) : null}
-                    {!sText && !oText && !aText && !pText ? (
-                      <p style={{ margin: 0, color: "#6b7280" }}>
-                        （SOAP記載なし）
-                      </p>
-                    ) : null}
-                  </div>
+              {/* 用法グループ・薬剤対照行 */}
+              {comparison.groups.map((group) => (
+                <div key={group.key}>
+                  <ContrastSectionBar>{group.label}</ContrastSectionBar>
+                  {group.rows.map((row) => (
+                    <ContrastMatrixRow key={row.key} bordered>
+                      {row.cells.map((cell, colIdx) => {
+                        const slotRecord = comparison.slots[colIdx];
+                        if (!slotRecord) {
+                          return (
+                            <ContrastEmptySlotCell
+                              key={`${row.key}-empty-${colIdx}`}
+                            />
+                          );
+                        }
 
-                  <div style={{ marginTop: "auto" }}>
-                    <Button
-                      variant={isSelected ? "primary" : "secondary"}
-                      onAction={() => onSelectRecord(record.id)}
-                    >
-                      {isSelected ? "右欄で編集中" : "右欄で開く"}
-                    </Button>
-                  </div>
-                </article>
-              );
-            })}
-          </ComparisonGrid>
+                        const isSelected = slotRecord.id === selectedRecordId;
+                        const hasPrevSlot =
+                          colIdx > 0 && comparison.slots[colIdx - 1] !== null;
+
+                        return (
+                          <ContrastCell
+                            key={`${row.key}-${colIdx}`}
+                            selected={isSelected}
+                          >
+                            {cell.status === "absent" ? (
+                              <span style={{ fontSize: "12px", color: "#4f6862" }}>
+                                —
+                              </span>
+                            ) : cell.status === "discontinued" ? (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "1px",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "4px",
+                                    flexWrap: "wrap",
+                                  }}
+                                >
+                                  <ContrastStatusTag tone="discontinued">
+                                    終了（前回あり）
+                                  </ContrastStatusTag>
+                                  <span
+                                    style={{
+                                      fontSize: "11.5px",
+                                      color: "#4f6862",
+                                      textDecoration: "line-through",
+                                    }}
+                                  >
+                                    {cell.name}
+                                  </span>
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "11px",
+                                    color: "#4f6862",
+                                  }}
+                                >
+                                  前回: {cell.prevAmount}
+                                  {cell.prevUnit} ・ {cell.prevQuantity}日分
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    gap: "4px",
+                                    flexWrap: "wrap",
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      fontSize: "12px",
+                                      fontWeight: 600,
+                                      lineHeight: 1.3,
+                                      color: "#18302e",
+                                      overflowWrap: "anywhere",
+                                    }}
+                                  >
+                                    {cell.name}
+                                  </span>
+                                  {cell.status === "added" ? (
+                                    <ContrastStatusTag tone="added">
+                                      新規
+                                    </ContrastStatusTag>
+                                  ) : cell.status === "changed" ? (
+                                    <ContrastStatusTag tone="changed">
+                                      変更
+                                    </ContrastStatusTag>
+                                  ) : hasPrevSlot ? (
+                                    <ContrastStatusTag tone="unchanged">
+                                      継続
+                                    </ContrastStatusTag>
+                                  ) : null}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "11px",
+                                    lineHeight: 1.3,
+                                    color: "#4f6862",
+                                    marginTop: "1px",
+                                  }}
+                                >
+                                  {cell.doseChanged ? (
+                                    <ContrastDiffText>
+                                      {cell.prevAmount}
+                                      {cell.prevUnit} → {cell.amount}
+                                      {cell.unit}
+                                    </ContrastDiffText>
+                                  ) : (
+                                    <span>
+                                      {cell.amount}
+                                      {cell.unit}
+                                    </span>
+                                  )}
+                                  {" ・ "}
+                                  {cell.quantityChanged ? (
+                                    <ContrastDiffText>
+                                      {cell.prevQuantity}日分 → {cell.quantity}
+                                      日分
+                                    </ContrastDiffText>
+                                  ) : (
+                                    <span>{cell.quantity}日分</span>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </ContrastCell>
+                        );
+                      })}
+                    </ContrastMatrixRow>
+                  ))}
+                </div>
+              ))}
+
+              {/* 薬歴（SOAP）要約対照行 */}
+              <ContrastSectionBar>薬歴（SOAP要約）</ContrastSectionBar>
+              <ContrastMatrixRow>
+                {comparison.slots.map((record, colIdx) => {
+                  if (!record) {
+                    return (
+                      <ContrastEmptySlotCell
+                        key={`soap-empty-${colIdx}`}
+                      />
+                    );
+                  }
+                  const isSelected = record.id === selectedRecordId;
+                  const soap = record.effective_soap ?? record.soap;
+                  const sText = joinSoapEntries(soap.subjective);
+                  const oText = joinSoapEntries(soap.objective);
+                  const aText = joinSoapEntries(soap.assessment);
+                  const pText = joinSoapEntries(soap.plan);
+
+                  return (
+                    <ContrastCell key={`soap-${record.id}`} selected={isSelected}>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "2px",
+                          fontSize: "11px",
+                          lineHeight: 1.35,
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {sText ? (
+                          <p style={{ margin: 0 }}>
+                            <strong>S:</strong> {sText}
+                          </p>
+                        ) : null}
+                        {oText ? (
+                          <p style={{ margin: 0 }}>
+                            <strong>O:</strong> {oText}
+                          </p>
+                        ) : null}
+                        {aText ? (
+                          <p style={{ margin: 0 }}>
+                            <strong>A:</strong> {aText}
+                          </p>
+                        ) : null}
+                        {pText ? (
+                          <p style={{ margin: 0 }}>
+                            <strong>P:</strong> {pText}
+                          </p>
+                        ) : null}
+                        {!sText && !oText && !aText && !pText ? (
+                          <span style={{ color: "#4f6862" }}>
+                            （SOAP記載なし）
+                          </span>
+                        ) : null}
+                      </div>
+                    </ContrastCell>
+                  );
+                })}
+              </ContrastMatrixRow>
+            </ContrastMatrixFrame>
+          </>
         )}
       </Panel>
     );
   }
 
   if (activeMode === "patient_timeline") {
+    const timelineEntries = buildTimelineEntries(
+      records,
+      careEvents,
+      timelineOrder,
+    );
+
     return (
       <Panel>
-        <Title>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "6px",
+            marginBottom: "6px",
+          }}
+        >
           <div>
             <Subheading>患者タイムライン</Subheading>
-            <Paragraph>来局・受付・薬歴作成の時系列履歴（{careEvents.length} 件）</Paragraph>
+            <MetaText>
+              来局・処方・薬歴の時系列経過（全 {timelineEntries.length} 件）
+            </MetaText>
           </div>
-          <Link href={newEntryHref} appearance="action">
-            新規受付・処方登録
-          </Link>
-        </Title>
-        {careEvents.length === 0 ? (
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <Button
+                size="compact"
+                variant={timelineOrder === "desc" ? "primary" : "secondary"}
+                onAction={() => setTimelineOrder("desc")}
+              >
+                新しい順
+              </Button>
+              <Button
+                size="compact"
+                variant={timelineOrder === "asc" ? "primary" : "secondary"}
+                onAction={() => setTimelineOrder("asc")}
+              >
+                古い順
+              </Button>
+            </div>
+            <Link href={newEntryHref} appearance="action">
+              ＋ 新規受付・処方登録
+            </Link>
+          </div>
+        </div>
+
+        {timelineEntries.length === 0 ? (
           <EmptyState>来局・対応イベントはまだ登録されていません。</EmptyState>
         ) : (
-          <Cards>
-            {careEvents.map((ev) => {
-              const rx = ev.prescription_id
-                ? prescriptionsById[ev.prescription_id]
+          <TimelineList>
+            {timelineEntries.map((entry, idx) => {
+              const rx = entry.prescriptionId
+                ? prescriptionsById[entry.prescriptionId]
                 : undefined;
+              const rec = entry.record;
+              const isSelected = Boolean(rec && rec.id === selectedRecordId);
+              const chronologicalIndexFromLatest =
+                timelineOrder === "desc"
+                  ? idx
+                  : timelineEntries.length - 1 - idx;
+              const stepLabel = formatSlotStepLabel(chronologicalIndexFromLatest);
+              const soap = rec ? (rec.effective_soap ?? rec.soap) : null;
+              const sText = soap ? joinSoapEntries(soap.subjective) : "";
+              const oText = soap ? joinSoapEntries(soap.objective) : "";
+              const aText = soap ? joinSoapEntries(soap.assessment) : "";
+              const pText = soap ? joinSoapEntries(soap.plan) : "";
+
               return (
-                <div
-                  key={ev.event_id}
-                  style={{
-                    border: "1px solid #d7dce2",
-                    borderRadius: "8px",
-                    padding: "0.75rem",
-                  }}
-                >
-                  <Row>
-                    <strong>{formatDate(ev.occurred_at)}</strong>
-                    <Badge>{ev.event_type_name ?? "対応イベント"}</Badge>
-                  </Row>
-                  {rx ? (
-                    <Paragraph>
-                      処方箋: {rx.document_number} / {rx.institution_name}（
-                      {rx.rps.flatMap((r) => r.medicines.map((m) => m.name)).join("・")}）
-                    </Paragraph>
-                  ) : null}
-                  {ev.medication_history_id ? (
-                    <Button
-                      variant="secondary"
-                      onAction={() => {
-                        if (ev.medication_history_id) {
-                          onSelectRecord(ev.medication_history_id);
-                        }
-                      }}
-                    >
-                      この薬歴を右欄で開く
-                    </Button>
-                  ) : null}
-                </div>
+                <TimelineItem
+                  key={entry.key}
+                  dateLabel={formatDate(entry.occurredAt)}
+                  stepLabel={stepLabel}
+                  selected={isSelected}
+                  isLatest={chronologicalIndexFromLatest === 0}
+                  isLast={idx === timelineEntries.length - 1}
+                  badges={
+                    <>
+                      <Badge>{entry.eventTypeName ?? "来局・調剤"}</Badge>
+                      {rec ? (
+                        <Badge>
+                          {STATUS_LABELS[rec.status] ?? rec.status}
+                        </Badge>
+                      ) : null}
+                    </>
+                  }
+                  institutionText={
+                    rx
+                      ? `${rx.institution_name}（処方箋: ${rx.document_number}）`
+                      : undefined
+                  }
+                  headerActions={
+                    rec ? (
+                      <Button
+                        size="compact"
+                        variant={isSelected ? "primary" : "secondary"}
+                        onAction={() => onSelectRecord(rec.id)}
+                      >
+                        {isSelected ? "編集中" : "右欄で開く"}
+                      </Button>
+                    ) : undefined
+                  }
+                  prescriptionContent={
+                    rx && rx.rps.length > 0 ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                        {rx.rps.map((rp) => (
+                          <div key={rp.rp_number}>
+                            <div style={{ fontSize: "11px", color: "#4f6862", fontWeight: 600 }}>
+                              RP{rp.rp_number}: {rp.dosage_name || "用法未設定"}（{rp.quantity}日分）
+                            </div>
+                            <ul style={{ margin: "1px 0 0 14px", padding: 0, fontSize: "11.5px", lineHeight: 1.35 }}>
+                              {rp.medicines.map((m, mIdx) => (
+                                <li key={mIdx}>
+                                  {m.name} {m.amount}
+                                  {m.unit}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: "11.5px", color: "#4f6862" }}>
+                        処方情報なし
+                      </span>
+                    )
+                  }
+                  soapContent={
+                    rec ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "2px", fontSize: "11.5px", lineHeight: 1.35 }}>
+                        {sText ? (
+                          <p style={{ margin: 0 }}>
+                            <strong>S:</strong> {sText}
+                          </p>
+                        ) : null}
+                        {oText ? (
+                          <p style={{ margin: 0 }}>
+                            <strong>O:</strong> {oText}
+                          </p>
+                        ) : null}
+                        {aText ? (
+                          <p style={{ margin: 0 }}>
+                            <strong>A:</strong> {aText}
+                          </p>
+                        ) : null}
+                        {pText ? (
+                          <p style={{ margin: 0 }}>
+                            <strong>P:</strong> {pText}
+                          </p>
+                        ) : null}
+                        {!sText && !oText && !aText && !pText ? (
+                          <span style={{ color: "#4f6862" }}>
+                            （SOAP記載なし）
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: "12px", color: "#4f6862" }}>
+                        薬歴未作成
+                      </span>
+                    )
+                  }
+                />
               );
             })}
-          </Cards>
+          </TimelineList>
         )}
       </Panel>
     );

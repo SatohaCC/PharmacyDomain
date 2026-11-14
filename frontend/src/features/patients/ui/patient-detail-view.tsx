@@ -2,12 +2,14 @@ import { useState } from "react";
 import { Panel, Stack } from "../../../shared/ui/layout/panel";
 import { Badge } from "../../../shared/ui/data-display/badge";
 import {
+  PropertyList,
+  PropertyRow,
+  CompactInfoCard,
+} from "../../../shared/ui/data-display/property-list";
+import {
   Title,
   Subheading,
   SectionHeading,
-  Paragraph,
-  Row,
-  Cards,
   Details,
   Summary,
   FieldGroup,
@@ -23,6 +25,22 @@ import {
   PATIENT_STATUS_LABELS,
   GENDER_LABELS,
 } from "../model/patient";
+
+function calculateAge(birthDate: string | null): number | null {
+  if (!birthDate) return null;
+  const parsed = new Date(birthDate);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - parsed.getFullYear();
+  const monthDiff = today.getMonth() - parsed.getMonth();
+  if (
+    monthDiff < 0 ||
+    (monthDiff === 0 && today.getDate() < parsed.getDate())
+  ) {
+    age -= 1;
+  }
+  return age >= 0 ? age : null;
+}
 
 export interface PatientDetailViewProps {
   patient: PatientDetail;
@@ -73,29 +91,33 @@ export function PatientDetailView({
     }
   };
 
+  const age = calculateAge(patient.birth_date);
+
   return (
-    <Stack gap="normal">
-      {/* 基本情報パネル */}
+    <Stack gap="small">
+      {/* 基本情報パネル（Yakureki左ペイン相当のコンパクトなキー・バリュー一覧） */}
       <Panel>
-        <Title>
-          <div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: "6px",
+            paddingBottom: "5px",
+            marginBottom: "4px",
+            borderBottom: "1px solid #d0ddd8",
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
             <Subheading>
               {patient.last_name} {patient.first_name}
-              <span
-                style={{
-                  fontSize: "14px",
-                  color: "#6b7280",
-                  fontWeight: "normal",
-                  marginLeft: "0.5rem",
-                }}
-              >
-                （{patient.last_name_kana} {patient.first_name_kana}）
-              </span>
             </Subheading>
-            <Paragraph>患者番号: #{patient.patient_number}</Paragraph>
+            <div style={{ fontSize: "11.5px", color: "#4f6862" }}>
+              {patient.last_name_kana} {patient.first_name_kana}
+            </div>
           </div>
           <Badge>{PATIENT_STATUS_LABELS[patient.status] || patient.status}</Badge>
-        </Title>
+        </div>
 
         {patient.merged_into_id && (
           <Alert tone="info">
@@ -103,54 +125,123 @@ export function PatientDetailView({
           </Alert>
         )}
 
-        <Row>
-          <div>
-            <span style={{ fontSize: "14px", color: "#6b7280", fontWeight: "bold", display: "block", marginBottom: "0.25rem" }}>
-              生年月日
-            </span>
-            <p>{patient.birth_date || "—"}</p>
-          </div>
-          <div>
-            <span style={{ fontSize: "14px", color: "#6b7280", fontWeight: "bold", display: "block", marginBottom: "0.25rem" }}>
-              性別
-            </span>
-            <p>{patient.gender ? GENDER_LABELS[patient.gender] || patient.gender : "—"}</p>
-          </div>
-          <div>
-            <span style={{ fontSize: "14px", color: "#6b7280", fontWeight: "bold", display: "block", marginBottom: "0.25rem" }}>
-              電話番号
-            </span>
-            <p>{patient.phone_number || "—"}</p>
-          </div>
-          <div>
-            <span style={{ fontSize: "14px", color: "#6b7280", fontWeight: "bold", display: "block", marginBottom: "0.25rem" }}>
-              郵便番号
-            </span>
-            <p>{patient.postal_code ? `〒${patient.postal_code}` : "—"}</p>
-          </div>
-        </Row>
-        {patient.address && (
-          <div style={{ marginTop: "1rem" }}>
-            <span style={{ fontSize: "14px", color: "#6b7280", fontWeight: "bold", display: "block", marginBottom: "0.25rem" }}>
-              住所
-            </span>
-            <p>{patient.address}</p>
-          </div>
-        )}
+        <PropertyList>
+          <PropertyRow label="患者番号" value={`#${patient.patient_number}`} />
+          <PropertyRow
+            label="生年月日"
+            value={
+              patient.birth_date
+                ? age !== null
+                  ? `${patient.birth_date} (${age}歳)`
+                  : patient.birth_date
+                : "—"
+            }
+          />
+          <PropertyRow
+            label="性別"
+            value={patient.gender ? GENDER_LABELS[patient.gender] || patient.gender : "—"}
+          />
+          <PropertyRow
+            label="郵便番号"
+            value={patient.postal_code ? `〒${patient.postal_code}` : "—"}
+          />
+          <PropertyRow label="住所" value={patient.address || "—"} />
+          <PropertyRow label="電話番号" value={patient.phone_number || "—"} isLast />
+        </PropertyList>
       </Panel>
+
+      {/* 臨床プロファイル（薬歴からの投影）パネル — 医療安全上最優先のため基本情報の直下に配置 */}
+      {(medicalProfile || medicalProfileFetchError) && (
+        <Panel>
+          <SectionHeading>臨床プロファイル（薬歴投影）</SectionHeading>
+          {medicalProfileFetchError ? (
+            <div style={{ marginTop: "6px" }}>
+              <Alert tone="error">
+                臨床プロファイルの取得に失敗しました: {medicalProfileFetchError}
+              </Alert>
+            </div>
+          ) : medicalProfile ? (
+            <Stack gap="small">
+              <CompactInfoCard
+                title="アレルギー"
+                tone={medicalProfile.allergies.length > 0 ? "alert" : "default"}
+              >
+                {medicalProfile.allergies.length > 0 ? (
+                  <ul style={{ margin: 0, paddingInlineStart: "16px", lineHeight: 1.35 }}>
+                    {medicalProfile.allergies.map((a, i) => (
+                      <li key={i}>
+                        {a.allergen} {a.reaction && `(${a.reaction})`}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p style={{ color: "#4f6862", margin: 0 }}>特記事項なし</p>
+                )}
+              </CompactInfoCard>
+
+              <CompactInfoCard
+                title="副作用歴"
+                tone={
+                  medicalProfile.adverse_reactions.length > 0
+                    ? "alert"
+                    : "default"
+                }
+              >
+                {medicalProfile.adverse_reactions.length > 0 ? (
+                  <ul style={{ margin: 0, paddingInlineStart: "16px", lineHeight: 1.35 }}>
+                    {medicalProfile.adverse_reactions.map((r, i) => (
+                      <li key={i}>
+                        {r.medicine_name} {r.symptom && `(${r.symptom})`}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p style={{ color: "#4f6862", margin: 0 }}>特記事項なし</p>
+                )}
+              </CompactInfoCard>
+
+              <CompactInfoCard title="既往歴">
+                {medicalProfile.medical_conditions.length > 0 ? (
+                  <ul style={{ margin: 0, paddingInlineStart: "16px", lineHeight: 1.35 }}>
+                    {medicalProfile.medical_conditions.map((c, i) => (
+                      <li key={i}>
+                        {c.condition_name} ({c.condition_status})
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p style={{ color: "#4f6862", margin: 0 }}>特記事項なし</p>
+                )}
+              </CompactInfoCard>
+
+              <CompactInfoCard title="継続中の併用薬">
+                {medicalProfile.active_concurrent_medications.length > 0 ? (
+                  <ul style={{ margin: 0, paddingInlineStart: "16px", lineHeight: 1.35 }}>
+                    {medicalProfile.active_concurrent_medications.map(
+                      (m, i) => (
+                        <li key={i}>
+                          {m.medicine_name} ({m.category})
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                ) : (
+                  <p style={{ color: "#4f6862", margin: 0 }}>特記事項なし</p>
+                )}
+              </CompactInfoCard>
+            </Stack>
+          ) : null}
+        </Panel>
+      )}
 
       {/* 自由記載の頭書きパネル */}
       <Panel>
         <Title>
-          <div>
-            <SectionHeading>自由記載の頭書き（店舗共有申し送り）</SectionHeading>
-            <Paragraph>
-              患者全体の留意点・サマリ・申し送り事項です。全店舗で共有されます。
-            </Paragraph>
-          </div>
+          <SectionHeading>自由記載の頭書き（店舗共有）</SectionHeading>
           {onUpdateHeading && heading && patient.status !== "merged" && !isEditingHeading && (
             <Button
               variant="secondary"
+              size="compact"
               onAction={() => {
                 setSummaryInput(heading.summary ?? "");
                 setNotesInput(heading.notes ?? "");
@@ -163,7 +254,7 @@ export function PatientDetailView({
         </Title>
 
         {headingFetchError ? (
-          <div style={{ marginBlock: "1rem" }}>
+          <div style={{ marginBlock: "6px" }}>
             <Alert tone="error">
               頭書き情報の取得に失敗しました: {headingFetchError}
             </Alert>
@@ -173,12 +264,12 @@ export function PatientDetailView({
             {headingError && <Alert tone="error">{headingError}</Alert>}
 
             {isEditingHeading ? (
-              <form onSubmit={handleHeadingSubmit} style={{ marginTop: "1rem" }}>
+              <form onSubmit={handleHeadingSubmit} style={{ marginTop: "6px" }}>
                 <FieldGroup>
                   <FieldLabel htmlFor="heading-summary">サマリ（概要）</FieldLabel>
                   <TextArea
                     id="heading-summary"
-                    rows={3}
+                    rows={2}
                     value={summaryInput}
                     onChange={(e) => setSummaryInput(e.target.value)}
                     placeholder="患者の概要や主要な留意点を入力"
@@ -188,18 +279,19 @@ export function PatientDetailView({
                   <FieldLabel htmlFor="heading-notes">申し送り・特記事項</FieldLabel>
                   <TextArea
                     id="heading-notes"
-                    rows={4}
+                    rows={3}
                     value={notesInput}
                     onChange={(e) => setNotesInput(e.target.value)}
                     placeholder="店舗スタッフ間での申し送り、服薬指導上の注意点などを入力"
                   />
                 </FieldGroup>
-                <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
-                  <Button type="submit" variant="primary" disabled={savingHeading}>
+                <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
+                  <Button type="submit" variant="primary" size="compact" disabled={savingHeading}>
                     {savingHeading ? "保存中..." : "頭書きを保存"}
                   </Button>
                   <Button
                     variant="secondary"
+                    size="compact"
                     disabled={savingHeading}
                     onAction={() => setIsEditingHeading(false)}
                   >
@@ -209,9 +301,9 @@ export function PatientDetailView({
               </form>
             ) : (
               <div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBlock: "1rem" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBlock: "6px", fontSize: "12px", lineHeight: 1.4 }}>
                   <div>
-                    <span style={{ fontSize: "14px", color: "#6b7280", fontWeight: "bold", display: "block", marginBottom: "0.25rem" }}>
+                    <span style={{ fontSize: "11.5px", color: "#4f6862", fontWeight: 600, display: "block", marginBottom: "2px" }}>
                       サマリ
                     </span>
                     <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>
@@ -219,7 +311,7 @@ export function PatientDetailView({
                     </p>
                   </div>
                   <div>
-                    <span style={{ fontSize: "14px", color: "#6b7280", fontWeight: "bold", display: "block", marginBottom: "0.25rem" }}>
+                    <span style={{ fontSize: "11.5px", color: "#4f6862", fontWeight: 600, display: "block", marginBottom: "2px" }}>
                       申し送り・特記事項
                     </span>
                     <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>
@@ -228,8 +320,8 @@ export function PatientDetailView({
                   </div>
                 </div>
                 {heading && (
-                  <small style={{ color: "#6b7280" }}>
-                    改訂: {heading.revision} / 最終更新日時:{" "}
+                  <small style={{ color: "#4f6862", fontSize: "11px" }}>
+                    改訂: {heading.revision} / 更新:{" "}
                     {heading.updated_at
                       ? new Date(heading.updated_at).toLocaleString("ja-JP")
                       : "—"}
@@ -243,24 +335,24 @@ export function PatientDetailView({
                 <Summary>改訂履歴を表示（{heading.history.length}件）</Summary>
                 <div
                   style={{
-                    marginTop: "0.5rem",
+                    marginTop: "4px",
                     display: "flex",
                     flexDirection: "column",
-                    gap: "0.75rem",
+                    gap: "6px",
                     borderInlineStart: "2px solid #e5e7eb",
-                    paddingInlineStart: "1rem",
+                    paddingInlineStart: "8px",
                   }}
                 >
                   {heading.history.map((rev) => (
-                    <div key={rev.revision} style={{ fontSize: "14px" }}>
+                    <div key={rev.revision} style={{ fontSize: "11.5px", lineHeight: 1.35 }}>
                       <div>
                         <strong>改訂 #{rev.revision}</strong>
-                        <span style={{ color: "#6b7280", marginLeft: "0.5rem" }}>
+                        <span style={{ color: "#4f6862", marginLeft: "6px" }}>
                           {rev.recorded_at ? new Date(rev.recorded_at).toLocaleString("ja-JP") : "—"}
                         </span>
                       </div>
-                      {rev.summary && <p style={{ margin: "0.25rem 0" }}>サマリ: {rev.summary}</p>}
-                      {rev.notes && <p style={{ margin: "0.25rem 0" }}>特記事項: {rev.notes}</p>}
+                      {rev.summary && <p style={{ margin: "2px 0" }}>サマリ: {rev.summary}</p>}
+                      {rev.notes && <p style={{ margin: "2px 0" }}>特記事項: {rev.notes}</p>}
                     </div>
                   ))}
                 </div>
@@ -269,78 +361,6 @@ export function PatientDetailView({
           </>
         )}
       </Panel>
-
-      {/* 臨床プロファイル（薬歴からの投影）パネル */}
-      {(medicalProfile || medicalProfileFetchError) && (
-        <Panel>
-          <SectionHeading>臨床プロファイル（薬歴投影）</SectionHeading>
-          {medicalProfileFetchError ? (
-            <div style={{ marginTop: "1rem" }}>
-              <Alert tone="error">
-                臨床プロファイルの取得に失敗しました: {medicalProfileFetchError}
-              </Alert>
-            </div>
-          ) : medicalProfile ? (
-            <>
-              <Paragraph>薬歴から自動構築された臨床情報の現在値です。</Paragraph>
-
-          <Cards>
-            <div style={{ padding: "1rem", border: "1px solid #e5e7eb", borderRadius: "8px" }}>
-              <strong style={{ display: "block", marginBottom: "0.5rem" }}>アレルギー</strong>
-              {medicalProfile.allergies.length > 0 ? (
-                <ul style={{ margin: 0, paddingInlineStart: "1.25rem" }}>
-                  {medicalProfile.allergies.map((a, i) => (
-                    <li key={i}>{a.allergen} {a.reaction && `(${a.reaction})`}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p style={{ color: "#6b7280", margin: 0 }}>特記事項なし</p>
-              )}
-            </div>
-
-            <div style={{ padding: "1rem", border: "1px solid #e5e7eb", borderRadius: "8px" }}>
-              <strong style={{ display: "block", marginBottom: "0.5rem" }}>副作用歴</strong>
-              {medicalProfile.adverse_reactions.length > 0 ? (
-                <ul style={{ margin: 0, paddingInlineStart: "1.25rem" }}>
-                  {medicalProfile.adverse_reactions.map((r, i) => (
-                    <li key={i}>{r.medicine_name} {r.symptom && `(${r.symptom})`}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p style={{ color: "#6b7280", margin: 0 }}>特記事項なし</p>
-              )}
-            </div>
-
-            <div style={{ padding: "1rem", border: "1px solid #e5e7eb", borderRadius: "8px" }}>
-              <strong style={{ display: "block", marginBottom: "0.5rem" }}>既往歴</strong>
-              {medicalProfile.medical_conditions.length > 0 ? (
-                <ul style={{ margin: 0, paddingInlineStart: "1.25rem" }}>
-                  {medicalProfile.medical_conditions.map((c, i) => (
-                    <li key={i}>{c.condition_name} ({c.condition_status})</li>
-                  ))}
-                </ul>
-              ) : (
-                <p style={{ color: "#6b7280", margin: 0 }}>特記事項なし</p>
-              )}
-            </div>
-
-            <div style={{ padding: "1rem", border: "1px solid #e5e7eb", borderRadius: "8px" }}>
-              <strong style={{ display: "block", marginBottom: "0.5rem" }}>継続中の併用薬</strong>
-              {medicalProfile.active_concurrent_medications.length > 0 ? (
-                <ul style={{ margin: 0, paddingInlineStart: "1.25rem" }}>
-                  {medicalProfile.active_concurrent_medications.map((m, i) => (
-                    <li key={i}>{m.medicine_name} ({m.category})</li>
-                  ))}
-                </ul>
-              ) : (
-                <p style={{ color: "#6b7280", margin: 0 }}>特記事項なし</p>
-              )}
-            </div>
-          </Cards>
-            </>
-          ) : null}
-        </Panel>
-      )}
     </Stack>
   );
 }
