@@ -1,16 +1,26 @@
 // Shared, read-only quality entry point for manual runs, CI and agent hooks.
+import type { ChildProcess } from "node:child_process";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { createConnection } from "node:net";
-import { dirname, resolve, relative } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadSpecification } from "./quality-spec.mjs";
-import { acceptanceEvidence, failureFeedback } from "./quality-feedback.mjs";
+import { acceptanceEvidence, failureFeedback } from "./quality-feedback.mts";
+import { loadSpecification } from "./quality-spec.mts";
+import type {
+  ExecutionResult,
+  Executor,
+  ProcessOptions,
+  QualityReport,
+  QualityTask,
+  Specification,
+} from "./types.mts";
+import { processError } from "./types.mts";
 
 export const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 
-export function scopesFor(paths) {
-  const scopes = new Set();
+export function scopesFor(paths: string[]): string[] {
+  const scopes = new Set<string>();
   for (const path of paths) {
     if (/^(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.python-version|compose\.yaml|\.dockerignore|\.env.*)$/.test(path) || path.startsWith(".github/")) {
       for (const scope of ["backend", "frontend", "scripts"]) scopes.add(scope);
@@ -23,22 +33,22 @@ export function scopesFor(paths) {
   return [...scopes].sort();
 }
 
-export function requireSpecificationForScope(required, scopes) {
+export function requireSpecificationForScope(required: boolean, scopes: string[]): boolean {
   return Boolean(required && scopes.length > 0);
 }
 
-function nodeTests(folder, root = ROOT) {
+function nodeTests(folder: string, root = ROOT): string[] {
   return readdirSync(resolve(root, folder), { recursive: true, withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".test.mjs"))
+    .filter((entry) => entry.isFile() && /\.test\.(?:mjs|mts)$/.test(entry.name))
     .map((entry) => relative(root, resolve(entry.parentPath, entry.name)).replaceAll("\\", "/"))
     .sort();
 }
 
-export function planFor(scopes, phase = "full") {
-  const plan = [];
-  const pnpm = (label, ...args) => plan.push({ label, command: "pnpm", args });
-  const uv = (label, ...args) => plan.push({ label, command: "uv", args: ["run", "--project", "backend", "--locked", ...args] });
-  const node = (label, args, options = {}) => plan.push({ label, command: process.execPath, args, ...options });
+export function planFor(scopes: string[], phase = "full"): QualityTask[] {
+  const plan: QualityTask[] = [];
+  const pnpm = (label: string, ...args: string[]) => plan.push({ label, command: "pnpm", args });
+  const uv = (label: string, ...args: string[]) => plan.push({ label, command: "uv", args: ["run", "--project", "backend", "--locked", ...args] });
+  const node = (label: string, args: string[], options: Partial<QualityTask> = {}) => plan.push({ label, command: process.execPath, args, ...options });
 
   if (scopes.includes("backend")) {
     if (phase === "quick") {
@@ -63,10 +73,11 @@ export function planFor(scopes, phase = "full") {
   }
 
   if (scopes.includes("scripts")) {
+    pnpm("Tooling TypeScript types", "typecheck:tooling");
     if (phase === "full") {
       node("Development tooling tests", ["--test", "--test-timeout=60000", ...nodeTests("scripts")]);
     } else {
-      node("Quality runner syntax", ["--check", "scripts/checks/quality.mjs"]);
+      node("Quality runner syntax", ["--check", "scripts/checks/quality.mts"]);
     }
     uv("Tooling lint", "ruff", "check", "backend/tools");
     if (phase === "full") {
@@ -79,7 +90,7 @@ export function planFor(scopes, phase = "full") {
   return plan;
 }
 
-export function buildQualityPlan(scopes, specification, phase = "full") {
+export function buildQualityPlan(scopes: string[], specification: Specification, phase = "full"): QualityTask[] {
   const combinedScopes = [...new Set([...scopes, ...specification.scopes])];
   return [
     ...specification.tasks,
@@ -87,8 +98,8 @@ export function buildQualityPlan(scopes, specification, phase = "full") {
   ];
 }
 
-export function changedPaths(root = ROOT) {
-  const collect = (args) => {
+export function changedPaths(root = ROOT): string[] {
+  const collect = (args: string[]) => {
     const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
     if (result.status !== 0) throw new Error(result.stderr || "Cannot inspect Git changes");
     return result.stdout.split("\0").filter(Boolean);
@@ -99,9 +110,9 @@ export function changedPaths(root = ROOT) {
   ])].sort();
 }
 
-export function executeAsync(command, args, options = {}) {
-  return new Promise((resolve) => {
-    let child;
+export function executeAsync(command: string, args: string[], options: ProcessOptions = {}): Promise<ExecutionResult> {
+  return new Promise((resolveResult) => {
+    let child: ChildProcess;
     let stdout = "";
     let stderr = "";
     try {
@@ -112,47 +123,54 @@ export function executeAsync(command, args, options = {}) {
         stdio: ["ignore", "pipe", "pipe"],
       });
     } catch (error) {
-      resolve({ status: null, error, stdout: "", stderr: "" });
+      resolveResult({ status: null, error: processError(error), stdout: "", stderr: "" });
       return;
     }
     const maxBuffer = options.maxBuffer ?? 16 * 1024 * 1024;
     child.stdout?.setEncoding("utf8");
     child.stderr?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk) => {
-      stdout += chunk;
+    child.stdout?.on("data", (chunk: string | Buffer) => {
+      stdout += String(chunk);
       if (stdout.length + stderr.length > maxBuffer) {
         child.kill();
-        resolve({ status: null, error: new Error("maxBuffer exceeded"), stdout, stderr });
+        resolveResult({ status: null, error: new Error("maxBuffer exceeded"), stdout, stderr });
       }
     });
-    child.stderr?.on("data", (chunk) => {
-      stderr += chunk;
+    child.stderr?.on("data", (chunk: string | Buffer) => {
+      stderr += String(chunk);
       if (stdout.length + stderr.length > maxBuffer) {
         child.kill();
-        resolve({ status: null, error: new Error("maxBuffer exceeded"), stdout, stderr });
+        resolveResult({ status: null, error: new Error("maxBuffer exceeded"), stdout, stderr });
       }
     });
-    let timer;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     if (options.timeout) {
       timer = setTimeout(() => {
-        const timeoutError = new Error("ETIMEDOUT");
+        const timeoutError: NodeJS.ErrnoException = new Error("ETIMEDOUT");
         timeoutError.code = "ETIMEDOUT";
         child.kill();
-        resolve({ status: null, error: timeoutError, stdout, stderr });
+        resolveResult({ status: null, error: timeoutError, stdout, stderr });
       }, options.timeout);
     }
     child.on("error", (error) => {
       if (timer) clearTimeout(timer);
-      resolve({ status: null, error, stdout, stderr });
+      resolveResult({ status: null, error, stdout, stderr });
     });
     child.on("close", (status) => {
       if (timer) clearTimeout(timer);
-      resolve({ status, error: null, stdout, stderr });
+      resolveResult({ status, error: null, stdout, stderr });
     });
   });
 }
 
-function recordTaskResult(report, index, task, result, started, save) {
+function recordTaskResult(
+  report: QualityReport,
+  index: number,
+  task: QualityTask,
+  result: ExecutionResult,
+  started: number,
+  save: () => void,
+): boolean {
   Object.assign(report.tasks[index], {
     status: result.error?.code === "ETIMEDOUT" ? "timeout"
       : result.error ? "start_error" : result.status === 0 ? "passed" : "failed",
@@ -183,7 +201,7 @@ function recordTaskResult(report, index, task, result, started, save) {
   return report.tasks[index].status !== "passed";
 }
 
-export function postgresConnectionTarget(env = process.env) {
+export function postgresConnectionTarget(env: NodeJS.ProcessEnv = process.env): { host: string; port: number } {
   const urlString = env.TEST_DATABASE_URL;
   if (urlString) {
     try {
@@ -201,7 +219,11 @@ export function postgresConnectionTarget(env = process.env) {
   return { host, port };
 }
 
-export function checkPostgresReachable(hostOrTarget = postgresConnectionTarget(), portOrTimeout = 5432, maybeTimeout = 500) {
+export function checkPostgresReachable(
+  hostOrTarget: string | { host?: string; port?: number } = postgresConnectionTarget(),
+  portOrTimeout = 5432,
+  maybeTimeout = 500,
+): Promise<boolean> {
   let host = "127.0.0.1";
   let port = 5432;
   let timeoutMs = 500;
@@ -214,14 +236,14 @@ export function checkPostgresReachable(hostOrTarget = postgresConnectionTarget()
     port = Number(portOrTimeout || 5432);
     timeoutMs = typeof maybeTimeout === "number" ? maybeTimeout : 500;
   }
-  return new Promise((resolve) => {
+  return new Promise((resolveReachable) => {
     const socket = createConnection({ host, port });
     let settled = false;
-    const done = (ok) => {
+    const done = (ok: boolean) => {
       if (!settled) {
         settled = true;
         socket.destroy();
-        resolve(ok);
+        resolveReachable(ok);
       }
     };
     socket.setTimeout(timeoutMs);
@@ -231,15 +253,20 @@ export function checkPostgresReachable(hostOrTarget = postgresConnectionTarget()
   });
 }
 
-export function taskResource(task) {
+export function taskResource(task: Pick<QualityTask, "resource" | "layer">): string | null {
   if (task.resource) return task.resource;
   if (task.layer === "postgres" || task.layer === "integration") return "postgres-db";
   return null;
 }
 
-export function runPlan(plan, execute = spawnSync, reportPath = null, { concurrency = 1 } = {}) {
+export function runPlan(
+  plan: QualityTask[],
+  execute: Executor = spawnSync as Executor,
+  reportPath: string | null = null,
+  { concurrency = 1 }: { concurrency?: number } = {},
+): number | Promise<number> {
   let failed = false;
-  const report = {
+  const report: QualityReport = {
     version: 1,
     status: "not_run",
     excludedLayers: ["postgres", "browser"]
@@ -255,23 +282,32 @@ export function runPlan(plan, execute = spawnSync, reportPath = null, { concurre
   save();
   const temporary = resolve(ROOT, "tmp/quality");
   mkdirSync(temporary, { recursive: true });
-  const execOptions = {
+  const execOptions: ProcessOptions = {
     cwd: ROOT,
     stdio: "pipe",
     encoding: "utf8",
     maxBuffer: 16 * 1024 * 1024,
     timeout: 300_000,
-    env: { ...process.env, UV_CACHE_DIR: process.env.UV_CACHE_DIR?.trim() || resolve(ROOT, ".cache/uv"), PYTHONPYCACHEPREFIX: resolve(ROOT, ".cache/python"), MYPY_CACHE_DIR: resolve(ROOT, ".cache/mypy"), RUFF_CACHE_DIR: resolve(ROOT, ".cache/ruff"), TMP: temporary, TEMP: temporary, TMPDIR: temporary },
+    env: {
+      ...process.env,
+      UV_CACHE_DIR: process.env.UV_CACHE_DIR?.trim() || resolve(ROOT, ".cache/uv"),
+      PYTHONPYCACHEPREFIX: resolve(ROOT, ".cache/python"),
+      MYPY_CACHE_DIR: resolve(ROOT, ".cache/mypy"),
+      RUFF_CACHE_DIR: resolve(ROOT, ".cache/ruff"),
+      TMP: temporary,
+      TEMP: temporary,
+      TMPDIR: temporary,
+    },
   };
 
   if (concurrency > 1 || (execute && (execute === executeAsync || execute.constructor?.name === "AsyncFunction"))) {
     return (async () => {
-      const completed = new Set();
-      const inProgress = new Set();
-      const activeResources = new Set();
-      const waiters = new Set();
+      const completed = new Set<number>();
+      const inProgress = new Set<number>();
+      const activeResources = new Set<string>();
+      const waiters = new Set<() => void>();
 
-      function getNextTaskIndex() {
+      function getNextTaskIndex(): number {
         for (let i = 0; i < plan.length; i++) {
           if (completed.has(i) || inProgress.has(i)) continue;
           const resource = taskResource(plan[i]);
@@ -293,11 +329,11 @@ export function runPlan(plan, execute = spawnSync, reportPath = null, { concurre
           const index = getNextTaskIndex();
           if (index === -1) {
             if (completed.size === plan.length) break;
-            await new Promise((wake) => waiters.add(wake));
+            await new Promise<void>((wake) => waiters.add(wake));
             continue;
           }
           const task = plan[index];
-          let result;
+          let result: ExecutionResult | undefined;
           const started = Date.now();
           try {
             if ((task.layer === "postgres" || task.layer === "integration") && (execute === executeAsync || execute === spawnSync)) {
@@ -331,7 +367,7 @@ export function runPlan(plan, execute = spawnSync, reportPath = null, { concurre
       }
       const workers = Array.from(
         { length: Math.min(concurrency, Math.max(1, plan.length)) },
-        () => worker()
+        () => worker(),
       );
       await Promise.all(workers);
       return Number(failed);
@@ -344,13 +380,17 @@ export function runPlan(plan, execute = spawnSync, reportPath = null, { concurre
     const result = execute(invocation.command, invocation.args, {
       ...execOptions,
       shell: invocation.shell,
-    });
+    }) as ExecutionResult;
     if (recordTaskResult(report, index, task, result, started, save)) failed = true;
   }
   return Number(failed);
 }
 
-export function invocationFor(task, platform = process.platform, npmExecPath = process.env.npm_execpath) {
+export function invocationFor(
+  task: Pick<QualityTask, "command" | "args">,
+  platform = process.platform,
+  npmExecPath = process.env.npm_execpath,
+): { command: string; args: string[]; shell: boolean } {
   if (task.command === "pnpm" && npmExecPath) {
     return /\.[cm]?js$/i.test(npmExecPath)
       ? { command: process.execPath, args: [npmExecPath, ...task.args], shell: false }
@@ -363,7 +403,7 @@ export function invocationFor(task, platform = process.platform, npmExecPath = p
   return { ...task, shell: false };
 }
 
-export async function main(args) {
+export async function main(args: string[]): Promise<number> {
   const phaseIndex = args.indexOf("--phase");
   const phase = phaseIndex < 0 ? "full" : args[phaseIndex + 1];
   const scopeIndex = args.indexOf("--scope");
@@ -398,7 +438,7 @@ export async function main(args) {
     : concurrencyIndex >= 0
       ? parseInt(args[concurrencyIndex + 1], 10)
       : (args.includes("--parallel") || phase === "full" ? 4 : 1);
-  const executor = concurrency > 1 ? executeAsync : spawnSync;
+  const executor: Executor = concurrency > 1 ? executeAsync : (spawnSync as Executor);
   return await runPlan(plan, executor, reportIndex >= 0 ? resolve(args[reportIndex + 1]) : null, { concurrency });
 }
 
@@ -406,7 +446,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     process.exitCode = await main(process.argv.slice(2));
   } catch (error) {
-    console.error(error.message);
+    console.error(processError(error).message);
     process.exitCode = 1;
   }
 }

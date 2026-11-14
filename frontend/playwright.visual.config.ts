@@ -15,7 +15,7 @@ export default defineConfig({
     viewport: { width: 1280, height: 900 },
   },
   webServer: {
-    command: "node scripts/serve-storybook.mjs",
+    command: "node scripts/serve-storybook.ts",
     url: "http://127.0.0.1:6007",
     reuseExistingServer: false,
     gracefulShutdown: { signal: "SIGTERM", timeout: 1000 },

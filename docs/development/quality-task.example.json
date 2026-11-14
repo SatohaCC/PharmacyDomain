@@ -8,7 +8,7 @@
       "checks": [
         {
           "kind": "node",
-          "path": "scripts/checks/quality-spec.test.mjs"
+          "path": "scripts/checks/quality-spec.test.mts"
         }
       ]
     },

@@ -27,7 +27,7 @@ def _lint(
             "scripts"
         ]
         command = shlex.split(scripts["lint:boundaries"])
-        assert command[:3] == ["node", "../scripts/backend.mjs", "run"]
+        assert command[:3] == ["node", "../scripts/backend.mts", "run"]
         arguments = command[3:]
         for layer in ("domain", "application"):
             (tmp_path / "app" / layer).mkdir(parents=True, exist_ok=True)

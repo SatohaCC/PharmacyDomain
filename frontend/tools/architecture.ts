@@ -1,9 +1,25 @@
 import path from "node:path";
 
-const normal = (value) => value.replaceAll("\\", "/");
+interface ImportExportNode {
+  type: string;
+  exportKind?: string;
+  source?: { value?: unknown } | null;
+  specifiers?: { exportKind?: string }[];
+}
+
+interface RuleContext {
+  filename: string;
+  report: (descriptor: {
+    node: ImportExportNode;
+    messageId: string;
+    data: { reason: string };
+  }) => void;
+}
+
+const normal = (value: string): string => value.replaceAll("\\", "/");
 const libraryPattern = /^(react-aria(?:-components)?|@react-aria\/|@stylexjs\/)/;
 
-export function violation(filename, source) {
+export function violation(filename: string, source: string): string | undefined {
   const file = normal(filename);
   const target = source.startsWith(".")
     ? normal(path.resolve(path.dirname(filename), source))
@@ -84,7 +100,11 @@ export function violation(filename, source) {
   return undefined;
 }
 
-function isAllowedAriaReexport(filename, node, sourceValue) {
+function isAllowedAriaReexport(
+  filename: string,
+  node: ImportExportNode,
+  sourceValue: string,
+): boolean {
   return (
     node.type === "ExportNamedDeclaration" &&
     node.exportKind !== "type" &&
@@ -102,8 +122,8 @@ export const architecturePlugin = {
         schema: [],
         messages: { boundary: "{{reason}}" },
       },
-      create(context) {
-        const check = (node) => {
+      create(context: RuleContext) {
+        const check = (node: ImportExportNode) => {
           const source =
             node.source ||
             (node.type === "ImportExpression" ? node.source : undefined);

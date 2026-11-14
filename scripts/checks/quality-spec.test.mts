@@ -1,19 +1,45 @@
 import assert from "node:assert/strict";
-import test from "node:test";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { specificationPlan, loadSpecification } from "./quality-spec.mjs";
-import { acceptanceEvidence, failureFeedback } from "./quality-feedback.mjs";
-import { runPlan } from "./quality.mjs";
+import test from "node:test";
+import { acceptanceEvidence, failureFeedback } from "./quality-feedback.mts";
+import { loadSpecification, specificationPlan } from "./quality-spec.mts";
 
-function fixture(run) {
+interface TestCheck {
+  kind: string;
+  path?: string;
+  test?: string;
+  name?: string;
+}
+
+interface TestRequirement {
+  id: string;
+  acceptance: string;
+  checks: TestCheck[];
+}
+
+interface TestSpecification {
+  version: number;
+  task: string;
+  requirements: TestRequirement[];
+}
+
+function fixture(run: (root: string, spec: TestSpecification, check: TestCheck) => void): void {
   const root = mkdtempSync(join(tmpdir(), "quality-spec-"));
   mkdirSync(join(root, "backend/tests"), { recursive: true });
   writeFileSync(join(root, "backend/tests/test_contract.py"), "# fixture");
-  const check = { kind: "python", path: "backend/tests/test_contract.py", test: "test_contract" };
-  const spec = { version: 1, task: "contract", requirements: [{ id: "R1", acceptance: "reject unauthorized access", checks: [check] }] };
-  try { run(root, spec, check); } finally { rmSync(root, { recursive: true, force: true }); }
+  const check: TestCheck = { kind: "python", path: "backend/tests/test_contract.py", test: "test_contract" };
+  const spec: TestSpecification = {
+    version: 1,
+    task: "contract",
+    requirements: [{ id: "R1", acceptance: "reject unauthorized access", checks: [check] }],
+  };
+  try {
+    run(root, spec, check);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 }
 
 test("受入基準_変更パスに一致しない場合でもテストを選択し理由を保持する", () => fixture((root, spec) => {
@@ -73,25 +99,39 @@ test("失敗フィードバック_行番号変化時も安定した障害識別�
   const a = failureFeedback(task, "failed", "FAILED backend/tests/test_contract.py::test_access - AssertionError\n1 failed in 1.2s");
   const b = failureFeedback(task, "failed", "FAILED backend/tests/test_contract.py::test_access - AssertionError\n\n1 failed in 2.5s");
   const c = failureFeedback(task, "failed", "FAILED backend/tests/test_contract.py::test_other - AssertionError\n1 failed in 1.2s");
-  assert.ok(a.identity);
-  assert.equal(a.identity, b.identity);
-  assert.notEqual(a.identity, c.identity);
-  assert.deepEqual(a.requirements, ["R1"]);
+  assert.ok(a?.identity);
+  assert.equal(a?.identity, b?.identity);
+  assert.notEqual(a?.identity, c?.identity);
+  assert.deepEqual(a?.requirements, ["R1"]);
 });
 
 test("失敗フィードバック_Domain・Application・PostgreSQLに応じた専用ガイダンスを提供する", () => {
   const domainTask = { label: "Tooling architecture", requirements: ["D1"] };
   const domFeedback = failureFeedback(domainTask, "failed", "backend/app/domain/service.py:10: DOM001 Domain internal package is forbidden");
-  assert.equal(domFeedback.docs, ".agents/rules/domain.md");
-  assert.match(domFeedback.suggestion, /Domain層/);
+  assert.equal(domFeedback?.docs, ".agents/rules/domain.md");
+  assert.match(domFeedback?.suggestion ?? "", /Domain層/);
 
   const appTask = { label: "Tooling architecture", requirements: ["A1"] };
   const appFeedback = failureFeedback(appTask, "failed", "backend/app/application/usecase.py:20: APP001 UseCase violation");
-  assert.equal(appFeedback.docs, ".agents/rules/application.md");
-  assert.match(appFeedback.suggestion, /Application層/);
+  assert.equal(appFeedback?.docs, ".agents/rules/application.md");
+  assert.match(appFeedback?.suggestion ?? "", /Application層/);
 
   const dbTask = { label: "Acceptance: postgres", layer: "postgres", requirements: ["P1"] };
   const dbFeedback = failureFeedback(dbTask, "failed", "could not connect to server: Connection refused (0x0000274D/10061)");
-  assert.equal(dbFeedback.docs, "docs/development.md#実postgresqlの結合テスト");
-  assert.match(dbFeedback.suggestion, /pnpm db:up/);
+  assert.equal(dbFeedback?.docs, "docs/development.md#実postgresqlの結合テスト");
+  assert.match(dbFeedback?.suggestion ?? "", /pnpm db:up/);
+});
+
+test("受入証跡_Nodeテストランナーのℹサマリ出力から成功件数を抽出できる", () => {
+  const output = [
+    "✔ サンプルテスト (1.2ms)",
+    "ℹ tests 6",
+    "ℹ suites 0",
+    "ℹ pass 6",
+    "ℹ fail 0",
+    "ℹ cancelled 0",
+    "ℹ skipped 0",
+    "ℹ todo 0",
+  ].join("\n");
+  assert.deepEqual(acceptanceEvidence(output, "node"), { passed: 6, incomplete: false });
 });

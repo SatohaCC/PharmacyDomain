@@ -16,6 +16,8 @@
   "include": [
     "src",
     "tests",
+    "scripts",
+    "tools",
     "vite.config.ts",
     "playwright.config.ts",
     ".storybook",

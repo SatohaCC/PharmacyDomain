@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "generate:api": "node scripts/generate-api.mjs",
+    "generate:api": "node scripts/generate-api.ts",
     "storybook": "storybook dev --host 127.0.0.1 -p 6006 --no-open --disable-telemetry",
     "build:storybook": "storybook build --disable-telemetry",
     "test:stories": "vitest run --config vitest.storybook.config.ts",

@@ -435,7 +435,7 @@ def test_ファイル編集後_ターンごとにファイル別カウントを�
     from tools.hooks import quality_gate as gate
 
     first = tmp_path / "backend/app/main.py"
-    second = tmp_path / "scripts/checks/quality.mjs"
+    second = tmp_path / "scripts/checks/quality.mts"
     first.parent.mkdir(parents=True)
     second.parent.mkdir(parents=True)
     first.write_text("private source contents", encoding="utf-8")
@@ -466,7 +466,7 @@ def test_ファイル編集後_ターンごとにファイル別カウントを�
     assert isinstance(raw_output, dict)
     warning = str(raw_output.get("additionalContext"))
     assert "backend/app/main.py" in warning
-    assert "scripts/checks/quality.mjs" in warning
+    assert "scripts/checks/quality.mts" in warning
 
     states = [
         json.loads(path.read_text(encoding="utf-8"))
@@ -474,12 +474,12 @@ def test_ファイル編集後_ターンごとにファイル別カウントを�
     ]
     assert len(states) == 2
     assert all(
-        set(state["counts"]) == {"backend/app/main.py", "scripts/checks/quality.mjs"}
+        set(state["counts"]) == {"backend/app/main.py", "scripts/checks/quality.mts"}
         for state in states
     )
     assert sorted(state["counts"]["backend/app/main.py"] for state in states) == [4, 5]
     assert sorted(
-        state["counts"]["scripts/checks/quality.mjs"] for state in states
+        state["counts"]["scripts/checks/quality.mts"] for state in states
     ) == [4, 5]
     serialized = " ".join(
         path.read_text(encoding="utf-8")

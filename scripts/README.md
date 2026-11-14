@@ -1,6 +1,6 @@
 # 開発ツールと品質検査（ハーネス）
 
-テスト本体とlint・型検査設定は`backend/`・`frontend/`が所有する。全エージェントが利用する共有CLIは`pnpm agent:check`で、実行計画は`scripts/checks/quality.mjs`が所有する。手動・CI・各エージェントのHook adapterはこのCLIから同じパッケージ検査を呼べる。
+テスト本体とlint・型検査設定は`backend/`・`frontend/`が所有する。全エージェントが利用する共有CLIは`pnpm agent:check`で、実行計画は`scripts/checks/quality.mts`が所有する。手動・CI・各エージェントのHook adapterはこのCLIから同じパッケージ検査を呼べる。
 
 | 場所 | 責務 |
 | --- | --- |
@@ -21,7 +21,7 @@ pnpm quality:changed --phase quick
 pnpm quality:changed --list   # 実行計画だけ表示
 pnpm agent:check --phase quick # エージェント共通の変更範囲検査（受入仕様必須）
 pnpm agent:check --report tmp/quality/result.json # 完了前の検査と構造化レポート
-node scripts/checks/verify-clean-checkout.mjs --ref <commit> # 指定commitを隔離worktreeでクリーン再検証
+node scripts/checks/verify-clean-checkout.mts --ref <commit> # 指定commitを隔離worktreeでクリーン再検証
 ```
 
 `full`は対象側のlint・format確認・型検査・単体テストを実行する。`quick`はlint・実行入口の構文確認に加え、backendではプロジェクトのMypyを実行する。失敗・起動不能・タイムアウトは非0で終了し、他の検査も続けて結果を表示する。一時ファイルはプロジェクト内のGit管理外領域（`tmp/quality`）を使い、uv cacheは`UV_CACHE_DIR`指定時にその場所、未指定時に`.cache/uv`を使う。
@@ -35,7 +35,7 @@ node scripts/checks/verify-clean-checkout.mjs --ref <commit> # 指定commitを�
 作業の受入条件を[仕様JSONの例](../docs/development/quality-task.example.json)の形式でテストへ対応付ける。`version: 1`、作業を示す`task`、要件ごとの一意な`id`・`acceptance`・空でない`checks`が必須。
 
 - `kind: python`は`backend/tests/`の既存テストを選ぶ。任意の`test`にpytestの関数・クラス・`TestClass::test_method`を指定できる。
-- `kind: node`は`scripts/`の既存`.test.mjs`を選ぶ。
+- `kind: node`は`scripts/`の既存`.test.mts`を選ぶ。
 - `kind: vitest`は`frontend/tests/`の既存テストを選ぶ。
 - `kind: suite, name: postgres`（または`integration`）は`pnpm test:integration`、`name: browser`は`pnpm test:e2e`を選ぶ。
 

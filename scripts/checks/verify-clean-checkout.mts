@@ -3,11 +3,29 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:f
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { invocationFor } from "./quality.mjs";
+import { invocationFor } from "./quality.mts";
+import type { QualityReport } from "./types.mts";
+
+interface Step {
+  label: string;
+  status: string;
+  exitCode: number | null;
+  error?: string;
+}
+
+interface CleanCheckoutRecord {
+  version: number;
+  status: string;
+  requestedRef: string;
+  commit: string;
+  steps: Step[];
+  quality?: QualityReport;
+  error?: string;
+}
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 
-function runGit(root, args) {
+function runGit(root: string, args: string[]): string {
   const result = spawnSync("git", args, {
     cwd: root,
     encoding: "utf8",
@@ -20,25 +38,28 @@ function runGit(root, args) {
   return result.stdout.trim();
 }
 
-export function isContained(parent, target) {
+export function isContained(parent: string, target: string): boolean {
   const child = relative(resolve(parent), resolve(target));
   return Boolean(child && child !== ".." && !child.startsWith(`..${sep}`) && !isAbsolute(child));
 }
 
-export function verificationUvCacheDirectory(worktreePath, {
-  offline = false,
-  configuredCacheDirectory,
-  defaultCacheDirectory,
-} = {}) {
+export function verificationUvCacheDirectory(
+  worktreePath: string,
+  {
+    offline = false,
+    configuredCacheDirectory,
+    defaultCacheDirectory,
+  }: { offline?: boolean; configuredCacheDirectory?: string; defaultCacheDirectory?: string } = {},
+): string {
   if (!offline) return join(worktreePath, ".cache/uv");
   const cacheDirectory = configuredCacheDirectory?.trim() || defaultCacheDirectory?.trim();
   if (!cacheDirectory) throw new Error("Offline clean-checkout verification requires an available uv cache");
   return cacheDirectory;
 }
 
-export function resolveCommit(root, ref) {
+export function resolveCommit(root: string, ref: string): string {
   if (typeof ref !== "string" || !ref.trim()) throw new Error("A Git commit or ref is required");
-  let revision;
+  let revision: string;
   try {
     revision = runGit(root, ["rev-parse", "--verify", "--end-of-options", String(ref) + "^{commit}"]);
   } catch (error) {
@@ -50,7 +71,7 @@ export function resolveCommit(root, ref) {
   return revision;
 }
 
-export function createCleanWorktree(root, ref, tempParent = tmpdir()) {
+export function createCleanWorktree(root: string, ref: string, tempParent = tmpdir()) {
   const repository = resolve(root);
   const revision = resolveCommit(repository, ref);
   const tempRoot = mkdtempSync(join(tempParent, "pharmacydomain-clean-checkout-"));
@@ -83,7 +104,14 @@ export function createCleanWorktree(root, ref, tempParent = tmpdir()) {
   };
 }
 
-function runStep(label, command, args, cwd, steps, { shell = false, env = process.env } = {}) {
+function runStep(
+  label: string,
+  command: string,
+  args: string[],
+  cwd: string,
+  steps: Step[],
+  { shell = false, env = process.env }: { shell?: boolean; env?: NodeJS.ProcessEnv } = {},
+): void {
   console.log(`[clean-checkout] ${label}`);
   const result = spawnSync(command, args, {
     cwd,
@@ -104,27 +132,27 @@ function runStep(label, command, args, cwd, steps, { shell = false, env = proces
   }
 }
 
-function pnpmInvocation(args) {
+function pnpmInvocation(args: string[]) {
   return invocationFor({ command: "pnpm", args }, process.platform, process.env.npm_execpath);
 }
 
-export function verifyCleanCheckout(ref, { offline = false } = {}) {
+export function verifyCleanCheckout(ref: string, { offline = false }: { offline?: boolean } = {}): CleanCheckoutRecord {
   const worktree = createCleanWorktree(ROOT, ref);
-  const steps = [];
-  const record = {
+  const steps: Step[] = [];
+  const record: CleanCheckoutRecord = {
     version: 1,
     status: "failed",
     requestedRef: ref,
     commit: worktree.revision,
     steps,
   };
-  let error = null;
+  let error: string | null = null;
   try {
     const configuredCachePath = process.env.UV_CACHE_DIR?.trim();
     const configuredCacheDirectory = configuredCachePath
       ? isAbsolute(configuredCachePath) ? configuredCachePath : resolve(ROOT, configuredCachePath)
       : undefined;
-    let defaultCacheDirectory;
+    let defaultCacheDirectory: string | undefined;
     if (offline && !configuredCacheDirectory) {
       const cacheEnvironment = { ...process.env };
       delete cacheEnvironment.UV_CACHE_DIR;
@@ -170,7 +198,7 @@ export function verifyCleanCheckout(ref, { offline = false } = {}) {
     });
     const fullReportPath = join(worktree.path, reportPath);
     if (!existsSync(fullReportPath)) throw new Error("Full quality report was not written");
-    record.quality = JSON.parse(readFileSync(fullReportPath, "utf8"));
+    record.quality = JSON.parse(readFileSync(fullReportPath, "utf8")) as QualityReport;
     if (record.quality.status !== "passed") throw new Error(`Full quality report status is ${record.quality.status}`);
     record.status = "passed";
   } catch (caught) {
@@ -186,11 +214,11 @@ export function verifyCleanCheckout(ref, { offline = false } = {}) {
   return record;
 }
 
-export function main(args = process.argv.slice(2)) {
+export function main(args = process.argv.slice(2)): number {
   const refIndex = args.indexOf("--ref");
   const ref = refIndex >= 0 ? args[refIndex + 1] : undefined;
   if (!ref || ref.startsWith("--")) {
-    console.error("Usage: node scripts/checks/verify-clean-checkout.mjs --ref <commit> [--offline]");
+    console.error("Usage: node scripts/checks/verify-clean-checkout.mts --ref <commit> [--offline]");
     return 1;
   }
   const offline = args.includes("--offline");

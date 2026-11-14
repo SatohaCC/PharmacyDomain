@@ -9,7 +9,7 @@
 通常のpnpmコマンドはPythonツールのキャッシュをルートの`.cache/`へ集約します。
 pytest・Mypy・Ruff・Import Linter・uv・Pythonのバイトコードをそれぞれのサブディレクトリに保存します。
 `UV_CACHE_DIR`を明示した場合はその場所を優先します。`.cache/`はGit管理外で、ツール停止中に削除して再生成できます。
-Pythonの実行にはpnpmコマンド、または`node scripts/backend.mjs run --project backend ...`を使います。
+Pythonの実行にはpnpmコマンド、または`node scripts/backend.mts run --project backend ...`を使います。
 生のPython実行やエディター独自の起動では、この実行入口の環境変数は適用されません。
 
 `app/`・`tests/`・`tools/`・`migrations/`でPythonモジュールを持つディレクトリは`__init__.py`を置きます。

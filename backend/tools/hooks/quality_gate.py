@@ -216,7 +216,7 @@ def main(event: dict[str, object]) -> dict[str, object]:
             quick_process = subprocess.run(
                 [
                     "node",
-                    str(ROOT / "scripts/checks/quality.mjs"),
+                    str(ROOT / "scripts/checks/quality.mts"),
                     "--scope",
                     scope,
                     "--phase",
@@ -307,7 +307,7 @@ def main(event: dict[str, object]) -> dict[str, object]:
             exit_code = subprocess.run(
                 [
                     "node",
-                    str(ROOT / "scripts/checks/quality.mjs"),
+                    str(ROOT / "scripts/checks/quality.mts"),
                     "--changed",
                     "--report",
                     str(report),

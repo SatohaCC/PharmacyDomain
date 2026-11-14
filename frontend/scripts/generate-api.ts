@@ -1,8 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import openapiTS, { astToString } from "openapi-typescript";
+import openapiTS, { astToString, type OpenAPI3 } from "openapi-typescript";
 import { format } from "prettier";
+
 const backend = fileURLToPath(new URL("../../backend/", import.meta.url));
 const output = execFileSync(
   "uv",
@@ -14,7 +15,7 @@ const output = execFileSync(
   ],
   { cwd: backend, encoding: "utf8", env: { ...process.env, PYTHONUTF8: "1" } },
 );
-const schema = JSON.parse(output);
+const schema = JSON.parse(output) as OpenAPI3;
 const dest = new URL(
   "../src/shared/api/generated/schema.d.ts",
   import.meta.url,

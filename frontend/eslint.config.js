@@ -1,7 +1,7 @@
 import js from "@eslint/js";
 import ts from "typescript-eslint";
 import hooks from "eslint-plugin-react-hooks";
-import { architecturePlugin } from "./tools/architecture.mjs";
+import { architecturePlugin } from "./tools/architecture.ts";
 export default ts.config(
   {
     ignores: [

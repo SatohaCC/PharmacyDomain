@@ -373,6 +373,6 @@ def test_標準lint_検査器と違反例テストを必ず実行する() -> Non
     assert "pnpm run lint:domain && pnpm run lint:domain:harness" in scripts["lint"]
     assert (
         scripts["lint:domain"]
-        == "node ../scripts/backend.mjs run python -m tools.check_domain_architecture"
+        == "node ../scripts/backend.mts run python -m tools.check_domain_architecture"
     )
     assert "tests/tools/test_domain_harness.py" in scripts["lint:domain:harness"]

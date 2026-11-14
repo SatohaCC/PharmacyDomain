@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
+import type { Evidence, Feedback, QualityTask } from "./types.mts";
 
-export function acceptanceEvidence(output, runner = "auto") {
+export function acceptanceEvidence(output: string, runner = "auto"): Evidence {
   output = output.replace(/\u001b\[[0-9;]*m/g, "");
-  const nodeSummary = [...output.matchAll(/^(?:#|✔)\s*tests\s+\d+/gm)].at(-1);
+  const nodeSummary = [...output.matchAll(/^(?:#|✔|ℹ)\s*tests\s+\d+/gm)].at(-1);
   if ((runner === "node" || runner === "auto") && nodeSummary) {
-    output = output.slice(nodeSummary.index);
+    output = output.slice(nodeSummary.index ?? 0);
   } else if (runner === "pytest") {
     const summary = output.split(/\r?\n/).filter((line) => /\b\d+ (?:passed|failed|skipped|xfailed|xpassed)\b/.test(line)).at(-1);
     if (summary) output = summary;
@@ -16,15 +17,19 @@ export function acceptanceEvidence(output, runner = "auto") {
     ? /\b(\d+) passed\b/g
     : runner === "vitest"
       ? /\b(\d+)\s+passed\b/gi
-      : /(?:\b(\d+) passed\b|(?:#|✔)\s*pass\s+(\d+))/g;
+      : /(?:\b(\d+) passed\b|(?:#|✔|ℹ)\s*pass\s+(\d+))/g;
   const passed = [...output.matchAll(passedPattern)]
     .reduce((total, match) => total + Number(match[1] ?? match[2]), 0);
-  const incomplete = [...output.matchAll(/(?:\b(\d+) (?:skipped|xfailed|xpassed|todo)\b|(?:#|✔)\s*(?:skipped|todo)\s+(\d+))/g)]
+  const incomplete = [...output.matchAll(/(?:\b(\d+) (?:skipped|xfailed|xpassed|todo)\b|(?:#|✔|ℹ)\s*(?:skipped|todo)\s+(\d+))/g)]
     .some((match) => Number(match[1] ?? match[2]) > 0);
   return { passed, incomplete };
 }
 
-export function failureFeedback(task, status, output = "") {
+export function failureFeedback(
+  task: Pick<QualityTask, "label" | "layer" | "testRunner" | "requirements">,
+  status: string,
+  output = "",
+): Feedback | null {
   if (status === "passed") return null;
   let docs = "docs/development.md";
   const diagnostics = [...new Set(output.replace(/\u001b\[[0-9;]*m/g, "").split(/\r?\n/).flatMap((line, index, lines) => {
@@ -43,7 +48,7 @@ export function failureFeedback(task, status, output = "") {
     return [];
   }))].sort();
 
-  let suggestion;
+  let suggestion: string;
   if (status === "incomplete") {
     suggestion = "テストの成功が確認できないか、skip/xfail/todoが残っています。テスト選定と実行条件を確認し、未完了の条件を成功とみなさないでください。";
   } else if (status === "start_error") {

@@ -1,8 +1,9 @@
-import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
-import { resolve, extname, sep } from "node:path";
+import { createServer } from "node:http";
+import { extname, resolve, sep } from "node:path";
+
 const root = resolve(import.meta.dirname, "../storybook-static");
-const types = {
+const types: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript",
   ".css": "text/css",
@@ -13,7 +14,7 @@ const types = {
 };
 const server = createServer(async (req, res) => {
   try {
-    const url = new URL(req.url, "http://localhost");
+    const url = new URL(req.url ?? "/", "http://localhost");
     const file = resolve(
       root,
       "." +

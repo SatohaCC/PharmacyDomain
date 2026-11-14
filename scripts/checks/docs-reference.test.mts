@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const GUIDES = [
@@ -17,7 +17,7 @@ const TRACKED_PATHS = new Set([
   ...execFileSync("git", ["ls-files", "--others", "--exclude-standard", "-z"], { cwd: ROOT, encoding: "utf8" }).split("\0").filter(Boolean),
 ]);
 
-function localMarkdownTargets(file) {
+function localMarkdownTargets(file: string) {
   const filePath = resolve(ROOT, file);
   if (!existsSync(filePath)) return [];
   const source = readFileSync(filePath, "utf8");

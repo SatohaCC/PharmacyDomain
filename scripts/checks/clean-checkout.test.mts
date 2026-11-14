@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createCleanWorktree, isContained, resolveCommit, verificationUvCacheDirectory } from "./verify-clean-checkout.mjs";
+import { createCleanWorktree, isContained, resolveCommit, verificationUvCacheDirectory } from "./verify-clean-checkout.mts";
 
 test("クリーンチェックアウト_オフライン時に設定済みまたは既定のuvキャッシュを再利用する", () => {
   assert.equal(
@@ -29,7 +29,7 @@ test("クリーンチェックアウト_オフライン時に設定済みまた�
   );
 });
 
-function runNodeTest(root, path) {
+function runNodeTest(root: string, path: string) {
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;
   return spawnSync(process.execPath, ["--test", path], { cwd: root, encoding: "utf8", env });
@@ -37,7 +37,7 @@ function runNodeTest(root, path) {
 
 function createRepository() {
   const root = mkdtempSync(join(tmpdir(), "clean-checkout-git-"));
-  const git = (...args) => execFileSync("git", args, { cwd: root, stdio: "pipe" });
+  const git = (...args: string[]) => execFileSync("git", args, { cwd: root, stdio: "pipe" });
   mkdirSync(root, { recursive: true });
   git("init", "--quiet");
   git("config", "user.name", "Quality Test");
@@ -52,7 +52,7 @@ test("クリーンワークツリー_指定コミットの内容を含みロー�
   const { root, git } = createRepository();
   const externalData = join(root, "local-only.data");
   writeFileSync(externalData, "not in the commit");
-  let worktree;
+  let worktree: ReturnType<typeof createCleanWorktree> | undefined;
   try {
     const revision = resolveCommit(root, "HEAD");
     worktree = createCleanWorktree(root, revision);
@@ -82,23 +82,23 @@ test("クリーンチェックアウト_未追跡のテスト入力を拒絶し�
     'import { readFileSync } from "node:fs";',
     'test("追跡済みフィクスチャを読み取る", () => assert.equal(readFileSync(new URL("./fixture.data", import.meta.url), "utf8"), "fixture"));',
   ].join("\n");
-  writeFileSync(join(root, "local-only.test.mjs"), localTest, "utf8");
-  writeFileSync(join(root, "fixture.test.mjs"), fixtureTest, "utf8");
+  writeFileSync(join(root, "local-only.test.mts"), localTest, "utf8");
+  writeFileSync(join(root, "fixture.test.mts"), fixtureTest, "utf8");
   writeFileSync(join(root, "fixture.data"), "fixture", "utf8");
   writeFileSync(join(root, "local-only.data"), "local", "utf8");
-  git("add", "local-only.test.mjs", "fixture.test.mjs", "fixture.data");
+  git("add", "local-only.test.mts", "fixture.test.mts", "fixture.data");
   git("-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "--quiet", "--no-verify", "-m", "clean checkout inputs");
 
-  let worktree;
+  let worktree: ReturnType<typeof createCleanWorktree> | undefined;
   try {
-    const localResult = runNodeTest(root, "local-only.test.mjs");
-    const fixtureResult = runNodeTest(root, "fixture.test.mjs");
+    const localResult = runNodeTest(root, "local-only.test.mts");
+    const fixtureResult = runNodeTest(root, "fixture.test.mts");
     assert.equal(localResult.status, 0, localResult.stderr);
     assert.equal(fixtureResult.status, 0, fixtureResult.stderr);
 
     worktree = createCleanWorktree(root, "HEAD");
-    const isolatedLocalResult = runNodeTest(worktree.path, "local-only.test.mjs");
-    const isolatedFixtureResult = runNodeTest(worktree.path, "fixture.test.mjs");
+    const isolatedLocalResult = runNodeTest(worktree.path, "local-only.test.mts");
+    const isolatedFixtureResult = runNodeTest(worktree.path, "fixture.test.mts");
     assert.notEqual(isolatedLocalResult.status, 0, "untracked input must fail in clean worktree");
     assert.equal(isolatedFixtureResult.status, 0, isolatedFixtureResult.stderr);
   } finally {
