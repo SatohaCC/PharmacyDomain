@@ -103,13 +103,28 @@ def test_修復状態_同一診断結果の場合はソース変更があって�
     assert state["repeated_failures"] == 3
 
 
+def test_変更なし時_Stopは品質ランナーを起動せず即終了する(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tools.hooks import quality_gate as gate
+
+    monkeypatch.setattr(gate, "ROOT", tmp_path)
+    monkeypatch.setattr(gate, "changed_paths", lambda root: [])
+
+    def fail_if_called(*args: object, **kwargs: object) -> SimpleNamespace:
+        raise AssertionError(f"subprocess.run should not be called: {args}")
+
+    monkeypatch.setattr(subprocess, "run", fail_if_called)
+    assert gate.main({"hook_event_name": "Stop"}) == {}
+
+
 def test_タスク仕様変更時_Stopの成功レシートを無効化する(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stop_context: list[str]
 ) -> None:
     from tools.hooks import quality_gate as gate
 
     monkeypatch.setattr(gate, "ROOT", tmp_path)
-    monkeypatch.setattr(gate, "changed_paths", lambda root: [])
+    monkeypatch.setattr(gate, "changed_paths", lambda root: ["changed.py"])
     calls: list[object] = []
 
     def execute(*args: object, **kwargs: object) -> SimpleNamespace:
@@ -136,7 +151,7 @@ def test_ランナーインフラ障害時_レシートに失敗状態が記録�
     from tools.hooks import quality_gate as gate
 
     monkeypatch.setattr(gate, "ROOT", tmp_path)
-    monkeypatch.setattr(gate, "changed_paths", lambda root: [])
+    monkeypatch.setattr(gate, "changed_paths", lambda root: ["changed.py"])
 
     directory = tmp_path / ".agents/work/.hooks"
     directory.mkdir(parents=True)
@@ -223,7 +238,7 @@ def test_検証中の設定変更時_成功をブロックする(
     from tools.hooks import quality_gate as gate
 
     monkeypatch.setattr(gate, "ROOT", tmp_path)
-    monkeypatch.setattr(gate, "changed_paths", lambda root: [])
+    monkeypatch.setattr(gate, "changed_paths", lambda root: ["changed.py"])
 
     def execute(*args: object, **kwargs: object) -> SimpleNamespace:
         stop_context[0] = "changed-configuration"
@@ -500,7 +515,7 @@ def test_編集カウント_ブロックされたStopを生き残り許可され
     monkeypatch.setattr(gate, "ROOT", tmp_path)
     monkeypatch.setattr(gate, "edited_paths", lambda event: [source])
     monkeypatch.setattr(gate, "format_python", lambda event: 0)
-    monkeypatch.setattr(gate, "changed_paths", lambda root: [])
+    monkeypatch.setattr(gate, "changed_paths", lambda root: ["backend/app/main.py"])
     stop_state = {"running": False, "exit_code": 1}
 
     def execute(*args: object, **kwargs: object) -> SimpleNamespace:
